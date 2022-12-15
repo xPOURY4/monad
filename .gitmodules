@@ -2,3 +2,6 @@
 	path = third_party/intx
 	url = https://github.com/chfast/intx.git
 	branch = master
+[submodule "third_party/ethash"]
+	path = third_party/ethash
+	url = https://github.com/monad-crypto/ethash.git
