@@ -6,6 +6,27 @@ include(CableBuildInfo)
 project(monad)
 
 ############
+### conan
+############
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
+
+include(${PROJECT_SOURCE_DIR}/conan/cmake-conan/conan.cmake)
+
+conan_cmake_autodetect(settings)
+
+conan_cmake_install(
+    PATH_OR_REFERENCE ${PROJECT_SOURCE_DIR}/conan/conanfile.txt
+    BUILD missing
+    ENV CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER}
+    SETTINGS ${settings}
+)
+
+find_package(RocksDB)
+
+
+############
 ### deps
 ############
 
@@ -29,11 +50,13 @@ function(monad_compile_options target)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
 endfunction()
 
+
 ############
 ### unit tests
 ############
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/monad/rlp/test)
+
 
 ############
 ### libs
@@ -74,7 +97,7 @@ target_include_directories(monad
 target_link_libraries(monad
     PRIVATE Boost::fiber
     PRIVATE PkgConfig::brotli
-    PRIVATE rocksdb  # TODO pkgconfig
+    PRIVATE RocksDB::RocksDB
 
     PUBLIC evmc
     PUBLIC intx::intx
