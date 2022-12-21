@@ -8,3 +8,6 @@
 	path = third_party/intx
 	url = https://github.com/chfast/intx.git
 	branch = master
+[submodule "conan/cmake-conan"]
+	path = conan/cmake-conan
+	url = https://github.com/conan-io/cmake-conan.git
