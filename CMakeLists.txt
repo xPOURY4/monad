@@ -5,6 +5,9 @@ include(CableBuildInfo)
 
 project(monad)
 
+option(ASAN  "Turn on Address Sanitizer")
+option(UBSAN "Turn on Undefined Behavior Sanitizer")
+
 ############
 ### conan
 ############
@@ -108,14 +111,17 @@ target_link_libraries(monad
     PUBLIC evmc
     PUBLIC intx::intx
 )
-target_link_options(monad
-    PRIVATE LINKER:-z,defs
-)
 monad_compile_options(monad)
 
-# rlp
-add_library(rlp STATIC
-    ${PROJECT_SOURCE_DIR}/include/monad/rlp/rlp.hpp
-)
-target_link_libraries(rlp PUBLIC monad)
+if(ASAN)
+  message("Address Sanitizer: On")
+  target_compile_options(monad PUBLIC "-fsanitize=address" "-fno-omit-frame-pointer")
+  target_link_options(monad PUBLIC "-fsanitize=address")
+elseif(UBSAN)
+  message("Undefined Behavior Sanitizer: On")
+  target_compile_options(monad PUBLIC "-fsanitize=undefined" "-fno-omit-frame-pointer")
+  target_link_options(monad PUBLIC "-fsanitize=undefined")
+else()
+  target_link_options(monad PRIVATE LINKER:-z,defs)
+endif()
 
