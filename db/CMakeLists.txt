@@ -20,8 +20,11 @@ endfunction()
 ############
 
 add_library(monad_trie STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/data.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node.h
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/update.h
     ${PROJECT_SOURCE_DIR}/src/trie/node.c
+    ${PROJECT_SOURCE_DIR}/src/trie/update.c
 )
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include
