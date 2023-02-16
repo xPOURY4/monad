@@ -11,7 +11,7 @@ extern "C"
 void upsert(
     trie_branch_node_t *root, unsigned char *path, unsigned char path_len,
     trie_data_t *);
-void delete(
+void erase(
     trie_branch_node_t *root, unsigned char *path, unsigned char path_len);
 
 #ifdef __cplusplus
