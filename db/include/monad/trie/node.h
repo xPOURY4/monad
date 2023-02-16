@@ -24,8 +24,8 @@ typedef struct trie_branch_node_t
 {
     trie_node_type_t type;
 
-    unsigned char prefix_len;
-    unsigned char prefix[32];
+    unsigned char path_len;
+    unsigned char path[32];
 
     char pad[6];
 
@@ -42,8 +42,8 @@ typedef struct trie_leaf_node_t
 {
     trie_node_type_t type;
 
-    unsigned char prefix_len;
-    unsigned char prefix[32];
+    unsigned char path_len;
+    unsigned char path[32];
 
     char pad[6];
 
