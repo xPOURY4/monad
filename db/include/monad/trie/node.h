@@ -1,9 +1,9 @@
 #pragma once
 
+#include <monad/trie/config.h>
 #include <monad/trie/data.h>
 
 #include <assert.h>
-#include <limits.h>
 #include <stdalign.h>
 #include <stdint.h>
 
@@ -11,8 +11,6 @@
 extern "C"
 {
 #endif
-
-static_assert(CHAR_BIT == 8);
 
 typedef enum trie_node_type_t
     : unsigned char

@@ -1,7 +1,8 @@
 #pragma once
 
+#include <monad/trie/config.h>
+
 #include <assert.h>
-#include <limits.h>
 #include <stdalign.h>
 #include <stdint.h>
 
@@ -9,8 +10,6 @@
 extern "C"
 {
 #endif
-
-static_assert(CHAR_BIT == 8);
 
 typedef union trie_data_t
 {
