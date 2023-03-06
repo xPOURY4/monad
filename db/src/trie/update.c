@@ -50,6 +50,50 @@ void update_ancestors(
     }
 }
 
+/*
+   Erase a node from node_stack[parent_si] with branch idx `to_erase`, if only
+   one child left after the erase, merge child to parent. Update ancesters
+   iteratively whenever new node is created.
+*/
+void erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
+{
+    if (parent_si < 0) {
+        return;
+    }
+
+    trie_branch_node_t *parent = node_stack[parent_si].node;
+    unsigned char to_erase = node_stack[parent_si].nibble;
+
+    trie_branch_node_t *new_parent;
+
+    if (parent->nsubnodes - 1 <= 1 && parent->path_len != 0) {
+        unsigned char only_child =
+            ffs(parent->subnode_bitmask & ~(0x01 << to_erase)) - 1;
+        bool persistent = parent->fnext[only_child];
+
+        // make the only child the new_parent
+        new_parent = (trie_branch_node_t *)parent->next[only_child];
+        update_ancestors(new_parent, persistent, node_stack, parent_si - 1);
+
+        // free the replaced mutable parent
+        if (!node_stack[parent_si].persistent) {
+            free(parent);
+        }
+    }
+    else { // more than one child left
+        if (node_stack[parent_si].persistent) {
+            // need to copy the persistent parent before modify it
+            new_parent = copy_node(parent);
+            update_ancestors(new_parent, false, node_stack, parent_si - 1);
+            parent = new_parent;
+        }
+        parent->next[to_erase] = NULL;
+        parent->fnext[to_erase] = 0;
+        parent->subnode_bitmask &= ~(0x01 << to_erase); // clear that bit
+        parent->nsubnodes--;
+    }
+}
+
 /* helper functions end */
 
 void upsert(
@@ -114,5 +158,34 @@ void upsert(
 
         // update parents iteratively with the new_branch
         update_ancestors(new_branch, false, node_stack, stack_index - 2);
+    }
+}
+
+void erase(
+    trie_branch_node_t *root, unsigned char *path, unsigned char path_len)
+{
+    // record the stack from root to curr
+    // whenever a node is removed and its parent only got 1 subnode left, we
+    // squash it to a leaf node do this iteratively until a parent got >1
+    // subnodes left.
+
+    node_info node_stack[path_len + 1];
+    int stack_index = 0;
+    int parsed = find(root, path, path_len, node_stack, &stack_index);
+
+    // if parsed length is less than key length, then the key is not found
+    if (parsed != path_len) {
+        return;
+    }
+
+    // found key to delete
+    node_info last_node = node_stack[stack_index - 1];
+    assert(root != last_node.node);
+
+    erase_node_merge_parent(node_stack, stack_index - 2);
+
+    // if the leaf was a copy already, free it
+    if (!last_node.persistent) {
+        free(last_node.node);
     }
 }
