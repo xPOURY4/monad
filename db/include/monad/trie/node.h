@@ -24,7 +24,7 @@ typedef struct trie_branch_node_t
 {
     trie_node_type_t type;
 
-    unsigned char path_len;
+    unsigned char path_len; // number of nibbles
     unsigned char path[32];
 
     char pad[6];
@@ -33,9 +33,11 @@ typedef struct trie_branch_node_t
 
     unsigned char *next[16];
     int64_t fnext[16];
+    int16_t subnode_bitmask;
+    int8_t nsubnodes;
 } trie_branch_node_t;
 
-static_assert(sizeof(trie_branch_node_t) == 328);
+static_assert(sizeof(trie_branch_node_t) == 336);
 static_assert(alignof(trie_branch_node_t) == 8);
 
 typedef struct trie_leaf_node_t
