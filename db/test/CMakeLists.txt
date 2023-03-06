@@ -1,12 +1,24 @@
-include_directories($ENV{PATH_TKVDB})
-
-# tkvdb
-add_library(tkvdb STATIC
-    $ENV{PATH_TKVDB}/tkvdb.c
+# monad trie unit test
+include_directories(
+    PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 
-
-add_executable(tkvdb_perf_test
-    tkvdb_perf_test.c
+add_library(trie_test_util STATIC
+    test_util.h
+    test_util.cpp
 )
-target_link_libraries(tkvdb_perf_test PUBLIC tkvdb ethash::keccak)
+target_link_libraries(trie_test_util
+    PUBLIC
+    monad_trie
+)
+monad_trie_compile_options(trie_test_util)
+
+# unit test
+add_unit_test(
+    TARGET
+    trie-test
+    SOURCES
+    upsert_test.cpp
+    LIBRARIES
+    monad_trie
+    trie_test_util)

@@ -13,6 +13,8 @@ function(monad_trie_compile_options target)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
 endfunction()
 
+include(cmake/test.cmake)
+
 # ###########
 # ## libs
 # ###########
@@ -42,3 +44,4 @@ target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 monad_trie_compile_options(monad_trie)
+add_subdirectory(test)
