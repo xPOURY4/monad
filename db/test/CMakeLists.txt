@@ -19,6 +19,7 @@ add_unit_test(
     trie-test
     SOURCES
     upsert_test.cpp
+    erase_test.cpp
     LIBRARIES
     monad_trie
     trie_test_util)
