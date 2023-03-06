@@ -20,6 +20,7 @@ add_unit_test(
     SOURCES
     upsert_test.cpp
     erase_test.cpp
+    multi_test.cpp
     LIBRARIES
     monad_trie
     trie_test_util)
