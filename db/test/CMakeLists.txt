@@ -24,3 +24,11 @@ add_unit_test(
     LIBRARIES
     monad_trie
     trie_test_util)
+
+# monad trie perf test
+add_executable(monad_perf_test
+    monad_trie_perf_test.cpp
+)
+monad_trie_compile_options(monad_perf_test)
+
+target_link_libraries(monad_perf_test PUBLIC monad_trie trie_test_util ethash::keccak)
