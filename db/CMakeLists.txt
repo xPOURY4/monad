@@ -2,10 +2,9 @@ cmake_minimum_required(VERSION 3.21)
 
 project(monad_trie)
 
-############
-### deps
-############
-
+# ###########
+# ## deps
+# ###########
 function(monad_trie_compile_options target)
     set_property(TARGET ${target} PROPERTY C_STANDARD 23)
     set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
@@ -14,11 +13,9 @@ function(monad_trie_compile_options target)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
 endfunction()
 
-
-############
-### libs
-############
-
+# ###########
+# ## libs
+# ###########
 add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/trie/assert.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
@@ -32,9 +29,11 @@ add_library(monad_trie STATIC
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/data.h
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/find.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/nibble.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/update.h
+    ${PROJECT_SOURCE_DIR}/src/trie/find.c
     ${PROJECT_SOURCE_DIR}/src/trie/node.c
     ${PROJECT_SOURCE_DIR}/src/trie/update.c
 )
