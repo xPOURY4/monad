@@ -36,6 +36,7 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/src/trie/find.c
     ${PROJECT_SOURCE_DIR}/src/trie/node.c
     ${PROJECT_SOURCE_DIR}/src/trie/update.c
+    ${PROJECT_SOURCE_DIR}/src/trie/data.c
 )
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include

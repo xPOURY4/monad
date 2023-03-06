@@ -55,6 +55,13 @@ typedef struct trie_leaf_node_t
 static_assert(sizeof(trie_leaf_node_t) == 72);
 static_assert(alignof(trie_leaf_node_t) == 8);
 
+trie_branch_node_t *copy_node(trie_branch_node_t *node);
+trie_leaf_node_t *
+get_new_leaf(unsigned char *path, unsigned char path_len, trie_data_t *data);
+
+trie_branch_node_t *
+get_new_branch(unsigned char *new_path, unsigned char new_path_len);
+
 #ifdef __cplusplus
 }
 #endif

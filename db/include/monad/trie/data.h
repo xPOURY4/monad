@@ -17,6 +17,9 @@ typedef union trie_data_t
     uint64_t words[4];
 } trie_data_t;
 
+void copy_trie_data(trie_data_t *dest_data, trie_data_t *src_data);
+bool cmp_trie_data(trie_data_t *dest_data, trie_data_t *src_data);
+
 static_assert(sizeof(trie_data_t) == 32);
 static_assert(alignof(trie_data_t) == 8);
 
