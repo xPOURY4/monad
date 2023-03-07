@@ -1,4 +1,3 @@
-#include <monad/trie/find.h>
 #include <monad/trie/nibble.h>
 #include <monad/trie/update.h>
 #include <stdbool.h>
@@ -21,7 +20,7 @@ it's on disk. If we ever meet a persistent parent, we create a new parent and
 updates its ancestors on the stack iteratively until a mutable parent
 is found
 */
-void update_ancestors(
+static inline void update_ancestors(
     trie_branch_node_t *new_node, bool persistent, node_info node_stack[],
     int8_t parent_si)
 {
@@ -55,7 +54,8 @@ void update_ancestors(
    one child left after the erase, merge child to parent. Update ancesters
    iteratively whenever new node is created.
 */
-void erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
+static inline void
+erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
 {
     if (parent_si < 0) {
         return;
