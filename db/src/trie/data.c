@@ -1,18 +1,18 @@
 #include <monad/trie/data.h>
 #include <stdlib.h>
 
-void copy_trie_data(trie_data_t *dest_data, trie_data_t *src_data)
+void copy_trie_data(trie_data_t *const dest, trie_data_t const *const src)
 {
-    for (unsigned char i = 0; i < 4; i++) {
-        dest_data->words[i] = src_data->words[i];
+    for (unsigned i = 0; i < 4; ++i) {
+        dest->words[i] = src->words[i];
     }
 }
 
-bool cmp_trie_data(trie_data_t *dest_data, trie_data_t *src_data)
+bool cmp_trie_data(trie_data_t *const dest, trie_data_t const *const src)
 { // 0: identical, 1: diff
 
-    for (unsigned char i = 0; i < 4; i++) {
-        if (dest_data->words[i] != src_data->words[i]) {
+    for (unsigned i = 0; i < 4; ++i) {
+        if (dest->words[i] != src->words[i]) {
             return true;
         }
     }

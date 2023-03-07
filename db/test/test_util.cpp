@@ -31,7 +31,7 @@ void do_commit(trie_branch_node_t *root)
         // push all non-NULL next onto stack
         for (int i = 0; i < 16; ++i) {
             if (node->next[i] && node->fnext[i] == 0) {
-                cnt++;
+                ++cnt;
                 node->fnext[i] = ULONG_MAX;
                 stack[++si] = (trie_branch_node_t *)node->next[i];
             }
@@ -45,7 +45,7 @@ void do_commit_recursive(trie_branch_node_t *node)
     if (node->type == LEAF) {
         return;
     }
-    for (unsigned char i = 0; i < 16; i++) {
+    for (unsigned char i = 0; i < 16; ++i) {
         if (node->next[i] && node->fnext[i] == 0) {
             node->fnext[i] = ULONG_MAX;
             do_commit_recursive((trie_branch_node_t *)node->next[i]);
@@ -69,7 +69,7 @@ int count_num_leaves(trie_branch_node_t *root)
         // pop the current node on stack
         node = stack[si--];
         if (node->type == LEAF) {
-            n_leaves++;
+            ++n_leaves;
             continue;
         }
         for (int i = 0; i < 16; ++i) {
@@ -114,7 +114,7 @@ int trie_metrics(trie_branch_node_t *root)
         node = stack[si--];
 
         if (node->type == LEAF) {
-            n_leaves++;
+            ++n_leaves;
             max_h = MAX(max_h, curr_h);
             min_h = MIN(min_h, curr_h);
             sum_h += curr_h;
@@ -134,7 +134,7 @@ int trie_metrics(trie_branch_node_t *root)
         max_path_len[curr_h] = MAX(max_path_len[curr_h], node->path_len);
         sum_subnodes[curr_h] += node->nsubnodes;
         sum_path_len[curr_h] += node->path_len;
-        n_branches[curr_h]++;
+        ++n_branches[curr_h];
 
         for (int i = 0; i < 16; ++i) {
             if (node->next[i]) {

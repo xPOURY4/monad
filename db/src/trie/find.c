@@ -2,13 +2,11 @@
 #include <monad/trie/nibble.h>
 
 int find(
-    trie_branch_node_t *root, unsigned char *path, unsigned char path_len,
-    node_info node_stack[], int *stack_index)
+    trie_branch_node_t *const root, unsigned char const *const path,
+    unsigned char const path_len, node_info node_stack[], int *stack_index)
 {
-
     *stack_index = 0;
     int key_index = 0;
-
     unsigned char path_nibble;
     unsigned char node_nibble;
 

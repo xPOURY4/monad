@@ -27,15 +27,15 @@ static void ctrl_c_handler(int s)
     nkeys: number of keys to insert in this batch
 */
 static void batch_upsert_commit(
-    trie_branch_node_t *root, int64_t offset, int64_t nkeys, char *keccak_keys,
-    char *keccak_values)
+    trie_branch_node_t *const root, int64_t offset, int64_t nkeys,
+    char const *const keccak_keys, char const *const keccak_values)
 {
     struct timespec ts_before, ts_after;
     double tm_ram, tm_commit;
     const int j = 1000;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_before);
-    for (int i = offset; i < offset + nkeys; i++) {
+    for (int i = offset; i < offset + nkeys; ++i) {
         upsert(
             root,
             (unsigned char *)(keccak_keys + i * 32),
@@ -80,13 +80,14 @@ static void batch_upsert_commit(
 }
 
 void prepare_keccak(
-    size_t nkeys, size_t offset, char *keccak_keys, char *keccak_values)
+    size_t nkeys, size_t offset, char *const keccak_keys,
+    char *const keccak_values)
 {
     union ethash_hash256 hash;
     size_t i, rand_val;
 
     // prepare keccak
-    for (i = offset; i < offset + nkeys; i++) {
+    for (i = offset; i < offset + nkeys; ++i) {
         // assign keccak256 on i to key
         hash = ethash_keccak256((const uint8_t *)&i, 8);
         memcpy(keccak_keys + i * 32, hash.str, 32);
@@ -98,11 +99,11 @@ void prepare_keccak(
 }
 
 int prepare_keccak_parallel(
-    size_t nkeys, char *keccak_keys, char *keccak_values)
+    size_t nkeys, char *const keccak_keys, char *const keccak_values)
 {
     int n_threads = nkeys / SLICE_LEN;
     std::vector<std::thread> threads;
-    for (int i = 0; i < n_threads; i++) {
+    for (int i = 0; i < n_threads; ++i) {
         threads.push_back(std::thread(
             prepare_keccak,
             SLICE_LEN,
@@ -110,7 +111,7 @@ int prepare_keccak_parallel(
             keccak_keys,
             keccak_values));
     }
-    for (int i = 0; i < n_threads; i++) {
+    for (int i = 0; i < n_threads; ++i) {
         threads[i].join();
     }
     return 0;
@@ -126,8 +127,8 @@ int main()
 
     int n_slices = 10;
     int64_t nkeys = SLICE_LEN * n_slices;
-    char *keccak_keys = (char *)malloc(nkeys * 32);
-    char *keccak_values = (char *)malloc(nkeys * 32);
+    char *const keccak_keys = (char *)malloc(nkeys * 32);
+    char *const keccak_values = (char *)malloc(nkeys * 32);
     // pre-calculate keccak
     // prepare_keccak(nkeys, 0, keccak_keys, keccak_values);
     // spawn multiple threads for keccak
@@ -141,7 +142,7 @@ int main()
     root->type = BRANCH;
 
     /* start profiling upsert and commit */
-    for (int8_t iter = 0; iter < n_slices; iter++) {
+    for (int8_t iter = 0; iter < n_slices; ++iter) {
         batch_upsert_commit(
             root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
         // copy root for the next transaction

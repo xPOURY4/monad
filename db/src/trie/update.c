@@ -1,10 +1,7 @@
 #include <monad/trie/nibble.h>
 #include <monad/trie/update.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <strings.h>
 
 /* Note:
     - we represent persistent subnodes using non-zero fnext value
@@ -21,13 +18,13 @@ updates its ancestors on the stack iteratively until a mutable parent
 is found
 */
 static inline void update_ancestors(
-    trie_branch_node_t *new_node, bool persistent, node_info node_stack[],
-    int8_t parent_si)
+    trie_branch_node_t const *new_node, bool persistent,
+    node_info const node_stack[], int8_t parent_si)
 {
     trie_branch_node_t *parent, *new_parent;
     unsigned char parent_edge;
 
-    for (int8_t i = parent_si; i >= 0; i--) {
+    for (int8_t i = parent_si; i >= 0; --i) {
         parent = node_stack[i].node;
         parent_edge = node_stack[i].nibble;
 
@@ -55,7 +52,7 @@ static inline void update_ancestors(
    iteratively whenever new node is created.
 */
 static inline void
-erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
+erase_node_merge_parent(node_info const node_stack[], int8_t parent_si)
 {
     if (parent_si < 0) {
         return;
@@ -68,7 +65,8 @@ erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
 
     if (parent->nsubnodes - 1 <= 1 && parent->path_len != 0) {
         unsigned char only_child =
-            ffs(parent->subnode_bitmask & ~(0x01 << to_erase)) - 1;
+            __builtin_ffs(parent->subnode_bitmask & ~(1u << to_erase)) - 1;
+
         bool persistent = parent->fnext[only_child];
 
         // make the only child the new_parent
@@ -89,7 +87,7 @@ erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
         }
         parent->next[to_erase] = NULL;
         parent->fnext[to_erase] = 0;
-        parent->subnode_bitmask &= ~(0x01 << to_erase); // clear that bit
+        parent->subnode_bitmask &= ~(1u << to_erase); // clear that bit
         parent->nsubnodes--;
     }
 }
@@ -97,8 +95,8 @@ erase_node_merge_parent(node_info node_stack[], int8_t parent_si)
 /* helper functions end */
 
 void upsert(
-    trie_branch_node_t *root, unsigned char *path, uint8_t path_len,
-    trie_data_t *data)
+    trie_branch_node_t *const root, unsigned char const *const path,
+    const uint8_t path_len, trie_data_t const *const data)
 {
     node_info node_stack[path_len + 1];
     int stack_index = 0;
@@ -132,8 +130,8 @@ void upsert(
         branch->next[last_node.nibble] =
             (unsigned char *)get_new_leaf(path, path_len, data);
         branch->fnext[last_node.nibble] = 0;
-        branch->subnode_bitmask |= 0x01 << (last_node.nibble);
-        branch->nsubnodes++;
+        branch->subnode_bitmask |= 1u << (last_node.nibble);
+        ++branch->nsubnodes;
     }
     else {
         // found an unequal nibble when parsing the path
@@ -144,17 +142,18 @@ void upsert(
             get_nibble((last_node.node)->path, parsed);
         new_branch->next[unequal_nibble] = (unsigned char *)last_node.node;
         // get the fnext value from its parent
-        trie_branch_node_t *parent = node_stack[stack_index - 2].node;
-        unsigned char parent_edge = node_stack[stack_index - 2].nibble;
+        trie_branch_node_t const *const parent =
+            node_stack[stack_index - 2].node;
+        unsigned char const parent_edge = node_stack[stack_index - 2].nibble;
         new_branch->fnext[unequal_nibble] = parent->fnext[parent_edge];
-        new_branch->subnode_bitmask |= 0x01 << unequal_nibble;
-        new_branch->nsubnodes++;
+        new_branch->subnode_bitmask |= 1u << unequal_nibble;
+        ++new_branch->nsubnodes;
 
         // create a leaf for the new key
         new_branch->next[last_node.nibble] =
             (unsigned char *)get_new_leaf(path, path_len, data);
-        new_branch->subnode_bitmask |= 0x01 << last_node.nibble;
-        new_branch->nsubnodes++;
+        new_branch->subnode_bitmask |= 1u << last_node.nibble;
+        ++new_branch->nsubnodes;
 
         // update parents iteratively with the new_branch
         update_ancestors(new_branch, false, node_stack, stack_index - 2);
@@ -162,13 +161,13 @@ void upsert(
 }
 
 void erase(
-    trie_branch_node_t *root, unsigned char *path, unsigned char path_len)
+    trie_branch_node_t *const root, unsigned char const *const path,
+    unsigned char const path_len)
 {
     // record the stack from root to curr
     // whenever a node is removed and its parent only got 1 subnode left, we
     // squash it to a leaf node do this iteratively until a parent got >1
     // subnodes left.
-
     node_info node_stack[path_len + 1];
     int stack_index = 0;
     int parsed = find(root, path, path_len, node_stack, &stack_index);
@@ -179,7 +178,7 @@ void erase(
     }
 
     // found key to delete
-    node_info last_node = node_stack[stack_index - 1];
+    node_info const last_node = node_stack[stack_index - 1];
     assert(root != last_node.node);
 
     erase_node_merge_parent(node_stack, stack_index - 2);
