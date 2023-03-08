@@ -20,7 +20,10 @@ endfunction()
 ############
 
 add_library(monad_core STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/core/assert.h
+    ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.h
+    ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.c
 )
 target_include_directories(monad_core
