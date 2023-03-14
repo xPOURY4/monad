@@ -32,3 +32,9 @@ target_include_directories(monad_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 monad_compile_options(monad_core)
+
+add_library(monad_core_disas STATIC
+    ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.c
+)
+monad_compile_options(monad_core_disas)
+target_link_libraries(monad_core_disas monad_core)
