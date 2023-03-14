@@ -34,6 +34,7 @@ target_include_directories(monad_core
 monad_compile_options(monad_core)
 
 add_library(monad_core_disas STATIC
+    ${PROJECT_SOURCE_DIR}/src/monad/core/bit_disas.c
     ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.c
 )
 monad_compile_options(monad_core_disas)
