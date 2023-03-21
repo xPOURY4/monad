@@ -24,8 +24,8 @@ add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/core/bit.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/math.h
+    ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.h
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/pool.h
     ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.c
 )
@@ -37,7 +37,7 @@ monad_compile_options(monad_core)
 add_library(monad_core_disas STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/core/bit_disas.c
     ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.c
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/pool_disas.c
+    ${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c
 )
 monad_compile_options(monad_core_disas)
 target_link_libraries(monad_core_disas monad_core)
