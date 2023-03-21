@@ -23,25 +23,30 @@
     static_assert(sizeof(cpool_##BITS##_t) == 16, "");                         \
     static_assert(alignof(cpool_##BITS##_t) == 8, "");                         \
                                                                                \
-    static inline void cpool_init##BITS(                                       \
-        cpool_##BITS##_t *const p, unsigned char *const mem)                   \
+    static inline cpool_##BITS##_t *cpool_init##BITS(unsigned char *const mem) \
     {                                                                          \
+        cpool_##BITS##_t *const p = (cpool_##BITS##_t *)mem;                   \
         p->mem = mem;                                                          \
-        p->next = 0;                                                           \
+        p->next = sizeof(cpool_##BITS##_t);                                    \
+        return p;                                                              \
     }                                                                          \
                                                                                \
     static inline unsigned char *cpool_ptr##BITS(                              \
         cpool_##BITS##_t const *const p, uint32_t const i)                     \
     {                                                                          \
-        return p->mem + (i & ((1 << BITS) - 1));                               \
+        return p->mem + (i & ((1u << BITS) - 1));                              \
     }                                                                          \
                                                                                \
     static inline uint32_t cpool_reserve##BITS(                                \
         cpool_##BITS##_t *const p, uint32_t const n)                           \
     {                                                                          \
-        uint32_t const m_next = p->next & ((1 << BITS) - 1);                   \
-        if (MONAD_UNLIKELY(m_next + n > (1 << BITS))) {                        \
-            p->next += (1 << BITS) - m_next;                                   \
+        uint32_t m_next = p->next & ((1u << BITS) - 1);                        \
+        if (MONAD_UNLIKELY(m_next + n > (1u << BITS))) {                       \
+            p->next += (1u << BITS) - m_next;                                  \
+            m_next = p->next & ((1u << BITS) - 1);                             \
+        }                                                                      \
+        if (MONAD_UNLIKELY(m_next < sizeof(cpool_##BITS##_t))) {               \
+            p->next += sizeof(cpool_##BITS##_t) - m_next;                      \
         }                                                                      \
         return p->next;                                                        \
     }                                                                          \
@@ -60,12 +65,12 @@
         cpool_##BITS##_t const *const p, uint32_t const i)                     \
     {                                                                          \
         bool valid = false;                                                    \
-        if (MONAD_UNLIKELY((1 << BITS) > p->next)) {                           \
-            if (i < p->next || i >= p->next - (1 << BITS)) {                   \
+        if (MONAD_UNLIKELY((1u << BITS) > p->next)) {                          \
+            if (i < p->next || i >= p->next - (1u << BITS)) {                  \
                 valid = true;                                                  \
             }                                                                  \
         }                                                                      \
-        else if (MONAD_LIKELY(i >= p->next - (1 << BITS) && i < p->next)) {    \
+        else if (MONAD_LIKELY(i >= p->next - (1u << BITS) && i < p->next)) {   \
             valid = true;                                                      \
         }                                                                      \
         return valid;                                                          \

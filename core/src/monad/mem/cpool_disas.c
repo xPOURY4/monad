@@ -2,9 +2,9 @@
 
 CPOOL_DEFINE(21)
 
-void pool_init_disas(cpool_21_t *const p, unsigned char *const mem)
+cpool_21_t *pool_init_disas(unsigned char *const mem)
 {
-    cpool_init21(p, mem);
+    return cpool_init21(mem);
 }
 
 unsigned char *pool_ptr_disas(cpool_21_t *const p, uint32_t const i)
