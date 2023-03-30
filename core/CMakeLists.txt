@@ -30,6 +30,10 @@ add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.c
 
     ${PROJECT_SOURCE_DIR}/include/monad/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp
 )
 target_include_directories(monad_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
