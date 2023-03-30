@@ -4,10 +4,10 @@
 
 MONAD_IO_NAMESPACE_BEGIN
 
-Ring::Ring()
+Ring::Ring(unsigned const entries)
     : ring_{}
 {
-    int const result = io_uring_queue_init(128, &ring_, 0);
+    int const result = io_uring_queue_init(entries, &ring_, 0);
     MONAD_ASSERT(!result);
 }
 

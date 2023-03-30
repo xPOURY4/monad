@@ -11,7 +11,7 @@ class Ring final
     io_uring ring_;
 
 public:
-    Ring();
+    Ring(unsigned entries = 128);
     ~Ring();
 };
 
