@@ -22,6 +22,9 @@ include(cmake/test.cmake)
 # ## libs
 # ###########
 add_library(monad_trie STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/merkle/node.h
+    ${PROJECT_SOURCE_DIR}/src/monad/merkle/node.c
+
     ${PROJECT_SOURCE_DIR}/include/monad/trie/assert.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/endian.hpp
