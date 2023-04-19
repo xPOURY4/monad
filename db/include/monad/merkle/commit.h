@@ -9,11 +9,17 @@ extern "C"
 {
 #endif
 
+typedef struct write_trie_retdata_t
+{
+    int64_t fnext;
+    uint64_t first_word_data;
+} write_trie_retdata_t;
+
 void do_commit(int fd, merkle_node_t *root);
 
 int write_buffer_to_disk(int fd, unsigned char *buffer);
 
-int64_t write_trie(
+write_trie_retdata_t write_trie(
     int fd, unsigned char **buffer, size_t *buffer_idx, merkle_node_t *node,
     int64_t *block_off);
 

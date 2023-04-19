@@ -1,4 +1,3 @@
-#include "test_util.h"
 #include <CLI/CLI.hpp>
 #include <alloca.h>
 #include <assert.h>
@@ -49,7 +48,7 @@ static merkle_node_t *batch_upsert_commit(
     char const *const keccak_keys, char const *const keccak_values)
 {
     struct timespec ts_before, ts_after;
-    double tm_ram, tm_commit, tm_precommit;
+    double tm_ram, tm_commit;
     // const int j = 1000;
 
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
@@ -75,22 +74,6 @@ static merkle_node_t *batch_upsert_commit(
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_before);
-    int cnt = 0, n_compute = 0;
-    uint64_t root_data = precommit_add(new_root, &cnt, &n_compute);
-    clock_gettime(CLOCK_MONOTONIC, &ts_after);
-
-    tm_precommit = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
-                   ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
-    fprintf(
-        stdout,
-        "root->data[0] after precommit: 0x%lx, precommit_t: %f "
-        "s, #node visits(include leaves) %d, #compute: %d\n",
-        root_data,
-        tm_precommit,
-        cnt,
-        n_compute);
-    fflush(stdout);
     // commit the tr to on-disk storage
     clock_gettime(CLOCK_MONOTONIC, &ts_before);
     do_commit(fd, new_root);
