@@ -72,11 +72,10 @@ get_new_branch(unsigned char const *const path, unsigned char const path_len)
     // allocate the next spot for branch
     trie_branch_node_t *branch =
         (trie_branch_node_t *)cpool_ptr31(&tmp_pool, branch_i);
-    // memset(branch, 0, sizeof(trie_branch_node_t));
+    memset(branch, 0, sizeof(trie_branch_node_t));
     branch->type = BRANCH;
     branch->path_len = path_len;
     memcpy(branch->path, path, (path_len + 1) / 2);
-    // clear next and fnext array
     return branch_i;
 }
 
@@ -86,9 +85,8 @@ static inline uint32_t get_new_leaf(
 {
     uint32_t leaf_i = cpool_reserve31(&tmp_pool, sizeof(trie_leaf_node_t));
     cpool_advance31(&tmp_pool, sizeof(trie_leaf_node_t));
-    // allocate the next spot for leaf
     trie_leaf_node_t *leaf = (trie_leaf_node_t *)cpool_ptr31(&tmp_pool, leaf_i);
-    // memset(leaf, 0, sizeof(trie_leaf_node_t));
+    memset(leaf, 0, sizeof(trie_leaf_node_t));
     leaf->type = LEAF;
     leaf->path_len = path_len;
     memcpy(leaf->path, path, (path_len + 1) / 2);

@@ -204,8 +204,6 @@ int main(int argc, char *argv[])
     for (int iter = 0; iter < n_slices; ++iter) {
         root = batch_upsert_commit(
             fd, root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
-        // copy root for the next transaction
-        memset(tmp_huge_mem.data, 0, tmp_huge_mem.size);
     }
 
     tr_close(fd);

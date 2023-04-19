@@ -121,11 +121,6 @@ void merge_trie(
 
                     // create a new branch for the new trie
                     new_branch = copy_merkle_node(prev_node);
-                    // clear branch next_nibble
-                    // TODO: remove may also work
-                    new_branch->children[merkle_child_index(
-                        new_branch, next_nibble)] = (merkle_child_info_t){};
-
                     merge_trie(
                         prev_node,
                         next_nibble,
