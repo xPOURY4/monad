@@ -25,6 +25,10 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/node.h
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/node.c
 
+    ${PROJECT_SOURCE_DIR}/include/monad/tmp/node.h
+    ${PROJECT_SOURCE_DIR}/include/monad/tmp/update.h
+    ${PROJECT_SOURCE_DIR}/src/monad/tmp/update.c
+
     ${PROJECT_SOURCE_DIR}/include/monad/trie/assert.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/endian.hpp
@@ -50,8 +54,12 @@ add_library(monad_trie STATIC
 )
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include
+    PUBLIC ${PROJECT_SOURCE_DIR}/monad-core/include
 )
 monad_trie_compile_options(monad_trie)
 
+add_subdirectory(monad-core)
+target_link_libraries(monad_trie PUBLIC monad_core)
+
 add_subdirectory(third_party/ethash)
-add_subdirectory(test)
+add_subdirectory(merkle_test)
