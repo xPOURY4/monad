@@ -17,7 +17,8 @@ extern "C"
 {
 #endif
 
-#define BUFFER_SIZE 64 * 1024
+extern int fd;
+
 #define SIZE_OF_CHILD_COUNT 1
 #define SIZE_OF_PATH_LEN 1
 #define SIZE_OF_TRIE_DATA 32
@@ -25,11 +26,7 @@ extern "C"
 #define SIZE_OF_FILE_OFFSET 8
 #define BLOCK_TYPE_DATA 0
 #define BLOCK_TYPE_META 1
-#define ALIGNMENT 512
-
-// TODO: get rid of mempool
-extern cpool_31_t pool;
-extern int fd;
+#define MAX_DISK_NODE_SIZE 1100
 
 typedef struct merkle_child_info_t merkle_child_info_t;
 typedef struct merkle_node_t merkle_node_t;
@@ -105,15 +102,19 @@ merkle_child_index(merkle_node_t const *const node, unsigned const i)
 }
 
 /****************************************************************/
+// serial / deserialization
+unsigned char *
+serialize_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
 
-// helper function
+merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos);
+
+merkle_node_t *read_node_from_disk(int64_t offset);
+
+// helper functions
 void set_merkle_child(
     merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *tmp_node);
 
 merkle_node_t *copy_tmp_trie(trie_branch_node_t const *node, uint16_t mask);
-
-unsigned char *
-write_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
 
 static inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
@@ -132,9 +133,12 @@ static inline size_t get_merkle_node_size(uint8_t const nsubnodes)
 }
 
 static inline merkle_node_t *
-get_merkle_next(merkle_node_t const *const node, unsigned int const child_idx)
+get_merkle_next(merkle_node_t *const node, unsigned int const child_idx)
 {
-    // node->children[child_idx].next = read_node_from_disk(fd, f_off);
+    if (!node->children[child_idx].next) {
+        node->children[child_idx].next =
+            read_node_from_disk(node->children[child_idx].fnext);
+    }
     return node->children[child_idx].next;
 }
 

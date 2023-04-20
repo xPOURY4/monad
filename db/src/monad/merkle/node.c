@@ -1,4 +1,6 @@
+#include <malloc.h>
 #include <monad/merkle/node.h>
+#include <monad/trie/io.h>
 
 bool disas_merkle_child_test(merkle_node_t const *const node, unsigned const i)
 {
@@ -78,34 +80,62 @@ copy_tmp_trie(trie_branch_node_t const *const node, uint16_t const mask)
     return new_node;
 }
 
-unsigned char *
-write_node_to_buffer(unsigned char *write_pos, merkle_node_t const *const node)
+unsigned char *serialize_node_to_buffer(
+    unsigned char *write_pos, merkle_node_t const *const node)
 {
-    // Copy the mask of node
     *(uint16_t *)write_pos = node->mask;
     write_pos += SIZE_OF_SUBNODE_BITMASK;
 
-    *(int8_t *)write_pos = node->nsubnodes;
-    write_pos += SIZE_OF_CHILD_COUNT;
-
-    // Copy the subnodes data and offsets
     for (int i = 0; i < node->nsubnodes; ++i) {
-        // left to right in the children array
-        // fnext could be 0 if it's leaf
         *(int64_t *)write_pos = node->children[i].fnext;
         write_pos += SIZE_OF_FILE_OFFSET;
         copy_trie_data((trie_data_t *)write_pos, &(node->children[i].data));
         write_pos += SIZE_OF_TRIE_DATA;
 
-        // Copy the path_len
         *write_pos = node->children[i].path_len;
         write_pos += SIZE_OF_PATH_LEN;
 
-        // Copy the path
-        size_t const path_bytes = (node->children[i].path_len + 1) / 2;
-        memcpy(write_pos, node->children[i].path, path_bytes);
-        write_pos += path_bytes;
+        size_t const path_len_bytes = (node->children[i].path_len + 1) / 2;
+        memcpy(write_pos, node->children[i].path, path_len_bytes);
+        write_pos += path_len_bytes;
     }
-
     return write_pos;
+}
+
+merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos)
+{
+    uint16_t const mask = *(uint16_t *)read_pos;
+    read_pos += SIZE_OF_SUBNODE_BITMASK;
+    merkle_node_t *node = get_new_merkle_node(mask);
+    node->mask = mask;
+    node->nsubnodes = __builtin_popcount(mask);
+
+    for (unsigned i = 0; i < node->nsubnodes; ++i) {
+        node->children[i].fnext = *(int64_t *)read_pos;
+        read_pos += SIZE_OF_FILE_OFFSET;
+
+        copy_trie_data(&(node->children[i].data), (trie_data_t *)read_pos);
+        read_pos += SIZE_OF_TRIE_DATA;
+
+        node->children[i].path_len = *read_pos;
+        read_pos += SIZE_OF_PATH_LEN;
+
+        unsigned const path_len_bytes = (node->children[i].path_len + 1) / 2;
+        memcpy(node->children[i].path, read_pos, path_len_bytes);
+        read_pos += path_len_bytes;
+    }
+    return node;
+}
+
+merkle_node_t *read_node_from_disk(int64_t offset)
+{ // TODO: start from a small read size, if not enough recreate buffer
+    // get buffer
+    unsigned char *buffer;
+    unsigned buffer_off =
+        read_buffer_from_disk(fd, offset, &buffer, MAX_DISK_NODE_SIZE);
+    merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off);
+    buffer_off = buffer_off + 1;
+
+    free(buffer);
+    return node;
 }

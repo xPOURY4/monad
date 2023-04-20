@@ -21,6 +21,7 @@
 /* magic numbers */
 #define SLICE_LEN 100000
 cpool_31_t tmp_pool;
+int fd;
 
 static void ctrl_c_handler(int s)
 {
@@ -44,7 +45,7 @@ off_t get_file_size(int fd)
     nkeys: number of keys to insert in this batch
 */
 static merkle_node_t *batch_upsert_commit(
-    int fd, merkle_node_t *prev_root, int64_t offset, int64_t nkeys,
+    merkle_node_t *prev_root, int64_t offset, int64_t nkeys,
     char const *const keccak_keys, char const *const keccak_values)
 {
     struct timespec ts_before, ts_after;
@@ -89,11 +90,12 @@ static merkle_node_t *batch_upsert_commit(
         "next_key_id: %lu, nkeys upserted: %lu, upsert/erase in RAM: %f "
         "/s, "
         "commit_t: %f "
-        "s\n",
+        "s, total_t %.4f s\n",
         offset + nkeys,
         nkeys,
         (double)nkeys * 1.001 / tm_ram,
-        tm_commit);
+        tm_commit,
+        tm_ram + tm_commit);
     fprintf(
         stdout,
         "db file size after commit: %f GB\n",
@@ -181,14 +183,18 @@ int main(int argc, char *argv[])
     fflush(stdout);
 
     // create tr
-    int fd = tr_open(dbname.c_str());
+    fd = tr_open(dbname.c_str());
     merkle_node_t *root = get_new_merkle_node(0);
+    merkle_node_t *prev_root;
     /* start profiling upsert and commit */
     for (int iter = 0; iter < n_slices; ++iter) {
+        prev_root = root;
         root = batch_upsert_commit(
-            fd, root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
+            prev_root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
     }
 
     tr_close(fd);
     huge_mem_free(&tmp_huge_mem);
+    free(keccak_keys);
+    free(keccak_values);
 }

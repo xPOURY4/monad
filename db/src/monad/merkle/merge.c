@@ -3,8 +3,8 @@
 
 // presumption: prev_root and tmp_root are branch nodes
 merkle_node_t *do_merge(
-    merkle_node_t const *const prev_root,
-    trie_branch_node_t const *const tmp_root, unsigned char const pi)
+    merkle_node_t *const prev_root, trie_branch_node_t const *const tmp_root,
+    unsigned char const pi)
 {
     // construct new root, count number of children new root will have
     uint16_t const mask = prev_root->mask | tmp_root->subnode_bitmask;
@@ -36,7 +36,7 @@ merkle_node_t *do_merge(
    note that prev trie is immutable, always copy before modify
 */
 void merge_trie(
-    merkle_node_t const *const prev_parent, uint8_t const prev_branch_i,
+    merkle_node_t *const prev_parent, uint8_t const prev_branch_i,
     trie_branch_node_t const *const tmp_parent, uint8_t const tmp_branch_i,
     unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_branch_arr_i)
