@@ -111,8 +111,19 @@ void merge_trie(
                 new_path_len = tmp_node->path_len;
             }
             else if (tmp_is_shorter == -1) { // prev path is shorter
-                merkle_node_t *const prev_node =
-                    get_merkle_next(prev_parent, prev_child_idx);
+                merge_uring_data_t *uring_data = get_merge_uring_data(
+                    prev_parent,
+                    prev_branch_i,
+                    tmp_parent,
+                    tmp_branch_i,
+                    pi,
+                    new_parent,
+                    new_branch_arr_i);
+                merkle_node_t *const prev_node = async_get_merkle_next(
+                    prev_parent, prev_child_idx, uring_data);
+                if (!prev_node) {
+                    return; // async callback will pickup when finished
+                }
                 // tmp may be a leaf
                 next_nibble = get_nibble(tmp_node->path, pi);
                 if (prev_node->mask & 1u << next_nibble) {
@@ -166,8 +177,19 @@ void merge_trie(
                         &((trie_leaf_node_t *)tmp_node)->data);
                 }
                 else {
-                    merkle_node_t *const prev_node =
-                        get_merkle_next(prev_parent, prev_child_idx);
+                    merge_uring_data_t *uring_data = get_merge_uring_data(
+                        prev_parent,
+                        prev_branch_i,
+                        tmp_parent,
+                        tmp_branch_i,
+                        pi,
+                        new_parent,
+                        new_branch_arr_i);
+                    merkle_node_t *const prev_node = async_get_merkle_next(
+                        prev_parent, prev_child_idx, uring_data);
+                    if (!prev_node) {
+                        return; // async callback will pickup when finished
+                    }
                     new_branch = do_merge(prev_node, tmp_node, pi);
                 }
                 new_path = prev_node_path;

@@ -6,9 +6,9 @@
 #include <monad/mem/huge_mem.h>
 #include <monad/merkle/commit.h>
 #include <monad/merkle/merge.h>
-#include <monad/merkle/node.h>
 #include <monad/merkle/tr.h>
 #include <monad/tmp/update.h>
+#include <monad/trie/io.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +22,8 @@
 #define SLICE_LEN 100000
 cpool_31_t tmp_pool;
 int fd;
+int n_pending_rq;
+struct io_uring *ring;
 
 static void ctrl_c_handler(int s)
 {
@@ -70,6 +72,10 @@ static merkle_node_t *batch_upsert_commit(
         // }
     }
     merkle_node_t *new_root = do_merge(prev_root, get_node(tmp_root_i), 0);
+    // after all merge call, also need to poll until no submission left in uring
+    while (n_pending_rq) {
+        poll_uring();
+    }
 
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
@@ -155,11 +161,17 @@ int main(int argc, char *argv[])
     sig.sa_flags = 0;
     sigaction(SIGINT, &sig, NULL);
 
+    // init cpool
     huge_mem_t tmp_huge_mem;
     tmp_huge_mem.data = NULL;
     tmp_huge_mem.size = 0;
     huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
     tmp_pool = *cpool_init31(tmp_huge_mem.data);
+
+    // init io uring
+    ring = (struct io_uring *)malloc(sizeof(struct io_uring));
+    init_uring(ring);
+    n_pending_rq = 0;
 
     int n_slices = 20;
     std::string dbname = "test.db";
@@ -191,9 +203,11 @@ int main(int argc, char *argv[])
         prev_root = root;
         root = batch_upsert_commit(
             prev_root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
+        // TODO: free prev root, need to make sure no multi-referencing in tries
     }
 
     tr_close(fd);
+    exit_uring(ring);
     huge_mem_free(&tmp_huge_mem);
     free(keccak_keys);
     free(keccak_values);

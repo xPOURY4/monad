@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(monad_trie)
+link_directories(/usr/include/liburing)
 
 # ###########
 # ## deps
@@ -29,6 +30,7 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/node.c
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/merge.c
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/commit.c
+    ${PROJECT_SOURCE_DIR}/src/monad/merkle/async.c
 
     ${PROJECT_SOURCE_DIR}/include/monad/tmp/node.h
     ${PROJECT_SOURCE_DIR}/include/monad/tmp/update.h
@@ -66,7 +68,7 @@ target_include_directories(monad_trie
 monad_trie_compile_options(monad_trie)
 
 add_subdirectory(monad-core)
-target_link_libraries(monad_trie PUBLIC monad_core)
+target_link_libraries(monad_trie PUBLIC monad_core uring)
 
 add_subdirectory(third_party/ethash)
 add_subdirectory(merkle_test)

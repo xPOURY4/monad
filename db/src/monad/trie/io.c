@@ -36,14 +36,12 @@ unsigned read_buffer_from_disk(
     size_t read_start_pos = offset - off_aligned;
     size_t read_size = READ_BUFFER_SIZE;
     if (READ_BUFFER_SIZE - read_start_pos < size) {
-        // the node is across two read two buffers
+        // the node is across two read buffers
         read_size *= 2;
     }
     *buffer = get_avail_buffer(read_size);
     if (lseek(fd, off_aligned, SEEK_SET) != off_aligned) {
         perror("lseek to offset failed");
-        int eof = lseek(fd, 0, SEEK_END);
-        printf("eof %d\n", eof);
         exit(errno);
     }
     if (read(fd, *buffer, read_size) == -1) {
@@ -54,4 +52,21 @@ unsigned read_buffer_from_disk(
         exit(errno);
     }
     return read_start_pos;
+}
+
+// io uring
+int init_uring(struct io_uring *ring)
+{
+    int ret = io_uring_queue_init(URING_ENTRIES, ring, 0);
+    if (ret < 0) {
+        fprintf(stderr, "queue_init failed: %s\n", strerror(-ret));
+        exit(1);
+    }
+    return 0;
+}
+
+void exit_uring(struct io_uring *ring)
+{
+    io_uring_queue_exit(ring);
+    free(ring);
 }

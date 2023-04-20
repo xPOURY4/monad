@@ -134,7 +134,6 @@ merkle_node_t *read_node_from_disk(int64_t offset)
     unsigned buffer_off =
         read_buffer_from_disk(fd, offset, &buffer, MAX_DISK_NODE_SIZE);
     merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off);
-    buffer_off = buffer_off + 1;
 
     free(buffer);
     return node;

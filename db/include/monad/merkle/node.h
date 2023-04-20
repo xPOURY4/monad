@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <liburing.h>
 #include <monad/mem/cpool.h>
 #include <monad/tmp/node.h>
 #include <monad/trie/config.h>
@@ -18,6 +19,8 @@ extern "C"
 #endif
 
 extern int fd;
+extern struct io_uring *ring;
+extern int n_pending_rq;
 
 #define SIZE_OF_CHILD_COUNT 1
 #define SIZE_OF_PATH_LEN 1
