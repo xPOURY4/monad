@@ -16,7 +16,13 @@ merkle_node_t *do_merge(
         if (prev_root->mask & 1u << i) {
             if (tmp_root->next[i]) { // both has branches
                 merge_trie(
-                    prev_root, i, tmp_root, i, pi + 1, new_root, child_idx);
+                    prev_root,
+                    merkle_child_index(prev_root, i),
+                    tmp_root,
+                    i,
+                    pi + 1,
+                    new_root,
+                    child_idx);
             }
             else { // prev has branches, tmp not
                 new_root->children[child_idx] =
@@ -36,17 +42,15 @@ merkle_node_t *do_merge(
    note that prev trie is immutable, always copy before modify
 */
 void merge_trie(
-    merkle_node_t *const prev_parent, uint8_t const prev_branch_i,
+    merkle_node_t *const prev_parent, uint8_t const prev_child_i,
     trie_branch_node_t const *const tmp_parent, uint8_t const tmp_branch_i,
     unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_branch_arr_i)
 {
-    unsigned const prev_child_idx =
-        merkle_child_index(prev_parent, prev_branch_i);
     unsigned char const prev_node_path_len =
-        prev_parent->children[prev_child_idx].path_len;
+        prev_parent->children[prev_child_i].path_len;
     unsigned char *const prev_node_path =
-        (unsigned char *const)prev_parent->children[prev_child_idx].path;
+        (unsigned char *const)prev_parent->children[prev_child_i].path;
 
     trie_branch_node_t const *const tmp_node =
         get_node(tmp_parent->next[tmp_branch_i]);
@@ -62,6 +66,7 @@ void merge_trie(
     merkle_node_t *new_branch = NULL;
     unsigned char new_path_len;
     unsigned char *new_path;
+    merkle_node_t *prev_node = prev_parent->children[prev_child_i].next;
 
     while (1) {
         if (min_path_len == pi) {
@@ -88,7 +93,7 @@ void merge_trie(
                     // move one level down on the tmp trie under next_nibble
                     merge_trie(
                         prev_parent,
-                        prev_branch_i,
+                        prev_child_i,
                         tmp_node,
                         next_nibble,
                         pi + 1,
@@ -105,23 +110,22 @@ void merge_trie(
                     // add prev_node to new_branch's next_nibble branch
                     new_branch->children[merkle_child_index(
                         new_branch, next_nibble)] =
-                        prev_parent->children[prev_child_idx];
+                        prev_parent->children[prev_child_i];
                 }
                 new_path = (unsigned char *const)tmp_node->path;
                 new_path_len = tmp_node->path_len;
             }
             else if (tmp_is_shorter == -1) { // prev path is shorter
-                merge_uring_data_t *uring_data = get_merge_uring_data(
-                    prev_parent,
-                    prev_branch_i,
-                    tmp_parent,
-                    tmp_branch_i,
-                    pi,
-                    new_parent,
-                    new_branch_arr_i);
-                merkle_node_t *const prev_node = async_get_merkle_next(
-                    prev_parent, prev_child_idx, uring_data);
                 if (!prev_node) {
+                    merge_uring_data_t *uring_data = get_merge_uring_data(
+                        prev_parent,
+                        prev_child_i,
+                        tmp_parent,
+                        tmp_branch_i,
+                        pi,
+                        new_parent,
+                        new_branch_arr_i);
+                    async_read_request(uring_data);
                     return; // async callback will pickup when finished
                 }
                 // tmp may be a leaf
@@ -134,7 +138,7 @@ void merge_trie(
                     new_branch = copy_merkle_node(prev_node);
                     merge_trie(
                         prev_node,
-                        next_nibble,
+                        merkle_child_index(prev_node, next_nibble),
                         tmp_parent,
                         tmp_branch_i,
                         pi + 1,
@@ -177,19 +181,19 @@ void merge_trie(
                         &((trie_leaf_node_t *)tmp_node)->data);
                 }
                 else {
-                    merge_uring_data_t *uring_data = get_merge_uring_data(
-                        prev_parent,
-                        prev_branch_i,
-                        tmp_parent,
-                        tmp_branch_i,
-                        pi,
-                        new_parent,
-                        new_branch_arr_i);
-                    merkle_node_t *const prev_node = async_get_merkle_next(
-                        prev_parent, prev_child_idx, uring_data);
                     if (!prev_node) {
+                        merge_uring_data_t *uring_data = get_merge_uring_data(
+                            prev_parent,
+                            prev_child_i,
+                            tmp_parent,
+                            tmp_branch_i,
+                            pi,
+                            new_parent,
+                            new_branch_arr_i);
+                        async_read_request(uring_data);
                         return; // async callback will pickup when finished
                     }
+
                     new_branch = do_merge(prev_node, tmp_node, pi);
                 }
                 new_path = prev_node_path;
@@ -226,7 +230,7 @@ void merge_trie(
             // new_branch -> prev_nibble
             unsigned int prev_idx = prev_nibble > tmp_nibble;
             new_branch->children[prev_idx] =
-                prev_parent->children[prev_child_idx];
+                prev_parent->children[prev_child_i];
 
             // new_branch -> tmp_nibble
             set_merkle_child(new_branch, !prev_idx, tmp_node);

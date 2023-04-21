@@ -13,7 +13,7 @@ merkle_node_t *do_merge(
     unsigned char pi);
 
 void merge_trie(
-    merkle_node_t *prev_parent, uint8_t prev_branch_i,
+    merkle_node_t *prev_parent, uint8_t prev_child_i,
     trie_branch_node_t const *tmp_parent, uint8_t tmp_branch_i,
     unsigned char pi, merkle_node_t *new_parent, uint8_t new_branch_arr_i);
 
@@ -29,7 +29,7 @@ typedef struct merge_uring_data_t
     // read buffer starting offset
     unsigned buffer_off;
     unsigned char const pi;
-    uint8_t const prev_branch_i;
+    uint8_t const prev_child_i;
     uint8_t const tmp_branch_i;
     uint8_t const new_branch_arr_i;
 } merge_uring_data_t;
@@ -38,7 +38,7 @@ static_assert(sizeof(merge_uring_data_t) == 40);
 static_assert(alignof(merge_uring_data_t) == 8);
 
 static inline merge_uring_data_t *get_merge_uring_data(
-    merkle_node_t *const prev_parent, uint8_t const prev_branch_i,
+    merkle_node_t *const prev_parent, uint8_t const prev_child_i,
     trie_branch_node_t const *const tmp_parent, uint8_t const tmp_branch_i,
     unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_branch_arr_i)
@@ -50,7 +50,7 @@ static inline merge_uring_data_t *get_merge_uring_data(
         .tmp_parent = tmp_parent,
         .new_parent = new_parent,
         .pi = pi,
-        .prev_branch_i = prev_branch_i,
+        .prev_child_i = prev_child_i,
         .tmp_branch_i = tmp_branch_i,
         .new_branch_arr_i = new_branch_arr_i,
     };
@@ -58,12 +58,8 @@ static inline merge_uring_data_t *get_merge_uring_data(
     return user_data;
 }
 
-merkle_node_t *async_get_merkle_next(
-    merkle_node_t *const node, unsigned const child_idx,
-    merge_uring_data_t *const merge_params);
-
 // submit async read
-void async_read_node_from_disk(merge_uring_data_t *merge_params);
+void async_read_request(merge_uring_data_t *merge_params);
 
 void poll_uring();
 
