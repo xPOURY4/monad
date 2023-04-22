@@ -46,7 +46,7 @@ void set_merkle_child(
     }
     else {
         // copy the whole trie but not data
-        parent->children[arr_idx].next = copy_tmp_trie(tmp_node, 0);
+        copy_tmp_trie(parent, arr_idx, tmp_node);
         assert(parent->children[arr_idx].next != NULL);
     }
     // copy path, and path len
@@ -61,23 +61,24 @@ void set_merkle_child(
     new_node stores node's children data
     presumption: node is a branch node
 */
-merkle_node_t *
-copy_tmp_trie(trie_branch_node_t const *const node, uint16_t const mask)
+// TODO calculate data as well
+void copy_tmp_trie(
+    merkle_node_t *const parent, uint8_t const arr_idx,
+    trie_branch_node_t const *const node)
 {
-    merkle_node_t *new_node =
-        get_new_merkle_node(mask > 0 ? mask : node->subnode_bitmask);
+    assert(node->type == BRANCH);
+    merkle_node_t *new_node = get_new_merkle_node(node->subnode_bitmask);
 
     unsigned int child_idx = 0;
     for (int i = 0; i < 16; ++i) {
         if (new_node->mask & 1u << i) {
             if (node->next[i]) {
-                trie_branch_node_t *const next_node = get_node(node->next[i]);
-                set_merkle_child(new_node, child_idx, next_node);
+                set_merkle_child(new_node, child_idx, get_node(node->next[i]));
             }
             ++child_idx;
         }
     }
-    return new_node;
+    parent->children[arr_idx].next = new_node;
 }
 
 unsigned char *serialize_node_to_buffer(

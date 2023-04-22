@@ -103,14 +103,25 @@ void merge_trie(
                 else { // no more next branch in tmp trie that matches the
                     // nibble in prev trie
                     // copy tmp_node to new_branch
-                    new_branch = copy_tmp_trie(
-                        tmp_node,
+                    new_branch = get_new_merkle_node(
                         tmp_node->subnode_bitmask | 1u << next_nibble);
 
-                    // add prev_node to new_branch's next_nibble branch
-                    new_branch->children[merkle_child_index(
-                        new_branch, next_nibble)] =
-                        prev_parent->children[prev_child_i];
+                    unsigned child_idx = 0;
+                    for (int i = 0; i < 16; ++i) {
+                        if (new_branch->mask & 1u << i) {
+                            if (tmp_node->next[i]) {
+                                set_merkle_child(
+                                    new_branch,
+                                    child_idx,
+                                    get_node(tmp_node->next[i]));
+                            }
+                            else {
+                                new_branch->children[child_idx] =
+                                    prev_parent->children[prev_child_i];
+                            }
+                            ++child_idx;
+                        }
+                    }
                 }
                 new_path = (unsigned char *const)tmp_node->path;
                 new_path_len = tmp_node->path_len;

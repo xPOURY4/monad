@@ -117,7 +117,8 @@ merkle_node_t *read_node_from_disk(int64_t offset);
 void set_merkle_child(
     merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *tmp_node);
 
-merkle_node_t *copy_tmp_trie(trie_branch_node_t const *node, uint16_t mask);
+void copy_tmp_trie(
+    merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *node);
 
 static inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
