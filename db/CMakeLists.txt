@@ -68,8 +68,8 @@ target_include_directories(monad_trie
 )
 monad_trie_compile_options(monad_trie)
 
-add_subdirectory(monad-core)
-target_link_libraries(monad_trie PUBLIC monad_core uring)
-
 add_subdirectory(third_party/ethash)
+add_subdirectory(monad-core)
+target_link_libraries(monad_trie PUBLIC monad_core uring ethash::keccak)
+
 add_subdirectory(merkle_test)

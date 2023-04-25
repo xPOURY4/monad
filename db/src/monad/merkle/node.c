@@ -1,3 +1,4 @@
+#include <ethash/keccak.h>
 #include <malloc.h>
 #include <monad/merkle/node.h>
 #include <monad/trie/io.h>
@@ -53,17 +54,24 @@ void set_merkle_child_from_tmp(
             get_new_merkle_node(tmp_node->subnode_bitmask);
 
         unsigned int child_idx = 0;
-        uint64_t first_word = 0;
+        // compute keccak
+        unsigned char bytes[32 * tmp_node->nsubnodes];
+        uint64_t b_offset = 0;
         for (int i = 0; i < 16; ++i) {
             if (tmp_node->next[i]) {
                 set_merkle_child_from_tmp(
                     new_node, child_idx, get_node(tmp_node->next[i]));
-                first_word += new_node->children[child_idx].data.words[0];
+                copy_trie_data(
+                    (trie_data_t *)(bytes + b_offset),
+                    &new_node->children[child_idx].data);
+                b_offset += 32;
                 ++child_idx;
             }
         }
         parent->children[arr_idx].next = new_node;
-        parent->children[arr_idx].data.words[0] = first_word;
+        copy_trie_data(
+            &parent->children[arr_idx].data,
+            (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
     }
     // copy path, and path len
     parent->children[arr_idx].path_len = tmp_node->path_len;
@@ -142,4 +150,22 @@ uint64_t sum_data_first_word(merkle_node_t *const node)
         sum_data += node->children[i].data.words[0];
     }
     return sum_data;
+}
+
+void rehash_keccak(
+    merkle_node_t *const parent, uint8_t const child_idx,
+    merkle_node_t *const node)
+{
+    unsigned char bytes[node->nsubnodes * 32];
+    uint32_t b_offset = 0;
+
+    for (int i = 0; i < node->nsubnodes; ++i) {
+        copy_trie_data(
+            (trie_data_t *)(bytes + b_offset), &node->children[i].data);
+        b_offset += 32;
+    }
+    copy_trie_data(
+        &parent->children[child_idx].data,
+        (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+    return;
 }

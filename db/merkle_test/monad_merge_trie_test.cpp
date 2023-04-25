@@ -42,6 +42,22 @@ off_t get_file_size(int fd)
     return st.st_size;
 }
 
+trie_data_t compute_root_hash(merkle_node_t *const node)
+{
+    trie_data_t data;
+    unsigned char bytes[node->nsubnodes * 32];
+    uint32_t b_offset = 0;
+
+    for (int i = 0; i < node->nsubnodes; ++i) {
+        copy_trie_data(
+            (trie_data_t *)(bytes + b_offset), &node->children[i].data);
+        b_offset += 32;
+    }
+    copy_trie_data(
+        &data, (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+    return data;
+}
+
 /*  Commit one batch of updates
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
@@ -95,7 +111,7 @@ static merkle_node_t *batch_upsert_commit(
     free(root_tnode);
     printf(
         "root->data[0] after precommit: 0x%lx\n",
-        sum_data_first_word(new_root));
+        compute_root_hash(new_root).words[0]);
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert/erase+precommit in RAM: "

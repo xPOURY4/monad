@@ -37,7 +37,7 @@ void do_commit(int fd, merkle_node_t *const root)
 
 // return the last node's file offset
 // size_t* next_offset always shows the next available file offset to write to
-// update: precommit (using add for now) before write, free trie if path_len > 5
+// free trie if path_len > 5
 int64_t write_trie(
     int fd, unsigned char **const buffer, size_t *buffer_idx,
     merkle_node_t *const node, int64_t *const block_off)
@@ -63,7 +63,7 @@ int64_t write_trie(
         }
         // renew buffer
         *block_off = *block_off + WRITE_BUFFER_SIZE;
-        *buffer = (unsigned char *)malloc(WRITE_BUFFER_SIZE);
+        *buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
         **buffer = BLOCK_TYPE_DATA;
         *buffer_idx = 1;
     }

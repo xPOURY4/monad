@@ -115,6 +115,9 @@ merkle_node_t *read_node_from_disk(int64_t offset);
 
 uint64_t sum_data_first_word(merkle_node_t *node);
 
+void rehash_keccak(
+    merkle_node_t *parent, uint8_t child_idx, merkle_node_t *child);
+
 // helper functions
 void set_merkle_child_from_tmp(
     merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *tmp_node);

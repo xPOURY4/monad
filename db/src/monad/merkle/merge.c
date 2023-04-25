@@ -247,8 +247,7 @@ void merge_trie(
 
             if (new_branch) {
                 if (!branch_tnode || !branch_tnode->npending) {
-                    new_parent->children[new_branch_arr_i].data.words[0] =
-                        sum_data_first_word(new_branch);
+                    rehash_keccak(new_parent, new_branch_arr_i, new_branch);
                     --parent_tnode->npending;
                 }
             }
@@ -279,8 +278,7 @@ void merge_trie(
                 new_parent->children[new_branch_arr_i].path,
                 tmp_node->path,
                 (1 + pi) / 2);
-            new_parent->children[new_branch_arr_i].data.words[0] =
-                sum_data_first_word(new_branch);
+            rehash_keccak(new_parent, new_branch_arr_i, new_branch);
             --parent_tnode->npending;
 
             return;
@@ -296,8 +294,7 @@ void upward_update_data(tnode_t *curr_tnode)
     while (!curr_tnode->npending && curr_tnode->parent) {
         // ready to sum for curr->node and update data in parent
         merkle_node_t *parent = curr_tnode->parent->node;
-        parent->children[curr_tnode->child_idx].data.words[0] =
-            sum_data_first_word(curr_tnode->node);
+        rehash_keccak(parent, curr_tnode->child_idx, curr_tnode->node);
         --curr_tnode->parent->npending;
         curr_tnode = curr_tnode->parent;
     }
