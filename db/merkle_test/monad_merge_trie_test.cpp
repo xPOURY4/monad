@@ -71,12 +71,14 @@ static merkle_node_t *batch_upsert_commit(
         //         64);
         // }
     }
-    merkle_node_t *new_root = do_merge(prev_root, get_node(tmp_root_i), 0);
+    tnode_t *root_tnode = (tnode_t *)malloc(sizeof(tnode_t));
+    root_tnode->parent = NULL;
+    merkle_node_t *new_root =
+        do_merge(prev_root, get_node(tmp_root_i), 0, root_tnode);
     // after all merge call, also need to poll until no submission left in uring
     while (n_pending_rq) {
         poll_uring();
     }
-
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
@@ -89,14 +91,15 @@ static merkle_node_t *batch_upsert_commit(
     tm_commit = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
                 ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
 
-    off_t fsize = get_file_size(fd);
-
+    assert(root_tnode->npending == 0);
+    free(root_tnode);
+    printf(
+        "root->data[0] after precommit: 0x%lx\n",
+        sum_data_first_word(new_root));
     fprintf(
         stdout,
-        "next_key_id: %lu, nkeys upserted: %lu, upsert/erase in RAM: %f "
-        "/s, "
-        "commit_t: %f "
-        "s, total_t %.4f s\n",
+        "next_key_id: %lu, nkeys upserted: %lu, upsert/erase+precommit in RAM: "
+        "%f /s, commit_t: %f s, total_t %.4f s\n",
         offset + nkeys,
         nkeys,
         (double)nkeys * 1.001 / tm_ram,
@@ -105,8 +108,9 @@ static merkle_node_t *batch_upsert_commit(
     fprintf(
         stdout,
         "db file size after commit: %f GB\n",
-        float(fsize) / 1024 / 1024 / 1024);
+        float(get_file_size(fd)) / 1024 / 1024 / 1024);
     fflush(stdout);
+
     return new_root;
 }
 

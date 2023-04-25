@@ -33,7 +33,9 @@ disas_merkle_child_index(merkle_node_t const *const node, unsigned const i)
     return merkle_child_index(node, i);
 }
 
-void set_merkle_child(
+// Copy the temporary trie to a new merkle trie of parent
+// assign correct parent->children[arr_idx] values
+void set_merkle_child_from_tmp(
     merkle_node_t *const parent, uint8_t const arr_idx,
     trie_branch_node_t const *const tmp_node)
 {
@@ -45,9 +47,23 @@ void set_merkle_child(
         parent->children[arr_idx].next = NULL;
     }
     else {
-        // copy the whole trie but not data
-        copy_tmp_trie(parent, arr_idx, tmp_node);
-        assert(parent->children[arr_idx].next != NULL);
+        // copy the whole trie
+        assert(tmp_node->type == BRANCH);
+        merkle_node_t *new_node =
+            get_new_merkle_node(tmp_node->subnode_bitmask);
+
+        unsigned int child_idx = 0;
+        uint64_t first_word = 0;
+        for (int i = 0; i < 16; ++i) {
+            if (tmp_node->next[i]) {
+                set_merkle_child_from_tmp(
+                    new_node, child_idx, get_node(tmp_node->next[i]));
+                first_word += new_node->children[child_idx].data.words[0];
+                ++child_idx;
+            }
+        }
+        parent->children[arr_idx].next = new_node;
+        parent->children[arr_idx].data.words[0] = first_word;
     }
     // copy path, and path len
     parent->children[arr_idx].path_len = tmp_node->path_len;
@@ -55,30 +71,6 @@ void set_merkle_child(
         parent->children[arr_idx].path,
         tmp_node->path,
         (tmp_node->path_len + 1) / 2);
-}
-/*
-    Copy the temporary trie to a new merkle trie
-    new_node stores node's children data
-    presumption: node is a branch node
-*/
-// TODO calculate data as well
-void copy_tmp_trie(
-    merkle_node_t *const parent, uint8_t const arr_idx,
-    trie_branch_node_t const *const node)
-{
-    assert(node->type == BRANCH);
-    merkle_node_t *new_node = get_new_merkle_node(node->subnode_bitmask);
-
-    unsigned int child_idx = 0;
-    for (int i = 0; i < 16; ++i) {
-        if (new_node->mask & 1u << i) {
-            if (node->next[i]) {
-                set_merkle_child(new_node, child_idx, get_node(node->next[i]));
-            }
-            ++child_idx;
-        }
-    }
-    parent->children[arr_idx].next = new_node;
 }
 
 unsigned char *serialize_node_to_buffer(
@@ -138,4 +130,16 @@ merkle_node_t *read_node_from_disk(int64_t offset)
 
     free(buffer);
     return node;
+}
+
+uint64_t sum_data_first_word(merkle_node_t *const node)
+{
+    uint64_t sum_data = 0;
+    for (int i = 0; i < node->nsubnodes; ++i) {
+        if (!node->children[i].data.words[0]) {
+            printf("wrong data\n");
+        }
+        sum_data += node->children[i].data.words[0];
+    }
+    return sum_data;
 }

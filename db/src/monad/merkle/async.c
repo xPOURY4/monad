@@ -75,5 +75,7 @@ void poll_uring()
         data.tmp_branch_i,
         data.pi,
         data.new_parent,
-        data.new_branch_arr_i);
+        data.new_branch_arr_i,
+        data.parent);
+    upward_update_data(data.parent);
 }

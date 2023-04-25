@@ -24,6 +24,7 @@ include(cmake/test.cmake)
 # ###########
 add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/node.h
+    ${PROJECT_SOURCE_DIR}/include/monad/merkle/tnode.h 
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/merge.h 
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/commit.h
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/tr.h

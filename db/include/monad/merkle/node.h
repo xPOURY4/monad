@@ -113,12 +113,11 @@ merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos);
 
 merkle_node_t *read_node_from_disk(int64_t offset);
 
-// helper functions
-void set_merkle_child(
-    merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *tmp_node);
+uint64_t sum_data_first_word(merkle_node_t *node);
 
-void copy_tmp_trie(
-    merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *node);
+// helper functions
+void set_merkle_child_from_tmp(
+    merkle_node_t *parent, uint8_t arr_idx, trie_branch_node_t const *tmp_node);
 
 static inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
