@@ -20,7 +20,12 @@ extern "C"
 
 extern int fd;
 extern struct io_uring *ring;
-extern int n_pending_rq;
+extern int inflight;
+extern int inflight_rd;
+
+extern unsigned char *write_buffer;
+extern size_t buffer_idx;
+extern int64_t block_off;
 
 #define SIZE_OF_CHILD_COUNT 1
 #define SIZE_OF_PATH_LEN 1
@@ -111,6 +116,8 @@ serialize_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
 
 merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos);
 
+// node rw
+int64_t write_node(merkle_node_t *node);
 merkle_node_t *read_node_from_disk(int64_t offset);
 
 uint64_t sum_data_first_word(merkle_node_t *node);

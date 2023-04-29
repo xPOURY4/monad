@@ -22,8 +22,13 @@
 #define SLICE_LEN 100000
 cpool_31_t tmp_pool;
 int fd;
-int n_pending_rq;
+int inflight;
+int inflight_rd;
 struct io_uring *ring;
+// write buffer info
+unsigned char *write_buffer;
+size_t buffer_idx;
+int64_t block_off;
 
 static void ctrl_c_handler(int s)
 {
@@ -66,8 +71,10 @@ static merkle_node_t *batch_upsert_commit(
     merkle_node_t *prev_root, int64_t offset, int64_t nkeys,
     char const *const keccak_keys, char const *const keccak_values)
 {
-    struct timespec ts_before, ts_after;
-    double tm_ram, tm_commit;
+    struct timespec ts_before, ts_middle, ts_after;
+    double tm_ram, tm_io_extra;
+    int inflight_before_poll = 0;
+    int inflight_rd_before_poll = 0;
     // const int j = 1000;
 
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
@@ -87,40 +94,65 @@ static merkle_node_t *batch_upsert_commit(
         //         64);
         // }
     }
+    // initialize buffer and block_off
+    buffer_idx = 1;
+    write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
+    *write_buffer = BLOCK_TYPE_DATA;
+    // initialize tnode
     tnode_t *root_tnode = (tnode_t *)malloc(sizeof(tnode_t));
     root_tnode->parent = NULL;
     merkle_node_t *new_root =
         do_merge(prev_root, get_node(tmp_root_i), 0, root_tnode);
     // after all merge call, also need to poll until no submission left in uring
-    while (n_pending_rq) {
+    clock_gettime(CLOCK_MONOTONIC, &ts_middle);
+    inflight_before_poll = inflight;
+    inflight_rd_before_poll = inflight_rd;
+
+    while (inflight_rd) {
         poll_uring();
     }
+    // handle the last buffer to write
+    if (buffer_idx > 1) {
+        async_write_request(write_buffer, block_off);
+        block_off += WRITE_BUFFER_SIZE;
+    }
+    else {
+        free(write_buffer);
+    }
+    // TODO: add footer
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
-
-    // commit the tr to on-disk storage
-    clock_gettime(CLOCK_MONOTONIC, &ts_before);
-    do_commit(fd, new_root);
-    clock_gettime(CLOCK_MONOTONIC, &ts_after);
-
-    tm_commit = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
-                ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
+    tm_io_extra = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
+                  ((double)ts_middle.tv_sec + (double)ts_middle.tv_nsec / 1e9);
 
     assert(root_tnode->npending == 0);
     free(root_tnode);
-    printf(
+
+    fprintf(
+        stdout,
+        "inflight_before_poll = %d, "
+        "inflight_rd_before_poll = %d\n",
+        inflight_before_poll,
+        inflight_rd_before_poll);
+    fprintf(
+        stdout,
+        "number of unconsumed ready entries in CQ ring: %d\n",
+        io_uring_cq_ready(ring));
+    fprintf(
+        stdout,
         "root->data[0] after precommit: 0x%lx\n",
         compute_root_hash(new_root).words[0]);
     fprintf(
         stdout,
-        "next_key_id: %lu, nkeys upserted: %lu, upsert/erase+precommit in RAM: "
-        "%f /s, commit_t: %f s, total_t %.4f s\n",
+        "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
+        "RAM: "
+        "%f /s, total_t %.4f s\n",
         offset + nkeys,
         nkeys,
         (double)nkeys * 1.001 / tm_ram,
-        tm_commit,
-        tm_ram + tm_commit);
+        tm_ram);
+    fprintf(stdout, "extra time waiting for io %.4f s\n", tm_io_extra);
     fprintf(
         stdout,
         "db file size after commit: %f GB\n",
@@ -191,7 +223,7 @@ int main(int argc, char *argv[])
     // init io uring
     ring = (struct io_uring *)malloc(sizeof(struct io_uring));
     init_uring(ring);
-    n_pending_rq = 0;
+    inflight = 0;
 
     int n_slices = 20;
     std::string dbname = "test.db";
@@ -216,6 +248,8 @@ int main(int argc, char *argv[])
 
     // create tr
     fd = tr_open(dbname.c_str());
+    // initialize write block offset
+    block_off = lseek(fd, 0, SEEK_END);
     merkle_node_t *root = get_new_merkle_node(0);
     merkle_node_t *prev_root;
     /* start profiling upsert and commit */

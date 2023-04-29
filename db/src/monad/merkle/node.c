@@ -1,5 +1,6 @@
 #include <ethash/keccak.h>
 #include <malloc.h>
+#include <monad/merkle/merge.h>
 #include <monad/merkle/node.h>
 #include <monad/trie/io.h>
 
@@ -72,6 +73,11 @@ void set_merkle_child_from_tmp(
         copy_trie_data(
             &parent->children[arr_idx].data,
             (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+        parent->children[arr_idx].fnext = write_node(new_node);
+        if (parent->children[arr_idx].path_len > 5) {
+            free(parent->children[arr_idx].next);
+            parent->children[arr_idx].next = NULL;
+        }
     }
     // copy path, and path len
     parent->children[arr_idx].path_len = tmp_node->path_len;
@@ -138,6 +144,25 @@ merkle_node_t *read_node_from_disk(int64_t offset)
 
     free(buffer);
     return node;
+}
+
+int64_t write_node(merkle_node_t *const node)
+{
+    size_t size = get_disk_node_size(node);
+    if (size + buffer_idx > WRITE_BUFFER_SIZE) {
+        // buffer will be freed after iouring completed
+        async_write_request(write_buffer, block_off);
+        // renew buffer
+        block_off += WRITE_BUFFER_SIZE;
+        write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
+        *write_buffer = BLOCK_TYPE_DATA;
+        buffer_idx = 1;
+    }
+    // Write the root node to the buffer
+    int64_t ret = block_off + buffer_idx;
+    serialize_node_to_buffer(write_buffer + buffer_idx, node);
+    buffer_idx += size;
+    return ret;
 }
 
 uint64_t sum_data_first_word(merkle_node_t *const node)

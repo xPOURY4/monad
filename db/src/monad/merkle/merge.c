@@ -1,4 +1,5 @@
 #include <monad/merkle/merge.h>
+#include <monad/trie/io.h>
 #include <monad/trie/nibble.h>
 
 // presumption: prev_root and tmp_root are branch nodes
@@ -208,9 +209,13 @@ void merge_trie(
                 // 2. branches: create a new branch node with branches
                 // for each possible one = UNION(prev branches, tmp branches)
                 if (tmp_node->type == LEAF) {
-                    copy_trie_data(
-                        &(new_parent->children[new_branch_arr_i].data),
-                        &((trie_leaf_node_t *)tmp_node)->data);
+                    if (!cmp_trie_data(
+                            &(new_parent->children[new_branch_arr_i].data),
+                            &((trie_leaf_node_t *)tmp_node)->data)) {
+                        copy_trie_data(
+                            &(new_parent->children[new_branch_arr_i].data),
+                            &((trie_leaf_node_t *)tmp_node)->data);
+                    }
                     --parent_tnode->npending; // new_branch is NULL
                 }
                 else {
@@ -248,6 +253,12 @@ void merge_trie(
             if (new_branch) {
                 if (!branch_tnode || !branch_tnode->npending) {
                     rehash_keccak(new_parent, new_branch_arr_i, new_branch);
+                    new_parent->children[new_branch_arr_i].fnext =
+                        write_node(new_branch);
+                    if (new_parent->children[new_branch_arr_i].path_len > 5) {
+                        free(new_parent->children[new_branch_arr_i].next);
+                        new_parent->children[new_branch_arr_i].next = NULL;
+                    }
                     --parent_tnode->npending;
                 }
             }
@@ -279,6 +290,12 @@ void merge_trie(
                 tmp_node->path,
                 (1 + pi) / 2);
             rehash_keccak(new_parent, new_branch_arr_i, new_branch);
+            new_parent->children[new_branch_arr_i].fnext =
+                write_node(new_branch);
+            if (new_parent->children[new_branch_arr_i].path_len > 5) {
+                free(new_parent->children[new_branch_arr_i].next);
+                new_parent->children[new_branch_arr_i].next = NULL;
+            }
             --parent_tnode->npending;
 
             return;
@@ -295,6 +312,12 @@ void upward_update_data(tnode_t *curr_tnode)
         // ready to sum for curr->node and update data in parent
         merkle_node_t *parent = curr_tnode->parent->node;
         rehash_keccak(parent, curr_tnode->child_idx, curr_tnode->node);
+        parent->children[curr_tnode->child_idx].fnext =
+            write_node(curr_tnode->node);
+        if (parent->children[curr_tnode->child_idx].path_len > 5) {
+            free(parent->children[curr_tnode->child_idx].next);
+            parent->children[curr_tnode->child_idx].next = NULL;
+        }
         --curr_tnode->parent->npending;
         curr_tnode = curr_tnode->parent;
     }
