@@ -16,17 +16,15 @@
                                                                                \
     typedef struct                                                             \
     {                                                                          \
-        unsigned char *mem;                                                    \
         uint32_t next;                                                         \
     } cpool_##BITS##_t;                                                        \
                                                                                \
-    static_assert(sizeof(cpool_##BITS##_t) == 16, "");                         \
-    static_assert(alignof(cpool_##BITS##_t) == 8, "");                         \
+    static_assert(sizeof(cpool_##BITS##_t) == 4, "");                          \
+    static_assert(alignof(cpool_##BITS##_t) == 4, "");                         \
                                                                                \
     static inline cpool_##BITS##_t *cpool_init##BITS(unsigned char *const mem) \
     {                                                                          \
         cpool_##BITS##_t *const p = (cpool_##BITS##_t *)mem;                   \
-        p->mem = mem;                                                          \
         p->next = sizeof(cpool_##BITS##_t);                                    \
         return p;                                                              \
     }                                                                          \
@@ -34,7 +32,7 @@
     static inline unsigned char *cpool_ptr##BITS(                              \
         cpool_##BITS##_t const *const p, uint32_t const i)                     \
     {                                                                          \
-        return p->mem + (i & ((1u << BITS) - 1));                              \
+        return (unsigned char *)p + (i & ((1u << BITS) - 1));                  \
     }                                                                          \
                                                                                \
     static inline uint32_t cpool_reserve##BITS(                                \
