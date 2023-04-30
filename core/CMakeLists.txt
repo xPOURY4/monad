@@ -20,16 +20,16 @@ endfunction()
 ############
 
 add_library(monad_core STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp
+
     ${PROJECT_SOURCE_DIR}/include/monad/core/assert.h
-    ${PROJECT_SOURCE_DIR}/include/monad/core/bit.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
-    ${PROJECT_SOURCE_DIR}/include/monad/core/math.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.h
     ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.c
 
-    ${PROJECT_SOURCE_DIR}/include/monad/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp
@@ -41,8 +41,7 @@ target_include_directories(monad_core
 monad_compile_options(monad_core)
 
 add_library(monad_core_disas STATIC
-    ${PROJECT_SOURCE_DIR}/src/monad/core/bit_disas.c
-    ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.c
+    ${PROJECT_SOURCE_DIR}/src/disas/monad/core/math_disas.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c
 )
 monad_compile_options(monad_core_disas)
