@@ -26,7 +26,7 @@ namespace impl
     {
         size_t const lz_bits = std::countl_zero(n);
         size_t const lz_bytes = lz_bits / 8;
-        n <<= lz_bytes;
+        n <<= lz_bytes * 8;
         size_t const n_be = [&n] {
             if constexpr (std::endian::native == std::endian::little) {
                 return std::byteswap(n);

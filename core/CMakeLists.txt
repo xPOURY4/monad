@@ -49,3 +49,21 @@ add_library(monad_core_disas STATIC
 )
 monad_compile_options(monad_core_disas)
 target_link_libraries(monad_core_disas monad_core)
+
+
+############
+### tests
+############
+
+enable_testing()
+
+find_package(GTest REQUIRED)
+
+function(monad_add_test target source)
+    add_executable(${target} ${source})
+    monad_compile_options(${target})
+    target_link_libraries(${target} monad_core GTest::GTest GTest::Main)
+    add_test(${target} ${target})
+endfunction()
+
+monad_add_test(encode_test ${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_test.cpp)
