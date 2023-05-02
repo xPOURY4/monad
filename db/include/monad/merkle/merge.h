@@ -46,8 +46,9 @@ static inline merge_uring_data_t *get_merge_uring_data(
     unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_branch_arr_i, tnode_t *parent)
 {
-    merge_uring_data_t *user_data =
-        (merge_uring_data_t *)malloc(sizeof(merge_uring_data_t));
+    merge_uring_data_t *user_data = (merge_uring_data_t *)cpool_ptr31(
+        &tmp_pool, cpool_reserve31(&tmp_pool, sizeof(merge_uring_data_t)));
+    cpool_advance31(&tmp_pool, sizeof(merge_uring_data_t));
     merge_uring_data_t tmp_data = (merge_uring_data_t){
         .prev_parent = prev_parent,
         .tmp_parent = tmp_parent,

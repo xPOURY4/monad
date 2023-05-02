@@ -21,12 +21,10 @@ void async_read_request(merge_uring_data_t *const uring_data)
 
     assert(uring_data->buffer);
     // get io_uring sqe, if no available entry, wait on poll() to reap some
-    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
-    if (!sqe) {
-        printf("submission queue is full, will poll()\n");
+    while (n_pending_rq >= URING_ENTRIES) {
         poll_uring();
-        sqe = io_uring_get_sqe(ring);
     }
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
     // prep for read
     io_uring_prep_read(sqe, fd, rd_buffer, read_size, off_aligned);
     // submit an io_uring request, with merge_params data
@@ -56,7 +54,6 @@ void poll_uring()
 
     merge_uring_data_t data;
     memcpy(&data, uring_data, sizeof(merge_uring_data_t));
-    free(uring_data);
 
     // construct the node from the read buffer
     merkle_node_t *node =
