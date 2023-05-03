@@ -4,7 +4,6 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cstddef>
 
 using monad::byte_string;
@@ -52,26 +51,25 @@ TEST(rlp, impl_encode_length)
 
     result = monad::rlp::impl::encode_length(buf, 1);
     EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(std::equal(buf, result, (unsigned char[]){1}));
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{1});
 
     result = monad::rlp::impl::encode_length(buf, 255);
     EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(std::equal(buf, result, (unsigned char[]){255}));
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{255});
 
     result = monad::rlp::impl::encode_length(buf, 256);
     EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(std::equal(buf, result, (unsigned char[]){1, 0}));
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({1, 0}));
 
     result = monad::rlp::impl::encode_length(buf, 258);
     EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(std::equal(buf, result, (unsigned char[]){1, 2}));
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({1, 2}));
 
     result = monad::rlp::impl::encode_length(buf, 0xFFFFFFFFFFFFFFFFUL);
     EXPECT_EQ(result - buf, 8);
-    EXPECT_TRUE(std::equal(
-        buf,
-        result,
-        (unsigned char[]){0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}));
+    EXPECT_TRUE(
+        byte_string_view(buf, result) ==
+        byte_string({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}));
 }
 
 TEST(rlp, string_length)
