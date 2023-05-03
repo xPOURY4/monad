@@ -33,14 +33,14 @@ typedef struct trie_branch_node_t
     unsigned char path[32];
 
     char pad[6];
+    trie_data_t data;
 
     uint32_t next[16];
-    int64_t fnext[16];
     uint16_t subnode_bitmask;
     int8_t nsubnodes;
 } trie_branch_node_t;
 
-static_assert(sizeof(trie_branch_node_t) == 240);
+static_assert(sizeof(trie_branch_node_t) == 144);
 static_assert(alignof(trie_branch_node_t) == 8);
 
 typedef struct trie_leaf_node_t

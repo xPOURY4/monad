@@ -26,7 +26,7 @@ static void ctrl_c_handler(int s)
 }
 
 // no commit
-static void construct_in_mem_trie(
+static uint32_t construct_in_mem_trie(
     int64_t offset, int64_t nkeys, char const *const keccak_keys,
     char const *const keccak_values)
 {
@@ -56,6 +56,7 @@ static void construct_in_mem_trie(
         (double)nkeys / tm_ram,
         tm_ram);
     fflush(stdout);
+    return tmp_root;
 }
 
 void prepare_keccak(
@@ -97,6 +98,45 @@ int prepare_keccak_parallel(
     return 0;
 }
 
+void _keccak(trie_branch_node_t *const node)
+{
+    // node->data = keccak(concat(node->next[i]->data)) for i in [0,16)
+    // if node->next[i]!= NULL
+    if (node->type != BRANCH) {
+        return;
+    }
+    unsigned char bytes[32 * 16];
+    uint64_t b_offset = 0;
+    int16_t k, subnode_mask = node->subnode_bitmask;
+    while (subnode_mask) {
+        k = __builtin_ctz(subnode_mask);
+        copy_trie_data(
+            (trie_data_t *)(bytes + b_offset), &get_node(node->next[k])->data);
+        b_offset += 32;
+        subnode_mask &= ~(1u << k);
+    }
+    copy_trie_data(
+        &(node->data),
+        (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+}
+
+void precommit(uint32_t node_i, void (*compute)(trie_branch_node_t *const))
+{
+    // recompute updated node data from bottom up
+    // commit: set fnext for subnodes
+    trie_branch_node_t *node = get_node(node_i);
+    if (node->type == LEAF) {
+        return;
+    }
+    for (unsigned char i = 0; i < 16; ++i) {
+        if (node->next[i]) {
+            precommit(node->next[i], compute);
+        }
+    }
+    assert(node_i != 0 && cpool_valid31(&pool, node_i) == true);
+    compute(node);
+}
+
 int main()
 {
     struct sigaction sig;
@@ -124,11 +164,16 @@ int main()
 
     // create tr
     /* start profiling upsert and commit */
-    for (int iter = 0; iter < n_slices; ++iter) {
-        construct_in_mem_trie(
-            iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
-        memset(tmp_huge_mem.data, 0, tmp_huge_mem.size);
-    }
+    // for (int iter = 0; iter < n_slices; ++iter) {
+    //     construct_in_mem_trie(
+    //         iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
+    //     memset(tmp_huge_mem.data, 0, tmp_huge_mem.size);
+    // }
+    // test keccak result
+    uint32_t root_i = construct_in_mem_trie(
+        0, n_slices * SLICE_LEN, keccak_keys, keccak_values);
+    precommit(root_i, _keccak);
+    printf("root data.words[0] = 0x%lx\n", get_node(root_i)->data.words[0]);
 
     huge_mem_free(&tmp_huge_mem);
 }

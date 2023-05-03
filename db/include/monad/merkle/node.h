@@ -22,6 +22,7 @@ extern int fd;
 extern struct io_uring *ring;
 extern int inflight;
 extern int inflight_rd;
+extern int n_rd_per_block;
 
 extern unsigned char *write_buffer;
 extern size_t buffer_idx;
@@ -124,6 +125,8 @@ uint64_t sum_data_first_word(merkle_node_t *node);
 
 void rehash_keccak(
     merkle_node_t *parent, uint8_t child_idx, merkle_node_t *child);
+
+void free_trie(merkle_node_t *);
 
 // helper functions
 void set_merkle_child_from_tmp(

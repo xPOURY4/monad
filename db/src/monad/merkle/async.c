@@ -56,6 +56,7 @@ void async_read_request(merge_uring_data_t *const uring_data)
     io_uring_submit(ring);
     ++inflight;
     ++inflight_rd;
+    ++n_rd_per_block;
 }
 
 void poll_uring()
@@ -69,7 +70,8 @@ void poll_uring()
     }
     if (cqe->res < 0) {
         /* The system call invoked asynchonously failed */
-        fprintf(stderr, "async syscall failed: %s\n", strerror(-ret));
+        fprintf(stderr, "async syscall failed: %s\n", strerror(-cqe->res));
+        // TODO: resubmit the request
         exit(1);
     }
     --inflight;

@@ -4,7 +4,6 @@
 #include <ethash/keccak.h>
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.h>
-#include <monad/merkle/commit.h>
 #include <monad/merkle/merge.h>
 #include <monad/merkle/tr.h>
 #include <monad/tmp/update.h>
@@ -24,6 +23,7 @@ cpool_31_t tmp_pool;
 int fd;
 int inflight;
 int inflight_rd;
+int n_rd_per_block;
 struct io_uring *ring;
 // write buffer info
 unsigned char *write_buffer;
@@ -75,6 +75,7 @@ static merkle_node_t *batch_upsert_commit(
     double tm_ram, tm_io_extra;
     int inflight_before_poll = 0;
     int inflight_rd_before_poll = 0;
+    n_rd_per_block = 0;
     // const int j = 1000;
 
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
@@ -119,7 +120,7 @@ static merkle_node_t *batch_upsert_commit(
     else {
         free(write_buffer);
     }
-    // TODO: add footer
+    write_root_footer(new_root);
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
@@ -128,13 +129,13 @@ static merkle_node_t *batch_upsert_commit(
 
     assert(root_tnode->npending == 0);
     free(root_tnode);
-
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
-        "inflight_rd_before_poll = %d\n",
+        "inflight_rd_before_poll = %d, n_rd_per_block = %d\n",
         inflight_before_poll,
-        inflight_rd_before_poll);
+        inflight_rd_before_poll,
+        n_rd_per_block);
     fprintf(
         stdout,
         "number of unconsumed ready entries in CQ ring: %d\n",
@@ -227,10 +228,10 @@ int main(int argc, char *argv[])
 
     int n_slices = 20;
     std::string dbname = "test.db";
-    // bool append = false;
+    bool append = false;
     int64_t offset = 0;
     CLI::App cli{"monad_trie_perf_test"};
-    // cli.add_flag("--append", append, "append on top of existing db");
+    cli.add_flag("--append", append, "append on top of existing db");
     cli.add_option("--db-name", dbname, "db file name");
     cli.add_option("--offset", offset, "integer offset to start insert");
     cli.add_option("-n", n_slices, "n batch updates");
@@ -250,7 +251,17 @@ int main(int argc, char *argv[])
     fd = tr_open(dbname.c_str());
     // initialize write block offset
     block_off = lseek(fd, 0, SEEK_END);
-    merkle_node_t *root = get_new_merkle_node(0);
+    merkle_node_t *root;
+    if (append) {
+        root = get_root_from_footer(fd);
+        fprintf(
+            stdout,
+            "prev root->data[0] after precommit: 0x%lx\n",
+            compute_root_hash(root).words[0]);
+    }
+    else {
+        root = get_new_merkle_node(0);
+    }
     merkle_node_t *prev_root;
     /* start profiling upsert and commit */
     for (int iter = 0; iter < n_slices; ++iter) {
@@ -258,8 +269,14 @@ int main(int argc, char *argv[])
         root = batch_upsert_commit(
             prev_root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
         // TODO: free prev root, need to make sure no multi-referencing in tries
+        // free_trie(prev_root);
     }
 
+    if (inflight) {
+        poll_uring();
+    }
+
+    free_trie(root);
     tr_close(fd);
     exit_uring(ring);
     huge_mem_free(&tmp_huge_mem);

@@ -194,3 +194,14 @@ void rehash_keccak(
         (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
     return;
 }
+
+void free_trie(merkle_node_t *const node)
+{
+    for (int i = 0; i < node->nsubnodes; ++i) {
+        if (node->children[i].next) {
+            free_trie(node->children[i].next);
+            node->children[i].next = NULL;
+        }
+    }
+    free(node);
+}

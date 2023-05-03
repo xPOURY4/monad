@@ -63,7 +63,7 @@ void merge_trie(
     unsigned char const prev_node_path_len =
         prev_parent->children[prev_child_i].path_len;
     unsigned char *const prev_node_path =
-        (unsigned char *const)prev_parent->children[prev_child_i].path;
+        prev_parent->children[prev_child_i].path;
 
     trie_branch_node_t const *const tmp_node =
         get_node(tmp_parent->next[tmp_branch_i]);
@@ -209,13 +209,9 @@ void merge_trie(
                 // 2. branches: create a new branch node with branches
                 // for each possible one = UNION(prev branches, tmp branches)
                 if (tmp_node->type == LEAF) {
-                    if (!cmp_trie_data(
-                            &(new_parent->children[new_branch_arr_i].data),
-                            &((trie_leaf_node_t *)tmp_node)->data)) {
-                        copy_trie_data(
-                            &(new_parent->children[new_branch_arr_i].data),
-                            &((trie_leaf_node_t *)tmp_node)->data);
-                    }
+                    copy_trie_data(
+                        &(new_parent->children[new_branch_arr_i].data),
+                        &((trie_leaf_node_t *)tmp_node)->data);
                     --parent_tnode->npending; // new_branch is NULL
                 }
                 else {
@@ -242,9 +238,8 @@ void merge_trie(
                 new_path = prev_node_path;
                 new_path_len = prev_node_path_len;
             }
-
-            new_parent->children[new_branch_arr_i] = (merkle_child_info_t){
-                .next = new_branch, .path_len = new_path_len};
+            new_parent->children[new_branch_arr_i].next = new_branch;
+            new_parent->children[new_branch_arr_i].path_len = new_path_len;
             memcpy(
                 new_parent->children[new_branch_arr_i].path,
                 new_path,
