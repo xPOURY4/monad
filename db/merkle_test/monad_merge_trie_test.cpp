@@ -109,7 +109,7 @@ static merkle_node_t *batch_upsert_commit(
     inflight_before_poll = inflight;
     inflight_rd_before_poll = inflight_rd;
 
-    while (inflight_rd) {
+    while (inflight) {
         poll_uring();
     }
     // handle the last buffer to write
@@ -129,6 +129,10 @@ static merkle_node_t *batch_upsert_commit(
 
     assert(root_tnode->npending == 0);
     free(root_tnode);
+
+    if ((offset + nkeys) % (10 * SLICE_LEN)) {
+        return new_root;
+    }
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
@@ -225,6 +229,7 @@ int main(int argc, char *argv[])
     ring = (struct io_uring *)malloc(sizeof(struct io_uring));
     init_uring(ring);
     inflight = 0;
+    inflight_rd = 0;
 
     int n_slices = 20;
     std::string dbname = "test.db";
@@ -275,6 +280,8 @@ int main(int argc, char *argv[])
     if (inflight) {
         poll_uring();
     }
+    assert(inflight == 0);
+    assert(inflight_rd == 0);
 
     free_trie(root);
     tr_close(fd);
