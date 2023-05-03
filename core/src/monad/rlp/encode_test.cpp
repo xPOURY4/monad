@@ -133,3 +133,53 @@ TEST(rlp, encode_string)
         byte_string_view(buf, result) ==
         byte_string({184, 56}) + byte_string(56, 1));
 }
+
+TEST(rlp, list_length)
+{
+    size_t result;
+
+    result = monad::rlp::list_length(byte_string{});
+    EXPECT_EQ(result, 1);
+
+    result = monad::rlp::list_length(byte_string{1});
+    EXPECT_EQ(result, 2);
+
+    result = monad::rlp::list_length(byte_string{1, 2});
+    EXPECT_EQ(result, 3);
+
+    result = monad::rlp::list_length(byte_string(55, 1));
+    EXPECT_EQ(result, 56);
+
+    result = monad::rlp::list_length(byte_string(56, 1));
+    EXPECT_EQ(result, 58);
+}
+
+TEST(rlp, encode_list)
+{
+    unsigned char buf[256];
+    unsigned char *result;
+
+    result = monad::rlp::encode_list(buf, byte_string{});
+    EXPECT_EQ(result - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{192});
+
+    result = monad::rlp::encode_list(buf, byte_string{1});
+    EXPECT_EQ(result - buf, 2);
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({193, 1}));
+
+    result = monad::rlp::encode_list(buf, byte_string{1, 2});
+    EXPECT_EQ(result - buf, 3);
+    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({194, 1, 2}));
+
+    result = monad::rlp::encode_list(buf, byte_string(55, 1));
+    EXPECT_EQ(result - buf, 56);
+    EXPECT_TRUE(
+        byte_string_view(buf, result) ==
+        byte_string({247}) + byte_string(55, 1));
+
+    result = monad::rlp::encode_list(buf, byte_string(56, 1));
+    EXPECT_EQ(result - buf, 58);
+    EXPECT_TRUE(
+        byte_string_view(buf, result) ==
+        byte_string({248, 56}) + byte_string(56, 1));
+}
