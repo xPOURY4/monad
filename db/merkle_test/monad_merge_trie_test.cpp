@@ -160,8 +160,8 @@ static merkle_node_t *batch_upsert_commit(
 }
 
 void prepare_keccak(
-    size_t nkeys, size_t offset, char *const keccak_keys,
-    char *const keccak_values)
+    size_t nkeys, char *const keccak_keys, char *const keccak_values,
+    size_t offset)
 {
     union ethash_hash256 hash;
     size_t i;
@@ -192,9 +192,9 @@ int prepare_keccak_parallel(
         threads.push_back(std::thread(
             prepare_keccak,
             SLICE_LEN,
-            offset + i * SLICE_LEN,
             keccak_keys,
-            keccak_values));
+            keccak_values,
+            offset + i * SLICE_LEN));
     }
     for (int i = 0; i < n_threads; ++i) {
         threads[i].join();
@@ -217,9 +217,6 @@ int main(int argc, char *argv[])
     huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
     tmp_pool = *cpool_init31(tmp_huge_mem.data);
 
-    // init io uring
-    ring = (struct io_uring *)malloc(sizeof(struct io_uring));
-    init_uring(ring);
     inflight = 0;
     inflight_rd = 0;
 
@@ -227,25 +224,36 @@ int main(int argc, char *argv[])
     std::string dbname = "test.db";
     bool append = false;
     int64_t offset = 0;
+    unsigned sq_thread_cpu = 15;
     CLI::App cli{"monad_trie_perf_test"};
     cli.add_flag("--append", append, "append on top of existing db");
     cli.add_option("--db-name", dbname, "db file name");
     cli.add_option("--offset", offset, "integer offset to start insert");
     cli.add_option("-n", n_slices, "n batch updates");
+    cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
     cli.parse(argc, argv);
 
     int64_t nkeys = SLICE_LEN * n_slices;
     char *const keccak_keys = (char *)malloc(nkeys * 32);
     char *const keccak_values = (char *)malloc(nkeys * 32);
     // pre-calculate keccak
-    // prepare_keccak(nkeys, 0, keccak_keys, keccak_values);
+    prepare_keccak(nkeys, keccak_keys, keccak_values, offset);
     // spawn multiple threads for keccak
-    prepare_keccak_parallel(nkeys, keccak_keys, keccak_values, offset);
+    // prepare_keccak_parallel(nkeys, keccak_keys, keccak_values, offset);
     fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
     fflush(stdout);
 
     // create tr
     fd = tr_open(dbname.c_str());
+
+    // init io uring
+    ring = (struct io_uring *)malloc(sizeof(struct io_uring));
+    int ret = init_uring(fd, ring, sq_thread_cpu);
+    if (ret) {
+        fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
+        return 1;
+    }
+
     // initialize write block offset
     block_off = lseek(fd, 0, SEEK_END);
     merkle_node_t *root;

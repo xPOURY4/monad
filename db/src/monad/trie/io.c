@@ -55,13 +55,28 @@ unsigned read_buffer_from_disk(
 }
 
 // io uring
-int init_uring(struct io_uring *ring)
+int init_uring(int fd, struct io_uring *ring, unsigned const kcpu)
 {
-    int ret = io_uring_queue_init(URING_ENTRIES, ring, 0);
-    if (ret < 0) {
-        fprintf(stderr, "queue_init failed: %s\n", strerror(-ret));
-        exit(1);
+    struct io_uring_params params;
+
+    memset(&params, 0, sizeof(params));
+    params.flags |= IORING_SETUP_SQPOLL | IORING_SETUP_SQ_AFF;
+    params.sq_thread_idle = SQ_THREAD_IDLE_MS;
+    params.sq_thread_cpu = kcpu;
+
+    int ret = io_uring_queue_init_params(URING_ENTRIES, ring, &params);
+    if (ret) {
+        fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
+        return 1;
     }
+    int fds[2];
+    fds[0] = fd;
+    ret = io_uring_register_files(ring, fds, 1);
+    if (ret) {
+        fprintf(stderr, "Error registering buffers: %s", strerror(-ret));
+        return 1;
+    }
+
     return 0;
 }
 

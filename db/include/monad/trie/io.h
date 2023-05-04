@@ -17,6 +17,7 @@ extern "C"
 #define WRITE_BUFFER_SIZE 64 * 1024
 #define READ_BUFFER_SIZE 2048
 #define URING_ENTRIES 1024
+#define SQ_THREAD_IDLE_MS UINT_MAX
 
 unsigned char *get_avail_buffer(size_t size);
 
@@ -26,7 +27,7 @@ unsigned read_buffer_from_disk(
     int fd, int64_t const offset, unsigned char **buffer, size_t size);
 
 // io_uring
-int init_uring(struct io_uring *ring);
+int init_uring(int fd, struct io_uring *ring, unsigned kcpu);
 
 void exit_uring(struct io_uring *ring);
 
