@@ -38,10 +38,6 @@ void async_read_request(merge_uring_data_t *const uring_data)
     int64_t off_aligned = (offset >> 9) << 9;
     size_t buffer_off = offset - off_aligned;
     size_t read_size = READ_BUFFER_SIZE;
-    if (READ_BUFFER_SIZE - buffer_off < MAX_DISK_NODE_SIZE) {
-        // the node is across two read buffers
-        read_size *= 2;
-    }
     unsigned char *rd_buffer =
         (unsigned char *)aligned_alloc(ALIGNMENT, read_size);
 

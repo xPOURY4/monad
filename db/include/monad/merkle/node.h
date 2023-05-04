@@ -35,7 +35,7 @@ extern int64_t block_off;
 #define SIZE_OF_FILE_OFFSET 8
 #define BLOCK_TYPE_DATA 0
 #define BLOCK_TYPE_META 1
-#define MAX_DISK_NODE_SIZE 1100
+#define MAX_DISK_NODE_SIZE 1416
 
 typedef struct merkle_child_info_t merkle_child_info_t;
 typedef struct merkle_node_t merkle_node_t;
