@@ -250,7 +250,8 @@ void merge_trie(
                     rehash_keccak(new_parent, new_branch_arr_i, new_branch);
                     new_parent->children[new_branch_arr_i].fnext =
                         write_node(new_branch);
-                    if (new_parent->children[new_branch_arr_i].path_len > 5) {
+                    if (new_parent->children[new_branch_arr_i].path_len >=
+                        CACHE_LEVELS) {
                         free(new_parent->children[new_branch_arr_i].next);
                         new_parent->children[new_branch_arr_i].next = NULL;
                     }
@@ -287,7 +288,8 @@ void merge_trie(
             rehash_keccak(new_parent, new_branch_arr_i, new_branch);
             new_parent->children[new_branch_arr_i].fnext =
                 write_node(new_branch);
-            if (new_parent->children[new_branch_arr_i].path_len > 5) {
+            if (new_parent->children[new_branch_arr_i].path_len >=
+                CACHE_LEVELS) {
                 free(new_parent->children[new_branch_arr_i].next);
                 new_parent->children[new_branch_arr_i].next = NULL;
             }
@@ -309,7 +311,7 @@ void upward_update_data(tnode_t *curr_tnode)
         rehash_keccak(parent, curr_tnode->child_idx, curr_tnode->node);
         parent->children[curr_tnode->child_idx].fnext =
             write_node(curr_tnode->node);
-        if (parent->children[curr_tnode->child_idx].path_len > 5) {
+        if (parent->children[curr_tnode->child_idx].path_len >= CACHE_LEVELS) {
             free(parent->children[curr_tnode->child_idx].next);
             parent->children[curr_tnode->child_idx].next = NULL;
         }

@@ -74,7 +74,7 @@ void set_merkle_child_from_tmp(
             &parent->children[arr_idx].data,
             (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
         parent->children[arr_idx].fnext = write_node(new_node);
-        if (parent->children[arr_idx].path_len > 5) {
+        if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
             free(parent->children[arr_idx].next);
             parent->children[arr_idx].next = NULL;
         }
