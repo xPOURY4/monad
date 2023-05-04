@@ -18,6 +18,15 @@ extern "C"
 CPOOL_DEFINE(31);
 extern cpool_31_t tmp_pool;
 
+typedef unsigned char trie_node_type_t;
+
+#ifndef UNKNOWN
+  #define UNKNOWN 0
+  #define BRANCH 1
+  #define LEAF 2
+#endif
+
+/*
 typedef enum trie_node_type_t
     : unsigned char
 {
@@ -25,6 +34,8 @@ typedef enum trie_node_type_t
     BRANCH,
     LEAF
 } trie_node_type_t;
+*/
+
 typedef struct trie_branch_node_t
 {
     trie_node_type_t type;

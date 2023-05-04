@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <stdalign.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus

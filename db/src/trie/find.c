@@ -7,7 +7,7 @@ int find(
 {
     *stack_index = 0;
     int key_index = 0;
-    unsigned char path_nibble;
+    unsigned char path_nibble = 0;
     unsigned char node_nibble;
 
     // Initialize root
