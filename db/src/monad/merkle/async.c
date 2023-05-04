@@ -1,10 +1,5 @@
 #include <monad/merkle/merge.h>
 #include <monad/trie/io.h>
-#include <time.h>
-
-extern FILE *fp;
-extern int batch_offset;
-extern double tm_wait;
 
 void async_write_request(unsigned char *const buffer, unsigned long long offset)
 {
@@ -43,17 +38,6 @@ void async_read_request(merge_uring_data_t *const uring_data)
     int64_t off_aligned = (offset >> 9) << 9;
     size_t buffer_off = offset - off_aligned;
     size_t read_size = READ_BUFFER_SIZE;
-    // DEBUG: log the batch, offset, file size
-    if (!(batch_offset >= 90 * 100 && batch_offset <= 100 * 100000)) {
-        fprintf(
-            fp,
-            "batch %d, n_read_curr_batch %d, read offset %ld, read size: %lu"
-            "B\n",
-            batch_offset,
-            n_rd_per_block,
-            offset,
-            read_size);
-    }
     unsigned char *rd_buffer =
         (unsigned char *)aligned_alloc(ALIGNMENT, read_size);
 
@@ -74,15 +58,8 @@ void async_read_request(merge_uring_data_t *const uring_data)
 void poll_uring()
 {
     struct io_uring_cqe *cqe;
-    struct timespec ts_before, ts_after;
     // get one completed request
-    clock_gettime(CLOCK_MONOTONIC, &ts_before);
     int ret = io_uring_wait_cqe(ring, &cqe);
-    clock_gettime(CLOCK_MONOTONIC, &ts_after);
-    tm_wait +=
-        ((double)ts_after.tv_sec * 1000 + (double)ts_after.tv_nsec / 1e6) -
-        ((double)ts_before.tv_sec * 1000 + (double)ts_before.tv_nsec / 1e6);
-
     if (ret < 0) {
         fprintf(stderr, "io_uring_wait_cqe fail: %s\n", strerror(-ret));
         exit(1);

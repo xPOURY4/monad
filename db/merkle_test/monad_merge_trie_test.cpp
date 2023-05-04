@@ -29,10 +29,6 @@ struct io_uring *ring;
 unsigned char *write_buffer;
 size_t buffer_idx;
 int64_t block_off;
-// tmp
-FILE *fp;
-int batch_offset;
-double tm_wait;
 
 static void ctrl_c_handler(int s)
 {
@@ -81,8 +77,6 @@ static merkle_node_t *batch_upsert_commit(
     int inflight_rd_before_poll = 0;
     n_rd_per_block = 0;
     // const int j = 1000;
-    batch_offset = offset;
-    tm_wait = 0;
 
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
 
@@ -141,14 +135,14 @@ static merkle_node_t *batch_upsert_commit(
     }
     fprintf(
         stdout,
-        "inflight_before_poll = %d, inflight_rd_before_poll = %d, "
-        "n_rd_per_block = %d\n",
+        "inflight_before_poll = %d, "
+        "inflight_rd_before_poll = %d, n_rd_per_block = %d\n",
         inflight_before_poll,
         inflight_rd_before_poll,
         n_rd_per_block);
     fprintf(
         stdout,
-        "number of unconsumed ready entries in CQ ring: %d\n", // 1 for footer
+        "number of unconsumed ready entries in CQ ring: %d\n",
         io_uring_cq_ready(ring));
     fprintf(
         stdout,
@@ -164,7 +158,6 @@ static merkle_node_t *batch_upsert_commit(
         (double)nkeys * 1.001 / tm_ram,
         tm_ram);
     fprintf(stdout, "extra time waiting for io %.4f s\n", tm_io_extra);
-    fprintf(stdout, "io_uring_wait_cqe: %.4f ms\n", tm_wait);
     fprintf(
         stdout,
         "db file size after commit: %f GB\n",
@@ -261,9 +254,6 @@ int main(int argc, char *argv[])
 
     // create tr
     fd = tr_open(dbname.c_str());
-
-    fp = fopen("read_info.log", "w+");
-
     // initialize write block offset
     block_off = lseek(fd, 0, SEEK_END);
     merkle_node_t *root;
@@ -287,13 +277,11 @@ int main(int argc, char *argv[])
         // free_trie(prev_root);
     }
 
-    while (inflight) {
+    if (inflight) {
         poll_uring();
     }
     assert(inflight == 0);
     assert(inflight_rd == 0);
-
-    fclose(fp);
 
     free_trie(root);
     tr_close(fd);
