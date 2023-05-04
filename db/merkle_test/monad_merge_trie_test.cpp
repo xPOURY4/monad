@@ -76,7 +76,6 @@ static merkle_node_t *batch_upsert_commit(
     int inflight_before_poll = 0;
     int inflight_rd_before_poll = 0;
     n_rd_per_block = 0;
-    // const int j = 1000;
 
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
 
@@ -87,13 +86,6 @@ static merkle_node_t *batch_upsert_commit(
             (unsigned char *)(keccak_keys + i * 32),
             64,
             (trie_data_t *)(keccak_values + i * 32));
-        // if ((i + 1) % j == 0) {
-        //     int first_byte = (int)*(keccak_keys + i * 32) & 0x00ff;
-        //     erase(
-        //         root,
-        //         (unsigned char *)(keccak_keys + (i - first_byte) * 32),
-        //         64);
-        // }
     }
     // initialize buffer and block_off
     buffer_idx = 1;

@@ -3,14 +3,6 @@
 
 void async_write_request(unsigned char *const buffer, unsigned long long offset)
 {
-    // while (inflight >= URING_ENTRIES) {
-    //     poll_uring();
-    //     printf(
-    //         "buffer 0x%lx, write_buffer 0x%lx\n",
-    //         (int64_t)buffer,
-    //         (int64_t)write_buffer);
-    // }
-
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
 
     io_uring_prep_write(sqe, fd, buffer, WRITE_BUFFER_SIZE, offset);
