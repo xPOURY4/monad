@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
         root = batch_upsert_commit(
             prev_root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
         // TODO: free prev root, need to make sure no multi-referencing in tries
-        // free_trie(prev_root);
+        free_trie(prev_root);
     }
 
     while (inflight) {

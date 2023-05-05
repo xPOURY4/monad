@@ -41,6 +41,13 @@ void set_merkle_child_from_tmp(
     merkle_node_t *const parent, uint8_t const arr_idx,
     trie_branch_node_t const *const tmp_node)
 {
+    // copy path, and path len
+    parent->children[arr_idx].path_len = tmp_node->path_len;
+    memcpy(
+        parent->children[arr_idx].path,
+        tmp_node->path,
+        (tmp_node->path_len + 1) / 2);
+
     if (tmp_node->type == LEAF) {
         // copy data
         copy_trie_data(
@@ -74,17 +81,12 @@ void set_merkle_child_from_tmp(
             &parent->children[arr_idx].data,
             (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
         parent->children[arr_idx].fnext = write_node(new_node);
+
         if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
-            free(parent->children[arr_idx].next);
+            free_trie(parent->children[arr_idx].next);
             parent->children[arr_idx].next = NULL;
         }
     }
-    // copy path, and path len
-    parent->children[arr_idx].path_len = tmp_node->path_len;
-    memcpy(
-        parent->children[arr_idx].path,
-        tmp_node->path,
-        (tmp_node->path_len + 1) / 2);
 }
 
 unsigned char *serialize_node_to_buffer(

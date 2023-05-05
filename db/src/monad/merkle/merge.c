@@ -18,7 +18,7 @@ merkle_node_t *do_merge(
     // Can do better with bit op loop
     for (int i = 0; i < 16; ++i) {
         if (prev_root->mask & 1u << i) {
-            if (tmp_root->next[i]) { // both has branches
+            if (tmp_root->next[i]) { // both have branches
                 merge_trie(
                     prev_root,
                     merkle_child_index(prev_root, i),
@@ -30,9 +30,15 @@ merkle_node_t *do_merge(
                     curr);
                 assert(curr->node == new_root);
             }
-            else { // prev has branches, tmp not
-                new_root->children[child_idx] =
-                    prev_root->children[merkle_child_index(prev_root, i)];
+            else { // prev has branches, tmp do not
+                merkle_child_info_t *tmp_prev_child =
+                    &prev_root->children[merkle_child_index(prev_root, i)];
+                if (tmp_prev_child->next) {
+                    assert(tmp_prev_child->path_len < CACHE_LEVELS);
+                    free_trie(tmp_prev_child->next);
+                    tmp_prev_child->next = NULL;
+                }
+                new_root->children[child_idx] = *tmp_prev_child;
                 --curr->npending;
             }
             ++child_idx;
@@ -133,8 +139,17 @@ void merge_trie(
                                     get_node(tmp_node->next[i]));
                             }
                             else {
+                                merkle_child_info_t *tmp_prev_child =
+                                    &prev_parent->children[prev_child_i];
+                                if (tmp_prev_child->next) {
+                                    assert(
+                                        tmp_prev_child->path_len <
+                                        CACHE_LEVELS);
+                                    free_trie(tmp_prev_child->next);
+                                    tmp_prev_child->next = NULL;
+                                }
                                 new_branch->children[child_idx] =
-                                    prev_parent->children[prev_child_i];
+                                    *tmp_prev_child;
                             }
                             ++child_idx;
                         }
@@ -188,9 +203,18 @@ void merge_trie(
                     for (int i = 0; i < 16; ++i) {
                         if ((new_branch->mask & 1u << i)) {
                             if (i != next_nibble) {
-                                new_branch->children[child_idx] =
-                                    prev_node->children[merkle_child_index(
+                                merkle_child_info_t *tmp_prev_child =
+                                    &prev_node->children[merkle_child_index(
                                         prev_node, i)];
+                                if (tmp_prev_child->next) {
+                                    assert(
+                                        tmp_prev_child->path_len <
+                                        CACHE_LEVELS);
+                                    free_trie(tmp_prev_child->next);
+                                    tmp_prev_child->next = NULL;
+                                }
+                                new_branch->children[child_idx] =
+                                    *tmp_prev_child;
                             }
                             else {
                                 set_merkle_child_from_tmp(
@@ -252,7 +276,7 @@ void merge_trie(
                         write_node(new_branch);
                     if (new_parent->children[new_branch_arr_i].path_len >=
                         CACHE_LEVELS) {
-                        free(new_parent->children[new_branch_arr_i].next);
+                        free_trie(new_branch);
                         new_parent->children[new_branch_arr_i].next = NULL;
                     }
                     --parent_tnode->npending;
@@ -273,8 +297,15 @@ void merge_trie(
                 get_new_merkle_node(1u << prev_nibble | 1u << tmp_nibble);
             // new_branch -> prev_nibble
             unsigned int prev_idx = prev_nibble > tmp_nibble;
-            new_branch->children[prev_idx] =
-                prev_parent->children[prev_child_i];
+            merkle_child_info_t *tmp_prev_child =
+                &prev_parent->children[prev_child_i];
+            if (tmp_prev_child->next) {
+                assert(tmp_prev_child->path_len < CACHE_LEVELS);
+                free_trie(tmp_prev_child->next);
+                tmp_prev_child->next = NULL;
+            }
+            new_branch->children[prev_idx] = *tmp_prev_child;
+
             // new_branch -> tmp_nibble
             set_merkle_child_from_tmp(new_branch, !prev_idx, tmp_node);
 
@@ -290,7 +321,7 @@ void merge_trie(
                 write_node(new_branch);
             if (new_parent->children[new_branch_arr_i].path_len >=
                 CACHE_LEVELS) {
-                free(new_parent->children[new_branch_arr_i].next);
+                free_trie(new_branch);
                 new_parent->children[new_branch_arr_i].next = NULL;
             }
             --parent_tnode->npending;
@@ -312,7 +343,7 @@ void upward_update_data(tnode_t *curr_tnode)
         parent->children[curr_tnode->child_idx].fnext =
             write_node(curr_tnode->node);
         if (parent->children[curr_tnode->child_idx].path_len >= CACHE_LEVELS) {
-            free(parent->children[curr_tnode->child_idx].next);
+            free_trie(parent->children[curr_tnode->child_idx].next);
             parent->children[curr_tnode->child_idx].next = NULL;
         }
         --curr_tnode->parent->npending;

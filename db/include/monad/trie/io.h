@@ -17,7 +17,7 @@ extern "C"
 #define WRITE_BUFFER_SIZE 64 * 1024
 #define READ_BUFFER_SIZE 2048
 #define URING_ENTRIES 1024
-#define SQ_THREAD_IDLE_MS UINT_MAX
+#define SQ_THREAD_IDLE_MS 2000
 
 unsigned char *get_avail_buffer(size_t size);
 
