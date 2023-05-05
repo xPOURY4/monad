@@ -58,8 +58,8 @@ struct merkle_node_t
 {
     uint16_t mask;
     uint8_t nsubnodes;
-
-    char pad[5];
+    unsigned char path_len;
+    char pad[4];
 
     merkle_child_info_t children[0];
 };
@@ -113,14 +113,13 @@ merkle_child_index(merkle_node_t const *const node, unsigned const i)
 
 /****************************************************************/
 // serial / deserialization
-unsigned char *
-serialize_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
+void serialize_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
 
-merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos);
+merkle_node_t *deserialize_node_from_buffer(
+    unsigned char const *read_pos, unsigned char node_path_len);
 
 // node rw
 int64_t write_node(merkle_node_t *node);
-merkle_node_t *read_node_from_disk(int64_t offset);
 
 uint64_t sum_data_first_word(merkle_node_t *node);
 
@@ -137,9 +136,10 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
     size_t total_path_len = 0;
     for (int i = 0; i < node->nsubnodes; ++i) {
-        total_path_len += (node->children[i].path_len + 1) / 2;
+        total_path_len +=
+            (node->children[i].path_len + 1) / 2 - node->path_len / 2;
     }
-    return SIZE_OF_SUBNODE_BITMASK + SIZE_OF_CHILD_COUNT + total_path_len +
+    return SIZE_OF_SUBNODE_BITMASK + total_path_len +
            node->nsubnodes *
                (SIZE_OF_TRIE_DATA + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
 }
@@ -150,22 +150,14 @@ static inline size_t get_merkle_node_size(uint8_t const nsubnodes)
 }
 
 static inline merkle_node_t *
-get_merkle_next(merkle_node_t *const node, unsigned int const child_idx)
-{
-    if (!node->children[child_idx].next) {
-        node->children[child_idx].next =
-            read_node_from_disk(node->children[child_idx].fnext);
-    }
-    return node->children[child_idx].next;
-}
-
-static inline merkle_node_t *get_new_merkle_node(uint16_t const mask)
+get_new_merkle_node(uint16_t const mask, unsigned char path_len)
 {
     uint8_t const nsubnodes = __builtin_popcount(mask);
     size_t const size = get_merkle_node_size(nsubnodes);
     merkle_node_t *const new_branch = (merkle_node_t *)calloc(1, size);
     new_branch->nsubnodes = nsubnodes;
     new_branch->mask = mask;
+    new_branch->path_len = path_len;
     return new_branch;
 }
 

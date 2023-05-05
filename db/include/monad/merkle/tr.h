@@ -63,7 +63,7 @@ merkle_node_t *get_root_from_footer(int fd)
         free(buffer);
     }
     // get root
-    merkle_node_t *root = deserialize_node_from_buffer(buffer + 1);
+    merkle_node_t *root = deserialize_node_from_buffer(buffer + 1, 0);
     free(buffer);
     return root;
 }

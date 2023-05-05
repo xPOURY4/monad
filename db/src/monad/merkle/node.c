@@ -59,7 +59,7 @@ void set_merkle_child_from_tmp(
         // copy the whole trie
         assert(tmp_node->type == BRANCH);
         merkle_node_t *new_node =
-            get_new_merkle_node(tmp_node->subnode_bitmask);
+            get_new_merkle_node(tmp_node->subnode_bitmask, tmp_node->path_len);
 
         unsigned int child_idx = 0;
         // compute keccak
@@ -89,7 +89,8 @@ void set_merkle_child_from_tmp(
     }
 }
 
-unsigned char *serialize_node_to_buffer(
+// parent path_len: always start writing from path_len / 2
+void serialize_node_to_buffer(
     unsigned char *write_pos, merkle_node_t const *const node)
 {
     *(uint16_t *)write_pos = node->mask;
@@ -104,20 +105,25 @@ unsigned char *serialize_node_to_buffer(
         *write_pos = node->children[i].path_len;
         write_pos += SIZE_OF_PATH_LEN;
 
-        size_t const path_len_bytes = (node->children[i].path_len + 1) / 2;
-        memcpy(write_pos, node->children[i].path, path_len_bytes);
+        size_t const path_len_bytes =
+            (node->children[i].path_len + 1) / 2 - node->path_len / 2;
+        memcpy(
+            write_pos,
+            node->children[i].path + node->path_len / 2,
+            path_len_bytes);
         write_pos += path_len_bytes;
     }
-    return write_pos;
 }
 
-merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos)
+merkle_node_t *deserialize_node_from_buffer(
+    unsigned char const *read_pos, unsigned char const node_path_len)
 {
     uint16_t const mask = *(uint16_t *)read_pos;
     read_pos += SIZE_OF_SUBNODE_BITMASK;
-    merkle_node_t *node = get_new_merkle_node(mask);
+    merkle_node_t *node = get_new_merkle_node(mask, 0); // set path_len later
     node->mask = mask;
     node->nsubnodes = __builtin_popcount(mask);
+    node->path_len = node_path_len;
 
     for (unsigned i = 0; i < node->nsubnodes; ++i) {
         node->children[i].fnext = *(int64_t *)read_pos;
@@ -129,22 +135,15 @@ merkle_node_t *deserialize_node_from_buffer(unsigned char const *read_pos)
         node->children[i].path_len = *read_pos;
         read_pos += SIZE_OF_PATH_LEN;
 
-        unsigned const path_len_bytes = (node->children[i].path_len + 1) / 2;
-        memcpy(node->children[i].path, read_pos, path_len_bytes);
+        // read relative path from disk
+        unsigned const path_len_bytes =
+            (node->children[i].path_len + 1) / 2 - node->path_len / 2;
+        memcpy(
+            node->children[i].path + node->path_len / 2,
+            read_pos,
+            path_len_bytes);
         read_pos += path_len_bytes;
     }
-    return node;
-}
-
-merkle_node_t *read_node_from_disk(int64_t offset)
-{ // TODO: start from a small read size, if not enough recreate buffer
-    // get buffer
-    unsigned char *buffer;
-    unsigned buffer_off =
-        read_buffer_from_disk(fd, offset, &buffer, MAX_DISK_NODE_SIZE);
-    merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off);
-
-    free(buffer);
     return node;
 }
 

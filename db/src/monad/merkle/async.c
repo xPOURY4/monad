@@ -45,10 +45,9 @@ void async_read_request(merge_uring_data_t *const uring_data)
         uring_data->prev_parent->children[uring_data->prev_child_i].fnext;
     // get_read_buffer, buffer_off, and read_size
     int64_t off_aligned = (offset >> 9) << 9;
-    size_t buffer_off = offset - off_aligned;
+    uint16_t buffer_off = (uint16_t)(offset - off_aligned);
     size_t read_size = READ_BUFFER_SIZE;
-    unsigned char *rd_buffer =
-        (unsigned char *)aligned_alloc(ALIGNMENT, read_size);
+    unsigned char *rd_buffer = get_avail_buffer(read_size);
 
     uring_data->buffer = rd_buffer;
     uring_data->buffer_off = buffer_off;
@@ -100,8 +99,9 @@ void poll_uring()
     --inflight_rd;
     merge_uring_data_t *data = (merge_uring_data_t *)uring_data;
     // construct the node from the read buffer
-    merkle_node_t *node =
-        deserialize_node_from_buffer(data->buffer + data->buffer_off);
+    merkle_node_t *node = deserialize_node_from_buffer(
+        data->buffer + data->buffer_off,
+        data->prev_parent->children[data->prev_child_i].path_len);
     assert(node->nsubnodes);
     assert(node->mask);
 

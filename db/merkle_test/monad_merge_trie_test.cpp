@@ -17,6 +17,8 @@
 #include <time.h>
 #include <vector>
 
+#define MIN(x, y) x > y ? y : x
+
 /* magic numbers */
 #define SLICE_LEN 100000
 cpool_31_t tmp_pool;
@@ -264,9 +266,10 @@ int main(int argc, char *argv[])
             compute_root_hash(root).words[0]);
     }
     else {
-        root = get_new_merkle_node(0);
+        root = get_new_merkle_node(0, 0);
     }
     merkle_node_t *prev_root;
+    int64_t max_key = n_slices * SLICE_LEN + offset;
     /* start profiling upsert and commit */
     for (int iter = 0; iter < n_slices; ++iter) {
         // renew keccak values
@@ -275,7 +278,12 @@ int main(int argc, char *argv[])
                 offset += keccak_cap;
             }
             // pre-calculate keccak
-            prepare_keccak(keccak_cap, keccak_keys, keccak_values, 0, offset);
+            prepare_keccak(
+                MIN(keccak_cap, max_key - offset),
+                keccak_keys,
+                keccak_values,
+                0,
+                offset);
             fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
             fflush(stdout);
         }

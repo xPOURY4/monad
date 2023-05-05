@@ -41,12 +41,12 @@ typedef struct merge_uring_data_t
     // read buffer
     unsigned char *buffer;
     // params
-    merkle_node_t * prev_parent;
-    trie_branch_node_t const * tmp_parent;
-    merkle_node_t * new_parent;
+    merkle_node_t *prev_parent;
+    trie_branch_node_t const *tmp_parent;
+    merkle_node_t *new_parent;
     tnode_t *parent;
     // read buffer starting offset
-    unsigned buffer_off;
+    uint16_t buffer_off;
     unsigned char pi;
     uint8_t prev_child_i;
     uint8_t tmp_branch_i;
@@ -75,6 +75,7 @@ static inline merge_uring_data_t *get_merge_uring_data(
     merge_uring_data_t *user_data = (merge_uring_data_t *)cpool_ptr31(
         &tmp_pool, cpool_reserve31(&tmp_pool, sizeof(merge_uring_data_t)));
     cpool_advance31(&tmp_pool, sizeof(merge_uring_data_t));
+
     merge_uring_data_t tmp_data = (merge_uring_data_t){
         .rw_flag = IS_READ,
         .pad = {},

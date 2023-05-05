@@ -21,9 +21,9 @@ extern cpool_31_t tmp_pool;
 typedef unsigned char trie_node_type_t;
 
 #ifndef UNKNOWN
-  #define UNKNOWN 0
-  #define BRANCH 1
-  #define LEAF 2
+    #define UNKNOWN 0
+    #define BRANCH 1
+    #define LEAF 2
 #endif
 
 /*
@@ -36,6 +36,7 @@ typedef enum trie_node_type_t
 } trie_node_type_t;
 */
 
+// TODO: add tombstone to mark for erase
 typedef struct trie_branch_node_t
 {
     trie_node_type_t type;

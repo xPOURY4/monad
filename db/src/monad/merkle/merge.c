@@ -9,7 +9,8 @@ merkle_node_t *do_merge(
 {
     // construct new root, count number of children new root will have
     uint16_t const mask = prev_root->mask | tmp_root->subnode_bitmask;
-    merkle_node_t *const new_root = get_new_merkle_node(mask);
+    merkle_node_t *const new_root =
+        get_new_merkle_node(mask, prev_root->path_len);
     // construct current list node, and connect to parent in list
     curr->node = new_root;
     curr->npending = new_root->nsubnodes;
@@ -93,7 +94,8 @@ void merge_trie(
                 next_nibble = get_nibble(prev_node_path, pi);
                 if (tmp_node->next[next_nibble] != 0) {
                     // create a new branch same as tmp trie
-                    new_branch = get_new_merkle_node(tmp_node->subnode_bitmask);
+                    new_branch =
+                        get_new_merkle_node(tmp_node->subnode_bitmask, pi);
                     branch_tnode = get_new_tnode(
                         parent_tnode, new_branch_arr_i, new_branch);
 
@@ -128,7 +130,7 @@ void merge_trie(
                     // nibble in prev trie
                     // copy tmp_node to new_branch
                     new_branch = get_new_merkle_node(
-                        tmp_node->subnode_bitmask | 1u << next_nibble);
+                        tmp_node->subnode_bitmask | 1u << next_nibble, pi);
                     unsigned child_idx = 0;
                     for (int i = 0; i < 16; ++i) {
                         if (new_branch->mask & 1u << i) {
@@ -198,7 +200,7 @@ void merge_trie(
                     // branch out for both prev trie and tmp trie
                     // create a new branch for the new trie
                     new_branch = get_new_merkle_node(
-                        prev_node->mask | 1u << next_nibble);
+                        prev_node->mask | 1u << next_nibble, pi);
                     unsigned int child_idx = 0;
                     for (int i = 0; i < 16; ++i) {
                         if ((new_branch->mask & 1u << i)) {
@@ -270,6 +272,7 @@ void merge_trie(
                 (1 + new_path_len) / 2);
 
             if (new_branch) {
+                new_branch->path_len = new_path_len;
                 if (!branch_tnode || !branch_tnode->npending) {
                     rehash_keccak(new_parent, new_branch_arr_i, new_branch);
                     new_parent->children[new_branch_arr_i].fnext =
@@ -294,7 +297,9 @@ void merge_trie(
         else {
             // curr nibble mismatch, create a new branch node with 2 children
             new_branch =
-                get_new_merkle_node(1u << prev_nibble | 1u << tmp_nibble);
+                get_new_merkle_node(1u << prev_nibble | 1u << tmp_nibble, pi);
+            new_branch->path_len = pi;
+
             // new_branch -> prev_nibble
             unsigned int prev_idx = prev_nibble > tmp_nibble;
             merkle_child_info_t *tmp_prev_child =
