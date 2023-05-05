@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
         // free_trie(prev_root);
     }
 
-    if (inflight) {
+    while (inflight) {
         poll_uring();
     }
     assert(inflight == 0);

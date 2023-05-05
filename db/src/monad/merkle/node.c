@@ -150,13 +150,15 @@ int64_t write_node(merkle_node_t *const node)
 {
     size_t size = get_disk_node_size(node);
     if (size + buffer_idx > WRITE_BUFFER_SIZE) {
-        // buffer will be freed after iouring completed
-        async_write_request(write_buffer, block_off);
+        unsigned char *prev_buffer = write_buffer;
+        int64_t prev_block_off = block_off;
         // renew buffer
         block_off += WRITE_BUFFER_SIZE;
         write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
         *write_buffer = BLOCK_TYPE_DATA;
         buffer_idx = 1;
+        // buffer will be freed after iouring completed
+        async_write_request(prev_buffer, prev_block_off);
     }
     // Write the root node to the buffer
     int64_t ret = block_off + buffer_idx;
