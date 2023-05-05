@@ -68,8 +68,9 @@ trie_data_t compute_root_hash(merkle_node_t *const node)
     nkeys: number of keys to insert in this batch
 */
 static merkle_node_t *batch_upsert_commit(
-    merkle_node_t *prev_root, int64_t offset, int64_t nkeys,
-    char const *const keccak_keys, char const *const keccak_values)
+    merkle_node_t *prev_root, int64_t keccak_offset, int64_t offset,
+    int64_t nkeys, char const *const keccak_keys,
+    char const *const keccak_values)
 {
     struct timespec ts_before, ts_middle, ts_after;
     double tm_ram, tm_io_extra;
@@ -80,7 +81,7 @@ static merkle_node_t *batch_upsert_commit(
     uint32_t tmp_root_i = get_new_branch(NULL, 0);
 
     clock_gettime(CLOCK_MONOTONIC, &ts_before);
-    for (int i = offset; i < offset + nkeys; ++i) {
+    for (int i = keccak_offset; i < keccak_offset + nkeys; ++i) {
         upsert(
             tmp_root_i,
             (unsigned char *)(keccak_keys + i * 32),
@@ -122,7 +123,7 @@ static merkle_node_t *batch_upsert_commit(
     assert(root_tnode->npending == 0);
     free(root_tnode);
 
-    if ((offset + nkeys) % (10 * SLICE_LEN)) {
+    if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
         return new_root;
     }
     fprintf(
@@ -145,7 +146,7 @@ static merkle_node_t *batch_upsert_commit(
         "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
         "RAM: "
         "%f /s, total_t %.4f s\n",
-        offset + nkeys,
+        offset + keccak_offset + nkeys,
         nkeys,
         (double)nkeys * 1.001 / tm_ram,
         tm_ram);
@@ -161,19 +162,20 @@ static merkle_node_t *batch_upsert_commit(
 
 void prepare_keccak(
     size_t nkeys, char *const keccak_keys, char *const keccak_values,
-    size_t offset)
+    size_t idx_offset, size_t offset)
 {
     union ethash_hash256 hash;
-    size_t i;
+    size_t key;
     size_t val;
 
     // prepare keccak
-    for (i = offset; i < offset + nkeys; ++i) {
+    for (size_t i = idx_offset; i < idx_offset + nkeys; ++i) {
         // assign keccak256 on i to key
-        hash = ethash_keccak256((const uint8_t *)&i, 8);
+        key = i + offset;
+        hash = ethash_keccak256((const uint8_t *)&key, 8);
         memcpy(keccak_keys + i * 32, hash.str, 32);
 
-        val = i * 2;
+        val = key * 2;
         hash = ethash_keccak256((const uint8_t *)&val, 8);
         memcpy(keccak_values + i * 32, hash.str, 32);
         // trie_data_t val_data;
@@ -194,7 +196,8 @@ int prepare_keccak_parallel(
             SLICE_LEN,
             keccak_keys,
             keccak_values,
-            offset + i * SLICE_LEN));
+            i * SLICE_LEN,
+            offset));
     }
     for (int i = 0; i < n_threads; ++i) {
         threads[i].join();
@@ -233,15 +236,11 @@ int main(int argc, char *argv[])
     cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
     cli.parse(argc, argv);
 
-    int64_t nkeys = SLICE_LEN * n_slices;
-    char *const keccak_keys = (char *)malloc(nkeys * 32);
-    char *const keccak_values = (char *)malloc(nkeys * 32);
-    // pre-calculate keccak
-    prepare_keccak(nkeys, keccak_keys, keccak_values, offset);
+    int64_t keccak_cap = 100 * SLICE_LEN;
+    char *const keccak_keys = (char *)malloc(keccak_cap * 32);
+    char *const keccak_values = (char *)malloc(keccak_cap * 32);
     // spawn multiple threads for keccak
     // prepare_keccak_parallel(nkeys, keccak_keys, keccak_values, offset);
-    fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
-    fflush(stdout);
 
     // create tr
     fd = tr_open(dbname.c_str());
@@ -270,10 +269,25 @@ int main(int argc, char *argv[])
     merkle_node_t *prev_root;
     /* start profiling upsert and commit */
     for (int iter = 0; iter < n_slices; ++iter) {
+        // renew keccak values
+        if (!(iter * SLICE_LEN % keccak_cap)) {
+            if (iter) {
+                offset += keccak_cap;
+            }
+            // pre-calculate keccak
+            prepare_keccak(keccak_cap, keccak_keys, keccak_values, 0, offset);
+            fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
+            fflush(stdout);
+        }
+
         prev_root = root;
         root = batch_upsert_commit(
-            prev_root, iter * SLICE_LEN, SLICE_LEN, keccak_keys, keccak_values);
-        // TODO: free prev root, need to make sure no multi-referencing in tries
+            prev_root,
+            (iter % 100) * SLICE_LEN,
+            offset,
+            SLICE_LEN,
+            keccak_keys,
+            keccak_values);
         free_trie(prev_root);
     }
 
