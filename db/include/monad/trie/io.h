@@ -23,8 +23,8 @@ unsigned char *get_avail_buffer(size_t size);
 
 int write_buffer_to_disk(int fd, unsigned char *buffer);
 
-unsigned read_buffer_from_disk(
-    int fd, int64_t const offset, unsigned char **buffer, size_t size);
+unsigned
+read_buffer_from_disk(int fd, int64_t const offset, unsigned char *buffer);
 
 // io_uring
 int init_uring(int fd, struct io_uring *ring, unsigned kcpu);

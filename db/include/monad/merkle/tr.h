@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <monad/merkle/merge.h>
 #include <monad/merkle/node.h>
 #include <monad/trie/io.h>
 #include <stdio.h>
@@ -49,18 +50,16 @@ merkle_node_t *get_root_from_footer(int fd)
     // TODO: optimize it with bitop
     int tmp_bit = __builtin_ctz(WRITE_BUFFER_SIZE);
     int64_t aligned_off = (st.st_size >> tmp_bit) << tmp_bit;
-    unsigned char *buffer;
+    unsigned char *buffer = get_avail_buffer(READ_BUFFER_SIZE);
     while (1) {
         aligned_off -= WRITE_BUFFER_SIZE;
-        int buffer_off =
-            read_buffer_from_disk(fd, aligned_off, &buffer, MAX_DISK_NODE_SIZE);
+        int buffer_off = read_buffer_from_disk(fd, aligned_off, buffer);
         assert(buffer_off == 0);
         // check buffer type
         if (*(buffer + buffer_off) == BLOCK_TYPE_META) {
             break;
         }
         printf(" *(buffer + buffer_off) %u ", *(buffer + buffer_off));
-        free(buffer);
     }
     // get root
     merkle_node_t *root = deserialize_node_from_buffer(buffer + 1, 0);

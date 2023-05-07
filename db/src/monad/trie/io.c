@@ -29,22 +29,17 @@ int write_buffer_to_disk(int fd, unsigned char *buffer)
     return 0;
 }
 
-unsigned read_buffer_from_disk(
-    int fd, int64_t const offset, unsigned char **const buffer, size_t size)
+unsigned
+read_buffer_from_disk(int fd, int64_t const offset, unsigned char *const buffer)
 {
     int64_t off_aligned = (offset >> 9) << 9;
     size_t read_start_pos = offset - off_aligned;
     size_t read_size = READ_BUFFER_SIZE;
-    if (READ_BUFFER_SIZE - read_start_pos < size) {
-        // the node is across two read buffers
-        read_size *= 2;
-    }
-    *buffer = get_avail_buffer(read_size);
     if (lseek(fd, off_aligned, SEEK_SET) != off_aligned) {
         perror("lseek to offset failed");
         exit(errno);
     }
-    if (read(fd, *buffer, read_size) == -1) {
+    if (read(fd, buffer, read_size) == -1) {
         printf(
             "Fail to read buffer from db file %ld: %s",
             off_aligned,
