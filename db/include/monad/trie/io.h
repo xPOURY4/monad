@@ -16,7 +16,7 @@ extern "C"
 #define ALIGNMENT 512
 #define WRITE_BUFFER_SIZE 64 * 1024
 #define READ_BUFFER_SIZE 2048
-#define URING_ENTRIES 1024
+#define URING_ENTRIES 128
 #define SQ_THREAD_IDLE_MS UINT_MAX
 
 unsigned char *get_avail_buffer(size_t size);
@@ -34,3 +34,4 @@ void exit_uring(struct io_uring *ring);
 #ifdef __cplusplus
 }
 #endif
+
