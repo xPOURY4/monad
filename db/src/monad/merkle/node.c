@@ -63,23 +63,15 @@ void set_merkle_child_from_tmp(
 
         unsigned int child_idx = 0;
         // compute keccak
-        unsigned char bytes[32 * tmp_node->nsubnodes];
-        uint64_t b_offset = 0;
         for (int i = 0; i < 16; ++i) {
             if (tmp_node->next[i]) {
                 set_merkle_child_from_tmp(
                     new_node, child_idx, get_node(tmp_node->next[i]));
-                copy_trie_data(
-                    (trie_data_t *)(bytes + b_offset),
-                    &new_node->children[child_idx].data);
-                b_offset += 32;
                 ++child_idx;
             }
         }
         parent->children[arr_idx].next = new_node;
-        copy_trie_data(
-            &parent->children[arr_idx].data,
-            (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+        rehash_keccak(new_node, &parent->children[arr_idx].data);
         parent->children[arr_idx].fnext = write_node(new_node);
 
         if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
@@ -180,9 +172,7 @@ uint64_t sum_data_first_word(merkle_node_t *const node)
     return sum_data;
 }
 
-void rehash_keccak(
-    merkle_node_t *const parent, uint8_t const child_idx,
-    merkle_node_t *const node)
+void rehash_keccak(merkle_node_t *const node, trie_data_t *const data)
 {
     unsigned char bytes[node->nsubnodes * 32];
     uint32_t b_offset = 0;
@@ -193,8 +183,7 @@ void rehash_keccak(
         b_offset += 32;
     }
     copy_trie_data(
-        &parent->children[child_idx].data,
-        (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+        data, (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
     return;
 }
 

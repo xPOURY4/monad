@@ -274,7 +274,9 @@ void merge_trie(
             if (new_branch) {
                 new_branch->path_len = new_path_len;
                 if (!branch_tnode || !branch_tnode->npending) {
-                    rehash_keccak(new_parent, new_branch_arr_i, new_branch);
+                    rehash_keccak(
+                        new_branch,
+                        &new_parent->children[new_branch_arr_i].data);
                     new_parent->children[new_branch_arr_i].fnext =
                         write_node(new_branch);
                     if (new_parent->children[new_branch_arr_i].path_len >=
@@ -321,7 +323,8 @@ void merge_trie(
                 new_parent->children[new_branch_arr_i].path,
                 tmp_node->path,
                 (1 + pi) / 2);
-            rehash_keccak(new_parent, new_branch_arr_i, new_branch);
+            rehash_keccak(
+                new_branch, &new_parent->children[new_branch_arr_i].data);
             new_parent->children[new_branch_arr_i].fnext =
                 write_node(new_branch);
             if (new_parent->children[new_branch_arr_i].path_len >=
@@ -344,7 +347,8 @@ void upward_update_data(tnode_t *curr_tnode)
     while (!curr_tnode->npending && curr_tnode->parent) {
         // ready to sum for curr->node and update data in parent
         merkle_node_t *parent = curr_tnode->parent->node;
-        rehash_keccak(parent, curr_tnode->child_idx, curr_tnode->node);
+        rehash_keccak(
+            curr_tnode->node, &parent->children[curr_tnode->child_idx].data);
         parent->children[curr_tnode->child_idx].fnext =
             write_node(curr_tnode->node);
         if (parent->children[curr_tnode->child_idx].path_len >= CACHE_LEVELS) {

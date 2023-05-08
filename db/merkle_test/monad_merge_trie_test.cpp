@@ -49,22 +49,6 @@ off_t get_file_size(int fd)
     return st.st_size;
 }
 
-trie_data_t compute_root_hash(merkle_node_t *const node)
-{
-    trie_data_t data;
-    unsigned char bytes[node->nsubnodes * 32];
-    uint32_t b_offset = 0;
-
-    for (int i = 0; i < node->nsubnodes; ++i) {
-        copy_trie_data(
-            (trie_data_t *)(bytes + b_offset), &node->children[i].data);
-        b_offset += 32;
-    }
-    copy_trie_data(
-        &data, (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
-    return data;
-}
-
 /*  Commit one batch of updates
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
@@ -124,10 +108,12 @@ static merkle_node_t *batch_upsert_commit(
 
     assert(root_tnode->npending == 0);
     free(root_tnode);
+    trie_data_t root_data;
+    rehash_keccak(new_root, &root_data);
 
-    // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
-    //     return new_root;
-    // }
+    if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
+        return new_root;
+    }
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
@@ -139,10 +125,9 @@ static merkle_node_t *batch_upsert_commit(
         stdout,
         "number of unconsumed ready entries in CQ ring: %d\n",
         io_uring_cq_ready(ring));
+
     fprintf(
-        stdout,
-        "root->data[0] after precommit: 0x%lx\n",
-        compute_root_hash(new_root).words[0]);
+        stdout, "root->data[0] after precommit: 0x%lx\n", root_data.words[0]);
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
@@ -261,10 +246,12 @@ int main(int argc, char *argv[])
         // TODO: change block_off to support block device
         root = get_root_from_footer(fd);
         block_off = lseek(fd, 0, SEEK_END);
+        trie_data_t root_data;
+        rehash_keccak(root, &root_data);
         fprintf(
             stdout,
             "prev root->data[0] after precommit: 0x%lx\n",
-            compute_root_hash(root).words[0]);
+            root_data.words[0]);
     }
     else {
         root = get_new_merkle_node(0, 0);

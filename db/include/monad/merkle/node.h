@@ -123,8 +123,7 @@ int64_t write_node(merkle_node_t *node);
 
 uint64_t sum_data_first_word(merkle_node_t *node);
 
-void rehash_keccak(
-    merkle_node_t *parent, uint8_t child_idx, merkle_node_t *child);
+void rehash_keccak(merkle_node_t *node, trie_data_t *data);
 
 void free_trie(merkle_node_t *);
 
