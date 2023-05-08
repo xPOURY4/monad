@@ -125,9 +125,9 @@ static merkle_node_t *batch_upsert_commit(
     assert(root_tnode->npending == 0);
     free(root_tnode);
 
-    if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
-        return new_root;
-    }
+    // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
+    //     return new_root;
+    // }
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
@@ -255,11 +255,12 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // initialize write block offset
-    block_off = lseek(fd, 0, SEEK_END);
+    // initialize root and block offset for write
     merkle_node_t *root;
     if (append) {
+        // TODO: change block_off to support block device
         root = get_root_from_footer(fd);
+        block_off = lseek(fd, 0, SEEK_END);
         fprintf(
             stdout,
             "prev root->data[0] after precommit: 0x%lx\n",
@@ -267,6 +268,7 @@ int main(int argc, char *argv[])
     }
     else {
         root = get_new_merkle_node(0, 0);
+        block_off = 0;
     }
     merkle_node_t *prev_root;
     int64_t max_key = n_slices * SLICE_LEN + offset;
