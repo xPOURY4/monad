@@ -18,8 +18,8 @@ void async_write_request(unsigned char *const buffer, unsigned long long offset)
     io_uring_prep_write(sqe, 0, buffer, WRITE_BUFFER_SIZE, offset);
     sqe->flags |= IOSQE_FIXED_FILE;
     write_uring_data_t *uring_data = (write_uring_data_t *)cpool_ptr31(
-        &tmp_pool, cpool_reserve31(&tmp_pool, sizeof(write_uring_data_t)));
-    cpool_advance31(&tmp_pool, sizeof(write_uring_data_t));
+        tmp_pool, cpool_reserve31(tmp_pool, sizeof(write_uring_data_t)));
+    cpool_advance31(tmp_pool, sizeof(write_uring_data_t));
     *uring_data = (write_uring_data_t){.rw_flag = IS_WRITE, .buffer = buffer};
     io_uring_sqe_set_data(sqe, uring_data);
     io_uring_submit(ring);

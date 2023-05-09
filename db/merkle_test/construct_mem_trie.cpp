@@ -18,7 +18,7 @@
 /* magic numbers */
 #define SLICE_LEN 100000
 cpool_31_t pool;
-cpool_31_t tmp_pool;
+cpool_31_t *tmp_pool;
 
 static void ctrl_c_handler(int s)
 {
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
     tmp_huge_mem.data = NULL;
     tmp_huge_mem.size = 0;
     huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
-    tmp_pool = *cpool_init31(tmp_huge_mem.data);
+    tmp_pool = cpool_init31(tmp_huge_mem.data);
 
     int64_t nkeys = SLICE_LEN * n_slices;
     char *const keccak_keys = (char *)malloc(nkeys * 32);

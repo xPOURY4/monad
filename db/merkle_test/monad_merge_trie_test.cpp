@@ -21,7 +21,7 @@
 
 /* magic numbers */
 #define SLICE_LEN 100000
-cpool_31_t tmp_pool;
+cpool_31_t *tmp_pool;
 int fd;
 int inflight;
 int inflight_rd;
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
     tmp_huge_mem.data = NULL;
     tmp_huge_mem.size = 0;
     huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
-    tmp_pool = *cpool_init31(tmp_huge_mem.data);
+    tmp_pool = cpool_init31(tmp_huge_mem.data);
 
     inflight = 0;
     inflight_rd = 0;

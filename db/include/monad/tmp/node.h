@@ -16,7 +16,7 @@ extern "C"
 #endif
 
 CPOOL_DEFINE(31);
-extern cpool_31_t tmp_pool;
+extern cpool_31_t *tmp_pool;
 
 typedef unsigned char trie_node_type_t;
 
@@ -73,17 +73,17 @@ static_assert(alignof(trie_leaf_node_t) == 8);
 /* inline helper functions */
 static inline trie_branch_node_t *get_node(uint32_t const i)
 {
-    return (trie_branch_node_t *)cpool_ptr31(&tmp_pool, i);
+    return (trie_branch_node_t *)cpool_ptr31(tmp_pool, i);
 }
 
 static inline uint32_t
 get_new_branch(unsigned char const *const path, unsigned char const path_len)
 {
-    uint32_t branch_i = cpool_reserve31(&tmp_pool, sizeof(trie_branch_node_t));
-    cpool_advance31(&tmp_pool, sizeof(trie_branch_node_t));
+    uint32_t branch_i = cpool_reserve31(tmp_pool, sizeof(trie_branch_node_t));
+    cpool_advance31(tmp_pool, sizeof(trie_branch_node_t));
     // allocate the next spot for branch
     trie_branch_node_t *branch =
-        (trie_branch_node_t *)cpool_ptr31(&tmp_pool, branch_i);
+        (trie_branch_node_t *)cpool_ptr31(tmp_pool, branch_i);
     memset(branch, 0, sizeof(trie_branch_node_t));
     branch->type = BRANCH;
     branch->path_len = path_len;
@@ -95,9 +95,9 @@ static inline uint32_t get_new_leaf(
     unsigned char const *const path, unsigned char const path_len,
     trie_data_t const *const data)
 {
-    uint32_t leaf_i = cpool_reserve31(&tmp_pool, sizeof(trie_leaf_node_t));
-    cpool_advance31(&tmp_pool, sizeof(trie_leaf_node_t));
-    trie_leaf_node_t *leaf = (trie_leaf_node_t *)cpool_ptr31(&tmp_pool, leaf_i);
+    uint32_t leaf_i = cpool_reserve31(tmp_pool, sizeof(trie_leaf_node_t));
+    cpool_advance31(tmp_pool, sizeof(trie_leaf_node_t));
+    trie_leaf_node_t *leaf = (trie_leaf_node_t *)cpool_ptr31(tmp_pool, leaf_i);
     memset(leaf, 0, sizeof(trie_leaf_node_t));
     leaf->type = LEAF;
     leaf->path_len = path_len;

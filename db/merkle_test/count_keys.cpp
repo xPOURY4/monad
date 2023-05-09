@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-cpool_31_t tmp_pool;
+cpool_31_t *tmp_pool;
 int fd;
 int inflight;
 int inflight_rd;
