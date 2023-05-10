@@ -28,6 +28,7 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/merge.h 
     ${PROJECT_SOURCE_DIR}/include/monad/merkle/tr.h
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/node.c
+    ${PROJECT_SOURCE_DIR}/src/monad/merkle/hasher.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/merge.c
     ${PROJECT_SOURCE_DIR}/src/monad/merkle/async.c
 

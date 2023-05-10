@@ -50,10 +50,11 @@ void set_merkle_child_from_tmp(
         (tmp_node->path_len + 1) / 2);
 
     if (tmp_node->type == LEAF) {
-        // copy data
-        copy_trie_data(
-            &parent->children[arr_idx].data,
-            &((trie_leaf_node_t *)tmp_node)->data);
+        parent->children[arr_idx].data = (unsigned char *)malloc(32);
+        hash_leaf(
+            parent,
+            arr_idx,
+            (unsigned char *)&((trie_leaf_node_t *)tmp_node)->data);
         parent->children[arr_idx].next = NULL;
     }
     else {
@@ -68,11 +69,11 @@ void set_merkle_child_from_tmp(
             }
         }
         parent->children[arr_idx].next = new_node;
-        rehash_keccak(new_node, &parent->children[arr_idx].data);
+        hash_branch_extension(parent, arr_idx);
         parent->children[arr_idx].fnext = write_node(new_node);
 
         if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
-            free_trie(parent->children[arr_idx].next);
+            free_node(parent->children[arr_idx].next);
             parent->children[arr_idx].next = NULL;
         }
     }
@@ -92,12 +93,17 @@ void serialize_node_to_buffer(
         }
         *(int64_t *)write_pos = node->children[i].fnext;
         write_pos += SIZE_OF_FILE_OFFSET;
-        copy_trie_data((trie_data_t *)write_pos, &(node->children[i].data));
+        copy_trie_data((trie_data_t *)write_pos, &(node->children[i].noderef));
         write_pos += SIZE_OF_TRIE_DATA;
 
         *write_pos = node->children[i].path_len;
         write_pos += SIZE_OF_PATH_LEN;
 
+        if (node->children[i].data) {
+            assert(node->children[i].path_len - node->path_len > 1);
+            memcpy(write_pos, node->children[i].data, SIZE_OF_TRIE_DATA);
+            write_pos += SIZE_OF_TRIE_DATA;
+        }
         size_t const path_len_bytes =
             (node->children[i].path_len + 1) / 2 - node->path_len / 2;
         memcpy(
@@ -119,12 +125,17 @@ merkle_node_t *deserialize_node_from_buffer(
         node->children[i].fnext = *(int64_t *)read_pos;
         read_pos += SIZE_OF_FILE_OFFSET;
 
-        copy_trie_data(&(node->children[i].data), (trie_data_t *)read_pos);
+        copy_trie_data(&(node->children[i].noderef), (trie_data_t *)read_pos);
         read_pos += SIZE_OF_TRIE_DATA;
 
         node->children[i].path_len = *read_pos;
         read_pos += SIZE_OF_PATH_LEN;
 
+        if (node->children[i].path_len - node->path_len > 1) {
+            node->children[i].data = (unsigned char *)malloc(SIZE_OF_TRIE_DATA);
+            memcpy(node->children[i].data, read_pos, SIZE_OF_TRIE_DATA);
+            read_pos += SIZE_OF_TRIE_DATA;
+        }
         // read relative path from disk
         unsigned const path_len_bytes =
             (node->children[i].path_len + 1) / 2 - node->path_len / 2;
@@ -158,40 +169,53 @@ int64_t write_node(merkle_node_t *const node)
     return ret;
 }
 
-uint64_t sum_data_first_word(merkle_node_t *const node)
+void assign_prev_child_to_new(
+    merkle_node_t *const prev_parent, uint8_t const prev_child_i,
+    merkle_node_t *const new_parent, uint8_t const new_child_i)
 {
-    uint64_t sum_data = 0;
-    for (int i = 0; i < node->nsubnodes; ++i) {
-        assert(node->children[i].data.words[0]);
-        sum_data += node->children[i].data.words[0];
-    }
-    return sum_data;
-}
-
-void rehash_keccak(merkle_node_t *const node, trie_data_t *const data)
-{
-    unsigned char bytes[node->nsubnodes * 32];
-    uint32_t b_offset = 0;
-
-    for (int i = 0; i < node->nsubnodes; ++i) {
-        if (node->tomb_arr_mask & 1u << i) {
-            continue;
+    merkle_child_info_t *new_child = &new_parent->children[new_child_i],
+                        *prev_child = &prev_parent->children[prev_child_i];
+    *new_child = *prev_child;
+    prev_child->data = NULL;
+    prev_child->next = NULL;
+    if (prev_parent->path_len < new_parent->path_len) {
+        assert(prev_child->path_len - prev_parent->path_len > 1);
+        if (new_child->path_len - new_parent->path_len == 1) {
+            // prev_child is ext node, new_child is branch
+            memcpy(&new_child->noderef, new_child->data, 32);
+            free(new_child->data);
+            new_child->data = NULL;
+            return;
         }
-        copy_trie_data(
-            (trie_data_t *)(bytes + b_offset), &node->children[i].data);
-        b_offset += 32;
     }
-    copy_trie_data(
-        data, (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
-    return;
+    else if (prev_parent->path_len > new_parent->path_len) {
+        if (prev_child->path_len - prev_parent->path_len == 1) {
+            // prev_child is branch, new_child is ext
+            assert(new_child->data == NULL);
+            new_child->data = (unsigned char *)malloc(32);
+            memcpy(new_child->data, &prev_child->noderef, 32);
+        }
+    }
+    else {
+        return;
+    }
+    hash_two_piece(
+        new_child->path,
+        new_parent->path_len + 1,
+        new_child->path_len,
+        new_child->path_len == 64,
+        new_child->data,
+        (unsigned char *)&new_child->noderef);
 }
 
 void free_trie(merkle_node_t *const node)
 {
     for (int i = 0; i < node->nsubnodes; ++i) {
+        if (node->children[i].data) {
+            free(node->children[i].data);
+        }
         if (node->children[i].next) {
             free_trie(node->children[i].next);
-            node->children[i].next = NULL;
         }
     }
     free(node);

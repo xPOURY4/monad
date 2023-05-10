@@ -49,6 +49,15 @@ off_t get_file_size(int fd)
     return st.st_size;
 }
 
+void __print_char_arr_in_hex(char *arr, int n)
+{
+    fprintf(stdout, "0x");
+    for (int i = 0; i < n; ++i) {
+        fprintf(stdout, "%02x", (uint8_t)arr[i]);
+    }
+    fprintf(stdout, "\n");
+}
+
 /*  Commit one batch of updates
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
@@ -80,8 +89,7 @@ static merkle_node_t *batch_upsert_commit(
     write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
     *write_buffer = BLOCK_TYPE_DATA;
     // initialize tnode
-    tnode_t *root_tnode = (tnode_t *)malloc(sizeof(tnode_t));
-    root_tnode->parent = NULL;
+    tnode_t *root_tnode = get_new_tnode(NULL, 0, 0, NULL);
     merkle_node_t *new_root =
         do_merge(prev_root, get_node(tmp_root_i), 0, root_tnode);
     // after all merge call, also need to poll until no submission left in uring
@@ -108,9 +116,8 @@ static merkle_node_t *batch_upsert_commit(
                   ((double)ts_middle.tv_sec + (double)ts_middle.tv_nsec / 1e9);
 
     assert(root_tnode->npending == 0);
-    free(root_tnode);
     trie_data_t root_data;
-    rehash_keccak(new_root, &root_data);
+    hash_branch(new_root, (unsigned char *)&root_data);
 
     // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
     //     return new_root;
@@ -118,17 +125,17 @@ static merkle_node_t *batch_upsert_commit(
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
-        "inflight_rd_before_poll = %d, n_rd_per_block = %d\n",
+        "inflight_rd_before_poll = %d, n_rd_per_block = %d\n"
+        "number of unconsumed ready entries in CQ ring: %d\n"
+        "extra time waiting for io %.4f s\ndb file size after commit: %f GB\n",
         inflight_before_poll,
         inflight_rd_before_poll,
-        n_rd_per_block);
-    fprintf(
-        stdout,
-        "number of unconsumed ready entries in CQ ring: %d\n",
-        io_uring_cq_ready(ring));
-
-    fprintf(
-        stdout, "root->data[0] after precommit: 0x%lx\n", root_data.words[0]);
+        n_rd_per_block,
+        io_uring_cq_ready(ring),
+        tm_io_extra,
+        float(get_file_size(fd)) / 1024 / 1024 / 1024);
+    fprintf(stdout, "root->data after precommit: ");
+    __print_char_arr_in_hex((char *)root_data.bytes, 32);
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
@@ -138,13 +145,7 @@ static merkle_node_t *batch_upsert_commit(
         nkeys,
         (double)nkeys * 1.001 / tm_ram,
         tm_ram);
-    fprintf(stdout, "extra time waiting for io %.4f s\n", tm_io_extra);
-    fprintf(
-        stdout,
-        "db file size after commit: %f GB\n",
-        float(get_file_size(fd)) / 1024 / 1024 / 1024);
     fflush(stdout);
-
     return new_root;
 }
 
@@ -166,9 +167,6 @@ void prepare_keccak(
         val = key * 2;
         hash = ethash_keccak256((const uint8_t *)&val, 8);
         memcpy(keccak_values + i * 32, hash.str, 32);
-        // trie_data_t val_data;
-        // val_data.words[0] = i + 1;
-        // copy_trie_data((trie_data_t *)(keccak_values + i * 32), &val_data);
     }
 }
 
@@ -234,7 +232,6 @@ int main(int argc, char *argv[])
 
     // create tr
     fd = tr_open(dbname.c_str());
-
     // init io uring
     ring = (struct io_uring *)malloc(sizeof(struct io_uring));
     int ret = init_uring(fd, ring, sq_thread_cpu);
@@ -242,7 +239,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
         return 1;
     }
-
     // initialize root and block offset for write
     merkle_node_t *root;
     if (append) {
@@ -250,7 +246,7 @@ int main(int argc, char *argv[])
         root = get_root_from_footer(fd);
         block_off = lseek(fd, 0, SEEK_END);
         trie_data_t root_data;
-        rehash_keccak(root, &root_data);
+        hash_branch(root, (unsigned char *)&root_data);
         fprintf(
             stdout,
             "prev root->data[0] after precommit: 0x%lx\n",
@@ -260,6 +256,7 @@ int main(int argc, char *argv[])
         root = get_new_merkle_node(0, 0);
         block_off = 0;
     }
+
     merkle_node_t *prev_root;
     int64_t max_key = n_slices * SLICE_LEN + offset;
     /* start profiling upsert and commit */
@@ -305,6 +302,7 @@ int main(int argc, char *argv[])
                 true);
             free_trie(prev_root);
 
+            fprintf(stdout, "> dup batch iter = %d\n", iter);
             prev_root = root;
             root = batch_upsert_commit(
                 prev_root,
