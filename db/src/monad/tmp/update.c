@@ -1,11 +1,12 @@
 #include <monad/tmp/node.h>
 #include <monad/tmp/update.h>
 #include <monad/trie/nibble.h>
+#include <stdbool.h>
 
 // implement an in-memory upsert, all nodes are mutable
 void upsert(
     uint32_t const root, unsigned char const *const path,
-    const uint8_t path_len, trie_data_t const *const data)
+    const uint8_t path_len, trie_data_t const *const data, bool erase)
 {
     int key_index = 0;
     unsigned char path_nibble;
@@ -20,7 +21,7 @@ void upsert(
 
         if (key_index >= node->path_len) {
             // Case 1: Reached the end of path in node
-            // Need to check if there's an edge with path_nibble
+            // check if there's an edge with path_nibble
             // to another node
             if (node->subnode_bitmask & 1u << path_nibble) {
                 // Case 1.1: There's a subnode to traverse further
@@ -36,7 +37,8 @@ void upsert(
             else {
                 // Case 1.2: There's no edge
                 // add a new branch at current node
-                node->next[path_nibble] = get_new_leaf(path, path_len, data);
+                node->next[path_nibble] =
+                    get_new_leaf(path, path_len, data, erase);
                 ++node->nsubnodes;
                 node->subnode_bitmask |= 1u << path_nibble;
                 return;
@@ -50,7 +52,8 @@ void upsert(
             uint32_t new_branch_i = get_new_branch(path, key_index);
             parent_node->next[nibble] = new_branch_i;
             trie_branch_node_t *new_branch = get_node(new_branch_i);
-            new_branch->next[path_nibble] = get_new_leaf(path, path_len, data);
+            new_branch->next[path_nibble] =
+                get_new_leaf(path, path_len, data, erase);
             new_branch->next[node_nibble] = node_i;
             new_branch->nsubnodes = 2;
             new_branch->subnode_bitmask |=

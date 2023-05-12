@@ -14,6 +14,7 @@ struct tnode_t
     tnode_t *parent;
     merkle_node_t *node;
     int8_t npending;
+    uint8_t child_ni;
     uint8_t child_idx;
 };
 
@@ -21,8 +22,8 @@ static_assert(sizeof(tnode_t) == 24);
 static_assert(alignof(tnode_t) == 8);
 
 static inline tnode_t *get_new_tnode(
-    tnode_t *const parent_tnode, uint8_t const new_branch_arr_i,
-    merkle_node_t *const new_branch)
+    tnode_t *const parent_tnode, uint8_t new_branch_ni,
+    uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
 { // no npending
     tnode_t *const branch_tnode = (tnode_t *)cpool_ptr31(
         tmp_pool, cpool_reserve31(tmp_pool, sizeof(tnode_t)));
@@ -30,6 +31,7 @@ static inline tnode_t *get_new_tnode(
 
     branch_tnode->node = new_branch;
     branch_tnode->parent = parent_tnode;
+    branch_tnode->child_ni = new_branch_ni;
     branch_tnode->child_idx = new_branch_arr_i;
 
     return branch_tnode;

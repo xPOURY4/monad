@@ -45,7 +45,7 @@ typedef struct trie_branch_node_t
     unsigned char path[32];
 
     char pad[6];
-    trie_data_t data;
+    trie_data_t data; // TODO: remove later
 
     uint32_t next[16];
     uint16_t subnode_bitmask;
@@ -61,8 +61,9 @@ typedef struct trie_leaf_node_t
 
     unsigned char path_len;
     unsigned char path[32];
+    bool tombstone;
 
-    char pad[6];
+    char pad[5];
 
     trie_data_t data;
 } trie_leaf_node_t;
@@ -93,7 +94,7 @@ get_new_branch(unsigned char const *const path, unsigned char const path_len)
 
 static inline uint32_t get_new_leaf(
     unsigned char const *const path, unsigned char const path_len,
-    trie_data_t const *const data)
+    trie_data_t const *const data, bool tombstone)
 {
     uint32_t leaf_i = cpool_reserve31(tmp_pool, sizeof(trie_leaf_node_t));
     cpool_advance31(tmp_pool, sizeof(trie_leaf_node_t));
@@ -103,6 +104,7 @@ static inline uint32_t get_new_leaf(
     leaf->path_len = path_len;
     memcpy(leaf->path, path, (path_len + 1) / 2);
     copy_trie_data(&leaf->data, data);
+    leaf->tombstone = tombstone;
     return leaf_i;
 }
 

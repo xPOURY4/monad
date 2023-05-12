@@ -56,7 +56,7 @@ off_t get_file_size(int fd)
 static merkle_node_t *batch_upsert_commit(
     merkle_node_t *prev_root, int64_t keccak_offset, int64_t offset,
     int64_t nkeys, char const *const keccak_keys,
-    char const *const keccak_values)
+    char const *const keccak_values, bool erase)
 {
     struct timespec ts_before, ts_middle, ts_after;
     double tm_ram, tm_io_extra;
@@ -72,7 +72,8 @@ static merkle_node_t *batch_upsert_commit(
             tmp_root_i,
             (unsigned char *)(keccak_keys + i * 32),
             64,
-            (trie_data_t *)(keccak_values + i * 32));
+            (trie_data_t *)(keccak_values + i * 32),
+            erase);
     }
     // initialize buffer and block_off
     buffer_idx = 1;
@@ -111,9 +112,9 @@ static merkle_node_t *batch_upsert_commit(
     trie_data_t root_data;
     rehash_keccak(new_root, &root_data);
 
-    if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
-        return new_root;
-    }
+    // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
+    //     return new_root;
+    // }
     fprintf(
         stdout,
         "inflight_before_poll = %d, "
@@ -215,12 +216,14 @@ int main(int argc, char *argv[])
     bool append = false;
     int64_t offset = 0;
     unsigned sq_thread_cpu = 15;
+    bool erase = false;
     CLI::App cli{"monad_trie_perf_test"};
     cli.add_flag("--append", append, "append on top of existing db");
     cli.add_option("--db-name", dbname, "db file name");
     cli.add_option("--offset", offset, "integer offset to start insert");
     cli.add_option("-n", n_slices, "n batch updates");
     cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
+    cli.add_flag("--erase", erase, "test erase");
     cli.parse(argc, argv);
 
     int64_t keccak_cap = 100 * SLICE_LEN;
@@ -284,8 +287,35 @@ int main(int argc, char *argv[])
             offset,
             SLICE_LEN,
             keccak_keys,
-            keccak_values);
+            keccak_values,
+            false);
         free_trie(prev_root);
+
+        if (erase && iter % 2) {
+            fprintf(stdout, "> erase iter = %d\n", iter);
+            fflush(stdout);
+            prev_root = root;
+            root = batch_upsert_commit(
+                prev_root,
+                (iter % 100) * SLICE_LEN,
+                offset,
+                SLICE_LEN,
+                keccak_keys,
+                keccak_values,
+                true);
+            free_trie(prev_root);
+
+            prev_root = root;
+            root = batch_upsert_commit(
+                prev_root,
+                (iter % 100) * SLICE_LEN,
+                offset,
+                SLICE_LEN,
+                keccak_keys,
+                keccak_values,
+                false);
+            free_trie(prev_root);
+        }
     }
 
     while (inflight) {

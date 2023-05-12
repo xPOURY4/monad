@@ -42,7 +42,8 @@ static uint32_t construct_in_mem_trie(
             tmp_root,
             (unsigned char *)(keccak_keys + i * 32),
             64,
-            (trie_data_t *)(keccak_values + i * 32));
+            (trie_data_t *)(keccak_values + i * 32),
+            false);
     }
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -

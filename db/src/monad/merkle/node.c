@@ -37,6 +37,7 @@ disas_merkle_child_index(merkle_node_t const *const node, unsigned const i)
 
 // Copy the temporary trie to a new merkle trie of parent
 // assign correct parent->children[arr_idx] values
+// presumption: tmp_node trie are newly created accounts, no tombstone
 void set_merkle_child_from_tmp(
     merkle_node_t *const parent, uint8_t const arr_idx,
     trie_branch_node_t const *const tmp_node)
@@ -57,17 +58,13 @@ void set_merkle_child_from_tmp(
     }
     else {
         // copy the whole trie
-        assert(tmp_node->type == BRANCH);
         merkle_node_t *new_node =
             get_new_merkle_node(tmp_node->subnode_bitmask, tmp_node->path_len);
 
-        unsigned int child_idx = 0;
-        // compute keccak
-        for (int i = 0; i < 16; ++i) {
+        for (int i = 0, child_idx = 0; i < 16; ++i) {
             if (tmp_node->next[i]) {
                 set_merkle_child_from_tmp(
-                    new_node, child_idx, get_node(tmp_node->next[i]));
-                ++child_idx;
+                    new_node, child_idx++, get_node(tmp_node->next[i]));
             }
         }
         parent->children[arr_idx].next = new_node;
@@ -85,10 +82,14 @@ void set_merkle_child_from_tmp(
 void serialize_node_to_buffer(
     unsigned char *write_pos, merkle_node_t const *const node)
 {
-    *(uint16_t *)write_pos = node->mask;
+    *(uint16_t *)write_pos = node->valid_mask;
     write_pos += SIZE_OF_SUBNODE_BITMASK;
+    assert(merkle_child_count_valid(node) > 1);
 
     for (int i = 0; i < node->nsubnodes; ++i) {
+        if (node->tomb_arr_mask & 1u << i) {
+            continue;
+        }
         *(int64_t *)write_pos = node->children[i].fnext;
         write_pos += SIZE_OF_FILE_OFFSET;
         copy_trie_data((trie_data_t *)write_pos, &(node->children[i].data));
@@ -112,10 +113,7 @@ merkle_node_t *deserialize_node_from_buffer(
 {
     uint16_t const mask = *(uint16_t *)read_pos;
     read_pos += SIZE_OF_SUBNODE_BITMASK;
-    merkle_node_t *node = get_new_merkle_node(mask, 0); // set path_len later
-    node->mask = mask;
-    node->nsubnodes = __builtin_popcount(mask);
-    node->path_len = node_path_len;
+    merkle_node_t *node = get_new_merkle_node(mask, node_path_len);
 
     for (unsigned i = 0; i < node->nsubnodes; ++i) {
         node->children[i].fnext = *(int64_t *)read_pos;
@@ -164,9 +162,7 @@ uint64_t sum_data_first_word(merkle_node_t *const node)
 {
     uint64_t sum_data = 0;
     for (int i = 0; i < node->nsubnodes; ++i) {
-        if (!node->children[i].data.words[0]) {
-            printf("wrong data\n");
-        }
+        assert(node->children[i].data.words[0]);
         sum_data += node->children[i].data.words[0];
     }
     return sum_data;
@@ -178,6 +174,9 @@ void rehash_keccak(merkle_node_t *const node, trie_data_t *const data)
     uint32_t b_offset = 0;
 
     for (int i = 0; i < node->nsubnodes; ++i) {
+        if (node->tomb_arr_mask & 1u << i) {
+            continue;
+        }
         copy_trie_data(
             (trie_data_t *)(bytes + b_offset), &node->children[i].data);
         b_offset += 32;

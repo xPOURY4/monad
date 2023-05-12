@@ -11,10 +11,7 @@ extern "C"
 // upsert to a mutable in-mem trie
 void upsert(
     uint32_t const root, unsigned char const *const path,
-    const uint8_t path_len, trie_data_t const *const);
-
-// void erase(uint32_t const root, unsigned char const *const path,
-//     unsigned char const path_len);
+    const uint8_t path_len, trie_data_t const *const, bool erase);
 
 #ifdef __cplusplus
 }

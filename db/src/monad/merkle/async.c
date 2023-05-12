@@ -102,7 +102,7 @@ void poll_uring()
     merkle_node_t *node = deserialize_node_from_buffer(
         data->buffer + data->buffer_off,
         data->prev_parent->children[data->prev_child_i].path_len);
-    assert(node->nsubnodes);
+    assert(node->nsubnodes > 1);
     assert(node->mask);
 
     data->prev_parent->children[data->prev_child_i].next = node;
@@ -116,7 +116,8 @@ void poll_uring()
         data->tmp_branch_i,
         data->pi,
         data->new_parent,
-        data->new_branch_arr_i,
-        data->parent);
-    upward_update_data(data->parent);
+        data->new_child_ni,
+        data->parent_tnode);
+    // upward update parent until parent has more than one valid subnodes
+    upward_update_data(data->parent_tnode);
 }

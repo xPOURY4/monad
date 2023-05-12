@@ -16,8 +16,8 @@ merkle_node_t *do_merge(
 void merge_trie(
     merkle_node_t *prev_parent, uint8_t prev_child_i,
     trie_branch_node_t const *tmp_parent, uint8_t tmp_branch_i,
-    unsigned char pi, merkle_node_t *new_parent, uint8_t new_branch_arr_i,
-    tnode_t *parent);
+    unsigned char pi, merkle_node_t *new_parent, uint8_t new_child_ni,
+    tnode_t *parent_tnode);
 
 typedef unsigned char uring_data_type_t;
 
@@ -44,13 +44,13 @@ typedef struct merge_uring_data_t
     merkle_node_t *prev_parent;
     trie_branch_node_t const *tmp_parent;
     merkle_node_t *new_parent;
-    tnode_t *parent;
+    tnode_t *parent_tnode;
     // read buffer starting offset
     uint16_t buffer_off;
     unsigned char pi;
     uint8_t prev_child_i;
     uint8_t tmp_branch_i;
-    uint8_t new_branch_arr_i;
+    uint8_t new_child_ni;
 } merge_uring_data_t;
 
 static_assert(sizeof(merge_uring_data_t) == 56);
@@ -70,7 +70,7 @@ static inline merge_uring_data_t *get_merge_uring_data(
     merkle_node_t *const prev_parent, uint8_t const prev_child_i,
     trie_branch_node_t const *const tmp_parent, uint8_t const tmp_branch_i,
     unsigned char pi, merkle_node_t *const new_parent,
-    uint8_t const new_branch_arr_i, tnode_t *parent)
+    uint8_t const new_child_ni, tnode_t *parent_tnode)
 {
     merge_uring_data_t *user_data = (merge_uring_data_t *)cpool_ptr31(
         tmp_pool, cpool_reserve31(tmp_pool, sizeof(merge_uring_data_t)));
@@ -83,12 +83,12 @@ static inline merge_uring_data_t *get_merge_uring_data(
         .prev_parent = prev_parent,
         .tmp_parent = tmp_parent,
         .new_parent = new_parent,
-        .parent = parent,
+        .parent_tnode = parent_tnode,
         .buffer_off = 0,
         .pi = pi,
         .prev_child_i = prev_child_i,
         .tmp_branch_i = tmp_branch_i,
-        .new_branch_arr_i = new_branch_arr_i,
+        .new_child_ni = new_child_ni,
     };
     *user_data = tmp_data;
     /*memcpy(user_data, &tmp_data, sizeof(merge_uring_data_t));*/

@@ -6,6 +6,7 @@
 #include <monad/tmp/node.h>
 #include <monad/trie/config.h>
 #include <monad/trie/data.h>
+#include <monad/trie/nibble.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -57,9 +58,10 @@ static_assert(alignof(merkle_child_info_t) == 8);
 struct merkle_node_t
 {
     uint16_t mask;
+    uint16_t valid_mask;
+    uint16_t tomb_arr_mask;
     uint8_t nsubnodes;
     unsigned char path_len;
-    char pad[4];
 
     merkle_child_info_t children[0];
 };
@@ -111,6 +113,16 @@ merkle_child_index(merkle_node_t const *const node, unsigned const i)
     return __builtin_popcount(mask & filter);
 }
 
+static inline unsigned merkle_child_count_tomb(merkle_node_t const *const node)
+{
+    return node->nsubnodes - __builtin_popcount(node->valid_mask);
+}
+
+static inline unsigned merkle_child_count_valid(merkle_node_t const *const node)
+{
+    return __builtin_popcount(node->valid_mask);
+}
+
 /****************************************************************/
 // serial / deserialization
 void serialize_node_to_buffer(unsigned char *write_pos, merkle_node_t const *);
@@ -135,11 +147,14 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
     size_t total_path_len = 0;
     for (int i = 0; i < node->nsubnodes; ++i) {
+        if (node->tomb_arr_mask & 1u << i) {
+            continue;
+        }
         total_path_len +=
             (node->children[i].path_len + 1) / 2 - node->path_len / 2;
     }
     return SIZE_OF_SUBNODE_BITMASK + total_path_len +
-           node->nsubnodes *
+           merkle_child_count_valid(node) *
                (SIZE_OF_TRIE_DATA + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
 }
 
@@ -156,16 +171,59 @@ get_new_merkle_node(uint16_t const mask, unsigned char path_len)
     merkle_node_t *const new_branch = (merkle_node_t *)calloc(1, size);
     new_branch->nsubnodes = nsubnodes;
     new_branch->mask = mask;
+    new_branch->valid_mask = mask;
     new_branch->path_len = path_len;
     return new_branch;
 }
 
-static inline merkle_node_t *copy_merkle_node(merkle_node_t *node)
+static inline merkle_node_t *copy_merkle_node(merkle_node_t *prev_node)
+{ // only copy valid subnodes
+    int nsubnodes = merkle_child_count_valid(prev_node);
+    merkle_node_t *copy =
+        (merkle_node_t *)calloc(1, get_merkle_node_size(nsubnodes));
+    copy->mask = prev_node->valid_mask;
+    copy->valid_mask = copy->mask;
+    copy->path_len = prev_node->path_len;
+    copy->nsubnodes = nsubnodes;
+    for (int i = 0, copy_child_i = 0; i < 16; ++i) {
+        if (copy->mask & 1u << i) {
+            copy->children[copy_child_i] =
+                prev_node->children[merkle_child_index(prev_node, i)];
+            copy->children[copy_child_i++].next = NULL;
+        }
+    }
+    return copy;
+}
+
+static inline void
+connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
 {
-    size_t const size = get_merkle_node_size(node->nsubnodes);
-    merkle_node_t *const copied_node = (merkle_node_t *)malloc(size);
-    memcpy(copied_node, node, size);
-    return copied_node;
+    merkle_node_t *midnode = parent->children[child_idx].next;
+    uint8_t only_child_i =
+        merkle_child_index(midnode, __builtin_ctz(midnode->valid_mask));
+    unsigned mid_path_len = midnode->path_len;
+    memcpy(
+        &parent->children[child_idx],
+        &midnode->children[only_child_i],
+        sizeof(merkle_child_info_t) - 32);
+    memcpy(
+        parent->children[child_idx].path + (mid_path_len + 1) / 2,
+        midnode->children[only_child_i].path + (mid_path_len + 1) / 2,
+        (midnode->children[only_child_i].path_len + 1) / 2 -
+            (mid_path_len + 1) / 2);
+    if (mid_path_len % 2) { // odd path_len
+        set_nibble(
+            parent->children[child_idx].path,
+            mid_path_len,
+            get_nibble(midnode->children[only_child_i].path, mid_path_len));
+    }
+    assert(
+        parent->children[child_idx].fnext ||
+        parent->children[child_idx].path_len == 64);
+    assert(
+        (parent->children[child_idx].next != NULL) !=
+        parent->children[child_idx].path_len >= CACHE_LEVELS);
+    free(midnode);
 }
 
 #ifdef __cplusplus
