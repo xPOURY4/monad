@@ -31,7 +31,8 @@ merkle_node_t *do_merge(
             else { // prev has branches, tmp do not
                 new_root->children[child_idx] =
                     prev_root->children[merkle_child_index(prev_root, i)];
-                new_root->children[child_idx].next = NULL;
+                prev_root->children[merkle_child_index(prev_root, i)].next =
+                    NULL;
                 --curr_tnode->npending;
             }
             ++child_idx;
@@ -139,7 +140,7 @@ void merge_trie(
                             else {
                                 new_branch->children[child_idx] =
                                     prev_parent->children[prev_child_i];
-                                new_branch->children[child_idx].next = NULL;
+                                prev_parent->children[prev_child_i].next = NULL;
                             }
                             ++child_idx;
                         }
@@ -194,10 +195,12 @@ void merge_trie(
                     for (int i = 0, child_idx = 0; i < 16; ++i) {
                         if ((new_branch->mask & 1u << i)) {
                             if (i != next_nibble) {
-                                new_branch->children[child_idx] =
+                                new_branch->children[child_idx++] =
                                     prev_node->children[merkle_child_index(
                                         prev_node, i)];
-                                new_branch->children[child_idx++].next = NULL;
+                                prev_node
+                                    ->children[merkle_child_index(prev_node, i)]
+                                    .next = NULL;
                             }
                             else {
                                 set_merkle_child_from_tmp(
@@ -308,7 +311,7 @@ void merge_trie(
             unsigned int prev_idx = prev_nibble > tmp_nibble;
             new_branch->children[prev_idx] =
                 prev_parent->children[prev_child_i];
-            new_branch->children[prev_idx].next = NULL;
+            prev_parent->children[prev_child_i].next = NULL;
 
             // new_branch -> tmp_nibble
             set_merkle_child_from_tmp(new_branch, !prev_idx, tmp_node);
