@@ -151,21 +151,23 @@ merkle_node_t *deserialize_node_from_buffer(
 int64_t write_node(merkle_node_t *const node)
 {
     size_t size = get_disk_node_size(node);
-    if (size + buffer_idx > WRITE_BUFFER_SIZE) {
-        unsigned char *prev_buffer = write_buffer;
-        int64_t prev_block_off = block_off;
+    if (size + BUFFER_IDX > WRITE_BUFFER_SIZE) {
+        unsigned char *prev_buffer = WRITE_BUFFER;
+        int64_t prev_block_off = BLOCK_OFF;
         // renew buffer
-        block_off += WRITE_BUFFER_SIZE;
-        write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
-        *write_buffer = BLOCK_TYPE_DATA;
-        buffer_idx = 1;
-        // buffer will be freed after iouring completed
+        BLOCK_OFF += WRITE_BUFFER_SIZE;
+        WRITE_BUFFER = get_avail_buffer(WRITE_BUFFER_SIZE);
+        *WRITE_BUFFER = BLOCK_TYPE_DATA;
+        BUFFER_IDX = 1;
+        // during poll_uring(), there could be new writes to WRITE_BUFFER, has
+        // to be available before calling write_request(), buffer will be freed
+        // after iouring completed
         async_write_request(prev_buffer, prev_block_off);
     }
     // Write the root node to the buffer
-    int64_t ret = block_off + buffer_idx;
-    serialize_node_to_buffer(write_buffer + buffer_idx, node);
-    buffer_idx += size;
+    int64_t ret = BLOCK_OFF + BUFFER_IDX;
+    serialize_node_to_buffer(WRITE_BUFFER + BUFFER_IDX, node);
+    BUFFER_IDX += size;
     return ret;
 }
 

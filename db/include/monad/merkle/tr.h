@@ -35,8 +35,8 @@ void write_root_footer(merkle_node_t *root)
     unsigned char *buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
     buffer[0] = BLOCK_TYPE_META;
     serialize_node_to_buffer(buffer + 1, root);
-    async_write_request(buffer, block_off);
-    block_off += WRITE_BUFFER_SIZE;
+    async_write_request(buffer, BLOCK_OFF);
+    BLOCK_OFF += WRITE_BUFFER_SIZE;
 }
 
 merkle_node_t *get_root_from_footer(int fd)

@@ -25,9 +25,9 @@ extern int inflight;
 extern int inflight_rd;
 extern int n_rd_per_block;
 
-extern unsigned char *write_buffer;
-extern size_t buffer_idx;
-extern int64_t block_off;
+extern unsigned char *WRITE_BUFFER;
+extern size_t BUFFER_IDX;
+extern int64_t BLOCK_OFF;
 
 #define SIZE_OF_CHILD_COUNT 1
 #define SIZE_OF_PATH_LEN 1

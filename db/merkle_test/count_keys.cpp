@@ -16,9 +16,9 @@ int inflight_rd;
 int n_rd_per_block;
 struct io_uring *ring;
 // write buffer info
-unsigned char *write_buffer;
-size_t buffer_idx;
-int64_t block_off;
+unsigned char *WRITE_BUFFER;
+size_t BUFFER_IDX;
+int64_t BLOCK_OFF;
 int64_t cnt;
 
 typedef struct read_uring_data_t

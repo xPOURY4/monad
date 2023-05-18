@@ -28,9 +28,9 @@ int inflight_rd;
 int n_rd_per_block;
 struct io_uring *ring;
 // write buffer info
-unsigned char *write_buffer;
-size_t buffer_idx;
-int64_t block_off;
+unsigned char *WRITE_BUFFER;
+size_t BUFFER_IDX;
+int64_t BLOCK_OFF;
 
 static void ctrl_c_handler(int s)
 {
@@ -84,10 +84,10 @@ static merkle_node_t *batch_upsert_commit(
             (trie_data_t *)(keccak_values + i * 32),
             erase);
     }
-    // initialize buffer and block_off
-    buffer_idx = 1;
-    write_buffer = get_avail_buffer(WRITE_BUFFER_SIZE);
-    *write_buffer = BLOCK_TYPE_DATA;
+    // initialize buffer and BLOCK_OFF
+    BUFFER_IDX = 1;
+    WRITE_BUFFER = get_avail_buffer(WRITE_BUFFER_SIZE);
+    *WRITE_BUFFER = BLOCK_TYPE_DATA;
     // initialize tnode
     tnode_t *root_tnode = get_new_tnode(NULL, 0, 0, NULL);
     merkle_node_t *new_root =
@@ -101,12 +101,12 @@ static merkle_node_t *batch_upsert_commit(
         poll_uring();
     }
     // handle the last buffer to write
-    if (buffer_idx > 1) {
-        async_write_request(write_buffer, block_off);
-        block_off += WRITE_BUFFER_SIZE;
+    if (BUFFER_IDX > 1) {
+        async_write_request(WRITE_BUFFER, BLOCK_OFF);
+        BLOCK_OFF += WRITE_BUFFER_SIZE;
     }
     else {
-        free(write_buffer);
+        free(WRITE_BUFFER);
     }
     write_root_footer(new_root);
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
@@ -242,9 +242,9 @@ int main(int argc, char *argv[])
     // initialize root and block offset for write
     merkle_node_t *root;
     if (append) {
-        // TODO: change block_off to support block device
+        // TODO: change BLOCK_OFF to support block device
         root = get_root_from_footer(fd);
-        block_off = lseek(fd, 0, SEEK_END);
+        BLOCK_OFF = lseek(fd, 0, SEEK_END);
         trie_data_t root_data;
         hash_branch(root, (unsigned char *)&root_data);
         fprintf(
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
     }
     else {
         root = get_new_merkle_node(0, 0);
-        block_off = 0;
+        BLOCK_OFF = 0;
     }
 
     merkle_node_t *prev_root;
