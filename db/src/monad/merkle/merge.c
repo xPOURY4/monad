@@ -254,13 +254,12 @@ void merge_trie(
         // 1. leaves: assign data to new_parent
         // 2. branches: create a new branch node with branches
         // for each possible one = UNION(prev branches, tmp branches)
-        if (tmp_node->type == LEAF) {
+        if (tmp_node->type == LEAF &&
+            ((trie_leaf_node_t *)tmp_node)->tombstone) {
             --parent_tnode->npending;
-            if (((trie_leaf_node_t *)tmp_node)->tombstone) {
-                new_parent->valid_mask &= ~(1u << new_child_ni);
-                new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
-                return;
-            }
+            new_parent->valid_mask &= ~(1u << new_child_ni);
+            new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
+            return;
         }
         else {
             if (!prev_node) {
@@ -291,9 +290,36 @@ void merge_trie(
         new_path,
         (1 + new_path_len) / 2);
 
-    if (pi == min_path_len && !tmp_is_shorter && tmp_node->type == LEAF) {
+    if (new_branch) {
+        new_branch->path_len = new_path_len;
+        if (branch_tnode && branch_tnode->npending) {
+            return;
+        }
+        // new_branch has 0 or 1 valid children
+        unsigned nvalid = merkle_child_count_valid(new_branch);
+        if (nvalid == 0) {
+            new_parent->valid_mask &= ~(1u << new_child_ni);
+            new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
+            new_parent->children[new_branch_arr_i].next = NULL;
+            free_node(new_branch);
+        }
+        else if (nvalid == 1) {
+            connect_only_grandchild(new_parent, new_branch_arr_i);
+        }
+        else {
+            hash_branch_extension(new_parent, new_branch_arr_i);
+            new_parent->children[new_branch_arr_i].fnext =
+                write_node(new_branch);
+            if (new_parent->children[new_branch_arr_i].path_len >=
+                CACHE_LEVELS) {
+                free_node(new_branch);
+                new_parent->children[new_branch_arr_i].next = NULL;
+            }
+        }
+    }
+    else {
         // exact prefix match for leaf
-        assert(tmp_node->type == LEAF);
+        assert(pi == min_path_len && !tmp_is_shorter && tmp_node->type == LEAF);
         assert(prev_parent->children[prev_child_i].data);
         new_parent->children[new_branch_arr_i].data =
             prev_parent->children[prev_child_i].data;
@@ -303,33 +329,7 @@ void merge_trie(
             new_branch_arr_i,
             (unsigned char *)&((trie_leaf_node_t *)tmp_node)->data);
     }
-    else if (new_branch) {
-        new_branch->path_len = new_path_len;
-        if (!branch_tnode || !branch_tnode->npending) {
-            // new_branch has 0 or 1 valid children
-            unsigned nvalid = merkle_child_count_valid(new_branch);
-            if (nvalid == 0) {
-                new_parent->valid_mask &= ~(1u << new_child_ni);
-                new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
-                new_parent->children[new_branch_arr_i].next = NULL;
-                free_node(new_branch);
-            }
-            else if (nvalid == 1) {
-                connect_only_grandchild(new_parent, new_branch_arr_i);
-            }
-            else {
-                hash_branch_extension(new_parent, new_branch_arr_i);
-                new_parent->children[new_branch_arr_i].fnext =
-                    write_node(new_branch);
-                if (new_parent->children[new_branch_arr_i].path_len >=
-                    CACHE_LEVELS) {
-                    free_node(new_branch);
-                    new_parent->children[new_branch_arr_i].next = NULL;
-                }
-            }
-            --parent_tnode->npending;
-        }
-    }
+    --parent_tnode->npending;
     return;
 }
 
