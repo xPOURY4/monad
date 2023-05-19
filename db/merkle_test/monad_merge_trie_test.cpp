@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <ethash/keccak.h>
 #include <monad/mem/cpool.h>
-#include <monad/mem/huge_mem.h>
+#include <monad/mem/huge_mem.hpp>
 #include <monad/merkle/merge.h>
 #include <monad/merkle/tr.h>
 #include <monad/tmp/update.h>
@@ -200,11 +200,8 @@ int main(int argc, char *argv[])
     sigaction(SIGINT, &sig, NULL);
 
     // init cpool
-    huge_mem_t tmp_huge_mem;
-    tmp_huge_mem.data = NULL;
-    tmp_huge_mem.size = 0;
-    huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
-    tmp_pool = cpool_init31(tmp_huge_mem.data);
+    monad::HugeMem tmp_huge_mem(1UL << 31);
+    tmp_pool = cpool_init31(tmp_huge_mem.get_data());
 
     inflight = 0;
     inflight_rd = 0;
@@ -325,7 +322,6 @@ int main(int argc, char *argv[])
     free_trie(root);
     tr_close(fd);
     exit_uring(ring);
-    huge_mem_free(&tmp_huge_mem);
     free(keccak_keys);
     free(keccak_values);
 }

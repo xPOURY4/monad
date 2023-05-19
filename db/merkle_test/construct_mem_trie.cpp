@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <ethash/keccak.h>
 #include <monad/mem/cpool.h>
-#include <monad/mem/huge_mem.h>
+#include <monad/mem/huge_mem.hpp>
 #include <monad/merkle/node.h>
 #include <monad/tmp/update.h>
 #include <signal.h>
@@ -173,11 +173,8 @@ int main(int argc, char *argv[])
     cli.add_option("-n", n_slices, "updates");
     cli.parse(argc, argv);
 
-    huge_mem_t tmp_huge_mem;
-    tmp_huge_mem.data = NULL;
-    tmp_huge_mem.size = 0;
-    huge_mem_alloc(&tmp_huge_mem, 1UL << 31);
-    tmp_pool = cpool_init31(tmp_huge_mem.data);
+    monad::HugeMem tmp_huge_mem(1UL << 31);
+    tmp_pool = cpool_init31(tmp_huge_mem.get_data());
 
     int64_t nkeys = SLICE_LEN * n_slices;
     char *const keccak_keys = (char *)malloc(nkeys * 32);
@@ -202,6 +199,4 @@ int main(int argc, char *argv[])
     precommit(root_i, _keccak);
     // precommit(root_i, _add);
     printf("root data.words[0] = 0x%lx\n", get_node(root_i)->data.words[0]);
-
-    huge_mem_free(&tmp_huge_mem);
 }
