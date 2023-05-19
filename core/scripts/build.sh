@@ -4,4 +4,4 @@ VERBOSE=1 \
 cmake \
   --build build \
   --config RelWithDebInfo \
-  --target all --
+  --target all
