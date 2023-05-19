@@ -151,7 +151,7 @@ merkle_node_t *deserialize_node_from_buffer(
 int64_t write_node(merkle_node_t *const node)
 {
     size_t size = get_disk_node_size(node);
-    if (size + BUFFER_IDX > WRITE_BUFFER_SIZE) {
+    while (size + BUFFER_IDX > WRITE_BUFFER_SIZE) {
         unsigned char *prev_buffer = WRITE_BUFFER;
         int64_t prev_block_off = BLOCK_OFF;
         // renew buffer
@@ -163,6 +163,8 @@ int64_t write_node(merkle_node_t *const node)
         // to be available before calling write_request(), buffer will be freed
         // after iouring completed
         async_write_request(prev_buffer, prev_block_off);
+        // after async and polling, there might be insufficient space for new
+        // node, put it in a while loop to submit both current and new buffer
     }
     // Write the root node to the buffer
     int64_t ret = BLOCK_OFF + BUFFER_IDX;
