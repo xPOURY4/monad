@@ -14,8 +14,4 @@ jobs:
         with:
           submodules: recursive
 
-      - run: |
-          set -eux
-          docker build \
-            --file docker/Dockerfile \
-            .
+      - run: docker build --file docker/Dockerfile .
