@@ -15,6 +15,8 @@ public:
     HugeMem(std::size_t size);
     ~HugeMem();
 
+    HugeMem(HugeMem &&) = default;
+
     [[gnu::always_inline]] std::size_t get_size() const { return size_; }
 
     [[gnu::always_inline]] unsigned char *get_data() const { return data_; }
