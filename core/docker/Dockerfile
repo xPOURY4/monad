@@ -2,6 +2,11 @@
 
 FROM fedora:38
 
+RUN dnf config-manager --enable \
+  fedora-debuginfo \
+  fedora-modular-debuginfo \
+  updates-debuginfo
+
 RUN yum -y update
 
 RUN yum -y install \
@@ -12,12 +17,11 @@ RUN yum -y install \
 RUN yum -y install \
   gtest \
   liburing \
-  rocksdb
+  liburing-debuginfo
 
 RUN yum -y install \
   gtest-devel \
-  liburing-devel \
-  rocksdb-devel
+  liburing-devel
 
 COPY . monad-core
 
