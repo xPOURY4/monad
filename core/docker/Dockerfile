@@ -2,6 +2,9 @@
 
 FROM fedora:38
 
+RUN yum -y install \
+  dnf-plugins-core
+
 RUN dnf config-manager --enable \
   fedora-debuginfo \
   fedora-modular-debuginfo \
