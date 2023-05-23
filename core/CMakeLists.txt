@@ -33,8 +33,10 @@ add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
 
+    ${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/io/buffers.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp
 )
 target_include_directories(monad_core

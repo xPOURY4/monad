@@ -18,10 +18,16 @@ public:
     Ring(Ring &&) = default;
     Ring &operator=(Ring &&) = default;
 
+    [[gnu::always_inline]] io_uring const &get_ring() const
+    {
+        return ring_;
+    }
+
     [[gnu::always_inline]] unsigned get_sq_entries() const
     {
         return params_.sq_entries;
     }
+
     [[gnu::always_inline]] unsigned get_cq_entries() const
     {
         return params_.cq_entries;
