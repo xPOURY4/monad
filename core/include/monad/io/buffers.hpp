@@ -38,6 +38,16 @@ public:
         return write_count_;
     }
 
+    [[gnu::always_inline]] size_t get_read_size() const
+    {
+        return 1UL << read_bits_;
+    }
+
+    [[gnu::always_inline]] size_t get_write_size() const
+    {
+        return 1UL << write_bits_;
+    }
+
     [[gnu::always_inline]] static constexpr uint16_t get_read_index()
     {
         return 0;
