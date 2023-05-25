@@ -21,23 +21,28 @@ endfunction()
 
 add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/config.hpp
+    # core
     ${PROJECT_SOURCE_DIR}/include/monad/core/assert.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp
     ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
-
+    # io
+    ${PROJECT_SOURCE_DIR}/include/monad/io/buffer_pool.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/io/buffer_pool.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/io/buffers.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp
+    # mem
+    ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
+    ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
+    # rlp
+    ${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp
 )
 target_include_directories(monad_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
