@@ -3,8 +3,8 @@
 #include <assert.h>
 #include <ethash/keccak.h>
 #include <monad/mem/cpool.h>
-#include <monad/merkle/tr.h>
 #include <monad/trie/io.h>
+#include <monad/trie/tr.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

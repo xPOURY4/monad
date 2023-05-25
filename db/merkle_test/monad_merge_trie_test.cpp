@@ -2,12 +2,18 @@
 #include <alloca.h>
 #include <assert.h>
 #include <ethash/keccak.h>
+
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
-#include <monad/merkle/merge.h>
-#include <monad/merkle/tr.h>
-#include <monad/tmp/update.h>
-#include <monad/trie/io.h>
+
+#include <monad/io/ring.hpp>
+#include <monad/trie/io.hpp>
+#include <monad/trie/merge.hpp>
+#include <monad/trie/node_helper.hpp>
+#include <monad/trie/tmp_trie.hpp>
+#include <monad/trie/tr.hpp>
+#include <monad/trie/trie.hpp>
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,16 +27,14 @@
 
 /* magic numbers */
 #define SLICE_LEN 100000
-cpool_31_t *tmp_pool;
-int fd;
-int inflight;
-int inflight_rd;
-int n_rd_per_block;
-struct io_uring *ring;
-// write buffer info
-unsigned char *WRITE_BUFFER;
-size_t BUFFER_IDX;
-int64_t BLOCK_OFF;
+
+MONAD_TRIE_NAMESPACE_BEGIN
+
+cpool_29_t *tmppool_, *trie_pool_;
+
+MONAD_TRIE_NAMESPACE_END
+
+using namespace monad::trie;
 
 static void ctrl_c_handler(int s)
 {
@@ -65,75 +69,36 @@ void __print_char_arr_in_hex(char *arr, int n)
 static merkle_node_t *batch_upsert_commit(
     merkle_node_t *prev_root, int64_t keccak_offset, int64_t offset,
     int64_t nkeys, char const *const keccak_keys,
-    char const *const keccak_values, bool erase)
+    char const *const keccak_values, bool erase, AsyncIO &io_)
 {
-    struct timespec ts_before, ts_middle, ts_after;
-    double tm_ram, tm_io_extra;
-    int inflight_before_poll = 0;
-    int inflight_rd_before_poll = 0;
-    n_rd_per_block = 0;
-
-    uint32_t tmp_root_i = get_new_branch(NULL, 0);
+    struct timespec ts_before, ts_after;
+    double tm_ram;
 
     clock_gettime(CLOCK_MONOTONIC, &ts_before);
+
+    monad::trie::TmpTrie tmptrie;
     for (int i = keccak_offset; i < keccak_offset + nkeys; ++i) {
-        upsert(
-            tmp_root_i,
+        tmptrie.upsert(
             (unsigned char *)(keccak_keys + i * 32),
             64,
             (trie_data_t *)(keccak_values + i * 32),
             erase);
     }
-    // initialize buffer and BLOCK_OFF
-    BUFFER_IDX = 1;
-    WRITE_BUFFER = get_avail_buffer(WRITE_BUFFER_SIZE);
-    *WRITE_BUFFER = BLOCK_TYPE_DATA;
-    // initialize tnode
-    tnode_t *root_tnode = get_new_tnode(NULL, 0, 0, NULL);
-    merkle_node_t *new_root =
-        do_merge(prev_root, get_node(tmp_root_i), 0, root_tnode);
-    // after all merge call, also need to poll until no submission left in uring
-    clock_gettime(CLOCK_MONOTONIC, &ts_middle);
-    inflight_before_poll = inflight;
-    inflight_rd_before_poll = inflight_rd;
 
-    while (inflight) {
-        poll_uring();
-    }
-    // handle the last buffer to write
-    if (BUFFER_IDX > 1) {
-        async_write_request(WRITE_BUFFER, BLOCK_OFF);
-        BLOCK_OFF += WRITE_BUFFER_SIZE;
-    }
-    else {
-        free(WRITE_BUFFER);
-    }
-    write_root_footer(new_root);
+    MerkleTrie trie;
+    trie.process_updates(&tmptrie, prev_root, io_);
+
+    // write_root_footer(trie.get_root());
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
-    tm_io_extra = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
-                  ((double)ts_middle.tv_sec + (double)ts_middle.tv_nsec / 1e9);
 
-    assert(root_tnode->npending == 0);
     trie_data_t root_data;
-    hash_branch(new_root, (unsigned char *)&root_data);
+    trie.root_hash((unsigned char *)&root_data);
 
     // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
     //     return new_root;
     // }
-    fprintf(
-        stdout,
-        "inflight_before_poll = %d, "
-        "inflight_rd_before_poll = %d, n_rd_per_block = %d\n"
-        "number of unconsumed ready entries in CQ ring: %d\n"
-        "extra time waiting for io %.4f s\ndb file size after commit: %f GB\n",
-        inflight_before_poll,
-        inflight_rd_before_poll,
-        n_rd_per_block,
-        io_uring_cq_ready(ring),
-        tm_io_extra,
-        float(get_file_size(fd)) / 1024 / 1024 / 1024);
     fprintf(stdout, "root->data after precommit: ");
     __print_char_arr_in_hex((char *)root_data.bytes, 32);
     fprintf(
@@ -146,7 +111,7 @@ static merkle_node_t *batch_upsert_commit(
         (double)nkeys * 1.001 / tm_ram,
         tm_ram);
     fflush(stdout);
-    return new_root;
+    return trie.get_root();
 }
 
 void prepare_keccak(
@@ -199,20 +164,13 @@ int main(int argc, char *argv[])
     sig.sa_flags = 0;
     sigaction(SIGINT, &sig, NULL);
 
-    // init cpool
-    monad::HugeMem tmp_huge_mem(1UL << 31);
-    tmp_pool = cpool_init31(tmp_huge_mem.get_data());
-
-    inflight = 0;
-    inflight_rd = 0;
-
     int n_slices = 20;
     std::string dbname = "test.db";
     bool append = false;
     int64_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
-    CLI::App cli{"monad_trie_perf_test"};
+    CLI::App cli{"monad_merge_trie_test"};
     cli.add_flag("--append", append, "append on top of existing db");
     cli.add_option("--db-name", dbname, "db file name");
     cli.add_option("--offset", offset, "integer offset to start insert");
@@ -227,34 +185,28 @@ int main(int argc, char *argv[])
     // spawn multiple threads for keccak
     // prepare_keccak_parallel(nkeys, keccak_keys, keccak_values, offset);
 
-    // create tr
-    fd = tr_open(dbname.c_str());
-    // init io uring
-    ring = (struct io_uring *)malloc(sizeof(struct io_uring));
-    int ret = init_uring(fd, ring, sq_thread_cpu);
-    if (ret) {
-        fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
-        return 1;
-    }
-    // initialize root and block offset for write
-    merkle_node_t *root;
-    if (append) {
-        // TODO: change BLOCK_OFF to support block device
-        root = get_root_from_footer(fd);
-        BLOCK_OFF = lseek(fd, 0, SEEK_END);
-        trie_data_t root_data;
-        hash_branch(root, (unsigned char *)&root_data);
-        fprintf(
-            stdout,
-            "prev root->data[0] after precommit: 0x%lx\n",
-            root_data.words[0]);
-    }
-    else {
-        root = get_new_merkle_node(0, 0);
-        BLOCK_OFF = 0;
-    }
+    // init tmppool_
+    monad::HugeMem tmp_huge_mem(1UL << 29);
+    tmppool_ = cpool_init29(tmp_huge_mem.get_data());
 
+    // init trie_pool
+    monad::HugeMem trie_huge_mem(1UL << 29);
+    trie_pool_ = cpool_init29(trie_huge_mem.get_data());
+
+    // init uring
+    monad::io::Ring ring(128, sq_thread_cpu);
+    int fds[2];
+    int fd = tr::tr_open(dbname.c_str());
+    fds[0] = fd;
+    io_uring_register_files(const_cast<io_uring *>(&ring.get_ring()), fds, 1);
+
+    // initialize root and block offset for write
+    // TODO: handle append
+    AsyncIO io_(ring, 0, trie_pool_, &merge_callback);
+
+    merkle_node_t *root = get_new_merkle_node(0, 0);
     merkle_node_t *prev_root;
+
     int64_t max_key = n_slices * SLICE_LEN + offset;
     /* start profiling upsert and commit */
     for (int iter = 0; iter < n_slices; ++iter) {
@@ -282,7 +234,9 @@ int main(int argc, char *argv[])
             SLICE_LEN,
             keccak_keys,
             keccak_values,
-            false);
+            false,
+            io_);
+
         free_trie(prev_root);
 
         if (erase && iter % 2) {
@@ -296,7 +250,8 @@ int main(int argc, char *argv[])
                 SLICE_LEN,
                 keccak_keys,
                 keccak_values,
-                true);
+                true,
+                io_);
             free_trie(prev_root);
 
             fprintf(stdout, "> dup batch iter = %d\n", iter);
@@ -308,20 +263,14 @@ int main(int argc, char *argv[])
                 SLICE_LEN,
                 keccak_keys,
                 keccak_values,
-                false);
+                false,
+                io_);
             free_trie(prev_root);
         }
     }
 
-    while (inflight) {
-        poll_uring();
-    }
-    assert(inflight == 0);
-    assert(inflight_rd == 0);
-
     free_trie(root);
-    tr_close(fd);
-    exit_uring(ring);
+    tr::tr_close(fd);
     free(keccak_keys);
     free(keccak_values);
 }

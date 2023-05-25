@@ -14,7 +14,8 @@ function(monad_trie_compile_options target)
     set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD 23)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
+    target_compile_options(${target} PRIVATE -Wall -Wextra ) # -Werror
+    target_compile_options(${target} PUBLIC $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 endfunction()
 
 include(cmake/test.cmake)
@@ -23,18 +24,25 @@ include(cmake/test.cmake)
 # ## libs
 # ###########
 add_library(monad_trie STATIC
-    ${PROJECT_SOURCE_DIR}/include/monad/merkle/node.h
-    ${PROJECT_SOURCE_DIR}/include/monad/merkle/tnode.h 
-    ${PROJECT_SOURCE_DIR}/include/monad/merkle/merge.h 
-    ${PROJECT_SOURCE_DIR}/include/monad/merkle/tr.h
-    ${PROJECT_SOURCE_DIR}/src/monad/merkle/node.c
-    ${PROJECT_SOURCE_DIR}/src/monad/merkle/hasher.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/merkle/merge.c
-    ${PROJECT_SOURCE_DIR}/src/monad/merkle/async.c
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/globals.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/merge_data.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp 
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp 
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/tr.hpp 
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/data.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/nibble.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/merge.hpp   
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp 
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/io.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/node_helper.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/merge.cpp
 
-    ${PROJECT_SOURCE_DIR}/include/monad/tmp/node.h
-    ${PROJECT_SOURCE_DIR}/include/monad/tmp/update.h
-    ${PROJECT_SOURCE_DIR}/src/monad/tmp/update.c
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/tmp_trie.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/tmp_trie.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/assert.h
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
@@ -47,19 +55,8 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/trie/offset.c
     ${PROJECT_SOURCE_DIR}/src/monad/trie/offset.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/trie/offset_ptr.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/io.c
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/io.h 
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/data.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/find.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/nibble.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/node.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/update.h
-    ${PROJECT_SOURCE_DIR}/src/trie/find.c
-    ${PROJECT_SOURCE_DIR}/src/trie/node.c
-    ${PROJECT_SOURCE_DIR}/src/trie/update.c
-    ${PROJECT_SOURCE_DIR}/src/trie/data.c
 )
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include

@@ -4,8 +4,8 @@
 #include <ethash/keccak.h>
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
-#include <monad/merkle/node.h>
-#include <monad/tmp/update.h>
+#include <monad/trie/merkle/node.h>
+#include <monad/trie/tmp/update.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -116,14 +116,11 @@ void _keccak(trie_branch_node_t *const node)
     int16_t k, subnode_mask = node->subnode_bitmask;
     while (subnode_mask) {
         k = __builtin_ctz(subnode_mask);
-        copy_trie_data(
-            (trie_data_t *)(bytes + b_offset), &get_node(node->next[k])->data);
+        memcpy(bytes + b_offset, &get_node(node->next[k])->data, 32);
         b_offset += 32;
         subnode_mask &= ~(1u << k);
     }
-    copy_trie_data(
-        &(node->data),
-        (trie_data_t *)ethash_keccak256((uint8_t *)bytes, b_offset).str);
+    memcpy(&(node->data), ethash_keccak256((uint8_t *)bytes, b_offset).str, 32);
 }
 
 void _add(trie_branch_node_t *const node)

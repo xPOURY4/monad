@@ -1,20 +1,60 @@
-#include <monad/tmp/node.h>
-#include <monad/tmp/update.h>
-#include <monad/trie/nibble.h>
-#include <stdbool.h>
+#include <monad/trie/nibble.hpp>
+#include <monad/trie/tmp_trie.hpp>
+#include <string.h>
 
-// implement an in-memory upsert, all nodes are mutable
-void upsert(
-    uint32_t const root, unsigned char const *const path,
-    const uint8_t path_len, trie_data_t const *const data, bool erase)
+MONAD_TRIE_NAMESPACE_BEGIN
+
+TmpTrie::TmpTrie()
+    : root_i_{get_new_branch(NULL, 0)}
+    , root_{(tmp_branch_node_t *)cpool_ptr29(tmppool_, root_i_)}
 {
+}
+
+TmpTrie::~TmpTrie() {}
+
+uint32_t TmpTrie::get_new_branch(
+    unsigned char const *const path, unsigned char const path_len)
+{
+    uint32_t branch_i = cpool_reserve29(tmppool_, sizeof(tmp_branch_node_t));
+    cpool_advance29(tmppool_, sizeof(tmp_branch_node_t));
+    // allocate the next spot for branch
+    tmp_branch_node_t *branch =
+        (tmp_branch_node_t *)cpool_ptr29(tmppool_, branch_i);
+    memset(branch, 0, sizeof(tmp_branch_node_t));
+    branch->type = tmp_node_type_t::BRANCH;
+    branch->path_len = path_len;
+    memcpy(branch->path, path, (path_len + 1) / 2);
+    return branch_i;
+}
+
+uint32_t TmpTrie::get_new_leaf(
+    unsigned char const *const path, unsigned char const path_len,
+    trie_data_t const *const data, bool tombstone)
+{
+    uint32_t leaf_i = cpool_reserve29(tmppool_, sizeof(tmp_leaf_node_t));
+    cpool_advance29(tmppool_, sizeof(tmp_leaf_node_t));
+    tmp_leaf_node_t *leaf = (tmp_leaf_node_t *)cpool_ptr29(tmppool_, leaf_i);
+    memset(leaf, 0, sizeof(tmp_leaf_node_t));
+    leaf->type = tmp_node_type_t::LEAF;
+    leaf->path_len = path_len;
+    memcpy(leaf->path, path, (path_len + 1) / 2);
+    memcpy(&leaf->data, data, 32);
+    leaf->tombstone = tombstone;
+    return leaf_i;
+}
+
+void TmpTrie::upsert(
+    unsigned char const *const path, uint8_t const path_len,
+    trie_data_t const *const data, bool const erase)
+{ // TODO: trie data pass in as reference, use byte_string_view to include
+  // length info
     int key_index = 0;
     unsigned char path_nibble;
     unsigned char node_nibble;
 
-    uint32_t node_i = root;
+    uint32_t node_i = root_i_;
     unsigned char nibble = 0;
-    trie_branch_node_t *node = get_node(node_i), *parent_node = NULL;
+    tmp_branch_node_t *node = get_node(node_i), *parent_node = NULL;
 
     while (key_index < path_len) {
         path_nibble = get_nibble(path, key_index);
@@ -51,7 +91,7 @@ void upsert(
             // create a new branch that branches out at node_i, update parent
             uint32_t new_branch_i = get_new_branch(path, key_index);
             parent_node->next[nibble] = new_branch_i;
-            trie_branch_node_t *new_branch = get_node(new_branch_i);
+            tmp_branch_node_t *new_branch = get_node(new_branch_i);
             new_branch->next[path_nibble] =
                 get_new_leaf(path, path_len, data, erase);
             new_branch->next[node_nibble] = node_i;
@@ -65,3 +105,5 @@ void upsert(
     }
     return;
 }
+
+MONAD_TRIE_NAMESPACE_END

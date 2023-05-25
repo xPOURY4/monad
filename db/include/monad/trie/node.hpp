@@ -1,0 +1,104 @@
+#pragma once
+
+#include <cstddef>
+#include <monad/trie/assert.h>
+#include <monad/trie/config.hpp>
+#include <monad/trie/data.hpp>
+
+MONAD_TRIE_NAMESPACE_BEGIN
+
+#define SIZE_OF_CHILD_COUNT 1
+#define SIZE_OF_PATH_LEN 1
+#define SIZE_OF_TRIE_DATA 32
+#define SIZE_OF_SUBNODE_BITMASK 2
+#define SIZE_OF_FILE_OFFSET 8
+#define BLOCK_TYPE_DATA 0
+#define BLOCK_TYPE_META 1
+#define MAX_DISK_NODE_SIZE 1536
+#define CACHE_LEVELS 5
+
+struct merkle_node_t;
+
+struct merkle_child_info_t
+{
+    trie_data_t noderef;
+    int64_t fnext; // later change to off48_t
+    merkle_node_t *next;
+    unsigned char *data;
+    unsigned char path_len;
+    char pad[7];
+    unsigned char path[32];
+};
+
+static_assert(sizeof(merkle_child_info_t) == 96);
+static_assert(alignof(merkle_child_info_t) == 8);
+
+struct merkle_node_t
+{
+    uint16_t mask;
+    uint16_t valid_mask;
+    uint16_t tomb_arr_mask;
+    uint8_t nsubnodes;
+    unsigned char path_len;
+
+    merkle_child_info_t children[0];
+};
+
+static_assert(sizeof(merkle_node_t) == 8);
+static_assert(alignof(merkle_node_t) == 8);
+
+static inline uint16_t merkle_child_mask(merkle_node_t const *const node)
+{
+    return node->mask;
+}
+
+static inline bool
+merkle_child_test(merkle_node_t const *const node, unsigned const i)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    return mask & (1u << i);
+}
+
+static inline bool merkle_child_all(merkle_node_t const *const node)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    return mask == UINT16_MAX;
+}
+
+static inline bool merkle_child_any(merkle_node_t const *const node)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    return mask;
+}
+
+static inline bool merkle_child_none(merkle_node_t const *const node)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    return !mask;
+}
+
+static inline unsigned merkle_child_count(merkle_node_t const *const node)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    return __builtin_popcount(mask);
+}
+
+static inline unsigned
+merkle_child_index(merkle_node_t const *const node, unsigned const i)
+{
+    uint16_t const mask = merkle_child_mask(node);
+    uint16_t const filter = UINT16_MAX >> (16 - i);
+    return __builtin_popcount(mask & filter);
+}
+
+static inline unsigned merkle_child_count_tomb(merkle_node_t const *const node)
+{
+    return node->nsubnodes - __builtin_popcount(node->valid_mask);
+}
+
+static inline unsigned merkle_child_count_valid(merkle_node_t const *const node)
+{
+    return __builtin_popcount(node->valid_mask);
+}
+
+MONAD_TRIE_NAMESPACE_END

@@ -1,14 +1,11 @@
 #pragma once
 
-#include <monad/trie/config.h>
+#include <monad/trie/config.hpp>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
+MONAD_TRIE_NAMESPACE_BEGIN
 
-static inline unsigned char
-get_nibble(unsigned char const *const d, unsigned const n)
+[[gnu::always_inline]] constexpr static inline unsigned char
+get_nibble(unsigned char const *d, unsigned n)
 {
     unsigned char r = d[n / 2];
     if (n % 2 == 0) {
@@ -20,7 +17,7 @@ get_nibble(unsigned char const *const d, unsigned const n)
     return r;
 }
 
-static inline void
+[[gnu::always_inline]] static inline void
 set_nibble(unsigned char *const d, unsigned const n, unsigned char const v)
 {
     unsigned char r = d[n / 2];
@@ -35,6 +32,4 @@ set_nibble(unsigned char *const d, unsigned const n, unsigned char const v)
     d[n / 2] = r;
 }
 
-#ifdef __cplusplus
-}
-#endif
+MONAD_TRIE_NAMESPACE_END

@@ -9,17 +9,5 @@ add_executable(monad_merge_trie_test
 )
 monad_trie_compile_options(monad_merge_trie_test)
 
-add_executable(count_trie_keys
-    count_keys.cpp
-)
-monad_trie_compile_options(count_trie_keys)
-
-add_executable(mem_trie
-    construct_mem_trie.cpp
-)
-monad_trie_compile_options(mem_trie)
-
 target_link_libraries(monad_merge_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie ethash::keccak)
-target_link_libraries(count_trie_keys PUBLIC monad_core CLI11::CLI11 monad_trie)
-target_link_libraries(mem_trie PUBLIC monad_core monad_trie ethash::keccak)
 

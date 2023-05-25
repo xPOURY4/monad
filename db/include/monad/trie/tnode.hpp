@@ -1,14 +1,10 @@
-#include <monad/merkle/node.h>
-#include <stdalign.h>
+#pragma once
+
+#include <monad/trie/node.hpp>
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
+MONAD_TRIE_NAMESPACE_BEGIN
 // helper struct: node of a upward pointing tree
-typedef struct tnode_t tnode_t;
 struct tnode_t
 {
     tnode_t *parent;
@@ -16,6 +12,9 @@ struct tnode_t
     int8_t npending;
     uint8_t child_ni;
     uint8_t child_idx;
+
+    tnode_t() = delete;
+    ~tnode_t() = delete;
 };
 
 static_assert(sizeof(tnode_t) == 24);
@@ -25,9 +24,9 @@ static inline tnode_t *get_new_tnode(
     tnode_t *const parent_tnode, uint8_t new_branch_ni,
     uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
 { // no npending
-    tnode_t *const branch_tnode = (tnode_t *)cpool_ptr31(
-        tmp_pool, cpool_reserve31(tmp_pool, sizeof(tnode_t)));
-    cpool_advance31(tmp_pool, sizeof(tnode_t));
+    tnode_t *const branch_tnode = (tnode_t *)cpool_ptr29(
+        trie_pool_, cpool_reserve29(trie_pool_, sizeof(tnode_t)));
+    cpool_advance29(trie_pool_, sizeof(tnode_t));
 
     branch_tnode->node = new_branch;
     branch_tnode->parent = parent_tnode;
@@ -37,6 +36,4 @@ static inline tnode_t *get_new_tnode(
     return branch_tnode;
 }
 
-#ifdef __cplusplus
-}
-#endif
+MONAD_TRIE_NAMESPACE_END
