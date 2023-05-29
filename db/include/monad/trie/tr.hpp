@@ -9,25 +9,27 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-namespace tr
+class Transaction
 {
-    int inline tr_open(const char *const path)
-    {
-        int flag = O_CREAT | O_RDWR | O_DIRECT;
-        int fd = open(path, flag, 0777); // TODO: configurable flag
-        if (fd < 0) {
-            perror("Fail to open the file.");
-            exit(errno);
-        }
-        return fd;
-    }
 
-    void inline tr_close(int const fd)
-    {
-        close(fd);
-    }
+    int fd_;
 
-    // TODO: write footer
-}
+public:
+    Transaction(const char *const path)
+        : fd_([&] {
+            int flag = O_CREAT | O_RDWR | O_DIRECT;
+            int fd = open(path, flag, 0777); // TODO: configurable flag
+            if (fd < 0) {
+                perror("Fail to open the file.");
+                exit(errno);
+            }
+            return fd;
+        }())
+    {
+    }
+    ~Transaction() { close(fd_); }
+
+    [[gnu::always_inline]] constexpr int get_fd() const { return fd_; }
+};
 
 MONAD_TRIE_NAMESPACE_END

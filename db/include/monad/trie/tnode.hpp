@@ -25,8 +25,8 @@ static inline tnode_t *get_new_tnode(
     uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
 { // no npending
     tnode_t *const branch_tnode = (tnode_t *)cpool_ptr29(
-        trie_pool_, cpool_reserve29(trie_pool_, sizeof(tnode_t)));
-    cpool_advance29(trie_pool_, sizeof(tnode_t));
+        tmppool_, cpool_reserve29(tmppool_, sizeof(tnode_t)));
+    cpool_advance29(tmppool_, sizeof(tnode_t));
 
     branch_tnode->node = new_branch;
     branch_tnode->parent = parent_tnode;

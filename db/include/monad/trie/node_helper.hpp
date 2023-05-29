@@ -6,6 +6,10 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
+// TODO: nodes with path_len < 5 use one cpool, lower level nodes use another
+// cpool
+// calculate size of cpool
+
 // helper functions
 void free_trie(merkle_node_t *const node);
 

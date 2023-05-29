@@ -439,7 +439,7 @@ void merge_callback(void *user_data, AsyncIO &io_)
     assert(node->mask);
 
     data->prev_parent->children[data->prev_child_i].next = node;
-    free(data->buffer);
+    io_.release_read_buffer(data->buffer);
 
     // callback to merge_trie() from where that request left out
     merge_trie(

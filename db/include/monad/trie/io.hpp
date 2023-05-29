@@ -4,13 +4,21 @@
 #include <cstdlib>
 #include <functional>
 
-#include <monad/io/ring.hpp>
 #include <monad/trie/config.hpp>
-#include <monad/trie/merge.hpp>
+
+#include <monad/io/buffer_pool.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+
 #include <monad/trie/node_helper.hpp>
-#include <monad/trie/tnode.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
+
+enum class uring_data_type_t : unsigned char
+{
+    IS_WRITE = 0,
+    IS_READ
+};
 
 struct IORecord
 {
@@ -36,10 +44,13 @@ class AsyncIO final
         unsigned char *buffer;
     };
 
-    // static_assert(sizeof(write_uring_data_t) == 16);
-    // static_assert(alignof(write_uring_data_t) == 8);
+    static_assert(sizeof(write_uring_data_t) == 16);
+    static_assert(alignof(write_uring_data_t) == 8);
 
     monad::io::Ring &uring_;
+    monad::io::Buffers &rwbuf_;
+    monad::io::BufferPool rd_pool_;
+    monad::io::BufferPool wr_pool_;
     cpool_29_t *cpool_;
     std::function<void(void *, AsyncIO &)> readcb_;
 
@@ -50,76 +61,81 @@ class AsyncIO final
     // IO records
     IORecord records_;
 
-    static const int WRITE_BUFFER_SIZE = 64 * 1024;
-    static const int ALIGNMENT = 512;
-    static const int READ_BUFFER_SIZE = 2048;
+    [[gnu::always_inline]] void submit_request(
+        unsigned char *const buffer, unsigned int nbytes,
+        unsigned long long offset, void *const uring_data, bool is_write);
 
-    unsigned char *get_avail_buffer(size_t size)
-    {
-        return (unsigned char *)aligned_alloc(ALIGNMENT, size);
-    }
+    void submit_write_request(unsigned char *buffer, int64_t const offset);
 
-    // handle the last buffer to write
-    void flush_last_buffer()
-    {
-        if (buffer_idx_ > 1) {
-            // TODO: can continue write to the same buffer even for a new block
-            // update bookkeeping block on the version and root off
-            async_write_request(write_buffer_, block_off_);
-            block_off_ += WRITE_BUFFER_SIZE;
-        }
-        else {
-            free(write_buffer_);
-        }
-        write_buffer_ = nullptr;
-    }
-
-    void write_callback(write_uring_data_t *data) { free(data->buffer); }
+    void poll_uring();
 
 public:
     AsyncIO(
-        monad::io::Ring &ring, off_t block_off, cpool_29_t *cpool,
-        std::function<void(void *, AsyncIO &)> readcb)
+        monad::io::Ring &ring, monad::io::Buffers &rwbuf, off_t block_off,
+        cpool_29_t *cpool, std::function<void(void *, AsyncIO &)> readcb)
         : uring_(ring)
+        , rwbuf_(rwbuf)
+        , rd_pool_(monad::io::BufferPool(rwbuf, true))
+        , wr_pool_(monad::io::BufferPool(rwbuf, false))
         , cpool_(cpool)
         , readcb_(readcb)
-        , write_buffer_(nullptr)
-        , buffer_idx_(0)
+        , write_buffer_(wr_pool_.alloc())
         , block_off_(block_off)
     {
-    }
-
-    ~AsyncIO() { clearup(); }
-
-    void clearup();
-
-    // use it in the beginning of each block
-    void prepare_data_block()
-    {
-        write_buffer_ = get_avail_buffer(WRITE_BUFFER_SIZE);
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
     }
 
-    // use it at the end of each block
-    void flush()
+    // TODO: unregister uring file
+    ~AsyncIO()
     {
+        // handle the last buffer to write
+        if (buffer_idx_ > 1) {
+            submit_write_request(write_buffer_, block_off_);
+            block_off_ += rwbuf_.get_write_size();
+            while (records_.inflight_) {
+                poll_uring();
+            }
+        }
+        else {
+            wr_pool_.release(write_buffer_);
+        }
+        MONAD_TRIE_ASSERT(!records_.inflight_);
+        MONAD_TRIE_ASSERT(
+            rd_pool_.get_avail_count() == rwbuf_.get_read_count());
+        MONAD_TRIE_ASSERT(
+            wr_pool_.get_avail_count() == rwbuf_.get_write_count());
+    }
+
+    [[gnu::always_inline]] void release_read_buffer(unsigned char *const buffer)
+    {
+        rd_pool_.release(buffer);
+    };
+
+    void uring_register_files(int const *fds, unsigned nr_files)
+    {
+        MONAD_TRIE_ASSERT(!io_uring_register_files(
+            const_cast<io_uring *>(&uring_.get_ring()), fds, nr_files));
+    }
+
+    // invoke at the end of each block
+    void flush(merkle_node_t *root)
+    {
+        while (records_.inflight_) {
+            poll_uring();
+        }
+        // TODO: root_off = async_write(). update bookkeeping record
+        async_write_node(root);
+        while (records_.inflight_) {
+            poll_uring();
+        }
+        MONAD_TRIE_ASSERT(!records_.inflight_);
+        MONAD_TRIE_ASSERT(
+            rd_pool_.get_avail_count() == rwbuf_.get_read_count());
         records_.nreads_ = 0;
-        flush_last_buffer();
     }
 
-    [[nodiscard]] [[gnu::always_inline]] IORecord &get_records()
-    {
-        return records_;
-    }
-
-    void submit_request(
-        unsigned char *const buffer, unsigned int nbytes,
-        unsigned long long offset, void *const uring_data, bool is_write);
-
-    [[nodiscard]] int64_t async_write_node(merkle_node_t *node);
-
-    void async_write_request(unsigned char *buffer, int64_t const offset);
+    int64_t async_write_node(merkle_node_t *node);
 
     template <typename TReadData>
     void async_read_request(TReadData *uring_data)
@@ -129,52 +145,23 @@ public:
             poll_uring();
         }
 
-        unsigned char *rd_buffer = get_avail_buffer(READ_BUFFER_SIZE);
+        unsigned char *rd_buffer = rd_pool_.alloc();
 
         uring_data->buffer = rd_buffer;
 
         submit_request(
-            rd_buffer, READ_BUFFER_SIZE, uring_data->offset, uring_data, false);
+            rd_buffer,
+            rwbuf_.get_read_size(),
+            uring_data->offset,
+            uring_data,
+            false);
         ++records_.inflight_;
         ++records_.inflight_rd_;
         ++records_.nreads_;
     }
-
-    // [[gnu::always_inline]] void print_inflight_info() {}
-
-    void poll_uring()
-    {
-        struct io_uring_cqe *cqe;
-        int ret =
-            io_uring_wait_cqe(const_cast<io_uring *>(&uring_.get_ring()), &cqe);
-        if (ret < 0) {
-            fprintf(stderr, "io_uring_wait_cqe fail: %s\n", strerror(-ret));
-            fflush(stderr);
-            exit(1);
-        }
-        if (cqe->res < 0) {
-            /* The system call invoked asynchonously failed */
-            fprintf(stderr, "async syscall failed: %s\n", strerror(-cqe->res));
-            // TODO: resubmit the request
-            exit(1);
-        }
-        // MONAD_TRIE_ASSERT(!ret);
-        // MONAD_TRIE_ASSERT(!cqe->res);
-
-        void *data = io_uring_cqe_get_data(cqe);
-        MONAD_TRIE_ASSERT(data);
-        io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
-        --records_.inflight_;
-
-        if (((write_uring_data_t *)data)->rw_flag ==
-            uring_data_type_t::IS_WRITE) {
-            write_callback((write_uring_data_t *)data);
-        }
-        else {
-            --records_.inflight_rd_;
-            readcb_(data, *this);
-        }
-    }
 };
+
+static_assert(sizeof(AsyncIO) == 128);
+static_assert(alignof(AsyncIO) == 8);
 
 MONAD_TRIE_NAMESPACE_END

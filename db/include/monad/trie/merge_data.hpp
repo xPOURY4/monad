@@ -8,14 +8,9 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
+// forward async stuff
 class AsyncIO;
-
-// async stuff
-enum struct uring_data_type_t : unsigned char
-{
-    IS_WRITE = 0,
-    IS_READ
-};
+enum class uring_data_type_t : unsigned char;
 
 struct merge_uring_data_t
 {
@@ -37,8 +32,8 @@ struct merge_uring_data_t
     uint8_t new_child_ni;
 };
 
-// static_assert(sizeof(merge_uring_data_t) == 64);
-// static_assert(alignof(merge_uring_data_t) == 8);
+static_assert(sizeof(merge_uring_data_t) == 64);
+static_assert(alignof(merge_uring_data_t) == 8);
 
 static inline merge_uring_data_t *get_merge_uring_data(
     merkle_node_t *const prev_parent, uint8_t const prev_child_i,
@@ -47,8 +42,8 @@ static inline merge_uring_data_t *get_merge_uring_data(
     uint8_t const new_child_ni, tnode_t *parent_tnode)
 {
     merge_uring_data_t *user_data = (merge_uring_data_t *)cpool_ptr29(
-        trie_pool_, cpool_reserve29(trie_pool_, sizeof(merge_uring_data_t)));
-    cpool_advance29(trie_pool_, sizeof(merge_uring_data_t));
+        tmppool_, cpool_reserve29(tmppool_, sizeof(merge_uring_data_t)));
+    cpool_advance29(tmppool_, sizeof(merge_uring_data_t));
 
     // prep uring data
     int64_t node_offset = prev_parent->children[prev_child_i].fnext;
@@ -72,7 +67,6 @@ static inline merge_uring_data_t *get_merge_uring_data(
     };
 
     *user_data = tmp_data;
-    /*memcpy(user_data, &tmp_data, sizeof(merge_uring_data_t));*/
     return user_data;
 }
 

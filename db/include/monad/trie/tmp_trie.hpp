@@ -6,7 +6,7 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-enum struct tmp_node_type_t : unsigned char
+enum class tmp_node_type_t : unsigned char
 {
     UNKNOWN = 0,
     BRANCH,
@@ -25,11 +25,10 @@ struct tmp_branch_node_t
     uint32_t next[16];
     uint16_t subnode_bitmask;
     uint8_t nsubnodes;
-    char pad2[5];
 };
 
-// static_assert(sizeof(tmp_branch_node_t) == 112);
-// static_assert(alignof(tmp_branch_node_t) == 8);
+static_assert(sizeof(tmp_branch_node_t) == 108);
+static_assert(alignof(tmp_branch_node_t) == 4);
 
 struct tmp_leaf_node_t
 {

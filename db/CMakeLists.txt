@@ -14,7 +14,7 @@ function(monad_trie_compile_options target)
     set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD 23)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
-    target_compile_options(${target} PRIVATE -Wall -Wextra ) # -Werror
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
     target_compile_options(${target} PUBLIC $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 endfunction()
 

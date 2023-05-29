@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <ethash/keccak.h>
 
+#include <monad/io/buffers.hpp>
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
@@ -29,9 +30,7 @@
 #define SLICE_LEN 100000
 
 MONAD_TRIE_NAMESPACE_BEGIN
-
-cpool_29_t *tmppool_, *trie_pool_;
-
+cpool_29_t *tmppool_;
 MONAD_TRIE_NAMESPACE_END
 
 using namespace monad::trie;
@@ -189,20 +188,19 @@ int main(int argc, char *argv[])
     monad::HugeMem tmp_huge_mem(1UL << 29);
     tmppool_ = cpool_init29(tmp_huge_mem.get_data());
 
-    // init trie_pool
-    monad::HugeMem trie_huge_mem(1UL << 29);
-    trie_pool_ = cpool_init29(trie_huge_mem.get_data());
-
     // init uring
     monad::io::Ring ring(128, sq_thread_cpu);
-    int fds[2];
-    int fd = tr::tr_open(dbname.c_str());
-    fds[0] = fd;
-    io_uring_register_files(const_cast<io_uring *>(&ring.get_ring()), fds, 1);
+
+    // init buffer
+    monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 11};
 
     // initialize root and block offset for write
-    // TODO: handle append
-    AsyncIO io_(ring, 0, trie_pool_, &merge_callback);
+    // TODO: handle append, add bookkeeping
+    int64_t block_off = 0;
+    AsyncIO io_(ring, rwbuf, block_off, tmppool_, &merge_callback);
+    Transaction trans(dbname.c_str());
+    int fds[1] = {trans.get_fd()};
+    io_.uring_register_files(fds, 1);
 
     merkle_node_t *root = get_new_merkle_node(0, 0);
     merkle_node_t *prev_root;
@@ -270,7 +268,6 @@ int main(int argc, char *argv[])
     }
 
     free_trie(root);
-    tr::tr_close(fd);
     free(keccak_keys);
     free(keccak_values);
 }
