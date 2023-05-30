@@ -3,19 +3,11 @@
 #include <cstddef>
 #include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
+#include <monad/trie/constants.hpp>
+
 #include <monad/trie/data.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
-
-#define SIZE_OF_CHILD_COUNT 1
-#define SIZE_OF_PATH_LEN 1
-#define SIZE_OF_TRIE_DATA 32
-#define SIZE_OF_SUBNODE_BITMASK 2
-#define SIZE_OF_FILE_OFFSET 8
-#define BLOCK_TYPE_DATA 0
-#define BLOCK_TYPE_META 1
-#define MAX_DISK_NODE_SIZE 1536
-#define CACHE_LEVELS 5
 
 struct merkle_node_t;
 

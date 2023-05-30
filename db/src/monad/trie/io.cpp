@@ -2,7 +2,7 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-int64_t AsyncIO::async_write_node(merkle_node_t *node) // TODO: no_dicard
+int64_t AsyncIO::async_write_node(merkle_node_t *node)
 {
     // always one write buffer in use but not submitted
     while (records_.inflight_ >= uring_.get_sq_entries() ||
@@ -60,7 +60,6 @@ void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
     ++records_.inflight_;
 }
 
-// TODO: handle error, resource temporarily unavailable error
 void AsyncIO::poll_uring()
 {
     struct io_uring_cqe *cqe;
@@ -74,7 +73,8 @@ void AsyncIO::poll_uring()
     if (cqe->res < 0) {
         /* The system call invoked asynchonously failed */
         fprintf(stderr, "async syscall failed: %s\n", strerror(-cqe->res));
-        // TODO: resubmit the request
+        // TODO: handle resource temporarily unavailable error, resubmit the
+        // request
         exit(1);
     }
     MONAD_TRIE_ASSERT(!ret);

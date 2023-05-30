@@ -8,7 +8,9 @@
 #include <monad/mem/huge_mem.hpp>
 
 #include <monad/io/ring.hpp>
+#include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
+
 #include <monad/trie/merge.hpp>
 #include <monad/trie/node_helper.hpp>
 #include <monad/trie/tmp_trie.hpp>
@@ -66,9 +68,9 @@ void __print_char_arr_in_hex(char *arr, int n)
     nkeys: number of keys to insert in this batch
 */
 static merkle_node_t *batch_upsert_commit(
-    merkle_node_t *prev_root, int64_t keccak_offset, int64_t offset,
-    int64_t nkeys, char const *const keccak_keys,
-    char const *const keccak_values, bool erase, AsyncIO &io_)
+    uint64_t block_id, merkle_node_t *prev_root, int64_t keccak_offset,
+    int64_t offset, int64_t nkeys, char const *const keccak_keys,
+    char const *const keccak_values, bool erase, AsyncIO &io, Index &index)
 {
     struct timespec ts_before, ts_after;
     double tm_ram;
@@ -85,7 +87,7 @@ static merkle_node_t *batch_upsert_commit(
     }
 
     MerkleTrie trie;
-    trie.process_updates(&tmptrie, prev_root, io_);
+    trie.process_updates(block_id, &tmptrie, prev_root, io, index);
 
     // write_root_footer(trie.get_root());
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
@@ -134,43 +136,24 @@ void prepare_keccak(
     }
 }
 
-int prepare_keccak_parallel(
-    size_t nkeys, char *const keccak_keys, char *const keccak_values,
-    int64_t offset)
-{
-    int n_threads = nkeys / SLICE_LEN;
-    std::vector<std::thread> threads;
-    for (int i = 0; i < n_threads; ++i) {
-        threads.push_back(std::thread(
-            prepare_keccak,
-            SLICE_LEN,
-            keccak_keys,
-            keccak_values,
-            i * SLICE_LEN,
-            offset));
-    }
-    for (int i = 0; i < n_threads; ++i) {
-        threads[i].join();
-    }
-    return 0;
-}
-
 int main(int argc, char *argv[])
 {
     struct sigaction sig;
     sig.sa_handler = &ctrl_c_handler;
     sigemptyset(&sig.sa_mask);
     sig.sa_flags = 0;
-    sigaction(SIGINT, &sig, NULL);
+    sigaction(SIGINT, &sig, nullptr);
 
     int n_slices = 20;
-    std::string dbname = "test.db";
     bool append = false;
+    uint64_t vid = 0;
+    std::string dbname = "test.db";
     int64_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
     CLI::App cli{"monad_merge_trie_test"};
-    cli.add_flag("--append", append, "append on top of existing db");
+    cli.add_flag("--append", append, "append on a specific version in db");
+    cli.add_option("--vid", vid, "append on a specific version in db");
     cli.add_option("--db-name", dbname, "db file name");
     cli.add_option("--offset", offset, "integer offset to start insert");
     cli.add_option("-n", n_slices, "n batch updates");
@@ -181,8 +164,6 @@ int main(int argc, char *argv[])
     int64_t keccak_cap = 100 * SLICE_LEN;
     char *const keccak_keys = (char *)malloc(keccak_cap * 32);
     char *const keccak_values = (char *)malloc(keccak_cap * 32);
-    // spawn multiple threads for keccak
-    // prepare_keccak_parallel(nkeys, keccak_keys, keccak_values, offset);
 
     // init tmppool_
     monad::HugeMem tmp_huge_mem(1UL << 29);
@@ -194,16 +175,38 @@ int main(int argc, char *argv[])
     // init buffer
     monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 11};
 
-    // initialize root and block offset for write
-    // TODO: handle append, add bookkeeping
-    int64_t block_off = 0;
-    AsyncIO io_(ring, rwbuf, block_off, tmppool_, &merge_callback);
     Transaction trans(dbname.c_str());
-    int fds[1] = {trans.get_fd()};
-    io_.uring_register_files(fds, 1);
 
-    merkle_node_t *root = get_new_merkle_node(0, 0);
-    merkle_node_t *prev_root;
+    // init indexer
+    Index index(trans.get_fd());
+
+    // initialize root and block offset for write
+    merkle_node_t *prev_root, *root;
+    uint64_t block_off = index.get_start_offset();
+    if (append) {
+        block_trie_info *trie_info = index.get_trie_info(vid);
+        assert(trie_info->vid == vid);
+        block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
+        // blocking get_root
+        root = read_node(trans.get_fd(), trie_info->root_off);
+
+        trie_data_t root_data;
+        encode_branch(root, (unsigned char *)&root_data);
+        fprintf(
+            stdout,
+            "version %lu, root_off %lu, root->data after precommit: ",
+            vid,
+            trie_info->root_off);
+        __print_char_arr_in_hex((char *)root_data.bytes, 32);
+        ++vid;
+    }
+    else {
+        root = get_new_merkle_node(0, 0);
+    }
+    AsyncIO io(ring, rwbuf, block_off, tmppool_, &merge_callback);
+
+    int fds[1] = {trans.get_fd()};
+    io.uring_register_files(fds, 1);
 
     int64_t max_key = n_slices * SLICE_LEN + offset;
     /* start profiling upsert and commit */
@@ -226,6 +229,7 @@ int main(int argc, char *argv[])
 
         prev_root = root;
         root = batch_upsert_commit(
+            vid,
             prev_root,
             (iter % 100) * SLICE_LEN,
             offset,
@@ -233,15 +237,18 @@ int main(int argc, char *argv[])
             keccak_keys,
             keccak_values,
             false,
-            io_);
+            io,
+            index);
 
         free_trie(prev_root);
+        ++vid;
 
         if (erase && iter % 2) {
             fprintf(stdout, "> erase iter = %d\n", iter);
             fflush(stdout);
             prev_root = root;
             root = batch_upsert_commit(
+                vid,
                 prev_root,
                 (iter % 100) * SLICE_LEN,
                 offset,
@@ -249,12 +256,16 @@ int main(int argc, char *argv[])
                 keccak_keys,
                 keccak_values,
                 true,
-                io_);
+                io,
+                index);
             free_trie(prev_root);
+            ++vid;
 
             fprintf(stdout, "> dup batch iter = %d\n", iter);
             prev_root = root;
+
             root = batch_upsert_commit(
+                vid,
                 prev_root,
                 (iter % 100) * SLICE_LEN,
                 offset,
@@ -262,8 +273,10 @@ int main(int argc, char *argv[])
                 keccak_keys,
                 keccak_values,
                 false,
-                io_);
+                io,
+                index);
             free_trie(prev_root);
+            ++vid;
         }
     }
 

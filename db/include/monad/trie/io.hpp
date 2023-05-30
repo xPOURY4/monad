@@ -5,6 +5,7 @@
 #include <functional>
 
 #include <monad/trie/config.hpp>
+#include <monad/trie/util.hpp>
 
 #include <monad/io/buffer_pool.hpp>
 #include <monad/io/buffers.hpp>
@@ -56,7 +57,7 @@ class AsyncIO final
 
     unsigned char *write_buffer_;
     size_t buffer_idx_;
-    size_t block_off_;
+    uint64_t block_off_;
 
     // IO records
     IORecord records_;
@@ -71,7 +72,7 @@ class AsyncIO final
 
 public:
     AsyncIO(
-        monad::io::Ring &ring, monad::io::Buffers &rwbuf, off_t block_off,
+        monad::io::Ring &ring, monad::io::Buffers &rwbuf, uint64_t block_off,
         cpool_29_t *cpool, std::function<void(void *, AsyncIO &)> readcb)
         : uring_(ring)
         , rwbuf_(rwbuf)
@@ -80,7 +81,7 @@ public:
         , cpool_(cpool)
         , readcb_(readcb)
         , write_buffer_(wr_pool_.alloc())
-        , block_off_(block_off)
+        , block_off_(high_4k_aligned(block_off))
     {
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
@@ -92,13 +93,12 @@ public:
         // handle the last buffer to write
         if (buffer_idx_ > 1) {
             submit_write_request(write_buffer_, block_off_);
-            block_off_ += rwbuf_.get_write_size();
-            while (records_.inflight_) {
-                poll_uring();
-            }
         }
         else {
             wr_pool_.release(write_buffer_);
+        }
+        while (records_.inflight_) {
+            poll_uring();
         }
         MONAD_TRIE_ASSERT(!records_.inflight_);
         MONAD_TRIE_ASSERT(
@@ -118,24 +118,22 @@ public:
             const_cast<io_uring *>(&uring_.get_ring()), fds, nr_files));
     }
 
+    [[nodiscard]] int64_t async_write_node(merkle_node_t *node);
+
     // invoke at the end of each block
-    void flush(merkle_node_t *root)
+    [[nodiscard]] int64_t flush(merkle_node_t *root)
     {
         while (records_.inflight_) {
             poll_uring();
         }
-        // TODO: root_off = async_write(). update bookkeeping record
-        async_write_node(root);
-        while (records_.inflight_) {
-            poll_uring();
-        }
-        MONAD_TRIE_ASSERT(!records_.inflight_);
+        int64_t root_off = async_write_node(root);
+        // pending root write, will submit or poll in next round
+
         MONAD_TRIE_ASSERT(
             rd_pool_.get_avail_count() == rwbuf_.get_read_count());
         records_.nreads_ = 0;
+        return root_off;
     }
-
-    int64_t async_write_node(merkle_node_t *node);
 
     template <typename TReadData>
     void async_read_request(TReadData *uring_data)

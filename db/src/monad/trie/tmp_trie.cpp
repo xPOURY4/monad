@@ -4,14 +4,6 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-TmpTrie::TmpTrie()
-    : root_i_{get_new_branch(NULL, 0)}
-    , root_{(tmp_branch_node_t *)cpool_ptr29(tmppool_, root_i_)}
-{
-}
-
-TmpTrie::~TmpTrie() {}
-
 uint32_t TmpTrie::get_new_branch(
     unsigned char const *const path, unsigned char const path_len)
 {

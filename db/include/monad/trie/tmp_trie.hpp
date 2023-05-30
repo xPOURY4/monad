@@ -59,11 +59,11 @@ class TmpTrie final
         trie_data_t const *data, bool tombstone);
 
 public:
-    TmpTrie();
-    ~TmpTrie();
-
-    TmpTrie(TmpTrie &&) = delete;
-    TmpTrie &operator=(TmpTrie &&) = delete;
+    TmpTrie()
+        : root_i_{get_new_branch(nullptr, 0)}
+        , root_{(tmp_branch_node_t *)cpool_ptr29(tmppool_, root_i_)}
+    {
+    }
 
     void upsert(
         unsigned char const *path, uint8_t path_len, trie_data_t const *,

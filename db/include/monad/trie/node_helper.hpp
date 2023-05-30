@@ -6,10 +6,6 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-// TODO: nodes with path_len < 5 use one cpool, lower level nodes use another
-// cpool
-// calculate size of cpool
-
 // helper functions
 void free_trie(merkle_node_t *const node);
 
@@ -28,6 +24,19 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx);
 static inline size_t get_merkle_node_size(uint8_t const nsubnodes)
 {
     return sizeof(merkle_node_t) + nsubnodes * sizeof(merkle_child_info_t);
+}
+
+static inline merkle_node_t *read_node(int fd, uint64_t node_offset)
+{
+    int64_t offset = (node_offset >> 9) << 9;
+    int16_t buffer_off = node_offset - offset;
+    unsigned char *buffer =
+        reinterpret_cast<unsigned char *>(malloc(1UL << 11));
+    lseek(fd, offset, SEEK_SET);
+    MONAD_TRIE_ASSERT(read(fd, buffer, 1UL << 11) != -1);
+    merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off, 0);
+    free(buffer);
+    return node;
 }
 
 static inline void free_node(merkle_node_t *const node)

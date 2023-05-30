@@ -28,14 +28,17 @@ public:
         MONAD_TRIE_ASSERT(!root_tnode_ || !root_tnode_->npending);
     };
 
-    void
-    process_updates(TmpTrie *tmp_trie, merkle_node_t *prev_root, AsyncIO &io_)
+    void process_updates(
+        uint64_t vid, TmpTrie *tmp_trie, merkle_node_t *prev_root, AsyncIO &io,
+        Index &index)
     {
-        root_tnode_ = get_new_tnode(NULL, 0, 0, NULL);
-        root_ = do_merge(prev_root, tmp_trie->get_root(), 0, root_tnode_, io_);
+        root_tnode_ = get_new_tnode(nullptr, 0, 0, nullptr);
+        root_ = do_merge(prev_root, tmp_trie->get_root(), 0, root_tnode_, io);
 
         // after update, also need to poll until no submission left in uring
-        io_.flush(root_);
+        // and write record to the indexing part in the beginning of file
+        int64_t root_off = io.flush(root_);
+        index.write_record(vid, root_off);
     }
 
     [[gnu::always_inline]] void root_hash(unsigned char *const hash_data)

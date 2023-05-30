@@ -34,8 +34,8 @@ merkle_node_t *do_merge(
                 merkle_child_info_t *prev_child =
                     &prev_root->children[merkle_child_index(prev_root, i)];
                 new_root->children[child_idx] = *prev_child;
-                prev_child->next = NULL;
-                prev_child->data = NULL;
+                prev_child->next = nullptr;
+                prev_child->data = nullptr;
                 --curr_tnode->npending;
             }
             ++child_idx;
@@ -84,7 +84,7 @@ void merge_trie(
     // -1: prev_is_shorter; 0: equal length, 1: tmp_is_shorter
     int const tmp_is_shorter = (tmp_node->path_len < prev_node_path_len) -
                                (prev_node_path_len < tmp_node->path_len);
-    merkle_node_t *new_branch = NULL;
+    merkle_node_t *new_branch = nullptr;
     unsigned char new_path_len;
     unsigned char *new_path;
     merkle_node_t *prev_node = prev_parent->children[prev_child_i].next;
@@ -133,13 +133,13 @@ void merge_trie(
             if (new_parent->children[new_branch_arr_i].path_len >=
                 CACHE_LEVELS) {
                 free_node(new_branch);
-                new_parent->children[new_branch_arr_i].next = NULL;
+                new_parent->children[new_branch_arr_i].next = nullptr;
             }
             --parent_tnode->npending;
             return;
         }
     }
-    tnode_t *branch_tnode = NULL;
+    tnode_t *branch_tnode = nullptr;
     if (tmp_is_shorter == 1) { // prev_node could be leaf
         next_nibble = get_nibble(prev_node_path, pi);
         if (tmp_node->next[next_nibble] != 0) {
@@ -264,12 +264,13 @@ void merge_trie(
         // 1. leaves: assign data to new_parent
         // 2. branches: create a new branch node with branches
         // for each possible one = UNION(prev branches, tmp branches)
-        if (tmp_node->type == tmp_node_type_t::LEAF &&
-            ((tmp_leaf_node_t *)tmp_node)->tombstone) {
-            --parent_tnode->npending;
-            new_parent->valid_mask &= ~(1u << new_child_ni);
-            new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
-            return;
+        if (tmp_node->type == tmp_node_type_t::LEAF) {
+            if (((tmp_leaf_node_t *)tmp_node)->tombstone) {
+                --parent_tnode->npending;
+                new_parent->valid_mask &= ~(1u << new_child_ni);
+                new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
+                return;
+            }
         }
         else {
             if (!prev_node) {
@@ -309,7 +310,7 @@ void merge_trie(
         if (nvalid == 0) {
             new_parent->valid_mask &= ~(1u << new_child_ni);
             new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
-            new_parent->children[new_branch_arr_i].next = NULL;
+            new_parent->children[new_branch_arr_i].next = nullptr;
             free_node(new_branch);
         }
         else if (nvalid == 1) {
@@ -322,19 +323,21 @@ void merge_trie(
             if (new_parent->children[new_branch_arr_i].path_len >=
                 CACHE_LEVELS) {
                 free_node(new_branch);
-                new_parent->children[new_branch_arr_i].next = NULL;
+                new_parent->children[new_branch_arr_i].next = nullptr;
             }
         }
     }
     else {
         // exact prefix match for leaf
+        // TODO: check if data is the same before encode
         assert(
             pi == min_path_len && !tmp_is_shorter &&
             tmp_node->type == tmp_node_type_t::LEAF);
         assert(prev_parent->children[prev_child_i].data);
+
         new_parent->children[new_branch_arr_i].data =
             prev_parent->children[prev_child_i].data;
-        prev_parent->children[prev_child_i].data = NULL;
+        prev_parent->children[prev_child_i].data = nullptr;
         encode_leaf(
             new_parent,
             new_branch_arr_i,
@@ -359,7 +362,7 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io_)
         if (nvalid == 0) {
             parent->valid_mask &= ~(1u << child_ni);
             parent->tomb_arr_mask |= 1u << child_idx;
-            parent->children[child_idx].next = NULL;
+            parent->children[child_idx].next = nullptr;
             free_node(curr);
         }
         else if (nvalid == 1) {
@@ -373,7 +376,7 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io_)
             if (parent->children[curr_tnode->child_idx].path_len >=
                 CACHE_LEVELS) {
                 free_node(curr);
-                parent->children[child_idx].next = NULL;
+                parent->children[child_idx].next = nullptr;
             }
         }
         --curr_tnode->parent->npending;
@@ -401,7 +404,7 @@ void set_merkle_child_from_tmp(
             parent,
             arr_idx,
             (unsigned char *)&((tmp_leaf_node_t *)tmp_node)->data);
-        parent->children[arr_idx].next = NULL;
+        parent->children[arr_idx].next = nullptr;
     }
     else {
         // copy the whole trie
@@ -423,7 +426,7 @@ void set_merkle_child_from_tmp(
 
         if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
             // free_node(parent->children[arr_idx].next);
-            parent->children[arr_idx].next = NULL;
+            parent->children[arr_idx].next = nullptr;
         }
     }
 }

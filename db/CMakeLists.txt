@@ -24,7 +24,10 @@ include(cmake/test.cmake)
 # ## libs
 # ###########
 add_library(monad_trie STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/globals.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/constants.hpp
+    
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/merge_data.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp

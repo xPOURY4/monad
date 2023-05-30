@@ -40,6 +40,7 @@ void serialize_node_to_buffer(
 merkle_node_t *deserialize_node_from_buffer(
     unsigned char const *read_pos, unsigned char const node_path_len)
 {
+    assert(node_path_len < 64);
     uint16_t const mask = *(uint16_t *)read_pos;
     read_pos += SIZE_OF_SUBNODE_BITMASK;
     merkle_node_t *node = get_new_merkle_node(mask, node_path_len);
@@ -93,22 +94,22 @@ void assign_prev_child_to_new(
     merkle_child_info_t *new_child = &new_parent->children[new_child_i],
                         *prev_child = &prev_parent->children[prev_child_i];
     *new_child = *prev_child;
-    prev_child->data = NULL;
-    prev_child->next = NULL;
+    prev_child->data = nullptr;
+    prev_child->next = nullptr;
     if (prev_parent->path_len < new_parent->path_len) {
         assert(prev_child->path_len - prev_parent->path_len > 1);
         if (new_child->path_len - new_parent->path_len == 1) {
             // prev_child is ext node, new_child is branch
             memcpy(&new_child->noderef, new_child->data, 32);
             free(new_child->data);
-            new_child->data = NULL;
+            new_child->data = nullptr;
             return;
         }
     }
     else if (prev_parent->path_len > new_parent->path_len) {
         if (prev_child->path_len - prev_parent->path_len == 1) {
             // prev_child is branch, new_child is ext
-            assert(new_child->data == NULL);
+            assert(new_child->data == nullptr);
             new_child->data = (unsigned char *)malloc(32);
             memcpy(new_child->data, &prev_child->noderef, 32);
         }
@@ -137,7 +138,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
         sizeof(merkle_child_info_t) - 32);
 
     if (midnode->children[only_child_i].data) {
-        midnode->children[only_child_i].data = NULL;
+        midnode->children[only_child_i].data = nullptr;
     }
     else {
         assert(midnode->path_len + 1 == parent->children[child_idx].path_len);
@@ -159,8 +160,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
             mid_path_len,
             get_nibble(midnode->children[only_child_i].path, mid_path_len));
     }
-    // TODO: recompute parent->children[child_idx].noderef
-    // can optimize it: only compute once
+    // TODO: can optimize it: only recompute once
     hash_two_piece(
         parent->children[child_idx].path,
         parent->path_len + 1,
@@ -172,7 +172,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
         parent->children[child_idx].fnext ||
         parent->children[child_idx].path_len == 64);
     assert(
-        (parent->children[child_idx].next != NULL) !=
+        (parent->children[child_idx].next != nullptr) !=
         parent->children[child_idx].path_len >= CACHE_LEVELS);
     free_node(midnode);
 }
