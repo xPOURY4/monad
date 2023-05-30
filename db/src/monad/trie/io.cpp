@@ -5,8 +5,7 @@ MONAD_TRIE_NAMESPACE_BEGIN
 int64_t AsyncIO::async_write_node(merkle_node_t *node)
 {
     // always one write buffer in use but not submitted
-    while (records_.inflight_ >= uring_.get_sq_entries() ||
-           !wr_pool_.get_avail_count()) { // or >= entries - 1
+    while (records_.inflight_ >= uring_.get_sq_entries() - 1) {
         poll_uring();
     }
 

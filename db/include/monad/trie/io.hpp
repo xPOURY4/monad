@@ -101,10 +101,6 @@ public:
             poll_uring();
         }
         MONAD_TRIE_ASSERT(!records_.inflight_);
-        MONAD_TRIE_ASSERT(
-            rd_pool_.get_avail_count() == rwbuf_.get_read_count());
-        MONAD_TRIE_ASSERT(
-            wr_pool_.get_avail_count() == rwbuf_.get_write_count());
     }
 
     [[gnu::always_inline]] void release_read_buffer(unsigned char *const buffer)
@@ -129,8 +125,6 @@ public:
         int64_t root_off = async_write_node(root);
         // pending root write, will submit or poll in next round
 
-        MONAD_TRIE_ASSERT(
-            rd_pool_.get_avail_count() == rwbuf_.get_read_count());
         records_.nreads_ = 0;
         return root_off;
     }
@@ -159,7 +153,7 @@ public:
     }
 };
 
-static_assert(sizeof(AsyncIO) == 128);
+static_assert(sizeof(AsyncIO) == 112);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_TRIE_NAMESPACE_END
