@@ -4,6 +4,7 @@
 
 #include <sys/mman.h>
 
+#include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
 #include <monad/trie/constants.hpp>
 #include <monad/trie/util.hpp>
@@ -19,7 +20,6 @@ struct block_trie_info
 static_assert(sizeof(block_trie_info) == 16);
 static_assert(alignof(block_trie_info) == 8);
 
-// use mmap()
 class Index
 {
     int fd_;
@@ -29,13 +29,16 @@ class Index
 
     unsigned char *_memmap(off_t offset)
     {
-        return reinterpret_cast<unsigned char *>(mmap(
+        void *buffer = mmap(
             nullptr,
             PAGE_SIZE,
             PROT_READ | PROT_WRITE,
             MAP_SHARED,
             fd_,
-            offset));
+            offset);
+        MONAD_TRIE_ASSERT(buffer != MAP_FAILED);
+
+        return reinterpret_cast<unsigned char *>(buffer);
     }
 
     [[nodiscard]] [[gnu::always_inline]] constexpr off_t
@@ -66,13 +69,14 @@ public:
         return BLOCK_START_OFF;
     }
 
-    // call only once right after intialization if append
+    // call only once after intialization if append
     [[nodiscard]] block_trie_info *get_trie_info(uint64_t vid)
     {
         // aligned blocking read from fd
         off_t record_off = _get_record_off(vid);
-        if (mmap_block_) {
-            block_start_off_ = low_4k_aligned(record_off);
+        block_start_off_ = low_4k_aligned(record_off);
+
+        if (block_start_off_) {
             if (mmap_block_) {
                 munmap(mmap_block_, PAGE_SIZE);
             }
@@ -89,7 +93,7 @@ public:
         if (record_off >= block_start_off_ + PAGE_SIZE) {
             // renew mmap_block_
             if (mmap_block_) {
-                munmap(mmap_block_, PAGE_SIZE);
+                MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
             }
             block_start_off_ += PAGE_SIZE;
             mmap_block_ = _memmap(block_start_off_);
@@ -101,6 +105,7 @@ public:
             block_trie_info{vid, root_off};
         // update header vid
         *reinterpret_cast<uint64_t *>(header_block_) = vid;
+        msync(tmp_block, PAGE_SIZE, MS_ASYNC);
     }
 };
 
