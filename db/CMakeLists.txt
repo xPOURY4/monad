@@ -18,8 +18,6 @@ function(monad_trie_compile_options target)
     target_compile_options(${target} PUBLIC $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 endfunction()
 
-include(cmake/test.cmake)
-
 # ###########
 # ## libs
 # ###########
