@@ -39,7 +39,9 @@ add_library(monad_core STATIC
     # mem
     ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mem/mem_map.hpp
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mem/mem_map.cpp
     # rlp
     ${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp
