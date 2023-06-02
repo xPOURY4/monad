@@ -31,3 +31,5 @@ COPY . monad-core
 RUN cd monad-core && ls -al && ./scripts/configure.sh
 
 RUN cd monad-core && ./scripts/build.sh
+
+RUN cd monad-core && ./scripts/test.sh
