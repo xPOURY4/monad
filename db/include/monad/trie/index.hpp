@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstdlib>
-
-#include <sys/mman.h>
-
 #include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
 #include <monad/trie/constants.hpp>
 #include <monad/trie/util.hpp>
+
+#include <cstdlib>
+
+#include <sys/mman.h>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -20,7 +20,7 @@ struct block_trie_info
 static_assert(sizeof(block_trie_info) == 16);
 static_assert(alignof(block_trie_info) == 8);
 
-class Index
+class Index final
 {
     int fd_;
     unsigned block_start_off_;
@@ -59,9 +59,9 @@ public:
     ~Index()
     {
         if (mmap_block_) {
-            munmap(mmap_block_, PAGE_SIZE);
+            MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
         }
-        munmap(header_block_, PAGE_SIZE);
+        MONAD_TRIE_ASSERT(!munmap(header_block_, PAGE_SIZE));
     }
 
     [[nodiscard]] [[gnu::always_inline]] constexpr size_t get_start_offset()
@@ -78,7 +78,7 @@ public:
 
         if (block_start_off_) {
             if (mmap_block_) {
-                munmap(mmap_block_, PAGE_SIZE);
+                MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
             }
             mmap_block_ = _memmap(block_start_off_);
             return reinterpret_cast<block_trie_info *>(
@@ -105,7 +105,7 @@ public:
             block_trie_info{vid, root_off};
         // update header vid
         *reinterpret_cast<uint64_t *>(header_block_) = vid;
-        msync(tmp_block, PAGE_SIZE, MS_ASYNC);
+        MONAD_TRIE_ASSERT(!msync(tmp_block, PAGE_SIZE, MS_ASYNC));
     }
 };
 

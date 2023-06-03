@@ -1,12 +1,15 @@
+#include <monad/trie/encode_node.hpp>
 #include <monad/trie/io.hpp>
 #include <monad/trie/merge.hpp>
+#include <monad/trie/merge_data.hpp>
+#include <monad/trie/node_helper.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
 // presumption: prev_root and tmp_root are branch nodes
 merkle_node_t *do_merge(
     merkle_node_t *const prev_root, tmp_branch_node_t const *const tmp_root,
-    unsigned char const pi, tnode_t *curr_tnode, AsyncIO &io_)
+    unsigned char const pi, tnode_t *curr_tnode, AsyncIO &io)
 {
     merkle_node_t *new_root = get_new_merkle_node(
         prev_root->valid_mask | tmp_root->subnode_bitmask, prev_root->path_len);
@@ -28,7 +31,7 @@ merkle_node_t *do_merge(
                     new_root,
                     i,
                     curr_tnode,
-                    io_);
+                    io);
             }
             else { // prev has branches, tmp do not
                 merkle_child_info_t *prev_child =
@@ -46,7 +49,7 @@ merkle_node_t *do_merge(
                 new_root,
                 child_idx++,
                 TmpTrie::get_node(tmp_root->next[i]),
-                io_);
+                io);
             --curr_tnode->npending;
         }
     }
@@ -64,7 +67,7 @@ void merge_trie(
     merkle_node_t *const prev_parent, uint8_t const prev_child_i,
     tmp_branch_node_t const *const tmp_parent, uint8_t const tmp_branch_i,
     unsigned char pi, merkle_node_t *const new_parent,
-    uint8_t const new_child_ni, tnode_t *parent_tnode, AsyncIO &io_)
+    uint8_t const new_child_ni, tnode_t *parent_tnode, AsyncIO &io)
 {
     assert(!(prev_parent->tomb_arr_mask & 1u << prev_child_i));
     uint8_t const new_branch_arr_i =
@@ -118,18 +121,18 @@ void merge_trie(
                 prev_parent, prev_child_i, new_branch, prev_idx);
 
             // new_branch -> tmp_nibble
-            set_merkle_child_from_tmp(new_branch, !prev_idx, tmp_node, io_);
+            set_merkle_child_from_tmp(new_branch, !prev_idx, tmp_node, io);
 
             // update new_parent's specific child
             new_parent->children[new_branch_arr_i] =
                 (merkle_child_info_t){.next = new_branch, .path_len = pi};
-            memcpy(
+            std::memcpy(
                 new_parent->children[new_branch_arr_i].path,
                 tmp_node->path,
                 (1 + pi) / 2);
             encode_branch_extension(new_parent, new_branch_arr_i);
             new_parent->children[new_branch_arr_i].fnext =
-                io_.async_write_node(new_branch);
+                io.async_write_node(new_branch);
             if (new_parent->children[new_branch_arr_i].path_len >=
                 CACHE_LEVELS) {
                 free_node(new_branch);
@@ -157,7 +160,7 @@ void merge_trie(
                             new_branch,
                             child_idx,
                             TmpTrie::get_node(tmp_node->next[i]),
-                            io_);
+                            io);
                     }
                     ++child_idx;
                 }
@@ -173,7 +176,7 @@ void merge_trie(
                 new_branch,
                 next_nibble,
                 branch_tnode,
-                io_);
+                io);
         }
         else { // no more next branch in tmp trie that matches the
             // nibble in prev trie
@@ -188,7 +191,7 @@ void merge_trie(
                             new_branch,
                             child_idx++,
                             TmpTrie::get_node(tmp_node->next[i]),
-                            io_);
+                            io);
                     }
                     else {
                         assign_prev_child_to_new(
@@ -202,7 +205,7 @@ void merge_trie(
     }
     else if (tmp_is_shorter == -1) { // prev path is shorter
         if (!prev_node) {
-            io_.async_read_request<merge_uring_data_t>(get_merge_uring_data(
+            io.async_read_request<merge_uring_data_t>(get_merge_uring_data(
                 prev_parent,
                 prev_child_i,
                 tmp_parent,
@@ -233,7 +236,7 @@ void merge_trie(
                 new_branch,
                 next_nibble,
                 branch_tnode,
-                io_);
+                io);
         }
         else { // prev is shorter, no more matched next for prev trie
             // branch out for both prev trie and tmp trie
@@ -251,7 +254,7 @@ void merge_trie(
                     }
                     else {
                         set_merkle_child_from_tmp(
-                            new_branch, child_idx++, tmp_node, io_);
+                            new_branch, child_idx++, tmp_node, io);
                     }
                 }
             }
@@ -274,7 +277,7 @@ void merge_trie(
         }
         else {
             if (!prev_node) {
-                io_.async_read_request<merge_uring_data_t>(get_merge_uring_data(
+                io.async_read_request<merge_uring_data_t>(get_merge_uring_data(
                     prev_parent,
                     prev_child_i,
                     tmp_parent,
@@ -288,14 +291,14 @@ void merge_trie(
             // do_merge update branch_tnode's node and npending
             branch_tnode = get_new_tnode(
                 parent_tnode, new_child_ni, new_branch_arr_i, new_branch);
-            new_branch = do_merge(prev_node, tmp_node, pi, branch_tnode, io_);
+            new_branch = do_merge(prev_node, tmp_node, pi, branch_tnode, io);
         }
         new_path = prev_node_path;
         new_path_len = prev_node_path_len;
     }
     new_parent->children[new_branch_arr_i].next = new_branch;
     new_parent->children[new_branch_arr_i].path_len = new_path_len;
-    memcpy(
+    std::memcpy(
         new_parent->children[new_branch_arr_i].path,
         new_path,
         (1 + new_path_len) / 2);
@@ -319,7 +322,7 @@ void merge_trie(
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
             new_parent->children[new_branch_arr_i].fnext =
-                io_.async_write_node(new_branch);
+                io.async_write_node(new_branch);
             if (new_parent->children[new_branch_arr_i].path_len >=
                 CACHE_LEVELS) {
                 free_node(new_branch);
@@ -341,13 +344,16 @@ void merge_trie(
         encode_leaf(
             new_parent,
             new_branch_arr_i,
-            (unsigned char *)&((tmp_leaf_node_t *)tmp_node)->data);
+            reinterpret_cast<unsigned char *>(
+                &reinterpret_cast<tmp_leaf_node_t *>(
+                     const_cast<tmp_branch_node_t *>(tmp_node))
+                     ->data));
     }
     --parent_tnode->npending;
     return;
 }
 
-void upward_update_data(tnode_t *curr_tnode, AsyncIO &io_)
+void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
 {
     if (!curr_tnode) {
         return;
@@ -372,7 +378,7 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io_)
             // ready to sum for curr->node and update data in parent
             encode_branch_extension(parent, curr_tnode->child_idx);
             parent->children[curr_tnode->child_idx].fnext =
-                io_.async_write_node(curr_tnode->node);
+                io.async_write_node(curr_tnode->node);
             if (parent->children[curr_tnode->child_idx].path_len >=
                 CACHE_LEVELS) {
                 free_node(curr);
@@ -389,21 +395,25 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io_)
 // presumption: tmp_node trie are newly created accounts, no tombstone
 void set_merkle_child_from_tmp(
     merkle_node_t *const parent, uint8_t const arr_idx,
-    tmp_branch_node_t const *const tmp_node, AsyncIO &io_)
+    tmp_branch_node_t const *const tmp_node, AsyncIO &io)
 {
     // copy path, and path len
     parent->children[arr_idx].path_len = tmp_node->path_len;
-    memcpy(
+    std::memcpy(
         parent->children[arr_idx].path,
         tmp_node->path,
         (tmp_node->path_len + 1) / 2);
 
     if (tmp_node->type == tmp_node_type_t::LEAF) {
-        parent->children[arr_idx].data = (unsigned char *)malloc(32);
+        parent->children[arr_idx].data =
+            static_cast<unsigned char *>(std::malloc(32));
         encode_leaf(
             parent,
             arr_idx,
-            (unsigned char *)&((tmp_leaf_node_t *)tmp_node)->data);
+            reinterpret_cast<unsigned char *>(
+                &reinterpret_cast<tmp_leaf_node_t *>(
+                     const_cast<tmp_branch_node_t *>(tmp_node))
+                     ->data));
         parent->children[arr_idx].next = nullptr;
     }
     else {
@@ -417,21 +427,21 @@ void set_merkle_child_from_tmp(
                     new_node,
                     child_idx++,
                     TmpTrie::get_node(tmp_node->next[i]),
-                    io_);
+                    io);
             }
         }
         parent->children[arr_idx].next = new_node;
         encode_branch_extension(parent, arr_idx);
-        parent->children[arr_idx].fnext = io_.async_write_node(new_node);
+        parent->children[arr_idx].fnext = io.async_write_node(new_node);
 
         if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
-            // free_node(parent->children[arr_idx].next);
+            free_node(parent->children[arr_idx].next);
             parent->children[arr_idx].next = nullptr;
         }
     }
 }
 
-void merge_callback(void *user_data, AsyncIO &io_)
+void merge_callback(void *user_data, AsyncIO &io)
 {
     // construct the node from the read buffer
     merge_uring_data_t *data = (merge_uring_data_t *)user_data;
@@ -442,7 +452,7 @@ void merge_callback(void *user_data, AsyncIO &io_)
     assert(node->mask);
 
     data->prev_parent->children[data->prev_child_i].next = node;
-    io_.release_read_buffer(data->buffer);
+    io.release_read_buffer(data->buffer);
 
     // callback to merge_trie() from where that request left out
     merge_trie(
@@ -454,9 +464,9 @@ void merge_callback(void *user_data, AsyncIO &io_)
         data->new_parent,
         data->new_child_ni,
         data->parent_tnode,
-        io_);
+        io);
     // upward update parent until parent has more than one valid subnodes
-    upward_update_data(data->parent_tnode, io_);
+    upward_update_data(data->parent_tnode, io);
 }
 
 MONAD_TRIE_NAMESPACE_END

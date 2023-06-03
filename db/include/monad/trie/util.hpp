@@ -1,4 +1,5 @@
 #pragma once
+
 #include <monad/trie/config.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN

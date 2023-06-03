@@ -2,6 +2,7 @@
 
 #include <monad/trie/config.hpp>
 #include <monad/trie/globals.hpp>
+
 #include <monad/trie/node.hpp>
 #include <monad/trie/tmp_trie.hpp>
 #include <monad/trie/tnode.hpp>
@@ -43,13 +44,14 @@ static inline merge_uring_data_t *get_merge_uring_data(
 {
     MONAD_TRIE_ASSERT(prev_parent->children[prev_child_i].path_len < 64);
 
-    merge_uring_data_t *user_data = (merge_uring_data_t *)cpool_ptr29(
-        tmppool_, cpool_reserve29(tmppool_, sizeof(merge_uring_data_t)));
+    merge_uring_data_t *user_data =
+        reinterpret_cast<merge_uring_data_t *>(cpool_ptr29(
+            tmppool_, cpool_reserve29(tmppool_, sizeof(merge_uring_data_t))));
     cpool_advance29(tmppool_, sizeof(merge_uring_data_t));
 
     // prep uring data
     int64_t node_offset = prev_parent->children[prev_child_i].fnext;
-    int64_t offset = (node_offset >> 9) << 9;
+    int64_t offset = low_4k_aligned(node_offset);
     int16_t buffer_off = node_offset - offset;
 
     merge_uring_data_t tmp_data{

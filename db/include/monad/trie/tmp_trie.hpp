@@ -1,8 +1,9 @@
 #pragma once
 
 #include <monad/trie/config.hpp>
-#include <monad/trie/data.hpp>
 #include <monad/trie/globals.hpp>
+
+#include <monad/trie/data.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 

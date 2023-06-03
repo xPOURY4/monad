@@ -57,7 +57,7 @@ merkle_node_t *deserialize_node_from_buffer(
 
         if (node->children[i].path_len - node->path_len > 1) {
             node->children[i].data =
-                (unsigned char *)std::malloc(SIZE_OF_TRIE_DATA);
+                static_cast<unsigned char *>(std::malloc(SIZE_OF_TRIE_DATA));
             std::memcpy(node->children[i].data, read_pos, SIZE_OF_TRIE_DATA);
             read_pos += SIZE_OF_TRIE_DATA;
         }
@@ -100,7 +100,7 @@ void assign_prev_child_to_new(
         assert(prev_child->path_len - prev_parent->path_len > 1);
         if (new_child->path_len - new_parent->path_len == 1) {
             // prev_child is ext node, new_child is branch
-            memcpy(&new_child->noderef, new_child->data, 32);
+            std::memcpy(&new_child->noderef, new_child->data, 32);
             free(new_child->data);
             new_child->data = nullptr;
             return;
@@ -110,8 +110,8 @@ void assign_prev_child_to_new(
         if (prev_child->path_len - prev_parent->path_len == 1) {
             // prev_child is branch, new_child is ext
             assert(new_child->data == nullptr);
-            new_child->data = (unsigned char *)malloc(32);
-            memcpy(new_child->data, &prev_child->noderef, 32);
+            new_child->data = static_cast<unsigned char *>(std::malloc(32));
+            std::memcpy(new_child->data, &prev_child->noderef, 32);
         }
     }
     else {
@@ -123,7 +123,7 @@ void assign_prev_child_to_new(
         new_child->path_len,
         new_child->path_len == 64,
         new_child->data,
-        (unsigned char *)&new_child->noderef);
+        reinterpret_cast<unsigned char *>(&new_child->noderef));
 }
 
 void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
@@ -132,7 +132,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
     uint8_t only_child_i =
         merkle_child_index(midnode, __builtin_ctz(midnode->valid_mask));
     unsigned mid_path_len = midnode->path_len;
-    memcpy(
+    std::memcpy(
         &parent->children[child_idx],
         &midnode->children[only_child_i],
         sizeof(merkle_child_info_t) - 32);
@@ -142,14 +142,15 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
     }
     else {
         assert(midnode->path_len + 1 == parent->children[child_idx].path_len);
-        parent->children[child_idx].data = (unsigned char *)malloc(32);
-        memcpy(
+        parent->children[child_idx].data =
+            static_cast<unsigned char *>(std::malloc(32));
+        std::memcpy(
             parent->children[child_idx].data,
             &parent->children[child_idx].noderef,
             32);
     }
 
-    memcpy(
+    std::memcpy(
         parent->children[child_idx].path + (mid_path_len + 1) / 2,
         midnode->children[only_child_i].path + (mid_path_len + 1) / 2,
         (midnode->children[only_child_i].path_len + 1) / 2 -

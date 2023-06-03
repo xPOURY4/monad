@@ -2,6 +2,8 @@
 #include <monad/trie/tmp_trie.hpp>
 #include <string.h>
 
+#include <cstring>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 uint32_t TmpTrie::get_new_branch(
@@ -11,11 +13,11 @@ uint32_t TmpTrie::get_new_branch(
     cpool_advance29(tmppool_, sizeof(tmp_branch_node_t));
     // allocate the next spot for branch
     tmp_branch_node_t *branch =
-        (tmp_branch_node_t *)cpool_ptr29(tmppool_, branch_i);
-    memset(branch, 0, sizeof(tmp_branch_node_t));
+        reinterpret_cast<tmp_branch_node_t *>(cpool_ptr29(tmppool_, branch_i));
+    std::memset(branch, 0, sizeof(tmp_branch_node_t));
     branch->type = tmp_node_type_t::BRANCH;
     branch->path_len = path_len;
-    memcpy(branch->path, path, (path_len + 1) / 2);
+    std::memcpy(branch->path, path, (path_len + 1) / 2);
     return branch_i;
 }
 
@@ -25,12 +27,13 @@ uint32_t TmpTrie::get_new_leaf(
 {
     uint32_t leaf_i = cpool_reserve29(tmppool_, sizeof(tmp_leaf_node_t));
     cpool_advance29(tmppool_, sizeof(tmp_leaf_node_t));
-    tmp_leaf_node_t *leaf = (tmp_leaf_node_t *)cpool_ptr29(tmppool_, leaf_i);
-    memset(leaf, 0, sizeof(tmp_leaf_node_t));
+    tmp_leaf_node_t *leaf =
+        reinterpret_cast<tmp_leaf_node_t *>(cpool_ptr29(tmppool_, leaf_i));
+    std::memset(leaf, 0, sizeof(tmp_leaf_node_t));
     leaf->type = tmp_node_type_t::LEAF;
     leaf->path_len = path_len;
-    memcpy(leaf->path, path, (path_len + 1) / 2);
-    memcpy(&leaf->data, data, 32);
+    std::memcpy(leaf->path, path, (path_len + 1) / 2);
+    std::memcpy(&leaf->data, data, 32);
     leaf->tombstone = tombstone;
     return leaf_i;
 }

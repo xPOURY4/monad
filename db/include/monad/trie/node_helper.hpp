@@ -27,12 +27,12 @@ static inline size_t get_merkle_node_size(uint8_t const nsubnodes)
 }
 
 static inline merkle_node_t *read_node(int fd, uint64_t node_offset)
-{
+{ // blocking read
     int64_t offset = (node_offset >> 9) << 9;
     int16_t buffer_off = node_offset - offset;
     unsigned char *buffer =
-        reinterpret_cast<unsigned char *>(malloc(1UL << 11));
-    lseek(fd, offset, SEEK_SET);
+        static_cast<unsigned char *>(std::malloc(1UL << 11));
+    MONAD_TRIE_ASSERT(offset == lseek(fd, offset, SEEK_SET));
     MONAD_TRIE_ASSERT(read(fd, buffer, 1UL << 11) != -1);
     merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off, 0);
     free(buffer);
@@ -72,7 +72,7 @@ get_new_merkle_node(uint16_t const mask, unsigned char path_len)
 {
     uint8_t const nsubnodes = __builtin_popcount(mask);
     size_t const size = get_merkle_node_size(nsubnodes);
-    merkle_node_t *const new_branch = (merkle_node_t *)calloc(1, size);
+    auto const new_branch = static_cast<merkle_node_t *>(calloc(1, size));
     new_branch->nsubnodes = nsubnodes;
     new_branch->mask = mask;
     new_branch->valid_mask = mask;
@@ -84,8 +84,8 @@ static inline merkle_node_t *
 copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
 { // only copy valid subnodes
     int nsubnodes = merkle_child_count_valid(prev_node);
-    merkle_node_t *copy =
-        (merkle_node_t *)calloc(1, get_merkle_node_size(nsubnodes));
+    auto const copy = static_cast<merkle_node_t *>(
+        calloc(1, get_merkle_node_size(nsubnodes)));
     copy->mask = prev_node->valid_mask;
     copy->valid_mask = copy->mask;
     copy->path_len = prev_node->path_len;

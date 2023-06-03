@@ -1,7 +1,8 @@
 #pragma once
 
 #include <monad/trie/node.hpp>
-#include <stdint.h>
+
+#include <cstdint>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 // helper struct: node of a upward pointing tree

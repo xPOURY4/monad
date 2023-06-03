@@ -1,9 +1,5 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdlib>
-#include <functional>
-
 #include <monad/trie/config.hpp>
 #include <monad/trie/util.hpp>
 
@@ -12,6 +8,10 @@
 #include <monad/io/ring.hpp>
 
 #include <monad/trie/node_helper.hpp>
+
+#include <cstddef>
+#include <cstdlib>
+#include <functional>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -83,6 +83,7 @@ public:
         , write_buffer_(wr_pool_.alloc())
         , block_off_(high_4k_aligned(block_off))
     {
+        MONAD_TRIE_ASSERT(write_buffer_);
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
     }
@@ -101,6 +102,8 @@ public:
             poll_uring();
         }
         MONAD_TRIE_ASSERT(!records_.inflight_);
+        MONAD_TRIE_ASSERT(!io_uring_unregister_files(
+            const_cast<io_uring *>(&uring_.get_ring())));
     }
 
     [[gnu::always_inline]] void release_read_buffer(unsigned char *const buffer)
@@ -137,16 +140,17 @@ public:
             poll_uring();
         }
 
+        bool across_blocks =
+            uring_data->buffer_off + MAX_DISK_NODE_SIZE > PAGE_SIZE;
+        unsigned read_size = across_blocks ? 2 * PAGE_SIZE : PAGE_SIZE;
+
         unsigned char *rd_buffer = rd_pool_.alloc();
+        MONAD_TRIE_ASSERT(rd_buffer);
 
         uring_data->buffer = rd_buffer;
 
         submit_request(
-            rd_buffer,
-            rwbuf_.get_read_size(),
-            uring_data->offset,
-            uring_data,
-            false);
+            rd_buffer, read_size, uring_data->offset, uring_data, false);
         ++records_.inflight_;
         ++records_.inflight_rd_;
         ++records_.nreads_;

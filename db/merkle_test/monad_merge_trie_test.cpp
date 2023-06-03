@@ -21,10 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <thread>
 #include <time.h>
-#include <vector>
 
 #define MIN(x, y) x > y ? y : x
 
@@ -41,17 +38,6 @@ static void ctrl_c_handler(int s)
 {
     (void)s;
     exit(0);
-}
-
-off_t get_file_size(int fd)
-{
-    struct stat st;
-    /* get file size */
-    if (fstat(fd, &st) != 0) {
-        perror("fstat failed.");
-        exit(errno);
-    }
-    return st.st_size;
 }
 
 void __print_char_arr_in_hex(char *arr, int n)
@@ -128,11 +114,11 @@ void prepare_keccak(
         // assign keccak256 on i to key
         key = i + offset;
         hash = ethash_keccak256((const uint8_t *)&key, 8);
-        memcpy(keccak_keys + i * 32, hash.str, 32);
+        std::memcpy(keccak_keys + i * 32, hash.str, 32);
 
         val = key * 2;
         hash = ethash_keccak256((const uint8_t *)&val, 8);
-        memcpy(keccak_values + i * 32, hash.str, 32);
+        std::memcpy(keccak_values + i * 32, hash.str, 32);
     }
 }
 
@@ -162,8 +148,8 @@ int main(int argc, char *argv[])
     cli.parse(argc, argv);
 
     int64_t keccak_cap = 100 * SLICE_LEN;
-    char *const keccak_keys = (char *)malloc(keccak_cap * 32);
-    char *const keccak_values = (char *)malloc(keccak_cap * 32);
+    char *const keccak_keys = (char *)std::malloc(keccak_cap * 32);
+    char *const keccak_values = (char *)std::malloc(keccak_cap * 32);
 
     // init tmppool_
     monad::HugeMem tmp_huge_mem(1UL << 29);
@@ -173,7 +159,7 @@ int main(int argc, char *argv[])
     monad::io::Ring ring(128, sq_thread_cpu);
 
     // init buffer
-    monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 11};
+    monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 13};
 
     Transaction trans(dbname.c_str());
 

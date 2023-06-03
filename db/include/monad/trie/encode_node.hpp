@@ -40,8 +40,8 @@ static inline void hash_two_piece(
     size_t rlp_len = list_length(encoded_strings);
     unsigned char rlp[rlp_len];
     encode_list(rlp, encoded_strings);
-    memcpy(hash, ethash_keccak256((uint8_t *)rlp, rlp_len).bytes, 32);
-    free((void *)hp_path.data());
+    std::memcpy(hash, ethash_keccak256((uint8_t *)rlp, rlp_len).bytes, 32);
+    free(static_cast<void *>(const_cast<unsigned char *>(hp_path.data())));
 }
 
 static inline void encode_leaf(
@@ -49,14 +49,14 @@ static inline void encode_leaf(
     unsigned char const *const value)
 {
     merkle_child_info_t *child = &parent->children[child_idx];
-    memcpy(child->data, value, 32);
+    std::memcpy(child->data, value, 32);
     hash_two_piece(
         child->path,
         parent->path_len + 1,
         child->path_len,
         true,
         child->data,
-        (unsigned char *)&child->noderef);
+        reinterpret_cast<unsigned char *>(&child->noderef));
 }
 
 static inline void
@@ -69,7 +69,8 @@ encode_branch(merkle_node_t *const branch, unsigned char *data)
 
     unsigned char branch_str_rlp
         [string_length(byte_string_view{
-             (unsigned char *)&branch->children[0].noderef, 32}) *
+             reinterpret_cast<unsigned char *>(&branch->children[0].noderef),
+             32}) *
              branch->nsubnodes +
          256];
     unsigned char *result = branch_str_rlp;
@@ -78,9 +79,9 @@ encode_branch(merkle_node_t *const branch, unsigned char *data)
             result = encode_string(
                 result,
                 byte_string_view{
-                    (unsigned char *)&branch
-                        ->children[merkle_child_index(branch, i)]
-                        .noderef,
+                    reinterpret_cast<unsigned char *>(
+                        &branch->children[merkle_child_index(branch, i)]
+                             .noderef),
                     32});
         }
         else {
@@ -93,8 +94,11 @@ encode_branch(merkle_node_t *const branch, unsigned char *data)
     size_t branch_rlp_len = list_length(encoded_strings);
     unsigned char branch_rlp[branch_rlp_len];
     encode_list(branch_rlp, encoded_strings);
-    memcpy(
-        data, ethash_keccak256((uint8_t *)branch_rlp, branch_rlp_len).str, 32);
+    std::memcpy(
+        data,
+        ethash_keccak256(static_cast<uint8_t *>(branch_rlp), branch_rlp_len)
+            .str,
+        32);
 }
 
 /* Note that when branch_node path > 0, our branch is Extension + Branch
@@ -112,11 +116,12 @@ static inline void encode_branch_extension(
 {
     merkle_child_info_t *child = &parent->children[child_idx];
     if (child->path_len - parent->path_len == 1) {
-        encode_branch(child->next, (unsigned char *)&child->noderef);
+        encode_branch(
+            child->next, reinterpret_cast<unsigned char *>(&child->noderef));
     }
     else {
         // hash both branch and extension
-        child->data = (unsigned char *)malloc(32);
+        child->data = static_cast<unsigned char *>(std::malloc(32));
         encode_branch(child->next, child->data);
         hash_two_piece(
             child->path,
@@ -124,7 +129,7 @@ static inline void encode_branch_extension(
             child->path_len,
             false,
             child->data,
-            (unsigned char *)&child->noderef);
+            reinterpret_cast<unsigned char *>(&child->noderef));
     }
 }
 

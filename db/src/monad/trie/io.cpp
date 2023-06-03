@@ -17,6 +17,7 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
         // renew buffer
         block_off_ += rwbuf_.get_write_size();
         write_buffer_ = wr_pool_.alloc();
+        MONAD_TRIE_ASSERT(write_buffer_);
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
     }
@@ -43,14 +44,16 @@ void AsyncIO::submit_request(
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
-    io_uring_submit(const_cast<io_uring *>(&uring_.get_ring()));
+    MONAD_TRIE_ASSERT(
+        io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
 void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
 {
     // write user data
-    write_uring_data_t *user_data = (write_uring_data_t *)cpool_ptr29(
-        cpool_, cpool_reserve29(cpool_, sizeof(write_uring_data_t)));
+    write_uring_data_t *user_data =
+        reinterpret_cast<write_uring_data_t *>(cpool_ptr29(
+            cpool_, cpool_reserve29(cpool_, sizeof(write_uring_data_t))));
     cpool_advance29(cpool_, sizeof(write_uring_data_t));
     *user_data = (write_uring_data_t){
         .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer};
@@ -61,30 +64,21 @@ void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
 
 void AsyncIO::poll_uring()
 {
+    // TODO: handle resource temporarily unavailable error, resubmit the
+    // request
     struct io_uring_cqe *cqe;
-    int ret =
-        io_uring_wait_cqe(const_cast<io_uring *>(&uring_.get_ring()), &cqe);
-    if (ret < 0) {
-        fprintf(stderr, "io_uring_wait_cqe fail: %s\n", strerror(-ret));
-        fflush(stderr);
-        exit(1);
-    }
-    if (cqe->res < 0) {
-        /* The system call invoked asynchonously failed */
-        fprintf(stderr, "async syscall failed: %s\n", strerror(-cqe->res));
-        // TODO: handle resource temporarily unavailable error, resubmit the
-        // request
-        exit(1);
-    }
-    MONAD_TRIE_ASSERT(!ret);
+
+    MONAD_TRIE_ASSERT(
+        !io_uring_wait_cqe(const_cast<io_uring *>(&uring_.get_ring()), &cqe));
 
     void *data = io_uring_cqe_get_data(cqe);
     MONAD_TRIE_ASSERT(data);
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
 
     --records_.inflight_;
-    if (((write_uring_data_t *)data)->rw_flag == uring_data_type_t::IS_WRITE) {
-        wr_pool_.release(((write_uring_data_t *)data)->buffer);
+    if (reinterpret_cast<write_uring_data_t *>(data)->rw_flag ==
+        uring_data_type_t::IS_WRITE) {
+        wr_pool_.release(reinterpret_cast<write_uring_data_t *>(data)->buffer);
     }
     else {
         --records_.inflight_rd_;
