@@ -62,7 +62,7 @@ class AsyncIO final
     // IO records
     IORecord records_;
 
-    [[gnu::always_inline]] void submit_request(
+    void submit_request(
         unsigned char *const buffer, unsigned int nbytes,
         unsigned long long offset, void *const uring_data, bool is_write);
 

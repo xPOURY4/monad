@@ -42,7 +42,7 @@ static inline void hash_two_piece(
     unsigned char rlp[rlp_len];
     encode_list(rlp, encoded_strings);
     std::memcpy(hash, ethash_keccak256((uint8_t *)rlp, rlp_len).bytes, 32);
-    free(static_cast<void *>(const_cast<unsigned char *>(hp_path.data())));
+    free(const_cast<unsigned char *>(hp_path.data()));
 }
 
 static inline void encode_leaf(

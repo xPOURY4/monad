@@ -89,7 +89,7 @@ void merge_trie(
                                (prev_node_path_len < tmp_node->path_len);
     merkle_node_t *new_branch = nullptr;
     unsigned char new_path_len;
-    unsigned char *new_path;
+    unsigned char const *new_path;
     merkle_node_t *prev_node = prev_parent->children[prev_child_i].next;
 
     while (1) {
@@ -200,7 +200,7 @@ void merge_trie(
                 }
             }
         }
-        new_path = (unsigned char *const)tmp_node->path;
+        new_path = tmp_node->path;
         new_path_len = tmp_node->path_len;
     }
     else if (tmp_is_shorter == -1) { // prev path is shorter
@@ -344,10 +344,8 @@ void merge_trie(
         encode_leaf(
             new_parent,
             new_branch_arr_i,
-            reinterpret_cast<unsigned char *>(
-                &reinterpret_cast<tmp_leaf_node_t *>(
-                     const_cast<tmp_branch_node_t *>(tmp_node))
-                     ->data));
+            reinterpret_cast<unsigned char const *>(
+                &reinterpret_cast<tmp_leaf_node_t const *>(tmp_node)->data));
     }
     --parent_tnode->npending;
     return;
@@ -410,10 +408,8 @@ void set_merkle_child_from_tmp(
         encode_leaf(
             parent,
             arr_idx,
-            reinterpret_cast<unsigned char *>(
-                &reinterpret_cast<tmp_leaf_node_t *>(
-                     const_cast<tmp_branch_node_t *>(tmp_node))
-                     ->data));
+            reinterpret_cast<unsigned char const *>(
+                &reinterpret_cast<tmp_leaf_node_t const *>(tmp_node)->data));
         parent->children[arr_idx].next = nullptr;
     }
     else {
