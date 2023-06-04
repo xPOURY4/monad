@@ -28,7 +28,10 @@ RUN yum -y install \
 
 COPY . monad-core
 
-RUN cd monad-core && ls -al && ./scripts/configure.sh
+ARG CC
+ARG CXX
+
+RUN cd monad-core && CC=${CC} CXX=${CXX} ./scripts/configure.sh
 
 RUN cd monad-core && ./scripts/build.sh
 
