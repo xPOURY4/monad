@@ -27,6 +27,7 @@ add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h
     ${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp
     ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
     # io
