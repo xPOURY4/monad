@@ -42,8 +42,7 @@ class Index final
         return reinterpret_cast<unsigned char *>(buffer);
     }
 
-    [[nodiscard]] [[gnu::always_inline]] constexpr off_t
-    _get_record_off(uint64_t vid)
+    [[gnu::always_inline]] constexpr off_t _get_record_off(uint64_t vid)
     {
         return RECORD_SIZE + (vid % SLOTS) * RECORD_SIZE;
     }
@@ -65,17 +64,17 @@ public:
         MONAD_ASSERT(!munmap(header_block_, PAGE_SIZE));
     }
 
-    [[nodiscard]] [[gnu::always_inline]] constexpr size_t get_start_offset()
+    [[gnu::always_inline]] constexpr size_t get_start_offset()
     {
         return BLOCK_START_OFF;
     }
 
     // call only once after intialization if append
-    [[nodiscard]] block_trie_info *get_trie_info(uint64_t vid)
+    block_trie_info *get_trie_info(uint64_t vid)
     {
         // aligned blocking read from fd
         off_t record_off = _get_record_off(vid);
-        block_start_off_ = low_4k_aligned(record_off);
+        block_start_off_ = round_down_4k(record_off);
 
         if (block_start_off_) {
             if (mmap_block_) {

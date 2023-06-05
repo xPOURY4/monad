@@ -1,8 +1,8 @@
 #pragma once
 
-#include <monad/trie/config.hpp>
 #include <monad/trie/constants.hpp>
 #include <monad/trie/data.hpp>
+#include <monad/trie/util.hpp>
 
 #include <monad/core/assert.h>
 
@@ -79,9 +79,7 @@ static inline unsigned merkle_child_count(merkle_node_t const *const node)
 static inline unsigned
 merkle_child_index(merkle_node_t const *const node, unsigned const i)
 {
-    uint16_t const mask = merkle_child_mask(node);
-    uint16_t const filter = UINT16_MAX >> (16 - i);
-    return __builtin_popcount(mask & filter);
+    return child_index(node->mask, i);
 }
 
 static inline unsigned merkle_child_count_tomb(merkle_node_t const *const node)

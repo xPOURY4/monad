@@ -4,17 +4,26 @@
 
 #include <monad/trie/config.hpp>
 
-#include <monad/trie/encode_node.hpp>
 #include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
-#include <monad/trie/merge.hpp>
-
-#include <time.h>
+#include <monad/trie/request.hpp>
+#include <monad/trie/tnode.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-class TmpTrie;
-struct tnode_t;
+void update_callback(void *user_data, AsyncIO &io);
+
+merkle_node_t *do_update(
+    merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
+    tnode_t *curr_tnode, AsyncIO &io, unsigned char const pi = 0);
+
+void update_trie(
+    Request *const updates, unsigned char pi, merkle_node_t *const new_parent,
+    uint8_t const new_child_ni, tnode_t *parent_tnode, AsyncIO &io);
+
+void build_new_trie(
+    merkle_node_t *const parent, uint8_t const arr_idx, Request *updates,
+    AsyncIO &io);
 
 class MerkleTrie final
 {
@@ -26,32 +35,24 @@ public:
         : root_(nullptr)
         , root_tnode_(nullptr){};
 
-    ~MerkleTrie()
-    {
-        MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending);
-    };
+    ~MerkleTrie() { MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending); };
 
+    // queue logic
     void process_updates(
-        uint64_t vid, TmpTrie *tmp_trie, merkle_node_t *prev_root, AsyncIO &io,
-        Index &index)
+        uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
+        AsyncIO &io, Index &index)
     {
-        struct timespec ts_before, ts_after;
-        double tm_index;
+        Request *updateq = new Request(updates);
+        SubRequestInfo requests;
+        updateq->split_into_subqueues(&requests, /*not root*/ false);
 
         root_tnode_ = get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_merge(prev_root, tmp_trie->get_root(), 0, root_tnode_, io);
+        root_ = do_update(prev_root, requests, root_tnode_, io);
 
         // after update, also need to poll until no submission left in uring
         // and write record to the indexing part in the beginning of file
         int64_t root_off = io.flush(root_);
-
-        clock_gettime(CLOCK_MONOTONIC, &ts_before);
         index.write_record(vid, root_off);
-        clock_gettime(CLOCK_MONOTONIC, &ts_after);
-        tm_index = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
-                   ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
-        fprintf(stdout, "write index time %f\n", tm_index);
-        fprintf(stdout, "vid %lu, root_off %ld\n", vid, root_off);
     }
 
     [[gnu::always_inline]] void root_hash(unsigned char *const hash_data)

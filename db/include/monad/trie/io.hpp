@@ -1,6 +1,5 @@
 #pragma once
 
-#include <monad/trie/config.hpp>
 #include <monad/trie/util.hpp>
 
 #include <monad/io/buffer_pool.hpp>
@@ -21,16 +20,17 @@ enum class uring_data_type_t : unsigned char
     IS_READ
 };
 
+// helper struct that records IO stats
 struct IORecord
 {
-    unsigned inflight_;
-    unsigned inflight_rd_;
-    unsigned nreads_;
+    unsigned inflight;
+    unsigned inflight_rd;
+    unsigned nreads;
 
     IORecord()
-        : inflight_(0)
-        , inflight_rd_(0)
-        , nreads_(0)
+        : inflight(0)
+        , inflight_rd(0)
+        , nreads(0)
     {
     }
 };
@@ -81,11 +81,10 @@ public:
         , cpool_(cpool)
         , readcb_(readcb)
         , write_buffer_(wr_pool_.alloc())
-        , block_off_(high_4k_aligned(block_off))
+        , buffer_idx_(0)
+        , block_off_(round_up_4k(block_off))
     {
         MONAD_ASSERT(write_buffer_);
-        *write_buffer_ = BLOCK_TYPE_DATA;
-        buffer_idx_ = 1;
     }
 
     // TODO: unregister uring file
@@ -98,10 +97,10 @@ public:
         else {
             wr_pool_.release(write_buffer_);
         }
-        while (records_.inflight_) {
+        while (records_.inflight) {
             poll_uring();
         }
-        MONAD_ASSERT(!records_.inflight_);
+        MONAD_ASSERT(!records_.inflight);
         MONAD_ASSERT(!io_uring_unregister_files(
             const_cast<io_uring *>(&uring_.get_ring())));
     }
@@ -117,18 +116,18 @@ public:
             const_cast<io_uring *>(&uring_.get_ring()), fds, nr_files));
     }
 
-    [[nodiscard]] int64_t async_write_node(merkle_node_t *node);
+    int64_t async_write_node(merkle_node_t *node);
 
     // invoke at the end of each block
-    [[nodiscard]] int64_t flush(merkle_node_t *root)
+    int64_t flush(merkle_node_t *root)
     {
-        while (records_.inflight_) {
+        while (records_.inflight) {
             poll_uring();
         }
         int64_t root_off = async_write_node(root);
         // pending root write, will submit or poll in next round
 
-        records_.nreads_ = 0;
+        records_.nreads = 0;
         return root_off;
     }
 
@@ -136,7 +135,7 @@ public:
     void async_read_request(TReadData *uring_data)
     {
         // get io_uring sqe, if no available entry, wait on poll() to reap some
-        while (records_.inflight_ >= uring_.get_sq_entries()) {
+        while (records_.inflight >= uring_.get_sq_entries()) {
             poll_uring();
         }
 
@@ -151,9 +150,9 @@ public:
 
         submit_request(
             rd_buffer, read_size, uring_data->offset, uring_data, false);
-        ++records_.inflight_;
-        ++records_.inflight_rd_;
-        ++records_.nreads_;
+        ++records_.inflight;
+        ++records_.inflight_rd;
+        ++records_.nreads;
     }
 };
 

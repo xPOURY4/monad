@@ -1,19 +1,20 @@
 #include <CLI/CLI.hpp>
-#include <alloca.h>
 #include <assert.h>
 #include <ethash/keccak.h>
 
+#include <boost/pool/object_pool.hpp>
+
+#include <monad/core/byte_string.hpp>
+
 #include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
-#include <monad/io/ring.hpp>
+#include <monad/mpt/update_list.hpp>
 #include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
-
-#include <monad/trie/merge.hpp>
 #include <monad/trie/node_helper.hpp>
-#include <monad/trie/tmp_trie.hpp>
 #include <monad/trie/tr.hpp>
 #include <monad/trie/trie.hpp>
 
@@ -24,15 +25,15 @@
 #include <time.h>
 
 #define MIN(x, y) x > y ? y : x
-
-/* magic numbers */
 #define SLICE_LEN 100000
+
+using namespace monad::trie;
+using namespace monad::mpt;
 
 MONAD_TRIE_NAMESPACE_BEGIN
 cpool_29_t *tmppool_;
+boost::object_pool<Request> request_pool;
 MONAD_TRIE_NAMESPACE_END
-
-using namespace monad::trie;
 
 static void ctrl_c_handler(int s)
 {
@@ -55,27 +56,30 @@ void __print_char_arr_in_hex(char *arr, int n)
 */
 static merkle_node_t *batch_upsert_commit(
     uint64_t block_id, merkle_node_t *prev_root, int64_t keccak_offset,
-    int64_t offset, int64_t nkeys, char const *const keccak_keys,
-    char const *const keccak_values, bool erase, AsyncIO &io, Index &index)
+    int64_t offset, int64_t nkeys, unsigned char *const keccak_keys,
+    unsigned char *const keccak_values, bool erase, AsyncIO &io, Index &index)
 {
     struct timespec ts_before, ts_after;
     double tm_ram;
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_before);
-
-    monad::trie::TmpTrie tmptrie;
+    std::vector<UpdateNode> update_vec;
+    update_vec.reserve(SLICE_LEN);
+    UpdateList updates;
     for (int i = keccak_offset; i < keccak_offset + nkeys; ++i) {
-        tmptrie.upsert(
-            (unsigned char *)(keccak_keys + i * 32),
-            64,
-            (trie_data_t *)(keccak_values + i * 32),
-            erase);
+        update_vec.push_back(UpdateNode{
+            {keccak_keys + i * 32,
+             erase ? std::nullopt
+                   : std::optional<Data>{byte_string_view(
+                         keccak_values + i * 32, 32)}},
+            UpdateMemberHook{}});
+        updates.push_front(update_vec[i - keccak_offset]);
     }
 
-    MerkleTrie trie;
-    trie.process_updates(block_id, &tmptrie, prev_root, io, index);
+    clock_gettime(CLOCK_MONOTONIC, &ts_before);
 
-    // write_root_footer(trie.get_root());
+    MerkleTrie trie;
+    trie.process_updates(block_id, updates, prev_root, io, index);
+
     clock_gettime(CLOCK_MONOTONIC, &ts_after);
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
@@ -83,9 +87,6 @@ static merkle_node_t *batch_upsert_commit(
     trie_data_t root_data;
     trie.root_hash((unsigned char *)&root_data);
 
-    // if ((offset + keccak_offset + nkeys) % (10 * SLICE_LEN)) {
-    //     return new_root;
-    // }
     fprintf(stdout, "root->data after precommit: ");
     __print_char_arr_in_hex((char *)root_data.bytes, 32);
     fprintf(
@@ -98,12 +99,14 @@ static merkle_node_t *batch_upsert_commit(
         (double)nkeys * 1.001 / tm_ram,
         tm_ram);
     fflush(stdout);
+
+    free_trie(prev_root);
     return trie.get_root();
 }
 
 void prepare_keccak(
-    size_t nkeys, char *const keccak_keys, char *const keccak_values,
-    size_t idx_offset, size_t offset)
+    size_t nkeys, unsigned char *const keccak_keys,
+    unsigned char *const keccak_values, size_t idx_offset, size_t offset)
 {
     union ethash_hash256 hash;
     size_t key;
@@ -148,8 +151,10 @@ int main(int argc, char *argv[])
     cli.parse(argc, argv);
 
     int64_t keccak_cap = 100 * SLICE_LEN;
-    char *const keccak_keys = (char *)std::malloc(keccak_cap * 32);
-    char *const keccak_values = (char *)std::malloc(keccak_cap * 32);
+    unsigned char *const keccak_keys =
+        (unsigned char *)std::malloc(keccak_cap * 32);
+    unsigned char *const keccak_values =
+        (unsigned char *)std::malloc(keccak_cap * 32);
 
     // init tmppool_
     monad::HugeMem tmp_huge_mem(1UL << 29);
@@ -189,7 +194,7 @@ int main(int argc, char *argv[])
     else {
         root = get_new_merkle_node(0, 0);
     }
-    AsyncIO io(ring, rwbuf, block_off, tmppool_, &merge_callback);
+    AsyncIO io(ring, rwbuf, block_off, tmppool_, &update_callback);
 
     int fds[1] = {trans.get_fd()};
     io.uring_register_files(fds, 1);
@@ -226,7 +231,6 @@ int main(int argc, char *argv[])
             io,
             index);
 
-        free_trie(prev_root);
         ++vid;
 
         if (erase && iter % 2) {
@@ -244,7 +248,6 @@ int main(int argc, char *argv[])
                 true,
                 io,
                 index);
-            free_trie(prev_root);
             ++vid;
 
             fprintf(stdout, "> dup batch iter = %d\n", iter);
@@ -261,7 +264,6 @@ int main(int argc, char *argv[])
                 false,
                 io,
                 index);
-            free_trie(prev_root);
             ++vid;
         }
     }

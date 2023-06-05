@@ -14,13 +14,13 @@ using namespace monad::rlp;
 using namespace monad::trie;
 
 MONAD_TRIE_NAMESPACE_BEGIN
+
 /* two-piece RLP:
  *  1. HP(non-redundant key path)
  *  2. value
  *  rlp encode the 2-element list to bytes
  *  Lastly keccak the rlp encoded bytes
  */
-
 static inline void hash_two_piece(
     unsigned char *const path, uint8_t const si, uint8_t const ei,
     bool terminating, unsigned char const *const value,

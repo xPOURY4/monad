@@ -16,9 +16,10 @@ MONAD_TRIE_NAMESPACE_BEGIN
  * @param ei: end nibble of path
  * @param terminating: if path[ei] is the end
  */
-[[nodiscard]] constexpr byte_string_view compact_encode(
+constexpr byte_string_view compact_encode(
     unsigned char const *path, uint8_t si, uint8_t ei, bool terminating)
 {
+    assert(ei > si);
     unsigned ci = si, path_len = ei - si;
     unsigned char *res =
         static_cast<unsigned char *>(std::malloc(path_len / 2 + 1));

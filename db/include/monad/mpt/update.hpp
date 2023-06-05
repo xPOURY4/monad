@@ -27,4 +27,9 @@ struct Update
 static_assert(sizeof(Update) == 48);
 static_assert(alignof(Update) == 8);
 
+[[gnu::always_inline]] constexpr bool is_deletion(Update const &u)
+{
+    return !u.opt.has_value();
+}
+
 MONAD_MPT_NAMESPACE_END

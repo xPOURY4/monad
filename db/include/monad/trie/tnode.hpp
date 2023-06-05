@@ -1,5 +1,6 @@
 #pragma once
 
+#include <monad/trie/globals.hpp>
 #include <monad/trie/node.hpp>
 
 #include <cstdint>

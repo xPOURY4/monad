@@ -25,22 +25,21 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/trie/constants.hpp
     
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/merge_data.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/request.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/trie/uring_data.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/tr.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/data.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/merge.hpp   
     ${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp
+
     ${PROJECT_SOURCE_DIR}/src/monad/trie/io.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/trie/node_helper.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/merge.cpp
-
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/tmp_trie.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/tmp_trie.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/request.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/trie/trie.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
 )

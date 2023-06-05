@@ -6,16 +6,22 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 #define PAGE_SIZE 4096
 
-template <typename T>
-constexpr T high_4k_aligned(T data)
+template <class T>
+constexpr T round_up_4k(T const x)
 {
-    return ((data - 1) >> 12 << 12) + PAGE_SIZE;
+    return ((x - 1) >> 12 << 12) + PAGE_SIZE;
 }
 
-template <typename T>
-constexpr T low_4k_aligned(T data)
+template <class T>
+constexpr T round_down_4k(T const x)
 {
-    return data >> 12 << 12;
+    return x >> 12 << 12;
+}
+
+static constexpr unsigned child_index(uint16_t const mask, unsigned const i)
+{
+    uint16_t const filter = UINT16_MAX >> (16 - i);
+    return __builtin_popcount(mask & filter);
 }
 
 MONAD_TRIE_NAMESPACE_END

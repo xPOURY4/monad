@@ -5,7 +5,7 @@ MONAD_TRIE_NAMESPACE_BEGIN
 int64_t AsyncIO::async_write_node(merkle_node_t *node)
 {
     // always one write buffer in use but not submitted
-    while (records_.inflight_ >= uring_.get_sq_entries() - 1) {
+    while (records_.inflight >= uring_.get_sq_entries() - 1) {
         poll_uring();
     }
 
@@ -18,8 +18,7 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
         block_off_ += rwbuf_.get_write_size();
         write_buffer_ = wr_pool_.alloc();
         MONAD_ASSERT(write_buffer_);
-        *write_buffer_ = BLOCK_TYPE_DATA;
-        buffer_idx_ = 1;
+        buffer_idx_ = 0;
     }
     int64_t ret = block_off_ + buffer_idx_;
     serialize_node_to_buffer(write_buffer_ + buffer_idx_, node);
@@ -59,7 +58,7 @@ void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
         .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer};
 
     submit_request(buffer, rwbuf_.get_write_size(), offset, user_data, true);
-    ++records_.inflight_;
+    ++records_.inflight;
 }
 
 void AsyncIO::poll_uring()
@@ -75,13 +74,12 @@ void AsyncIO::poll_uring()
     MONAD_ASSERT(data);
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
 
-    --records_.inflight_;
+    --records_.inflight;
     if (reinterpret_cast<write_uring_data_t *>(data)->rw_flag ==
         uring_data_type_t::IS_WRITE) {
         wr_pool_.release(reinterpret_cast<write_uring_data_t *>(data)->buffer);
     }
     else {
-        --records_.inflight_rd_;
         readcb_(data, *this);
     }
 }

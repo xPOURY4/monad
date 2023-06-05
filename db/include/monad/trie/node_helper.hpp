@@ -2,7 +2,6 @@
 
 #include <monad/trie/encode_node.hpp>
 #include <monad/trie/node.hpp>
-#include <monad/trie/tmp_trie.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -57,7 +56,10 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
             continue;
         }
         if (node->children[i].data) {
-            assert(node->children[i].path_len - node->path_len > 1);
+            assert(
+                node->children[i].path_len - node->path_len > 1 ||
+                node->children[i].path_len == 64);
+
             total += 32;
         }
         total += (node->children[i].path_len + 1) / 2 - node->path_len / 2;
