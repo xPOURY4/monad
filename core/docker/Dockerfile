@@ -26,12 +26,16 @@ RUN yum -y install \
   gtest-devel \
   liburing-devel
 
+RUN yum -y install \
+  gdb \
+  python3-pytest
+
 COPY . monad-core
 
 ARG CC
 ARG CXX
 
-RUN cd monad-core && CC=${CC} CXX=${CXX} ./scripts/configure.sh
+RUN cd monad-core && CC=${CC} CXX=${CXX} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ./scripts/configure.sh
 
 RUN cd monad-core && ./scripts/build.sh
 

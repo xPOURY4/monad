@@ -53,8 +53,9 @@ target_include_directories(monad_core
 )
 monad_compile_options(monad_core)
 
-add_library(monad_core_disas STATIC
+add_library(monad_core_disas SHARED
     ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/core/nibble_disas.c
     ${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c
     ${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_disas.cpp
 )
