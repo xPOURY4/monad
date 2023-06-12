@@ -1,0 +1,9 @@
+Dump of assembler code for function _ZN5monad5disas14off48_from_intEl:
+<+0>:     mov    %rdi,%rax
+<+3>:     ret
+End of assembler dump.
+Dump of assembler code for function _ZN5monad5disas12off48_to_intENS_7off48_tE:
+<+0>:     mov    $0x30,%al
+<+2>:     bzhi   %rax,%rdi,%rax
+<+7>:     ret
+End of assembler dump.
