@@ -21,6 +21,11 @@ endfunction()
 ### libs
 ############
 add_library(monad_trie STATIC
+    ${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mpt/update_list.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mpt/update_list.cpp
+
     ${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/globals.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/constants.hpp
