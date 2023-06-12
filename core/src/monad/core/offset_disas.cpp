@@ -6,14 +6,14 @@ MONAD_NAMESPACE_BEGIN
 
 namespace disas
 {
-    off48_t off48_from_int(int64_t const off)
+    void off48_from_int(off48_t *const result, int64_t const *const offset)
     {
-        return off;
+        *result = off48_t{*offset};
     }
 
-    int64_t off48_to_int(off48_t const off)
+    void off48_to_int(int64_t *const result, off48_t const *const offset)
     {
-        return off;
+        *result = int64_t{*offset};
     }
 }
 
