@@ -1,11 +1,12 @@
 import os
 import re
 from glob import glob
+from os import path
 from subprocess import check_output
 
-__this_file = os.path.realpath(__file__)
-__this_dir = os.path.dirname(__this_file)
-__test_dir = os.path.join(__this_dir, "disas")
+__this_file = path.realpath(__file__)
+__this_dir = path.dirname(__this_file)
+__test_dir = path.join(__this_dir, "disas")
 
 TARGET_REGEX = "((?:call|ja|jae|jb|jbe|je|jmp|jne|js)[ ]+)0x[0-9a-f]+[ ]+"
 TARGET_PATTERN = re.compile(TARGET_REGEX)
@@ -13,9 +14,9 @@ TARGET_PATTERN = re.compile(TARGET_REGEX)
 
 def _get_test_ids(test_dir):
     test_ids = []
-    files = glob(os.path.join(test_dir, "*.py"))
+    files = glob(path.join(test_dir, "*.py"))
     for file in files:
-        file = os.path.basename(file)
+        file = path.basename(file)
         if file.startswith("_"):
             continue
         test_id = file[0:-3]
@@ -27,7 +28,7 @@ def _create_test_class(test_dir):
     class TestDisas:
         @staticmethod
         def _load_test(test_id):
-            test_file = os.path.join(TestDisas._test_dir, "%s.py" % (test_id,))
+            test_file = path.join(TestDisas._test_dir, "%s.py" % (test_id,))
             ns = {}
             with open(test_file, "r") as f:
                 code = compile(f.read(), test_file, "exec")
@@ -42,7 +43,7 @@ def _create_test_class(test_dir):
 
         @staticmethod
         def _load_result(test_id):
-            result_file = os.path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
+            result_file = path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
             with open(result_file, "r") as f:
                 result = f.read()
             return result
@@ -50,6 +51,10 @@ def _create_test_class(test_dir):
         @staticmethod
         def _gen_result(test_id):
             obj, syms = TestDisas._load_test(test_id)
+            obj = path.join("**", obj)
+            objs = glob(obj, recursive=True)
+            assert len(objs) == 1
+            obj = objs[0]
             cmd = [
                 "gdb",
                 "-batch",
@@ -90,7 +95,7 @@ def _create_test_class(test_dir):
         @staticmethod
         def _save_result(test_id):
             result = TestDisas._gen_result(test_id)
-            result_file = os.path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
+            result_file = path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
             with open(result_file, "w") as f:
                 f.write(result)
 
