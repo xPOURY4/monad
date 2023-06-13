@@ -1,6 +1,6 @@
-#include <monad/trie/nibble.hpp>
 #include <monad/trie/tmp_trie.hpp>
-#include <string.h>
+
+#include <monad/core/nibble.h>
 
 #include <cstring>
 

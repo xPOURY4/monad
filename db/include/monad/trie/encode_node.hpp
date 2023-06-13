@@ -2,11 +2,12 @@
 
 #include <cstddef>
 #include <ethash/keccak.hpp>
-#include <monad/core/byte_string.hpp>
-#include <monad/rlp/encode.hpp>
 #include <monad/trie/compact_encode.hpp>
-#include <monad/trie/nibble.hpp>
 #include <monad/trie/node.hpp>
+
+#include <monad/core/byte_string.hpp>
+#include <monad/core/nibble.h>
+#include <monad/rlp/encode.hpp>
 
 using namespace monad;
 using namespace monad::rlp;

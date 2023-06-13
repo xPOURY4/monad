@@ -1,9 +1,11 @@
 #pragma once
 
-#include <cstddef>
-#include <monad/core/byte_string.hpp>
 #include <monad/trie/config.hpp>
-#include <monad/trie/nibble.hpp>
+
+#include <monad/core/byte_string.hpp>
+#include <monad/core/nibble.h>
+
+#include <cstddef>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
