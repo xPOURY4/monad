@@ -50,14 +50,6 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/trie/tmp_trie.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/endian.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/likely.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/offset.h
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/offset.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/offset_ptr.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/offset.c
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/offset.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/trie/offset_ptr.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.h
 )
