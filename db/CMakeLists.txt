@@ -50,8 +50,6 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/src/monad/trie/tmp_trie.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp
-
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/config.h
 )
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include
