@@ -1,8 +1,9 @@
 #pragma once
 
-#include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
 #include <monad/trie/likely.h>
+
+#include <monad/core/assert.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +35,7 @@ public:
         if (MONAD_TRIE_LIKELY(ptr)) {
             auto const offset =
                 reinterpret_cast<C *>(ptr) - reinterpret_cast<C *>(this);
-            // MONAD_TRIE_ASSERT(offset >= INT32_MIN && offset <= INT32_MAX);
+            // MONAD_ASSERT(offset >= INT32_MIN && offset <= INT32_MAX);
             offset_ = static_cast<int32_t>(offset);
         }
     }

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
 #include <monad/trie/constants.hpp>
 #include <monad/trie/util.hpp>
+
+#include <monad/core/assert.h>
 
 #include <cstdlib>
 
@@ -36,7 +37,7 @@ class Index final
             MAP_SHARED,
             fd_,
             offset);
-        MONAD_TRIE_ASSERT(buffer != MAP_FAILED);
+        MONAD_ASSERT(buffer != MAP_FAILED);
 
         return reinterpret_cast<unsigned char *>(buffer);
     }
@@ -59,9 +60,9 @@ public:
     ~Index()
     {
         if (mmap_block_) {
-            MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+            MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
         }
-        MONAD_TRIE_ASSERT(!munmap(header_block_, PAGE_SIZE));
+        MONAD_ASSERT(!munmap(header_block_, PAGE_SIZE));
     }
 
     [[nodiscard]] [[gnu::always_inline]] constexpr size_t get_start_offset()
@@ -78,7 +79,7 @@ public:
 
         if (block_start_off_) {
             if (mmap_block_) {
-                MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+                MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
             }
             mmap_block_ = _memmap(block_start_off_);
             return reinterpret_cast<block_trie_info *>(
@@ -93,7 +94,7 @@ public:
         if (record_off >= block_start_off_ + PAGE_SIZE) {
             // renew mmap_block_
             if (mmap_block_) {
-                MONAD_TRIE_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+                MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
             }
             block_start_off_ += PAGE_SIZE;
             mmap_block_ = _memmap(block_start_off_);
@@ -105,7 +106,7 @@ public:
             block_trie_info{vid, root_off};
         // update header vid
         *reinterpret_cast<uint64_t *>(header_block_) = vid;
-        MONAD_TRIE_ASSERT(!msync(tmp_block, PAGE_SIZE, MS_ASYNC));
+        MONAD_ASSERT(!msync(tmp_block, PAGE_SIZE, MS_ASYNC));
     }
 };
 

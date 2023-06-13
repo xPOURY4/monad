@@ -28,7 +28,7 @@ public:
 
     ~MerkleTrie()
     {
-        MONAD_TRIE_ASSERT(!root_tnode_ || !root_tnode_->npending);
+        MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending);
     };
 
     void process_updates(

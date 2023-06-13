@@ -42,7 +42,7 @@ static inline merge_uring_data_t *get_merge_uring_data(
     unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_child_ni, tnode_t *parent_tnode)
 {
-    MONAD_TRIE_ASSERT(prev_parent->children[prev_child_i].path_len < 64);
+    MONAD_ASSERT(prev_parent->children[prev_child_i].path_len < 64);
 
     merge_uring_data_t *user_data =
         reinterpret_cast<merge_uring_data_t *>(cpool_ptr29(

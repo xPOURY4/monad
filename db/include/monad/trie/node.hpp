@@ -1,11 +1,12 @@
 #pragma once
 
-#include <cstddef>
-#include <monad/trie/assert.h>
 #include <monad/trie/config.hpp>
 #include <monad/trie/constants.hpp>
-
 #include <monad/trie/data.hpp>
+
+#include <monad/core/assert.h>
+
+#include <cstddef>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 

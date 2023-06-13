@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     uint64_t block_off = index.get_start_offset();
     if (append) {
         block_trie_info *trie_info = index.get_trie_info(vid);
-        MONAD_TRIE_ASSERT(trie_info->vid == vid);
+        MONAD_ASSERT(trie_info->vid == vid);
         block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
         // blocking get_root
         root = read_node(trans.get_fd(), trie_info->root_off);

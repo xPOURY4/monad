@@ -17,7 +17,7 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
         // renew buffer
         block_off_ += rwbuf_.get_write_size();
         write_buffer_ = wr_pool_.alloc();
-        MONAD_TRIE_ASSERT(write_buffer_);
+        MONAD_ASSERT(write_buffer_);
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
     }
@@ -33,7 +33,7 @@ void AsyncIO::submit_request(
 {
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
-    MONAD_TRIE_ASSERT(sqe);
+    MONAD_ASSERT(sqe);
 
     if (is_write) {
         io_uring_prep_write_fixed(sqe, 0, buffer, nbytes, offset, 1);
@@ -44,7 +44,7 @@ void AsyncIO::submit_request(
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
-    MONAD_TRIE_ASSERT(
+    MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
@@ -68,11 +68,11 @@ void AsyncIO::poll_uring()
     // request
     struct io_uring_cqe *cqe;
 
-    MONAD_TRIE_ASSERT(
+    MONAD_ASSERT(
         !io_uring_wait_cqe(const_cast<io_uring *>(&uring_.get_ring()), &cqe));
 
     void *data = io_uring_cqe_get_data(cqe);
-    MONAD_TRIE_ASSERT(data);
+    MONAD_ASSERT(data);
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
 
     --records_.inflight_;

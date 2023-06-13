@@ -83,7 +83,7 @@ public:
         , write_buffer_(wr_pool_.alloc())
         , block_off_(high_4k_aligned(block_off))
     {
-        MONAD_TRIE_ASSERT(write_buffer_);
+        MONAD_ASSERT(write_buffer_);
         *write_buffer_ = BLOCK_TYPE_DATA;
         buffer_idx_ = 1;
     }
@@ -101,8 +101,8 @@ public:
         while (records_.inflight_) {
             poll_uring();
         }
-        MONAD_TRIE_ASSERT(!records_.inflight_);
-        MONAD_TRIE_ASSERT(!io_uring_unregister_files(
+        MONAD_ASSERT(!records_.inflight_);
+        MONAD_ASSERT(!io_uring_unregister_files(
             const_cast<io_uring *>(&uring_.get_ring())));
     }
 
@@ -113,7 +113,7 @@ public:
 
     void uring_register_files(int const *fds, unsigned nr_files)
     {
-        MONAD_TRIE_ASSERT(!io_uring_register_files(
+        MONAD_ASSERT(!io_uring_register_files(
             const_cast<io_uring *>(&uring_.get_ring()), fds, nr_files));
     }
 
@@ -145,7 +145,7 @@ public:
         unsigned read_size = across_blocks ? 2 * PAGE_SIZE : PAGE_SIZE;
 
         unsigned char *rd_buffer = rd_pool_.alloc();
-        MONAD_TRIE_ASSERT(rd_buffer);
+        MONAD_ASSERT(rd_buffer);
 
         uring_data->buffer = rd_buffer;
 

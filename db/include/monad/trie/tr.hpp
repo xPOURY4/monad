@@ -16,7 +16,7 @@ public:
         : fd_([&] {
             int flag = O_CREAT | O_RDWR | O_DIRECT;
             int fd = open(path, flag, 0777); // TODO: configurable flag
-            MONAD_TRIE_ASSERT(fd != -1);
+            MONAD_ASSERT(fd != -1);
             return fd;
         }())
     {

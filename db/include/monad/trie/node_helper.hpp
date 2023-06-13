@@ -32,8 +32,8 @@ static inline merkle_node_t *read_node(int fd, uint64_t node_offset)
     int16_t buffer_off = node_offset - offset;
     unsigned char *buffer =
         static_cast<unsigned char *>(std::malloc(1UL << 11));
-    MONAD_TRIE_ASSERT(offset == lseek(fd, offset, SEEK_SET));
-    MONAD_TRIE_ASSERT(read(fd, buffer, 1UL << 11) != -1);
+    MONAD_ASSERT(offset == lseek(fd, offset, SEEK_SET));
+    MONAD_ASSERT(read(fd, buffer, 1UL << 11) != -1);
     merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off, 0);
     free(buffer);
     return node;

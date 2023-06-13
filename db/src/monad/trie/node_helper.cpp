@@ -8,7 +8,7 @@ void serialize_node_to_buffer(
 {
     *(uint16_t *)write_pos = node->valid_mask;
     write_pos += SIZE_OF_SUBNODE_BITMASK;
-    MONAD_TRIE_ASSERT(merkle_child_count_valid(node) > 1);
+    MONAD_ASSERT(merkle_child_count_valid(node) > 1);
 
     for (int i = 0; i < node->nsubnodes; ++i) {
         if (node->tomb_arr_mask & 1u << i) {
@@ -23,7 +23,7 @@ void serialize_node_to_buffer(
         write_pos += SIZE_OF_PATH_LEN;
 
         if (node->children[i].data) {
-            MONAD_TRIE_ASSERT(node->children[i].path_len - node->path_len > 1);
+            MONAD_ASSERT(node->children[i].path_len - node->path_len > 1);
             std::memcpy(write_pos, node->children[i].data, SIZE_OF_TRIE_DATA);
             write_pos += SIZE_OF_TRIE_DATA;
         }
