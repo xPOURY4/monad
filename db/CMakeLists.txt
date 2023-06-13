@@ -8,13 +8,7 @@ project(monad_trie)
 include(third_party/ethash/cmake/cable/bootstrap.cmake)
 include(CableBuildInfo)
 
-function(monad_trie_compile_options target)
-    set_property(TARGET ${target} PROPERTY C_STANDARD 23)
-    set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
-    set_property(TARGET ${target} PROPERTY CXX_STANDARD 23)
-    set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
-endfunction()
+add_subdirectory(monad-core)
 
 
 ############
@@ -53,10 +47,9 @@ add_library(monad_trie STATIC
 target_include_directories(monad_trie
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
-monad_trie_compile_options(monad_trie)
+monad_compile_options(monad_trie)
 
 add_subdirectory(third_party/ethash)
-add_subdirectory(monad-core)
 target_link_libraries(monad_trie PUBLIC monad_core uring ethash::keccak)
 
 add_subdirectory(merkle_test)
