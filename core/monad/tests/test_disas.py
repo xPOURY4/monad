@@ -11,10 +11,9 @@ TARGET_REGEX = "((?:call|ja|jae|jb|jbe|je|jmp|jne|js)[ ]+)0x[0-9a-f]+[ ]+"
 TARGET_PATTERN = re.compile(TARGET_REGEX)
 
 
-def _get_test_ids():
-
+def _get_test_ids(test_dir):
     test_ids = []
-    files = glob(os.path.join(__test_dir, "*.py"))
+    files = glob(os.path.join(test_dir, "*.py"))
     for file in files:
         file = os.path.basename(file)
         if file.startswith("_"):
@@ -24,11 +23,10 @@ def _get_test_ids():
     return test_ids
 
 
-def _create_test_class():
+def _create_test_class(test_dir):
     class TestDisas:
         @staticmethod
         def _load_test(test_id):
-
             test_file = os.path.join(TestDisas._test_dir, "%s.py" % (test_id,))
             ns = {}
             with open(test_file, "r") as f:
@@ -44,7 +42,6 @@ def _create_test_class():
 
         @staticmethod
         def _load_result(test_id):
-
             result_file = os.path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
             with open(result_file, "r") as f:
                 result = f.read()
@@ -52,7 +49,6 @@ def _create_test_class():
 
         @staticmethod
         def _gen_result(test_id):
-
             obj, syms = TestDisas._load_test(test_id)
             cmd = [
                 "gdb",
@@ -93,7 +89,6 @@ def _create_test_class():
 
         @staticmethod
         def _save_result(test_id):
-
             result = TestDisas._gen_result(test_id)
             result_file = os.path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
             with open(result_file, "w") as f:
@@ -101,19 +96,17 @@ def _create_test_class():
 
         @staticmethod
         def _run_test(test_id):
-
             expected_result = TestDisas._load_result(test_id)
             current_result = TestDisas._gen_result(test_id)
             assert expected_result == current_result
 
-    setattr(TestDisas, "_test_dir", __test_dir)
+    setattr(TestDisas, "_test_dir", test_dir)
     setattr(TestDisas, "_target_pattern", TARGET_PATTERN)
 
-    test_ids = _get_test_ids()
+    test_ids = _get_test_ids(test_dir)
     for test_id in test_ids:
 
         def test_func(self):
-
             TestDisas._run_test(test_id)
 
         setattr(TestDisas, "test_%s" % (test_id,), test_func)
@@ -121,18 +114,17 @@ def _create_test_class():
     return TestDisas
 
 
-TestDisas = _create_test_class()
+TestDisas = _create_test_class(__test_dir)
 
 
 def main():
-
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("cmd", choices=("generate",))
     args = parser.parse_args()
     if args.cmd == "generate":
-        test_ids = _get_test_ids()
+        test_ids = _get_test_ids(__test_dir)
         for test_id in test_ids:
             TestDisas._save_result(test_id)
 
