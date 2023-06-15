@@ -92,7 +92,7 @@ void build_new_trie(
         encode_leaf(
             parent, arr_idx, updates->get_only_leaf().opt.value().val.data());
         parent->children[arr_idx].next = nullptr;
-        request_pool.destroy(updates);
+        Request::pool.destroy(updates);
     }
     else {
         while ((updates = updates->split_into_subqueues(&nextlevel))) {
@@ -217,7 +217,7 @@ void update_trie(
                     updates->get_only_leaf().opt.value().val.data());
             }
             --parent_tnode->npending;
-            request_pool.destroy(updates);
+            Request::pool.destroy(updates);
             return;
         }
         // if min_path_len == pi, all nibbles in prev_nodes are matched

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <stdlib.h>
-
 #include <monad/trie/util.hpp>
 
 #include <monad/mpt/update.hpp>
+
+#include <boost/pool/object_pool.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -17,6 +17,7 @@ struct Request
     uint8_t prev_child_i;
     merkle_node_t *prev_parent;
     monad::mpt::UpdateList pending;
+    static inline boost::object_pool<Request> pool{};
 
     Request(monad::mpt::UpdateList &updates, uint8_t path_len = 0)
         : pi(path_len)

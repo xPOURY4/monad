@@ -1,5 +1,4 @@
 #include <monad/core/nibble.h>
-#include <monad/trie/globals.hpp>
 #include <monad/trie/request.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -30,18 +29,16 @@ Request *Request::split_into_subqueues(
         return this;
     }
     else { // if is root, or if more than one subinfo branch
-        subinfo->subqueues = reinterpret_cast<Request **>(cpool_ptr29(
-            tmppool_,
-            cpool_reserve29(tmppool_, nsubnodes * sizeof(Request *))));
-        cpool_advance29(tmppool_, nsubnodes * sizeof(Request *));
+        subinfo->subqueues =
+            reinterpret_cast<Request **>(malloc(nsubnodes * sizeof(Request *)));
         subinfo->path_len = pi;
         for (int i = 0, child_idx = 0; i < 16; ++i) {
             if (subinfo->mask & 1u << i) {
                 subinfo->subqueues[child_idx++] =
-                    request_pool.construct(tmp_queues[i], pi + 1);
+                    pool.construct(tmp_queues[i], pi + 1);
             }
         }
-        request_pool.destroy(this);
+        pool.destroy(this);
         return nullptr;
     }
 }

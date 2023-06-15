@@ -2,8 +2,6 @@
 #include <assert.h>
 #include <ethash/keccak.h>
 
-#include <boost/pool/object_pool.hpp>
-
 #include <monad/core/byte_string.hpp>
 
 #include <monad/io/buffers.hpp>
@@ -32,7 +30,6 @@ using namespace monad::mpt;
 
 MONAD_TRIE_NAMESPACE_BEGIN
 cpool_29_t *tmppool_;
-boost::object_pool<Request> request_pool;
 MONAD_TRIE_NAMESPACE_END
 
 static void ctrl_c_handler(int s)
