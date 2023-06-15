@@ -16,9 +16,9 @@ add_subdirectory(monad-core)
 ############
 add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/mpt/update_list.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/mpt/update_list.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mpt/update.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/globals.hpp
@@ -50,5 +50,14 @@ monad_compile_options(monad_trie)
 
 add_subdirectory(third_party/ethash)
 target_link_libraries(monad_trie PUBLIC monad_core uring ethash::keccak)
+
+add_library(monad_trie_disas SHARED
+    ${PROJECT_SOURCE_DIR}/src/monad/mpt/node_disas.cpp
+)
+target_include_directories(monad_trie_disas
+    PUBLIC ${PROJECT_SOURCE_DIR}/include
+)
+monad_compile_options(monad_trie_disas)
+target_link_libraries(monad_trie_disas PUBLIC monad_trie)
 
 add_subdirectory(merkle_test)

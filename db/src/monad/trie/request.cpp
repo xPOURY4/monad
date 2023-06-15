@@ -13,7 +13,7 @@ Request *Request::split_into_subqueues(
     }
     monad::mpt::UpdateList tmp_queues[16];
     while (!pending.empty()) { // pop
-        monad::mpt::UpdateNode &req = pending.front();
+        monad::mpt::Update &req = pending.front();
         pending.pop_front();
         uint8_t branch = get_nibble(req.key, pi);
         if (tmp_queues[branch].empty()) {

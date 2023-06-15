@@ -11,7 +11,7 @@
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
-#include <monad/mpt/update_list.hpp>
+#include <monad/mpt/update.hpp>
 #include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
 #include <monad/trie/node_helper.hpp>
@@ -62,11 +62,11 @@ static merkle_node_t *batch_upsert_commit(
     struct timespec ts_before, ts_after;
     double tm_ram;
 
-    std::vector<UpdateNode> update_vec;
+    std::vector<Update> update_vec;
     update_vec.reserve(SLICE_LEN);
     UpdateList updates;
     for (int i = keccak_offset; i < keccak_offset + nkeys; ++i) {
-        update_vec.push_back(UpdateNode{
+        update_vec.push_back(Update{
             {keccak_keys + i * 32,
              erase ? std::nullopt
                    : std::optional<Data>{byte_string_view(
