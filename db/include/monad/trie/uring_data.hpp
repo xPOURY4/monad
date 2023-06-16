@@ -1,9 +1,11 @@
 #pragma once
 
 #include <monad/trie/config.hpp>
-#include <monad/trie/globals.hpp>
-#include <monad/trie/request.hpp>
 #include <monad/trie/util.hpp>
+
+#include <monad/trie/request.hpp>
+
+#include <boost/pool/object_pool.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -24,6 +26,7 @@ struct update_uring_data_t
     int16_t buffer_off;
     unsigned char pi;
     uint8_t new_child_ni;
+    static inline boost::object_pool<update_uring_data_t> pool{};
 };
 
 static_assert(sizeof(update_uring_data_t) == 56);
@@ -33,10 +36,7 @@ static inline update_uring_data_t *get_update_uring_data(
     Request *updates, unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_child_ni, tnode_t *parent_tnode)
 {
-    update_uring_data_t *user_data =
-        reinterpret_cast<update_uring_data_t *>(cpool_ptr29(
-            tmppool_, cpool_reserve29(tmppool_, sizeof(update_uring_data_t))));
-    cpool_advance29(tmppool_, sizeof(update_uring_data_t));
+    update_uring_data_t *user_data = update_uring_data_t::pool.malloc();
 
     // prep uring data
     int64_t node_offset =

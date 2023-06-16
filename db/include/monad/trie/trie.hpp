@@ -35,9 +35,14 @@ public:
         : root_(nullptr)
         , root_tnode_(nullptr){};
 
-    ~MerkleTrie() { MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending); };
+    ~MerkleTrie()
+    {
+        MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending);
+        if (root_tnode_) {
+            tnode_t::pool.destroy(root_tnode_);
+        }
+    };
 
-    // queue logic
     void process_updates(
         uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
         AsyncIO &io, Index &index)

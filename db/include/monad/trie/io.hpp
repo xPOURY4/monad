@@ -8,8 +8,8 @@
 
 #include <monad/trie/node_helper.hpp>
 
+#include <boost/pool/object_pool.hpp>
 #include <cstddef>
-#include <cstdlib>
 #include <functional>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -37,12 +37,13 @@ struct IORecord
 
 class AsyncIO final
 {
-
+    // TODO: using user_data_t = variant<update_data_t, write_data_t>
     struct write_uring_data_t
     {
         uring_data_type_t rw_flag;
         char pad[7];
         unsigned char *buffer;
+        static inline boost::object_pool<write_uring_data_t> pool{};
     };
 
     static_assert(sizeof(write_uring_data_t) == 16);
@@ -52,7 +53,6 @@ class AsyncIO final
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
     monad::io::BufferPool wr_pool_;
-    cpool_29_t *cpool_;
     std::function<void(void *, AsyncIO &)> readcb_;
 
     unsigned char *write_buffer_;
@@ -73,12 +73,11 @@ class AsyncIO final
 public:
     AsyncIO(
         monad::io::Ring &ring, monad::io::Buffers &rwbuf, uint64_t block_off,
-        cpool_29_t *cpool, std::function<void(void *, AsyncIO &)> readcb)
+        std::function<void(void *, AsyncIO &)> readcb)
         : uring_(ring)
         , rwbuf_(rwbuf)
         , rd_pool_(monad::io::BufferPool(rwbuf, true))
         , wr_pool_(monad::io::BufferPool(rwbuf, false))
-        , cpool_(cpool)
         , readcb_(readcb)
         , write_buffer_(wr_pool_.alloc())
         , buffer_idx_(0)
@@ -156,7 +155,7 @@ public:
     }
 };
 
-static_assert(sizeof(AsyncIO) == 112);
+static_assert(sizeof(AsyncIO) == 104);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_TRIE_NAMESPACE_END

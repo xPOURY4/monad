@@ -28,10 +28,6 @@
 using namespace monad::trie;
 using namespace monad::mpt;
 
-MONAD_TRIE_NAMESPACE_BEGIN
-cpool_29_t *tmppool_;
-MONAD_TRIE_NAMESPACE_END
-
 static void ctrl_c_handler(int s)
 {
     (void)s;
@@ -153,10 +149,6 @@ int main(int argc, char *argv[])
     unsigned char *const keccak_values =
         (unsigned char *)std::malloc(keccak_cap * 32);
 
-    // init tmppool_
-    monad::HugeMem tmp_huge_mem(1UL << 29);
-    tmppool_ = cpool_init29(tmp_huge_mem.get_data());
-
     // init uring
     monad::io::Ring ring(128, sq_thread_cpu);
 
@@ -191,7 +183,7 @@ int main(int argc, char *argv[])
     else {
         root = get_new_merkle_node(0, 0);
     }
-    AsyncIO io(ring, rwbuf, block_off, tmppool_, &update_callback);
+    AsyncIO io(ring, rwbuf, block_off, &update_callback);
 
     int fds[1] = {trans.get_fd()};
     io.uring_register_files(fds, 1);

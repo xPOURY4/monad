@@ -33,7 +33,7 @@ static_assert(alignof(UpdateBase) == 8);
 
 [[gnu::always_inline]] constexpr bool is_deletion(UpdateBase const &u)
 {
-    return !u.opt;
+    return !u.opt.has_value();
 }
 
 using UpdateMemberHook = boost::intrusive::slist_member_hook<

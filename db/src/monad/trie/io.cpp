@@ -50,10 +50,7 @@ void AsyncIO::submit_request(
 void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
 {
     // write user data
-    write_uring_data_t *user_data =
-        reinterpret_cast<write_uring_data_t *>(cpool_ptr29(
-            cpool_, cpool_reserve29(cpool_, sizeof(write_uring_data_t))));
-    cpool_advance29(cpool_, sizeof(write_uring_data_t));
+    write_uring_data_t *user_data = write_uring_data_t::pool.malloc();
     *user_data = (write_uring_data_t){
         .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer};
 
@@ -75,9 +72,11 @@ void AsyncIO::poll_uring()
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
 
     --records_.inflight;
-    if (reinterpret_cast<write_uring_data_t *>(data)->rw_flag ==
-        uring_data_type_t::IS_WRITE) {
+    if (auto write_data = reinterpret_cast<write_uring_data_t *>(data);
+        write_data->rw_flag == uring_data_type_t::IS_WRITE) {
         wr_pool_.release(reinterpret_cast<write_uring_data_t *>(data)->buffer);
+        write_uring_data_t::pool.destroy(
+            reinterpret_cast<write_uring_data_t *>(data));
     }
     else {
         readcb_(data, *this);

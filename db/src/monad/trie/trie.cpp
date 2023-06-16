@@ -39,7 +39,9 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
             }
         }
         --curr_tnode->parent->npending;
-        curr_tnode = curr_tnode->parent;
+        tnode_t *p = curr_tnode->parent;
+        tnode_t::pool.destroy(curr_tnode);
+        curr_tnode = p;
     }
 }
 
@@ -68,6 +70,7 @@ void update_callback(void *user_data, AsyncIO &io)
         io);
     // upward update parent until parent has more than one valid subnodes
     upward_update_data(data->parent_tnode, io);
+    update_uring_data_t::pool.destroy(data);
 }
 
 // set path and path len
@@ -379,8 +382,13 @@ void update_trie(
     set_child_path_n_len(new_parent, new_branch_arr_i, prev_path, pi);
     if (new_branch) {
         new_branch->path_len = pi;
-        if (branch_tnode && branch_tnode->npending) {
-            return;
+        if (branch_tnode) {
+            if (branch_tnode->npending) {
+                return;
+            }
+            else {
+                tnode_t::pool.destroy(branch_tnode);
+            }
         }
         // new_branch has 0 or 1 valid children
         unsigned nvalid = merkle_child_count_valid(new_branch);
