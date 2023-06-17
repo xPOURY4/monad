@@ -20,9 +20,9 @@ Request *Request::split_into_subqueues(
         }
         tmp_queues[branch].push_front(req);
     }
-    int nsubnodes = __builtin_popcount(subinfo->mask);
+    int nsubnodes = std::popcount(subinfo->mask);
     if (nsubnodes == 1 && not_root) {
-        int only_child = __builtin_ctz(subinfo->mask);
+        int only_child = std::countr_zero(subinfo->mask);
         pending = std::move(tmp_queues[only_child]);
         ++pi;
         subinfo->mask = 0;

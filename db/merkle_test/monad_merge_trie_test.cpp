@@ -77,11 +77,11 @@ static merkle_node_t *batch_upsert_commit(
     tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
              ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
 
-    trie_data_t root_data;
+    unsigned char root_data[32];
     trie.root_hash((unsigned char *)&root_data);
 
     fprintf(stdout, "root->data after precommit: ");
-    __print_char_arr_in_hex((char *)root_data.bytes, 32);
+    __print_char_arr_in_hex((char *)root_data, 32);
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
@@ -101,7 +101,6 @@ void prepare_keccak(
     size_t nkeys, unsigned char *const keccak_keys,
     unsigned char *const keccak_values, size_t idx_offset, size_t offset)
 {
-    union ethash_hash256 hash;
     size_t key;
     size_t val;
 
@@ -109,11 +108,11 @@ void prepare_keccak(
     for (size_t i = idx_offset; i < idx_offset + nkeys; ++i) {
         // assign keccak256 on i to key
         key = i + offset;
-        hash = ethash_keccak256((const uint8_t *)&key, 8);
-        std::memcpy(keccak_keys + i * 32, hash.str, 32);
+        auto hash = ethash::keccak256((const uint8_t *)&key, 8);
+        std::memcpy(keccak_keys + i * 32, hash.bytes, 32);
 
         val = key * 2;
-        hash = ethash_keccak256((const uint8_t *)&val, 8);
+        hash = ethash::keccak256((const uint8_t *)&val, 8);
         std::memcpy(keccak_values + i * 32, hash.str, 32);
     }
 }
@@ -170,14 +169,14 @@ int main(int argc, char *argv[])
         // blocking get_root
         root = read_node(trans.get_fd(), trie_info->root_off);
 
-        trie_data_t root_data;
+        unsigned char root_data[32];
         encode_branch(root, (unsigned char *)&root_data);
         fprintf(
             stdout,
             "version %lu, root_off %lu, root->data after precommit: ",
             trie_info->vid,
             trie_info->root_off);
-        __print_char_arr_in_hex((char *)root_data.bytes, 32);
+        __print_char_arr_in_hex((char *)root_data, 32);
         ++vid;
     }
     else {

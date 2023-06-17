@@ -32,7 +32,6 @@ add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/tr.hpp 
-    ${PROJECT_SOURCE_DIR}/include/monad/trie/data.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp

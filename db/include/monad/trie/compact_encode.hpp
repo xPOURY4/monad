@@ -17,12 +17,11 @@ MONAD_TRIE_NAMESPACE_BEGIN
  * @param terminating: if path[ei] is the end
  */
 constexpr byte_string_view compact_encode(
-    unsigned char const *path, uint8_t si, uint8_t ei, bool terminating)
+    unsigned char *const res, unsigned char const *const path, uint8_t si,
+    uint8_t ei, bool terminating)
 {
     assert(ei > si);
     unsigned ci = si, path_len = ei - si;
-    unsigned char *res =
-        static_cast<unsigned char *>(std::malloc(path_len / 2 + 1));
     const bool odd = (path_len & 1u) != 0;
     res[0] = terminating ? 0x20 : 0x00;
 

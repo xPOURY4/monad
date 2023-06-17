@@ -79,8 +79,7 @@ void set_child_path_n_len(
     unsigned char const *const path, uint8_t const path_len)
 {
     parent->children[child_idx].path_len = path_len;
-    __builtin_memcpy(
-        parent->children[child_idx].path, path, (path_len + 1) / 2);
+    std::memcpy(parent->children[child_idx].path, path, (path_len + 1) / 2);
 }
 
 void build_new_trie(
@@ -90,10 +89,7 @@ void build_new_trie(
     SubRequestInfo nextlevel;
     if (updates->is_leaf()) {
         set_child_path_n_len(parent, arr_idx, updates->get_path(), 64);
-        parent->children[arr_idx].data =
-            static_cast<unsigned char *>(std::malloc(32));
-        encode_leaf(
-            parent, arr_idx, updates->get_only_leaf().opt.value().val.data());
+        encode_leaf(parent, arr_idx, updates->get_only_leaf().opt.value().val);
         parent->children[arr_idx].next = nullptr;
         Request::pool.destroy(updates);
     }
@@ -154,8 +150,10 @@ merkle_node_t *do_update(
                 merkle_child_info_t *prev_child =
                     &prev_root->children[merkle_child_index(prev_root, i)];
                 new_root->children[child_idx] = *prev_child;
+                // only 1 ref per node for now
                 prev_child->next = nullptr;
                 prev_child->data = nullptr;
+                prev_child->data_len = 0;
                 --curr_tnode->npending;
             }
             ++child_idx;
@@ -211,13 +209,16 @@ void update_trie(
                 assert(prev_parent->children[prev_child_i].data);
                 new_parent->children[new_branch_arr_i].data =
                     prev_parent->children[prev_child_i].data;
+                new_parent->children[new_branch_arr_i].data_len =
+                    prev_parent->children[prev_child_i].data_len;
                 prev_parent->children[prev_child_i].data = nullptr;
+                prev_parent->children[prev_child_i].data_len = 0;
                 set_child_path_n_len(
                     new_parent, new_branch_arr_i, prev_path, prev_path_len);
                 encode_leaf(
                     new_parent,
                     new_branch_arr_i,
-                    updates->get_only_leaf().opt.value().val.data());
+                    updates->get_only_leaf().opt.value().val);
             }
             --parent_tnode->npending;
             Request::pool.destroy(updates);

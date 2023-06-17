@@ -1,5 +1,7 @@
 #pragma once
 
+#include <monad/core/assert.h>
+
 #include <monad/trie/encode_node.hpp>
 #include <monad/trie/node.hpp>
 
@@ -57,22 +59,21 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
         }
         if (node->children[i].data) {
             assert(
-                node->children[i].path_len - node->path_len > 1 ||
+                partial_path_len(node, i) > 1 ||
                 node->children[i].path_len == 64);
-
-            total += 32;
+            total += node->children[i].data_len + 1;
         }
         total += (node->children[i].path_len + 1) / 2 - node->path_len / 2;
     }
     return SIZE_OF_SUBNODE_BITMASK + total +
            merkle_child_count_valid(node) *
-               (SIZE_OF_TRIE_DATA + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
+               (SIZE_OF_NODE_REF + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
 }
 
 static inline merkle_node_t *
 get_new_merkle_node(uint16_t const mask, unsigned char path_len)
 {
-    uint8_t const nsubnodes = __builtin_popcount(mask);
+    uint8_t const nsubnodes = std::popcount(mask);
     size_t const size = get_merkle_node_size(nsubnodes);
     auto const new_branch = static_cast<merkle_node_t *>(calloc(1, size));
     new_branch->nsubnodes = nsubnodes;

@@ -2,6 +2,8 @@
 
 #include <monad/trie/config.hpp>
 
+#include <bit>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 #define PAGE_SIZE 4096
@@ -21,7 +23,7 @@ constexpr T round_down_4k(T const x)
 static constexpr unsigned child_index(uint16_t const mask, unsigned const i)
 {
     uint16_t const filter = UINT16_MAX >> (16 - i);
-    return __builtin_popcount(mask & filter);
+    return std::popcount(static_cast<uint16_t>(mask & filter));
 }
 
 MONAD_TRIE_NAMESPACE_END

@@ -3,6 +3,7 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
+// TODO: store leaf data separate from its parent.
 void serialize_node_to_buffer(
     unsigned char *write_pos, merkle_node_t const *const node)
 {
@@ -17,15 +18,19 @@ void serialize_node_to_buffer(
         *(int64_t *)write_pos = node->children[i].fnext;
         write_pos += SIZE_OF_FILE_OFFSET;
         std::memcpy(write_pos, &(node->children[i].noderef), 32);
-        write_pos += SIZE_OF_TRIE_DATA;
+        write_pos += SIZE_OF_NODE_REF;
 
         *write_pos = node->children[i].path_len;
         write_pos += SIZE_OF_PATH_LEN;
 
         if (node->children[i].data) {
-            MONAD_ASSERT(node->children[i].path_len - node->path_len > 1);
-            std::memcpy(write_pos, node->children[i].data, SIZE_OF_TRIE_DATA);
-            write_pos += SIZE_OF_TRIE_DATA;
+            MONAD_ASSERT(partial_path_len(node, i));
+            *write_pos = node->children[i].data_len;
+            MONAD_ASSERT(*write_pos == 32);
+            write_pos += SIZE_OF_DATA_LEN;
+            std::memcpy(
+                write_pos, node->children[i].data, node->children[i].data_len);
+            write_pos += node->children[i].data_len;
         }
         size_t const path_len_bytes =
             (node->children[i].path_len + 1) / 2 - node->path_len / 2;
@@ -50,16 +55,20 @@ merkle_node_t *deserialize_node_from_buffer(
         read_pos += SIZE_OF_FILE_OFFSET;
 
         std::memcpy(&(node->children[i].noderef), read_pos, 32);
-        read_pos += SIZE_OF_TRIE_DATA;
+        read_pos += SIZE_OF_NODE_REF;
 
         node->children[i].path_len = *read_pos;
         read_pos += SIZE_OF_PATH_LEN;
 
-        if (node->children[i].path_len - node->path_len > 1) {
-            node->children[i].data =
-                static_cast<unsigned char *>(std::malloc(SIZE_OF_TRIE_DATA));
-            std::memcpy(node->children[i].data, read_pos, SIZE_OF_TRIE_DATA);
-            read_pos += SIZE_OF_TRIE_DATA;
+        if (partial_path_len(node, i)) {
+            node->children[i].data_len = *read_pos;
+            MONAD_ASSERT(node->children[i].data_len == 32);
+            read_pos += SIZE_OF_DATA_LEN;
+            node->children[i].data = static_cast<unsigned char *>(
+                std::malloc(node->children[i].data_len));
+            std::memcpy(
+                node->children[i].data, read_pos, node->children[i].data_len);
+            read_pos += node->children[i].data_len;
         }
         // read relative path from disk
         unsigned const path_len_bytes =
@@ -96,41 +105,39 @@ void assign_prev_child_to_new(
     *new_child = *prev_child;
     prev_child->data = nullptr;
     prev_child->next = nullptr;
+    MONAD_ASSERT(prev_parent->path_len <= new_parent->path_len);
     if (prev_parent->path_len < new_parent->path_len) {
-        assert(prev_child->path_len - prev_parent->path_len > 1);
-        if (new_child->path_len - new_parent->path_len == 1) {
-            // prev_child is ext node, new_child is branch
-            std::memcpy(&new_child->noderef, new_child->data, 32);
+        assert(partial_path_len(prev_parent, prev_child_i));
+        if (!partial_path_len(new_parent, new_child_i)) {
+            // prev_child is ext node, new_child is branch (not leaf)
+            MONAD_ASSERT(new_child->path_len < 64);
+            std::memcpy(
+                &new_child->noderef, new_child->data, new_child->data_len);
             free(new_child->data);
             new_child->data = nullptr;
-            return;
+            new_child->data_len = 0;
+        }
+        else {
+            unsigned char relpath[33];
+            encode_two_piece(
+                compact_encode(
+                    relpath,
+                    new_child->path,
+                    new_parent->path_len + 1,
+                    new_child->path_len,
+                    new_child->path_len == 64),
+                byte_string_view{new_child->data, new_child->data_len},
+                new_child->noderef);
         }
     }
-    else if (prev_parent->path_len > new_parent->path_len) {
-        if (prev_child->path_len - prev_parent->path_len == 1) {
-            // prev_child is branch, new_child is ext
-            assert(new_child->data == nullptr);
-            new_child->data = static_cast<unsigned char *>(std::malloc(32));
-            std::memcpy(new_child->data, &prev_child->noderef, 32);
-        }
-    }
-    else {
-        return;
-    }
-    hash_two_piece(
-        new_child->path,
-        new_parent->path_len + 1,
-        new_child->path_len,
-        new_child->path_len == 64,
-        new_child->data,
-        reinterpret_cast<unsigned char *>(&new_child->noderef));
 }
 
 void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
 {
-    merkle_node_t *midnode = parent->children[child_idx].next;
+    merkle_child_info_t *child = &parent->children[child_idx];
+    merkle_node_t *midnode = child->next;
     uint8_t only_child_i =
-        merkle_child_index(midnode, __builtin_ctz(midnode->valid_mask));
+        merkle_child_index(midnode, std::countr_zero(midnode->valid_mask));
     unsigned mid_path_len = midnode->path_len;
     std::memcpy(
         &parent->children[child_idx],
@@ -141,40 +148,36 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
         midnode->children[only_child_i].data = nullptr;
     }
     else {
-        assert(midnode->path_len + 1 == parent->children[child_idx].path_len);
-        parent->children[child_idx].data =
-            static_cast<unsigned char *>(std::malloc(32));
-        std::memcpy(
-            parent->children[child_idx].data,
-            &parent->children[child_idx].noderef,
-            32);
+        assert(midnode->path_len + 1 == child->path_len);
+        child->data = static_cast<unsigned char *>(std::malloc(32));
+        std::memcpy(child->data, &child->noderef, 32);
+        child->data_len = 32;
     }
 
     std::memcpy(
-        parent->children[child_idx].path + (mid_path_len + 1) / 2,
+        child->path + (mid_path_len + 1) / 2,
         midnode->children[only_child_i].path + (mid_path_len + 1) / 2,
         (midnode->children[only_child_i].path_len + 1) / 2 -
             (mid_path_len + 1) / 2);
     if (mid_path_len % 2) { // odd path_len
         set_nibble(
-            parent->children[child_idx].path,
+            child->path,
             mid_path_len,
             get_nibble(midnode->children[only_child_i].path, mid_path_len));
     }
     // TODO: can optimize it: only recompute once
-    hash_two_piece(
-        parent->children[child_idx].path,
-        parent->path_len + 1,
-        parent->children[child_idx].path_len,
-        parent->children[child_idx].path_len == 64,
-        parent->children[child_idx].data,
-        (unsigned char *)&parent->children[child_idx].noderef);
-    assert(
-        parent->children[child_idx].fnext ||
-        parent->children[child_idx].path_len == 64);
-    assert(
-        (parent->children[child_idx].next != nullptr) !=
-        parent->children[child_idx].path_len >= CACHE_LEVELS);
+    unsigned char relpath[33];
+    encode_two_piece(
+        compact_encode(
+            relpath,
+            child->path,
+            parent->path_len + 1,
+            child->path_len,
+            child->path_len == 64),
+        byte_string_view{child->data, child->data_len},
+        (unsigned char *)&child->noderef);
+    assert(child->fnext || child->path_len == 64);
+    assert((child->next != nullptr) != (child->path_len >= CACHE_LEVELS));
     free_node(midnode);
 }
 

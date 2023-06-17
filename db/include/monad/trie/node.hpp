@@ -1,10 +1,8 @@
 #pragma once
 
-#include <monad/trie/constants.hpp>
-#include <monad/trie/data.hpp>
-#include <monad/trie/util.hpp>
-
 #include <monad/core/assert.h>
+#include <monad/trie/constants.hpp>
+#include <monad/trie/util.hpp>
 
 #include <cstddef>
 
@@ -12,14 +10,16 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 struct merkle_node_t;
 
+// maintain lifetime of data_view.data()
 struct merkle_child_info_t
 {
-    trie_data_t noderef;
-    int64_t fnext; // later change to off48_t
+    unsigned char noderef[32];
+    int64_t fnext; // TODO: change to off48_t
     merkle_node_t *next;
     unsigned char *data;
+    unsigned char data_len;
     unsigned char path_len;
-    char pad[7];
+    char pad[6];
     unsigned char path[32];
 };
 
@@ -73,7 +73,7 @@ static inline bool merkle_child_none(merkle_node_t const *const node)
 static inline unsigned merkle_child_count(merkle_node_t const *const node)
 {
     uint16_t const mask = merkle_child_mask(node);
-    return __builtin_popcount(mask);
+    return std::popcount(mask);
 }
 
 static inline unsigned
@@ -84,12 +84,18 @@ merkle_child_index(merkle_node_t const *const node, unsigned const i)
 
 static inline unsigned merkle_child_count_tomb(merkle_node_t const *const node)
 {
-    return node->nsubnodes - __builtin_popcount(node->valid_mask);
+    return node->nsubnodes - std::popcount(node->valid_mask);
 }
 
 static inline unsigned merkle_child_count_valid(merkle_node_t const *const node)
 {
-    return __builtin_popcount(node->valid_mask);
+    return std::popcount(node->valid_mask);
+}
+
+static inline unsigned char
+partial_path_len(merkle_node_t const *const parent, unsigned const i)
+{
+    return parent->children[i].path_len - parent->path_len - 1;
 }
 
 MONAD_TRIE_NAMESPACE_END
