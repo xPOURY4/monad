@@ -6,6 +6,9 @@ project(monad_core)
 ### deps
 ############
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(mimalloc REQUIRED IMPORTED_TARGET mimalloc)
+
 function(monad_compile_options target)
     set_property(TARGET ${target} PROPERTY C_STANDARD 23)
     set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
@@ -44,8 +47,10 @@ add_library(monad_core STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
     ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/mem/mem_map.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mem/pool_allocator.hpp
     ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/mem/mem_map.cpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mem/pool_allocator.cpp
     # rlp
     ${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp
@@ -54,6 +59,7 @@ target_include_directories(monad_core
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 monad_compile_options(monad_core)
+target_link_libraries(monad_core mimalloc)
 
 add_library(monad_core_disas SHARED
     ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp

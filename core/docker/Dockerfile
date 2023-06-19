@@ -20,11 +20,14 @@ RUN yum -y install \
 RUN yum -y install \
   gtest \
   liburing \
-  liburing-debuginfo
+  liburing-debuginfo \
+  mimalloc \
+  mimalloc-debuginfo
 
 RUN yum -y install \
   gtest-devel \
-  liburing-devel
+  liburing-devel \
+  mimalloc-devel
 
 RUN yum -y install \
   gdb \
