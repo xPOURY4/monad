@@ -4,8 +4,8 @@
 
 MONAD_NAMESPACE_BEGIN
 
-PoolAllocator::PoolAllocator()
-    : heap_{mi_heap_get_default()}
+PoolAllocator::PoolAllocator(mi_heap_t *const heap)
+    : heap_{heap ? heap : mi_heap_get_default()}
 {
 }
 
