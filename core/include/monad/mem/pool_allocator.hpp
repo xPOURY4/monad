@@ -4,7 +4,7 @@
 
 #include <cstddef>
 
-#include <mimalloc.h>
+typedef struct mi_heap_s mi_heap_t;
 
 MONAD_NAMESPACE_BEGIN
 
@@ -21,20 +21,9 @@ public:
 
     PoolAllocator();
 
-    [[gnu::always_inline]] mi_heap_t *get_heap() const
-    {
-        return heap_;
-    }
+    char *malloc(size_type);
 
-    [[gnu::always_inline]] char *malloc(size_type const size)
-    {
-        return static_cast<char *>(mi_heap_malloc(heap_, size));
-    }
-
-    [[gnu::always_inline]] static void free(char *const p)
-    {
-        mi_free(p);
-    }
+    static void free(char *);
 };
 
 MONAD_NAMESPACE_END
