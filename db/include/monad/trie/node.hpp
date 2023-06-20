@@ -11,7 +11,6 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 struct merkle_node_t;
 
-// maintain lifetime of data_view.data()
 struct merkle_child_info_t
 {
     typedef uint8_t data_len_t;

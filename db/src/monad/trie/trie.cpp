@@ -6,7 +6,34 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
+void update_callback(void *user_data)
+{
+    // construct the node from the read buffer
+    update_uring_data_t *data = (update_uring_data_t *)user_data;
+    merkle_node_t *node = deserialize_node_from_buffer(
+        data->buffer + data->buffer_off,
+        data->updates->prev_parent->children[data->updates->prev_child_i]
+            .path_len);
+    assert(node->nsubnodes > 1);
+    assert(node->mask);
+
+    data->updates->prev_parent->children[data->updates->prev_child_i].next =
+        node;
+    data->trie->get_io().release_read_buffer(data->buffer);
+
+    // callback to update_trie() from where that request left out
+    data->trie->update_trie(
+        data->updates,
+        data->pi,
+        data->new_parent,
+        data->new_child_ni,
+        data->parent_tnode);
+    // upward update parent until parent has more than one valid subnodes
+    data->trie->upward_update_data(data->parent_tnode);
+    update_uring_data_t::pool.destroy(data);
+}
+
+void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
 {
     if (!curr_tnode) {
         return;
@@ -31,9 +58,9 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
             // ready to sum for curr->node and update data in parent
             encode_branch_extension(parent, curr_tnode->child_idx);
             parent->children[curr_tnode->child_idx].fnext =
-                io.async_write_node(curr_tnode->node);
+                io_.async_write_node(curr_tnode->node);
             if (parent->children[curr_tnode->child_idx].path_len >=
-                CACHE_LEVELS) {
+                cache_levels_) {
                 free_node(curr);
                 parent->children[child_idx].next = nullptr;
             }
@@ -45,34 +72,6 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
     }
 }
 
-void update_callback(void *user_data, AsyncIO &io)
-{
-    // construct the node from the read buffer
-    update_uring_data_t *data = (update_uring_data_t *)user_data;
-    merkle_node_t *node = deserialize_node_from_buffer(
-        data->buffer + data->buffer_off,
-        data->updates->prev_parent->children[data->updates->prev_child_i]
-            .path_len);
-    assert(node->nsubnodes > 1);
-    assert(node->mask);
-
-    data->updates->prev_parent->children[data->updates->prev_child_i].next =
-        node;
-    io.release_read_buffer(data->buffer);
-
-    // callback to update_trie() from where that request left out
-    update_trie(
-        data->updates,
-        data->pi,
-        data->new_parent,
-        data->new_child_ni,
-        data->parent_tnode,
-        io);
-    // upward update parent until parent has more than one valid subnodes
-    upward_update_data(data->parent_tnode, io);
-    update_uring_data_t::pool.destroy(data);
-}
-
 // set path and path len
 void set_child_path_n_len(
     merkle_node_t *const parent, uint8_t const child_idx,
@@ -82,9 +81,8 @@ void set_child_path_n_len(
     std::memcpy(parent->children[child_idx].path, path, (path_len + 1) / 2);
 }
 
-void build_new_trie(
-    merkle_node_t *const parent, uint8_t const arr_idx, Request *updates,
-    AsyncIO &io)
+void MerkleTrie::build_new_trie(
+    merkle_node_t *const parent, uint8_t const arr_idx, Request *updates)
 {
     SubRequestInfo nextlevel;
     if (updates->is_leaf()) {
@@ -104,14 +102,14 @@ void build_new_trie(
             get_new_merkle_node(nextlevel.mask, nextlevel.path_len);
         for (int i = 0, child_idx = 0; i < 16; ++i) {
             if (nextlevel.mask & 1u << i) {
-                build_new_trie(new_node, child_idx++, nextlevel[i], io);
+                build_new_trie(new_node, child_idx++, nextlevel[i]);
             }
         }
         // hash node and write to disk
         parent->children[arr_idx].next = new_node;
         encode_branch_extension(parent, arr_idx);
-        parent->children[arr_idx].fnext = io.async_write_node(new_node);
-        if (parent->children[arr_idx].path_len >= CACHE_LEVELS) {
+        parent->children[arr_idx].fnext = io_.async_write_node(new_node);
+        if (parent->children[arr_idx].path_len >= cache_levels_) {
             free_node(parent->children[arr_idx].next);
             parent->children[arr_idx].next = nullptr;
         }
@@ -119,9 +117,9 @@ void build_new_trie(
 }
 
 // @param nextlevel: all updates pending on different children of prev_root
-merkle_node_t *do_update(
+merkle_node_t *MerkleTrie::do_update(
     merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
-    tnode_t *const curr_tnode, AsyncIO &io, unsigned char const pi)
+    tnode_t *const curr_tnode, unsigned char const pi)
 {
     // both prev_root and requests are branching out at pi
     MONAD_ASSERT(pi == prev_root->path_len);
@@ -143,8 +141,7 @@ merkle_node_t *do_update(
                     pi + 1,
                     new_root,
                     i,
-                    curr_tnode,
-                    io); // repsonsible to delete updates[i]
+                    curr_tnode); // repsonsible to delete updates[i]
             }
             else { // prev has branches, tmp do not
                 merkle_child_info_t *prev_child =
@@ -163,8 +160,7 @@ merkle_node_t *do_update(
             build_new_trie(
                 new_root,
                 child_idx++,
-                nextlevel[i],
-                io); // responsible to free nextlevel[i]
+                nextlevel[i]); // responsible to free nextlevel[i]
             --curr_tnode->npending;
         }
     }
@@ -176,9 +172,9 @@ merkle_node_t *do_update(
  * @param prev_parent/prev_child_i: the prev node we are comparing at with
  * updates->pi is the path_len that has matched, also the next pi to check
  */
-void update_trie(
+void MerkleTrie::update_trie(
     Request *updates, unsigned char pi, merkle_node_t *const new_parent,
-    uint8_t const new_child_ni, tnode_t *parent_tnode, AsyncIO &io)
+    uint8_t const new_child_ni, tnode_t *parent_tnode)
 {
     merkle_node_t *const prev_parent = updates->prev_parent;
     uint8_t const prev_child_i = updates->prev_child_i;
@@ -231,9 +227,9 @@ void update_trie(
             if (!prev_node) {
                 updates->prev_parent = prev_parent;
                 updates->prev_child_i = prev_child_i;
-                io.async_read_request<update_uring_data_t>(
-                    get_update_uring_data(
-                        updates, pi, new_parent, new_child_ni, parent_tnode));
+                io_.async_read_request<
+                    update_uring_data_t>(get_update_uring_data(
+                    updates, pi, new_parent, new_child_ni, parent_tnode, this));
                 return;
             }
             // compare pending updates, and if possible, split at pi
@@ -260,8 +256,7 @@ void update_trie(
                         pi + 1,
                         new_branch,
                         next_nibble,
-                        branch_tnode.get(),
-                        io); // responsible for deleting updates
+                        branch_tnode.get()); // responsible for deleting updates
                 }
                 else { // prev is shorter, no more matched next for prev trie
                     // branch out for both prev trie and tmp trie
@@ -279,7 +274,7 @@ void update_trie(
                             }
                             else {
                                 build_new_trie(
-                                    new_branch, child_idx++, updates, io);
+                                    new_branch, child_idx++, updates);
                             }
                         }
                     }
@@ -290,7 +285,7 @@ void update_trie(
                 branch_tnode = get_new_tnode(
                     parent_tnode, new_child_ni, new_branch_arr_i, new_branch);
                 new_branch =
-                    do_update(prev_node, nextlevel, branch_tnode.get(), io, pi);
+                    do_update(prev_node, nextlevel, branch_tnode.get(), pi);
             }
             break;
         }
@@ -317,7 +312,7 @@ void update_trie(
                     if (new_branch->mask & 1u << i) {
                         if (i != next_nibble) {
                             build_new_trie(
-                                new_branch, child_idx++, nextlevel[i], io);
+                                new_branch, child_idx++, nextlevel[i]);
                         }
                         else {
                             if (has_ni_branch) {
@@ -333,8 +328,7 @@ void update_trie(
                                     pi + 1,
                                     new_branch,
                                     next_nibble,
-                                    branch_tnode.get(),
-                                    io);
+                                    branch_tnode.get());
                                 ++child_idx;
                             }
                             else {
@@ -374,7 +368,7 @@ void update_trie(
             assign_prev_child_to_new(
                 prev_parent, prev_child_i, new_branch, prev_idx);
             // new_branch -> tmp_nibble
-            build_new_trie(new_branch, !prev_idx, updates, io);
+            build_new_trie(new_branch, !prev_idx, updates);
             break;
         }
     }
@@ -403,9 +397,9 @@ void update_trie(
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
             new_parent->children[new_branch_arr_i].fnext =
-                io.async_write_node(new_branch);
+                io_.async_write_node(new_branch);
             if (new_parent->children[new_branch_arr_i].path_len >=
-                CACHE_LEVELS) {
+                cache_levels_) {
                 free_node(new_branch);
                 new_parent->children[new_branch_arr_i].next = nullptr;
             }

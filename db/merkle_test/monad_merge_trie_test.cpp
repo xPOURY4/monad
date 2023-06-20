@@ -75,8 +75,8 @@ static merkle_node_t *batch_upsert_commit(
 
     auto ts_before = std::chrono::steady_clock::now();
 
-    MerkleTrie trie;
-    trie.process_updates(block_id, updates, prev_root, io, index);
+    MerkleTrie trie(io);
+    trie.process_updates(block_id, updates, prev_root, index);
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(

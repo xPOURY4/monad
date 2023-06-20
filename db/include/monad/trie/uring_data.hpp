@@ -3,20 +3,22 @@
 #include <monad/trie/config.hpp>
 #include <monad/trie/util.hpp>
 
+#include <monad/trie/node.hpp>
 #include <monad/trie/request.hpp>
 
 #include <boost/pool/object_pool.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-struct merkle_node_t;
 struct tnode_t;
+class MerkleTrie;
 enum class uring_data_type_t : unsigned char;
 
 struct update_uring_data_t
 {
     uring_data_type_t rw_flag;
     char pad[7];
+    MerkleTrie *trie;
     // read buffer
     unsigned char *buffer;
     int64_t offset;
@@ -29,12 +31,12 @@ struct update_uring_data_t
     static inline boost::object_pool<update_uring_data_t> pool{};
 };
 
-static_assert(sizeof(update_uring_data_t) == 56);
+static_assert(sizeof(update_uring_data_t) == 64);
 static_assert(alignof(update_uring_data_t) == 8);
 
 inline update_uring_data_t *get_update_uring_data(
-    Request *updates, unsigned char pi, merkle_node_t *const new_parent,
-    uint8_t const new_child_ni, tnode_t *parent_tnode)
+    Request *const updates, unsigned char pi, merkle_node_t *const new_parent,
+    uint8_t const new_child_ni, tnode_t *parent_tnode, MerkleTrie *trie)
 {
     update_uring_data_t *user_data = update_uring_data_t::pool.malloc();
 
@@ -47,6 +49,7 @@ inline update_uring_data_t *get_update_uring_data(
     update_uring_data_t tmp_data{
         .rw_flag = uring_data_type_t::IS_READ,
         .pad = {},
+        .trie = trie,
         .buffer = 0,
         .offset = offset,
         .updates = updates,

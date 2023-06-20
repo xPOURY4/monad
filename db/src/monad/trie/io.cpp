@@ -79,7 +79,7 @@ void AsyncIO::poll_uring()
             reinterpret_cast<write_uring_data_t *>(data));
     }
     else {
-        readcb_(data, *this);
+        readcb_(data);
     }
 }
 

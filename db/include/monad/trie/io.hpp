@@ -46,7 +46,7 @@ class AsyncIO final
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
     monad::io::BufferPool wr_pool_;
-    std::function<void(void *, AsyncIO &)> readcb_;
+    std::function<void(void *)> readcb_;
 
     unsigned char *write_buffer_;
     size_t buffer_idx_;
@@ -66,7 +66,7 @@ class AsyncIO final
 public:
     AsyncIO(
         monad::io::Ring &ring, monad::io::Buffers &rwbuf, uint64_t block_off,
-        std::function<void(void *, AsyncIO &)> readcb)
+        std::function<void(void *)> readcb)
         : uring_(ring)
         , rwbuf_(rwbuf)
         , rd_pool_(monad::io::BufferPool(rwbuf, true))

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstddef>
-
 #include <monad/trie/config.hpp>
 
 #include <monad/trie/index.hpp>
@@ -14,30 +12,35 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-void update_callback(void *user_data, AsyncIO &io);
-
-merkle_node_t *do_update(
-    merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
-    tnode_t *curr_tnode, AsyncIO &io, unsigned char const pi = 0);
-
-void update_trie(
-    Request *const updates, unsigned char pi, merkle_node_t *const new_parent,
-    uint8_t const new_child_ni, tnode_t *parent_tnode, AsyncIO &io);
-
-void build_new_trie(
-    merkle_node_t *const parent, uint8_t const arr_idx, Request *updates,
-    AsyncIO &io);
+void update_callback(void *user_data);
 
 class MerkleTrie final
 {
     merkle_node_t *root_;
     tnode_t::unique_ptr_type root_tnode_;
+    AsyncIO &io_;
+    const int cache_levels_;
 
 public:
-    constexpr MerkleTrie()
+    merkle_node_t *do_update(
+        merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
+        tnode_t *curr_tnode, unsigned char const pi = 0);
+
+    void update_trie(
+        Request *const updates, unsigned char pi,
+        merkle_node_t *const new_parent, uint8_t const new_child_ni,
+        tnode_t *parent_tnode);
+
+    void build_new_trie(
+        merkle_node_t *const parent, uint8_t const arr_idx, Request *updates);
+
+    void upward_update_data(tnode_t *curr_tnode);
+
+    MerkleTrie(AsyncIO &io, int cache_levels = 5)
         : root_(nullptr)
-    {
-    }
+        , root_tnode_(nullptr)
+        , io_(io)
+        , cache_levels_(cache_levels){};
 
     ~MerkleTrie()
     {
@@ -46,18 +49,18 @@ public:
 
     void process_updates(
         uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
-        AsyncIO &io, index_t &index)
+        index_t &index)
     {
         Request *updateq = Request::pool.construct(updates);
         SubRequestInfo requests;
         updateq->split_into_subqueues(&requests, /*not root*/ false);
 
         root_tnode_ = get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_update(prev_root, requests, root_tnode_.get(), io);
+        root_ = do_update(prev_root, requests, root_tnode_.get());
 
         // after update, also need to poll until no submission left in uring
         // and write record to the indexing part in the beginning of file
-        int64_t root_off = io.flush(root_);
+        int64_t root_off = io_.flush(root_);
         index.write_record(vid, root_off);
     }
 
@@ -70,9 +73,14 @@ public:
     {
         return root_;
     }
+
+    constexpr AsyncIO &get_io()
+    {
+        return io_;
+    }
 };
 
-static_assert(sizeof(MerkleTrie) == 16);
+static_assert(sizeof(MerkleTrie) == 32);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
