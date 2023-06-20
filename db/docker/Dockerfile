@@ -21,14 +21,17 @@ RUN yum -y install \
   google-benchmark \
   gtest \
   liburing \
-  liburing-debuginfo
+  liburing-debuginfo \
+  mimalloc \
+  mimalloc-debuginfo
 
 RUN yum -y install \
   boost-devel \
   cli11-devel \
   google-benchmark-devel \
   gtest-devel \
-  liburing-devel
+  liburing-devel \
+  mimalloc-devel
 
 RUN yum -y install \
   gdb \

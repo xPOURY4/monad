@@ -16,8 +16,10 @@ add_subdirectory(monad-core)
 ############
 add_library(monad_trie STATIC
     ${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp
+    ${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp
     ${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp
+    ${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp
     ${PROJECT_SOURCE_DIR}/src/monad/mpt/update.cpp
 
     ${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp
