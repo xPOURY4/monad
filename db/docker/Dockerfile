@@ -41,7 +41,8 @@ COPY . src
 
 ARG CC
 ARG CXX
+ARG CMAKE_BUILD_TYPE
 
-RUN cd src && CC=${CC} CXX=${CXX} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ./monad-core/scripts/configure.sh
+RUN cd src && CC=${CC} CXX=${CXX} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ./monad-core/scripts/configure.sh
 
 RUN cd src && ./monad-core/scripts/build.sh
