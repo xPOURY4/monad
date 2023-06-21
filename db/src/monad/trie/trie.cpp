@@ -97,7 +97,7 @@ void MerkleTrie::build_new_trie(
         // copy path, and path len
         set_child_path_n_len(
             parent, arr_idx, nextlevel.get_path(), nextlevel.path_len);
-        // copy the whole trie
+        // reconstruct the underlying trie from each nextlevel update list
         merkle_node_t *new_node =
             get_new_merkle_node(nextlevel.mask, nextlevel.path_len);
         for (int i = 0, child_idx = 0; i < 16; ++i) {
@@ -141,9 +141,9 @@ merkle_node_t *MerkleTrie::do_update(
                     pi + 1,
                     new_root,
                     i,
-                    curr_tnode); // repsonsible to delete updates[i]
+                    curr_tnode); // repsonsible to delete nextlevel[i]
             }
-            else { // prev has branches, tmp do not
+            else { // prev has branches, nextlevel does not
                 merkle_child_info_t *prev_child =
                     &prev_root->children[merkle_child_index(prev_root, i)];
                 new_root->children[child_idx] = *prev_child;
@@ -155,8 +155,9 @@ merkle_node_t *MerkleTrie::do_update(
             }
             ++child_idx;
         }
-        else if (nextlevel.mask & 1u << i) { // prev no branch, tmp has
-            // this case must be account creation
+        else if (nextlevel.mask & 1u << i) {
+            // prev has no branch, nextlevel does
+            // this case must be account creation (not deletion)
             build_new_trie(
                 new_root,
                 child_idx++,
@@ -192,7 +193,7 @@ void MerkleTrie::update_trie(
     unsigned char next_nibble;
     SubRequestInfo nextlevel;
 
-    // pi: is the next path nibble id we're checking on
+    // pi: is the next nibble idx in path that we're checking on
     while (1) {
         if (pi == 64) { // all previous nibbles matched and reach the leaf
             assert(updates->is_leaf());
@@ -222,8 +223,9 @@ void MerkleTrie::update_trie(
         }
         // if min_path_len == pi, all nibbles in prev_nodes are matched
         if (pi == prev_path_len) {
-            // case 1. prev_path_len <= request path len
-            // go down to next level prev_node by a read request if not leaf
+            // case 1. prev_path_len <= request path len, prev_node is not leaf
+            // go down next level in prev trie along the next nibble in read
+            // request
             if (!prev_node) {
                 updates->prev_parent = prev_parent;
                 updates->prev_child_i = prev_child_i;
@@ -238,7 +240,7 @@ void MerkleTrie::update_trie(
                 next_nibble = get_nibble(updates->get_path(), pi);
                 if (prev_node->valid_mask & 1u << next_nibble) {
                     // same branch out at pi in new trie as in prev trie, except
-                    // for next_nibble should be left open for next level merge
+                    // for next_nibble should be left empty for next level merge
                     new_branch =
                         copy_merkle_node_except(prev_node, next_nibble);
                     branch_tnode = get_new_tnode(
@@ -258,8 +260,8 @@ void MerkleTrie::update_trie(
                         next_nibble,
                         branch_tnode.get()); // responsible for deleting updates
                 }
-                else { // prev is shorter, no more matched next for prev trie
-                    // branch out for both prev trie and tmp trie
+                else { // prev is shorter, no matched branch for prev trie
+                    // branch out for both prev trie and updates
                     // create a new branch for the new trie
                     new_branch = get_new_merkle_node(
                         prev_node->valid_mask | 1u << next_nibble, pi);
@@ -281,7 +283,6 @@ void MerkleTrie::update_trie(
                 }
             }
             else { // case 1.2. if prev_path_len == updates path len
-                   // (not leaf)
                 branch_tnode = get_new_tnode(
                     parent_tnode, new_child_ni, new_branch_arr_i, new_branch);
                 new_branch =
@@ -291,7 +292,7 @@ void MerkleTrie::update_trie(
         }
         else {
             if (!(updates = updates->split_into_subqueues(&nextlevel))) {
-                // case 2. tmp_is_shorter, matched path_len is pi,
+                // case 2. updates branchs out starting from pi,
                 // prev_node could be a leaf
                 next_nibble = get_nibble(prev_path, pi);
                 bool has_ni_branch = nextlevel.mask & 1u << next_nibble;
@@ -317,7 +318,7 @@ void MerkleTrie::update_trie(
                         else {
                             if (has_ni_branch) {
                                 branch_tnode->npending = 1;
-                                // move one level down on the tmp trie under
+                                // move to next level update sublist under
                                 // next_nibble
                                 nextlevel[next_nibble]->prev_parent =
                                     prev_parent;
