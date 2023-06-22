@@ -59,6 +59,7 @@ add_library(
   # mem
   "include/monad/mem/cpool.h"
   "include/monad/mem/huge_mem.hpp"
+  "include/monad/mem/dynamic_allocator.hpp"
   "include/monad/mem/mem_map.hpp"
   "include/monad/mem/pool_allocator.hpp"
   "src/monad/mem/huge_mem.cpp"
