@@ -47,6 +47,7 @@ add_library(
   "src/monad/core/assert.c"
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
+  "src/monad/core/running_on_ci.cpp"
   # io
   "include/monad/io/buffer_pool.hpp"
   "include/monad/io/buffers.hpp"

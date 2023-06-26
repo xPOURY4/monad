@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <monad/core/running_on_ci.hpp>
 #include <monad/core/small_prng.hpp>
 #include <monad/core/unordered_map.hpp>
 
@@ -86,10 +87,10 @@ struct tag
 
 TEST(UnorderedSets, quick_comparative_benchmark)
 {
-    if (getenv("CI") != nullptr) {
+    using namespace MONAD_NAMESPACE;
+    if (running_on_ci()) {
         return;
     }
-    using namespace MONAD_NAMESPACE;
     std::vector<uint32_t> values(5000000);
     small_prng rand;
     for (auto &i : values) {

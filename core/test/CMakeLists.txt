@@ -7,5 +7,6 @@ endfunction()
 
 monad_add_test(allocators_test "allocators.cpp")
 monad_add_test(encode_test "encode_test.cpp")
+monad_add_test(hugemem_test "huge_mem.cpp")
 monad_add_test(literal_test "literal_test.cpp")
 monad_add_test(unordered_map_test "unordered_map.cpp")
