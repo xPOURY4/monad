@@ -40,12 +40,14 @@ HugeMem::HugeMem(size_t const size)
     /**
      * TODO
      * - mbind (same numa node)
-     * - mlock (no paging)
      */
+
+    MONAD_ASSERT(!mlock(data_, size_));
 }
 
 HugeMem::~HugeMem()
 {
+    MONAD_ASSERT(!munlock(data_, size_));
     MONAD_ASSERT(!munmap(data_, size_));
 }
 
