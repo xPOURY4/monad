@@ -6,8 +6,8 @@ project(monad_core)
 ### deps
 ############
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(mimalloc REQUIRED IMPORTED_TARGET mimalloc)
+include("cmake/find_dependency.cmake")
+find_dependency(mimalloc REQUIRED)
 
 function(monad_compile_options target)
     set_property(TARGET ${target} PROPERTY C_STANDARD 23)
