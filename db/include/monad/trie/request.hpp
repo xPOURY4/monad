@@ -40,7 +40,10 @@ struct Request
         return pending.front().key;
     }
 
-    [[gnu::always_inline]] constexpr uint8_t path_len() { return pi; }
+    [[gnu::always_inline]] constexpr uint8_t path_len()
+    {
+        return pi;
+    }
 
     Request *
     split_into_subqueues(SubRequestInfo *subinfo, bool not_root = true);
@@ -58,6 +61,13 @@ struct SubRequestInfo
         : mask(0)
         , subqueues(nullptr)
     {
+    }
+
+    ~SubRequestInfo()
+    {
+        if (subqueues) {
+            free(subqueues);
+        }
     }
 
     [[gnu::always_inline]] Request *operator[](int i)

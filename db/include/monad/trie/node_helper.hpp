@@ -59,8 +59,7 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
         }
         if (node->children[i].data) {
             assert(
-                partial_path_len(node, i) > 1 ||
-                node->children[i].path_len == 64);
+                partial_path_len(node, i) || node->children[i].path_len == 64);
             total += node->children[i].data_len + 1;
         }
         total += (node->children[i].path_len + 1) / 2 - node->path_len / 2;

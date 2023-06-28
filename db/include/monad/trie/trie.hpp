@@ -47,7 +47,7 @@ public:
         uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
         AsyncIO &io, Index &index)
     {
-        Request *updateq = new Request(updates);
+        Request *updateq = Request::pool.construct(updates);
         SubRequestInfo requests;
         updateq->split_into_subqueues(&requests, /*not root*/ false);
 
@@ -65,7 +65,10 @@ public:
         encode_branch(root_, hash_data);
     }
 
-    [[gnu::always_inline]] constexpr merkle_node_t *get_root() { return root_; }
+    [[gnu::always_inline]] constexpr merkle_node_t *get_root()
+    {
+        return root_;
+    }
 };
 
 static_assert(sizeof(MerkleTrie) == 16);
