@@ -7,7 +7,7 @@ extern "C"
 {
 #endif
 
-void monad_assertion_failed(
+void __attribute((noreturn)) monad_assertion_failed(
     char const *expr, char const *function, char const *file, long line);
 
 #ifdef __cplusplus
