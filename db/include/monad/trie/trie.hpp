@@ -28,19 +28,17 @@ void build_new_trie(
 class MerkleTrie final
 {
     merkle_node_t *root_;
-    tnode_t *root_tnode_;
+    tnode_t::unique_ptr_type root_tnode_;
 
 public:
-    MerkleTrie()
+    constexpr MerkleTrie()
         : root_(nullptr)
-        , root_tnode_(nullptr){};
+    {
+    }
 
     ~MerkleTrie()
     {
         MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending);
-        if (root_tnode_) {
-            tnode_t::pool.destroy(root_tnode_);
-        }
     };
 
     void process_updates(
@@ -52,7 +50,7 @@ public:
         updateq->split_into_subqueues(&requests, /*not root*/ false);
 
         root_tnode_ = get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_update(prev_root, requests, root_tnode_, io);
+        root_ = do_update(prev_root, requests, root_tnode_.get(), io);
 
         // after update, also need to poll until no submission left in uring
         // and write record to the indexing part in the beginning of file

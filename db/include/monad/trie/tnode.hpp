@@ -2,7 +2,7 @@
 
 #include <monad/trie/config.hpp>
 
-#include <boost/pool/object_pool.hpp>
+#include <monad/trie/allocators.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 // helper struct: node of a upward pointing tree
@@ -14,18 +14,28 @@ struct tnode_t
     int8_t npending;
     uint8_t child_ni;
     uint8_t child_idx;
-    static inline boost::object_pool<tnode_t> pool{};
 
-    tnode_t() = delete;
+    using allocator_type = boost_object_pool_allocator<tnode_t>;
+    static allocator_type &pool()
+    {
+        static allocator_type v;
+        return v;
+    }
+    using unique_ptr_type = std::unique_ptr<
+        tnode_t, unique_ptr_allocator_deleter<allocator_type, &tnode_t::pool>>;
+    static unique_ptr_type make()
+    {
+        return allocate_unique<allocator_type, &tnode_t::pool>();
+    }
 };
 static_assert(sizeof(tnode_t) == 24);
 static_assert(alignof(tnode_t) == 8);
 
-static inline tnode_t *get_new_tnode(
+static inline tnode_t::unique_ptr_type get_new_tnode(
     tnode_t *const parent_tnode, uint8_t new_branch_ni,
     uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
 { // no npending
-    tnode_t *const branch_tnode = tnode_t::pool.malloc();
+    auto branch_tnode = tnode_t::make();
     branch_tnode->node = new_branch;
     branch_tnode->parent = parent_tnode;
     branch_tnode->child_ni = new_branch_ni;

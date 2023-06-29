@@ -40,7 +40,7 @@ void upward_update_data(tnode_t *curr_tnode, AsyncIO &io)
         }
         --curr_tnode->parent->npending;
         tnode_t *p = curr_tnode->parent;
-        tnode_t::pool.destroy(curr_tnode);
+        tnode_t::unique_ptr_type{curr_tnode};
         curr_tnode = p;
     }
 }
@@ -192,7 +192,7 @@ void update_trie(
     unsigned char *const prev_path = prev_parent->children[prev_child_i].path;
 
     merkle_node_t *new_branch = nullptr;
-    tnode_t *branch_tnode = nullptr;
+    tnode_t::unique_ptr_type branch_tnode;
     unsigned char next_nibble;
     SubRequestInfo nextlevel;
 
@@ -260,7 +260,7 @@ void update_trie(
                         pi + 1,
                         new_branch,
                         next_nibble,
-                        branch_tnode,
+                        branch_tnode.get(),
                         io); // responsible for deleting updates
                 }
                 else { // prev is shorter, no more matched next for prev trie
@@ -290,7 +290,7 @@ void update_trie(
                 branch_tnode = get_new_tnode(
                     parent_tnode, new_child_ni, new_branch_arr_i, new_branch);
                 new_branch =
-                    do_update(prev_node, nextlevel, branch_tnode, io, pi);
+                    do_update(prev_node, nextlevel, branch_tnode.get(), io, pi);
             }
             break;
         }
@@ -333,7 +333,7 @@ void update_trie(
                                     pi + 1,
                                     new_branch,
                                     next_nibble,
-                                    branch_tnode,
+                                    branch_tnode.get(),
                                     io);
                                 ++child_idx;
                             }
@@ -385,10 +385,8 @@ void update_trie(
         new_branch->path_len = pi;
         if (branch_tnode) {
             if (branch_tnode->npending) {
+                branch_tnode.release();
                 return;
-            }
-            else {
-                tnode_t::pool.destroy(branch_tnode);
             }
         }
         // new_branch has 0 or 1 valid children
