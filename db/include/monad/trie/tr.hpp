@@ -2,6 +2,8 @@
 
 #include <monad/trie/config.hpp>
 
+#include <filesystem>
+
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -12,10 +14,10 @@ class Transaction
     int fd_;
 
 public:
-    Transaction(const char *const path)
+    Transaction(const std::filesystem::path &path)
         : fd_([&] {
             int flag = O_CREAT | O_RDWR | O_DIRECT;
-            int fd = open(path, flag, 0777); // TODO: configurable flag
+            int fd = open(path.c_str(), flag, 0777); // TODO: configurable flag
             MONAD_ASSERT(fd != -1);
             return fd;
         }())

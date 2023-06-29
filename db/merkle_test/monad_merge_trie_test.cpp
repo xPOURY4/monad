@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
+#include <iostream>
 
 #define MIN(x, y) x > y ? y : x
 #define SLICE_LEN 100000
@@ -51,9 +53,10 @@ void __print_char_arr_in_hex(char *arr, int n)
     nkeys: number of keys to insert in this batch
 */
 static merkle_node_t *batch_upsert_commit(
-    uint64_t block_id, merkle_node_t *prev_root, int64_t keccak_offset,
-    int64_t offset, int64_t nkeys, unsigned char *const keccak_keys,
-    unsigned char *const keccak_values, bool erase, AsyncIO &io, Index &index)
+    std::ostream &csv_writer, uint64_t block_id, merkle_node_t *prev_root,
+    int64_t keccak_offset, int64_t offset, int64_t nkeys,
+    unsigned char *const keccak_keys, unsigned char *const keccak_values,
+    bool erase, AsyncIO &io, Index &index)
 {
     double tm_ram;
 
@@ -93,9 +96,13 @@ static merkle_node_t *batch_upsert_commit(
         "%f /s, total_t %.4f s\n",
         offset + keccak_offset + nkeys,
         nkeys,
-        (double)nkeys * 1.001 / tm_ram,
+        (double)nkeys / tm_ram,
         tm_ram);
     fflush(stdout);
+    if (csv_writer) {
+        csv_writer << (offset + keccak_offset + nkeys) << ","
+                   << ((double)nkeys / tm_ram) << std::endl;
+    }
 
     free_trie(prev_root);
     return trie.get_root();
@@ -132,119 +139,96 @@ int main(int argc, char *argv[])
     int n_slices = 20;
     bool append = false;
     uint64_t vid = 0;
-    std::string dbname = "test.db";
+    std::filesystem::path dbname_path = "test.db", csv_stats_path;
     int64_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
     CLI::App cli{"monad_merge_trie_test"};
-    printf("main() runs on tid %ld\n", syscall(SYS_gettid));
-    cli.add_flag("--append", append, "append on a specific version in db");
-    cli.add_option("--vid", vid, "append on a specific version in db");
-    cli.add_option("--db-name", dbname, "db file name");
-    cli.add_option("--offset", offset, "integer offset to start insert");
-    cli.add_option("-n", n_slices, "n batch updates");
-    cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
-    cli.add_flag("--erase", erase, "test erase");
-    cli.parse(argc, argv);
+    try {
+        printf("main() runs on tid %ld\n", syscall(SYS_gettid));
+        cli.add_flag("--append", append, "append on a specific version in db");
+        cli.add_option("--vid", vid, "append on a specific version in db");
+        cli.add_option("--db-name", dbname_path, "db file name");
+        cli.add_option("--csv-stats", csv_stats_path, "CSV stats file name");
+        cli.add_option("--offset", offset, "integer offset to start insert");
+        cli.add_option("-n", n_slices, "n batch updates");
+        cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
+        cli.add_flag("--erase", erase, "test erase");
+        cli.parse(argc, argv);
 
-    int64_t keccak_cap = 100 * SLICE_LEN;
-    auto keccak_keys = std::make_unique<unsigned char[]>(keccak_cap * 32);
-    auto keccak_values = std::make_unique<unsigned char[]>(keccak_cap * 32);
-
-    // init uring
-    monad::io::Ring ring(128, sq_thread_cpu);
-
-    // init buffer
-    monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 13};
-
-    Transaction trans(dbname.c_str());
-
-    // init indexer
-    Index index(trans.get_fd());
-
-    // initialize root and block offset for write
-    merkle_node_t *prev_root, *root;
-    uint64_t block_off = index.get_start_offset();
-    if (append) {
-        block_trie_info *trie_info = index.get_trie_info(vid);
-        MONAD_ASSERT(trie_info->vid == vid);
-        block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
-        // blocking get_root
-        root = read_node(trans.get_fd(), trie_info->root_off);
-
-        unsigned char root_data[32];
-        encode_branch(root, (unsigned char *)&root_data);
-        fprintf(
-            stdout,
-            "version %lu, root_off %lu, root->data after precommit: ",
-            trie_info->vid,
-            trie_info->root_off);
-        __print_char_arr_in_hex((char *)root_data, 32);
-        ++vid;
-    }
-    else {
-        root = get_new_merkle_node(0, 0);
-    }
-    AsyncIO io(ring, rwbuf, block_off, &update_callback);
-
-    int fds[1] = {trans.get_fd()};
-    io.uring_register_files(fds, 1);
-
-    int64_t max_key = n_slices * SLICE_LEN + offset;
-    /* start profiling upsert and commit */
-    for (int iter = 0; iter < n_slices; ++iter) {
-        // renew keccak values
-        if (!(iter * SLICE_LEN % keccak_cap)) {
-            if (iter) {
-                offset += keccak_cap;
-            }
-            // pre-calculate keccak
-            prepare_keccak(
-                MIN(keccak_cap, max_key - offset),
-                keccak_keys.get(),
-                keccak_values.get(),
-                0,
-                offset);
-            fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
-            fflush(stdout);
+        std::ofstream csv_writer;
+        if (!csv_stats_path.empty()) {
+            csv_writer.open(csv_stats_path);
+            csv_writer.exceptions(std::ios::failbit | std::ios::badbit);
+            csv_writer << "\"Keys written\",\"Per second\"\n";
         }
 
-        prev_root = root;
-        root = batch_upsert_commit(
-            vid,
-            prev_root,
-            (iter % 100) * SLICE_LEN,
-            offset,
-            SLICE_LEN,
-            keccak_keys.get(),
-            keccak_values.get(),
-            false,
-            io,
-            index);
+        int64_t keccak_cap = 100 * SLICE_LEN;
+        auto keccak_keys = std::make_unique<unsigned char[]>(keccak_cap * 32);
+        auto keccak_values = std::make_unique<unsigned char[]>(keccak_cap * 32);
 
-        ++vid;
+        // init uring
+        monad::io::Ring ring(128, sq_thread_cpu);
 
-        if (erase && iter % 2) {
-            fprintf(stdout, "> erase iter = %d\n", iter);
-            fflush(stdout);
-            prev_root = root;
-            root = batch_upsert_commit(
-                vid,
-                prev_root,
-                (iter % 100) * SLICE_LEN,
-                offset,
-                SLICE_LEN,
-                keccak_keys.get(),
-                keccak_values.get(),
-                true,
-                io,
-                index);
+        // init buffer
+        monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 13};
+
+        Transaction trans(dbname_path);
+
+        // init indexer
+        Index index(trans.get_fd());
+
+        // initialize root and block offset for write
+        merkle_node_t *prev_root, *root;
+        uint64_t block_off = index.get_start_offset();
+        if (append) {
+            block_trie_info *trie_info = index.get_trie_info(vid);
+            MONAD_ASSERT(trie_info->vid == vid);
+            block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
+            // blocking get_root
+            root = read_node(trans.get_fd(), trie_info->root_off);
+
+            unsigned char root_data[32];
+            encode_branch(root, (unsigned char *)&root_data);
+            fprintf(
+                stdout,
+                "version %lu, root_off %lu, root->data after precommit: ",
+                trie_info->vid,
+                trie_info->root_off);
+            __print_char_arr_in_hex((char *)root_data, 32);
             ++vid;
+        }
+        else {
+            root = get_new_merkle_node(0, 0);
+        }
+        AsyncIO io(ring, rwbuf, block_off, &update_callback);
 
-            fprintf(stdout, "> dup batch iter = %d\n", iter);
+        int fds[1] = {trans.get_fd()};
+        io.uring_register_files(fds, 1);
+
+        int64_t max_key = n_slices * SLICE_LEN + offset;
+        /* start profiling upsert and commit */
+        for (int iter = 0; iter < n_slices; ++iter) {
+            // renew keccak values
+            if (!(iter * SLICE_LEN % keccak_cap)) {
+                if (iter) {
+                    offset += keccak_cap;
+                }
+                // pre-calculate keccak
+                prepare_keccak(
+                    MIN(keccak_cap, max_key - offset),
+                    keccak_keys.get(),
+                    keccak_values.get(),
+                    0,
+                    offset);
+                fprintf(
+                    stdout, "Finish preparing keccak.\nStart transactions\n");
+                fflush(stdout);
+            }
+
             prev_root = root;
-
             root = batch_upsert_commit(
+                csv_writer,
                 vid,
                 prev_root,
                 (iter % 100) * SLICE_LEN,
@@ -255,9 +239,54 @@ int main(int argc, char *argv[])
                 false,
                 io,
                 index);
-            ++vid;
-        }
-    }
 
-    free_trie(root);
+            ++vid;
+
+            if (erase && iter % 2) {
+                fprintf(stdout, "> erase iter = %d\n", iter);
+                fflush(stdout);
+                prev_root = root;
+                root = batch_upsert_commit(
+                    csv_writer,
+                    vid,
+                    prev_root,
+                    (iter % 100) * SLICE_LEN,
+                    offset,
+                    SLICE_LEN,
+                    keccak_keys.get(),
+                    keccak_values.get(),
+                    true,
+                    io,
+                    index);
+                ++vid;
+
+                fprintf(stdout, "> dup batch iter = %d\n", iter);
+                prev_root = root;
+
+                root = batch_upsert_commit(
+                    csv_writer,
+                    vid,
+                    prev_root,
+                    (iter % 100) * SLICE_LEN,
+                    offset,
+                    SLICE_LEN,
+                    keccak_keys.get(),
+                    keccak_values.get(),
+                    false,
+                    io,
+                    index);
+                ++vid;
+            }
+        }
+
+        free_trie(root);
+    }
+    catch (const CLI::CallForHelp &e) {
+        std::cout << cli.help() << std::flush;
+    }
+    catch (const std::exception &e) {
+        std::cerr << "FATAL: " << e.what() << std::endl;
+        return 1;
+    }
+    return 0;
 }
