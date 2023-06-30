@@ -24,51 +24,51 @@ endfunction()
 ############
 
 add_library(monad_core STATIC
-    ${PROJECT_SOURCE_DIR}/include/monad/config.hpp
+    "${PROJECT_SOURCE_DIR}/include/monad/config.hpp"
     # core
-    ${PROJECT_SOURCE_DIR}/include/monad/core/assert.h
-    ${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/core/endian.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/core/likely.h
-    ${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h
-    ${PROJECT_SOURCE_DIR}/include/monad/core/offset.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/core/assert.c
+    "${PROJECT_SOURCE_DIR}/include/monad/core/assert.h"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/endian.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/likely.h"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/offset.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/core/assert.c"
     # io
-    ${PROJECT_SOURCE_DIR}/include/monad/io/buffer_pool.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/io/buffer_pool.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/io/buffers.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp
+    "${PROJECT_SOURCE_DIR}/include/monad/io/buffer_pool.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/io/buffer_pool.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/io/buffers.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp"
     # mem
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/mem_map.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/mem/pool_allocator.hpp
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/mem_map.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/pool_allocator.cpp
+    "${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h"
+    "${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mem/mem_map.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mem/pool_allocator.hpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mem/mem_map.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mem/pool_allocator.cpp"
     # rlp
-    ${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp
-    ${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp
+    "${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp"
 )
 target_include_directories(monad_core
-    PUBLIC ${PROJECT_SOURCE_DIR}/include
+    PUBLIC "${PROJECT_SOURCE_DIR}/include"
 )
 monad_compile_options(monad_core)
-target_link_libraries(monad_core mimalloc)
+target_link_libraries(monad_core PUBLIC mimalloc uring)
 
 add_library(monad_core_disas SHARED
-    ${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/core/offset_disas.cpp
-    ${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c
-    ${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_disas.cpp
+    "${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/core/offset_disas.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c"
+    "${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_disas.cpp"
 )
 monad_compile_options(monad_core_disas)
-target_link_libraries(monad_core_disas monad_core)
+target_link_libraries(monad_core_disas PUBLIC monad_core)
 
 
 ############
@@ -79,11 +79,11 @@ enable_testing()
 
 find_package(GTest REQUIRED)
 
-function(monad_add_test target source)
-    add_executable(${target} ${source})
+function(monad_add_test target)
+    add_executable(${target} ${ARGN})
     monad_compile_options(${target})
     target_link_libraries(${target} monad_core GTest::GTest GTest::Main)
-    add_test(${target} ${target})
+    add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
 endfunction()
 
-monad_add_test(encode_test ${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_test.cpp)
+monad_add_test(encode_test "${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_test.cpp")
