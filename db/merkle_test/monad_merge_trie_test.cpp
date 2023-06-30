@@ -1,5 +1,5 @@
 #include <CLI/CLI.hpp>
-#include <assert.h>
+#include <cassert>
 #include <ethash/keccak.h>
 
 #include <monad/core/byte_string.hpp>
@@ -16,11 +16,11 @@
 #include <monad/trie/tr.hpp>
 #include <monad/trie/trie.hpp>
 
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 
 #define MIN(x, y) x > y ? y : x
 #define SLICE_LEN 100000

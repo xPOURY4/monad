@@ -16,9 +16,9 @@ MONAD_TRIE_NAMESPACE_BEGIN
  * @param ei: end nibble of path
  * @param terminating: if path[ei] is the end
  */
-constexpr byte_string_view compact_encode(
+inline constexpr byte_string_view compact_encode(
     unsigned char *const res, unsigned char const *const path, uint8_t si,
-    uint8_t ei, bool terminating)
+    uint8_t ei, bool terminating) noexcept
 {
     assert(ei > si);
     unsigned ci = si, path_len = ei - si;

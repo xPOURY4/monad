@@ -32,7 +32,7 @@ struct update_uring_data_t
 static_assert(sizeof(update_uring_data_t) == 56);
 static_assert(alignof(update_uring_data_t) == 8);
 
-static inline update_uring_data_t *get_update_uring_data(
+inline update_uring_data_t *get_update_uring_data(
     Request *updates, unsigned char pi, merkle_node_t *const new_parent,
     uint8_t const new_child_ni, tnode_t *parent_tnode)
 {

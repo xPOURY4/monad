@@ -19,7 +19,8 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-static inline void to_node_reference(byte_string_view rlp, unsigned char *data)
+inline void
+to_node_reference(byte_string_view rlp, unsigned char *data) noexcept
 {
     if (rlp.size() >= 32) {
         memcpy(data, ethash::keccak256(rlp.data(), rlp.size()).bytes, 32);
@@ -35,7 +36,7 @@ static inline void to_node_reference(byte_string_view rlp, unsigned char *data)
  *  rlp encode the 2-element list to bytes
  *  keccak the rlp encoded bytes if len >= 32
  */
-static inline void encode_two_piece(
+inline void encode_two_piece(
     byte_string_view const first, byte_string_view const second,
     unsigned char *const data)
 {
@@ -54,7 +55,7 @@ static inline void encode_two_piece(
     to_node_reference(byte_string_view(rlp, rlp_len), data);
 }
 
-static inline void encode_leaf(
+inline void encode_leaf(
     merkle_node_t *const parent, unsigned char const child_idx,
     byte_string_view const value)
 {
@@ -76,8 +77,7 @@ static inline void encode_leaf(
         child->noderef);
 }
 
-static inline void
-encode_branch(merkle_node_t *const branch, unsigned char *data)
+inline void encode_branch(merkle_node_t *const branch, unsigned char *data)
 {
     auto str_rlp_len = [](int n) {
         return rlp::string_length(byte_string(32, 1)) * n +
@@ -116,7 +116,7 @@ encode_branch(merkle_node_t *const branch, unsigned char *data)
  *   - first piece is HP(non-redundant part of the key)
  *   - second is the hash of the branch node representing the prefix group
  */
-static inline void encode_branch_extension(
+inline void encode_branch_extension(
     merkle_node_t *const parent, unsigned char const child_idx)
 {
     merkle_child_info_t *child = &parent->children[child_idx];

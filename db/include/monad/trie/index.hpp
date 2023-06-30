@@ -42,7 +42,7 @@ class Index final
         return reinterpret_cast<unsigned char *>(buffer);
     }
 
-    [[gnu::always_inline]] constexpr off_t _get_record_off(uint64_t vid)
+    constexpr off_t _get_record_off(uint64_t vid) noexcept
     {
         return RECORD_SIZE + (vid % SLOTS) * RECORD_SIZE;
     }
@@ -64,7 +64,7 @@ public:
         MONAD_ASSERT(!munmap(header_block_, PAGE_SIZE));
     }
 
-    [[gnu::always_inline]] constexpr size_t get_start_offset()
+    constexpr size_t get_start_offset()
     {
         return BLOCK_START_OFF;
     }

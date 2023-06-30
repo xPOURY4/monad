@@ -21,9 +21,16 @@ public:
         }())
     {
     }
-    ~Transaction() { close(fd_); }
+    ~Transaction()
+    {
+        close(fd_);
+        fd_ = -1;
+    }
 
-    [[gnu::always_inline]] constexpr int get_fd() const { return fd_; }
+    constexpr int get_fd() const noexcept
+    {
+        return fd_;
+    }
 };
 
 MONAD_TRIE_NAMESPACE_END

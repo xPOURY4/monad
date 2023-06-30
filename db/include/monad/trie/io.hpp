@@ -23,16 +23,9 @@ enum class uring_data_type_t : unsigned char
 // helper struct that records IO stats
 struct IORecord
 {
-    unsigned inflight;
-    unsigned inflight_rd;
-    unsigned nreads;
-
-    IORecord()
-        : inflight(0)
-        , inflight_rd(0)
-        , nreads(0)
-    {
-    }
+    unsigned inflight{0};
+    unsigned inflight_rd{0};
+    unsigned nreads{0};
 };
 
 class AsyncIO final
@@ -104,7 +97,7 @@ public:
             const_cast<io_uring *>(&uring_.get_ring())));
     }
 
-    [[gnu::always_inline]] void release_read_buffer(unsigned char *const buffer)
+    void release_read_buffer(unsigned char *const buffer)
     {
         rd_pool_.release(buffer);
     };

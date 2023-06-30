@@ -19,12 +19,12 @@ class Mem
 public:
     Mem(mi_heap_t * = nullptr);
 
-    [[gnu::always_inline]] mi_heap_t *get_heap() const
+    mi_heap_t *get_heap() const noexcept
     {
         return heap_;
     }
 
-    [[gnu::always_inline]] auto &get_update_pool() const
+    auto &get_update_pool() const noexcept
     {
         return update_pool_;
     }

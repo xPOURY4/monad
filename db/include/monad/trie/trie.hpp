@@ -60,12 +60,12 @@ public:
         index.write_record(vid, root_off);
     }
 
-    [[gnu::always_inline]] void root_hash(unsigned char *const hash_data)
+    void root_hash(unsigned char *const hash_data)
     {
         encode_branch(root_, hash_data);
     }
 
-    [[gnu::always_inline]] constexpr merkle_node_t *get_root()
+    constexpr merkle_node_t *get_root()
     {
         return root_;
     }

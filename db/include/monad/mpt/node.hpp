@@ -16,45 +16,44 @@ struct Node
     unsigned char data[0];
 };
 
-[[gnu::always_inline]] constexpr uint16_t child_mask(Node const &node)
+inline constexpr uint16_t child_mask(Node const &node) noexcept
 {
     return node.mask;
 }
 
-[[gnu::always_inline]] constexpr bool
-child_test(Node const &node, unsigned const i)
+inline constexpr bool child_test(Node const &node, unsigned const i) noexcept
 {
     return node.mask & (1u << i);
 }
 
-[[gnu::always_inline]] constexpr bool child_all(Node const &node)
+inline constexpr bool child_all(Node const &node) noexcept
 {
     return node.mask == UINT16_MAX;
 }
 
-[[gnu::always_inline]] constexpr bool child_any(Node const &node)
+inline constexpr bool child_any(Node const &node) noexcept
 {
     return node.mask;
 }
 
-[[gnu::always_inline]] constexpr bool child_none(Node const &node)
+inline constexpr bool child_none(Node const &node) noexcept
 {
     return !node.mask;
 }
 
-[[gnu::always_inline]] constexpr unsigned child_count(Node const &node)
+inline constexpr unsigned child_count(Node const &node) noexcept
 {
     return std::popcount(node.mask);
 }
 
-[[gnu::always_inline]] constexpr unsigned
-child_index(Node const &node, unsigned const i)
+inline constexpr unsigned
+child_index(Node const &node, unsigned const i) noexcept
 {
     uint16_t const filter = UINT16_MAX >> (16 - i);
     return std::popcount(static_cast<uint16_t>(node.mask & filter));
 }
 
-[[gnu::always_inline]] inline std::pair<unsigned char const *, unsigned char>
+inline std::pair<unsigned char const *, unsigned char>
 child_path(Node const &node, unsigned const i)
 {
     unsigned const j = child_index(node, i);

@@ -31,7 +31,7 @@ struct UpdateBase
 static_assert(sizeof(UpdateBase) == 48);
 static_assert(alignof(UpdateBase) == 8);
 
-[[gnu::always_inline]] constexpr bool is_deletion(UpdateBase const &u)
+inline constexpr bool is_deletion(UpdateBase const &u) noexcept
 {
     return !u.opt.has_value();
 }

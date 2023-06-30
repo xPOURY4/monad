@@ -22,12 +22,12 @@ void assign_prev_child_to_new(
 
 void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx);
 
-static inline size_t get_merkle_node_size(uint8_t const nsubnodes)
+inline size_t get_merkle_node_size(uint8_t const nsubnodes)
 {
     return sizeof(merkle_node_t) + nsubnodes * sizeof(merkle_child_info_t);
 }
 
-static inline merkle_node_t *read_node(int fd, uint64_t node_offset)
+inline merkle_node_t *read_node(int fd, uint64_t node_offset)
 { // blocking read
     int64_t offset = (node_offset >> 9) << 9;
     int16_t buffer_off = node_offset - offset;
@@ -40,7 +40,7 @@ static inline merkle_node_t *read_node(int fd, uint64_t node_offset)
     return node;
 }
 
-static inline void free_node(merkle_node_t *const node)
+inline void free_node(merkle_node_t *const node)
 {
     for (int i = 0; i < node->nsubnodes; ++i) {
         if (node->children[i].data) {
@@ -50,7 +50,7 @@ static inline void free_node(merkle_node_t *const node)
     free(node);
 }
 
-static inline size_t get_disk_node_size(merkle_node_t const *const node)
+inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
     size_t total = 0;
     for (int i = 0; i < node->nsubnodes; ++i) {
@@ -69,7 +69,7 @@ static inline size_t get_disk_node_size(merkle_node_t const *const node)
                (SIZE_OF_NODE_REF + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
 }
 
-static inline merkle_node_t *
+inline merkle_node_t *
 get_new_merkle_node(uint16_t const mask, unsigned char path_len)
 {
     uint8_t const nsubnodes = std::popcount(mask);
@@ -82,7 +82,7 @@ get_new_merkle_node(uint16_t const mask, unsigned char path_len)
     return new_branch;
 }
 
-static inline merkle_node_t *
+inline merkle_node_t *
 copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
 { // only copy valid subnodes
     int nsubnodes = merkle_child_count_valid(prev_node);

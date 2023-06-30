@@ -25,22 +25,22 @@ struct Request
     {
     }
 
-    [[gnu::always_inline]] bool is_leaf()
+    bool is_leaf()
     {
         return pending.size() == 1;
     }
 
-    [[gnu::always_inline]] const monad::mpt::Update &get_only_leaf()
+    const monad::mpt::Update &get_only_leaf()
     {
         return pending.front();
     }
 
-    [[gnu::always_inline]] const unsigned char *get_path()
+    const unsigned char *get_path()
     {
         return pending.front().key;
     }
 
-    [[gnu::always_inline]] constexpr uint8_t path_len()
+    constexpr uint8_t path_len()
     {
         return pi;
     }
@@ -57,7 +57,7 @@ struct SubRequestInfo
     uint8_t path_len;
     Request **subqueues;
 
-    SubRequestInfo()
+    constexpr SubRequestInfo()
         : mask(0)
         , subqueues(nullptr)
     {
@@ -70,12 +70,12 @@ struct SubRequestInfo
         }
     }
 
-    [[gnu::always_inline]] Request *operator[](int i)
+    Request *operator[](int i)
     {
         return subqueues[child_index(mask, i)];
     }
 
-    [[gnu::always_inline]] const unsigned char *get_path()
+    const unsigned char *get_path()
     {
         return subqueues[0]->get_path();
     }
