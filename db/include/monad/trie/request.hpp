@@ -6,6 +6,8 @@
 
 #include <boost/pool/object_pool.hpp>
 
+#include <memory>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 struct SubRequestInfo;
@@ -53,22 +55,11 @@ static_assert(alignof(Request) == 8);
 
 struct SubRequestInfo
 {
-    uint16_t mask;
-    uint8_t path_len;
-    Request **subqueues;
+    uint16_t mask{0};
+    uint8_t path_len{0};
+    std::unique_ptr<Request *[]> subqueues;
 
-    constexpr SubRequestInfo()
-        : mask(0)
-        , subqueues(nullptr)
-    {
-    }
-
-    ~SubRequestInfo()
-    {
-        if (subqueues) {
-            free(subqueues);
-        }
-    }
+    SubRequestInfo() = default;
 
     Request *operator[](int i)
     {

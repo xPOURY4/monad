@@ -143,10 +143,8 @@ int main(int argc, char *argv[])
     cli.parse(argc, argv);
 
     int64_t keccak_cap = 100 * SLICE_LEN;
-    unsigned char *const keccak_keys =
-        (unsigned char *)std::malloc(keccak_cap * 32);
-    unsigned char *const keccak_values =
-        (unsigned char *)std::malloc(keccak_cap * 32);
+    auto keccak_keys = std::make_unique<unsigned char[]>(keccak_cap * 32);
+    auto keccak_values = std::make_unique<unsigned char[]>(keccak_cap * 32);
 
     // init uring
     monad::io::Ring ring(128, sq_thread_cpu);
@@ -198,8 +196,8 @@ int main(int argc, char *argv[])
             // pre-calculate keccak
             prepare_keccak(
                 MIN(keccak_cap, max_key - offset),
-                keccak_keys,
-                keccak_values,
+                keccak_keys.get(),
+                keccak_values.get(),
                 0,
                 offset);
             fprintf(stdout, "Finish preparing keccak.\nStart transactions\n");
@@ -213,8 +211,8 @@ int main(int argc, char *argv[])
             (iter % 100) * SLICE_LEN,
             offset,
             SLICE_LEN,
-            keccak_keys,
-            keccak_values,
+            keccak_keys.get(),
+            keccak_values.get(),
             false,
             io,
             index);
@@ -231,8 +229,8 @@ int main(int argc, char *argv[])
                 (iter % 100) * SLICE_LEN,
                 offset,
                 SLICE_LEN,
-                keccak_keys,
-                keccak_values,
+                keccak_keys.get(),
+                keccak_values.get(),
                 true,
                 io,
                 index);
@@ -247,8 +245,8 @@ int main(int argc, char *argv[])
                 (iter % 100) * SLICE_LEN,
                 offset,
                 SLICE_LEN,
-                keccak_keys,
-                keccak_values,
+                keccak_keys.get(),
+                keccak_values.get(),
                 false,
                 io,
                 index);
@@ -257,6 +255,4 @@ int main(int argc, char *argv[])
     }
 
     free_trie(root);
-    free(keccak_keys);
-    free(keccak_values);
 }

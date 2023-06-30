@@ -29,8 +29,7 @@ Request *Request::split_into_subqueues(
         return this;
     }
     else { // if is root, or if more than one subinfo branch
-        subinfo->subqueues =
-            reinterpret_cast<Request **>(malloc(nsubnodes * sizeof(Request *)));
+        subinfo->subqueues = std::make_unique<Request *[]>(nsubnodes);
         subinfo->path_len = pi;
         for (int i = 0, child_idx = 0; i < 16; ++i) {
             if (subinfo->mask & 1u << i) {

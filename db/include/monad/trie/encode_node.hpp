@@ -61,12 +61,18 @@ inline void encode_leaf(
 {
     merkle_child_info_t *child = &parent->children[child_idx];
     // reallocate if size changed
-    child->data = child->data
-                      ? child->data_len == value.size()
-                            ? child->data
-                            : static_cast<unsigned char *>(
-                                  realloc(child->data, value.size()))
-                      : static_cast<unsigned char *>(malloc(value.size()));
+    if (child->data != nullptr) {
+        if (child->data_len != value.size()) {
+            auto *newmem = static_cast<unsigned char *>(
+                realloc(child->data, value.size()));
+            MONAD_ASSERT(newmem != nullptr);
+            child->data = newmem;
+        }
+    }
+    else {
+        child->data = static_cast<unsigned char *>(malloc(value.size()));
+        MONAD_ASSERT(child->data != nullptr);
+    }
     child->data_len = value.size();
     std::memcpy(child->data, value.data(), value.size());
     unsigned char relpath[33];
@@ -128,6 +134,7 @@ inline void encode_branch_extension(
         // hash both branch and extension
         child->data_len = 32;
         child->data = static_cast<unsigned char *>(std::malloc(32));
+        MONAD_ASSERT(child->data != nullptr);
         encode_branch(child->next, child->data);
         unsigned char relpath[33];
         encode_two_piece(

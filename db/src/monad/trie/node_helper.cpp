@@ -71,6 +71,7 @@ merkle_node_t *deserialize_node_from_buffer(
             read_pos += SIZE_OF_DATA_LEN;
             node->children[i].data = static_cast<unsigned char *>(
                 std::malloc(node->children[i].data_len));
+            MONAD_ASSERT(node->children[i].data != nullptr);
             std::memcpy(
                 node->children[i].data, read_pos, node->children[i].data_len);
             read_pos += node->children[i].data_len;
@@ -155,6 +156,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
     else {
         assert(midnode->path_len + 1 == child->path_len);
         child->data = static_cast<unsigned char *>(std::malloc(32));
+        MONAD_ASSERT(child->data != nullptr);
         std::memcpy(child->data, &child->noderef, 32);
         child->data_len = 32;
     }

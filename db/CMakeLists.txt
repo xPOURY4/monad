@@ -12,7 +12,6 @@ include("CableBuildInfo")
 add_subdirectory("monad-core")
 
 include("monad-core/cmake/find_dependency.cmake")
-find_dependency(uring REQUIRED)
 find_package(Boost COMPONENTS "" REQUIRED)
 find_package(GTest)
 

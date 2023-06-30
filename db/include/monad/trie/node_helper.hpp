@@ -5,6 +5,8 @@
 #include <monad/trie/encode_node.hpp>
 #include <monad/trie/node.hpp>
 
+#include <memory>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 // helper functions
@@ -31,12 +33,12 @@ inline merkle_node_t *read_node(int fd, uint64_t node_offset)
 { // blocking read
     int64_t offset = (node_offset >> 9) << 9;
     int16_t buffer_off = node_offset - offset;
-    unsigned char *buffer =
-        static_cast<unsigned char *>(std::malloc(1UL << 11));
+    // TODO(niall): Use a page here to avoid a RMW silent copy
+    auto buffer = std::make_unique<unsigned char[]>(1UL << 11);
     MONAD_ASSERT(offset == lseek(fd, offset, SEEK_SET));
-    MONAD_ASSERT(read(fd, buffer, 1UL << 11) != -1);
-    merkle_node_t *node = deserialize_node_from_buffer(buffer + buffer_off, 0);
-    free(buffer);
+    MONAD_ASSERT(read(fd, buffer.get(), 1UL << 11) != -1);
+    merkle_node_t *node =
+        deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
     return node;
 }
 
@@ -74,7 +76,8 @@ get_new_merkle_node(uint16_t const mask, unsigned char path_len)
 {
     uint8_t const nsubnodes = std::popcount(mask);
     size_t const size = get_merkle_node_size(nsubnodes);
-    auto const new_branch = static_cast<merkle_node_t *>(calloc(1, size));
+    auto *new_branch = static_cast<merkle_node_t *>(calloc(1, size));
+    MONAD_ASSERT(new_branch != nullptr);
     new_branch->nsubnodes = nsubnodes;
     new_branch->mask = mask;
     new_branch->valid_mask = mask;
@@ -86,8 +89,9 @@ inline merkle_node_t *
 copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
 { // only copy valid subnodes
     int nsubnodes = merkle_child_count_valid(prev_node);
-    auto const copy = static_cast<merkle_node_t *>(
+    auto *copy = static_cast<merkle_node_t *>(
         calloc(1, get_merkle_node_size(nsubnodes)));
+    MONAD_ASSERT(copy != nullptr);
     copy->mask = prev_node->valid_mask;
     copy->valid_mask = copy->mask;
     copy->path_len = prev_node->path_len;
