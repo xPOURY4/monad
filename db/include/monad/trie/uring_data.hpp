@@ -45,7 +45,7 @@ inline update_uring_data_t *get_update_uring_data(
     // prep uring data
     int64_t node_offset =
         updates->prev_parent->children[updates->prev_child_i].fnext;
-    int64_t offset = round_down_4k(node_offset);
+    int64_t offset = round_down_align(static_cast<uint64_t>(node_offset));
     int16_t buffer_off = node_offset - offset;
 
     update_uring_data_t tmp_data{

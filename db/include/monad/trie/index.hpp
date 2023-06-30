@@ -22,13 +22,17 @@ static_assert(alignof(block_trie_info) == 8);
 
 template <
     unsigned RECORD_SIZE = 16, unsigned SLOTS = 3600 * 4,
-    unsigned BLOCK_START_OFF = round_up_4k(RECORD_SIZE *SLOTS)>
+    unsigned PAGE_BITS = 12,
+    unsigned BLOCK_START_OFF =
+        round_up_align<unsigned, PAGE_BITS>(RECORD_SIZE *SLOTS)>
 class Index
 {
     int fd_;
     unsigned block_start_off_;
     unsigned char *header_block_;
     unsigned char *mmap_block_;
+
+    constexpr static size_t PAGE_SIZE = 1UL << 12;
 
     unsigned char *_memmap(off_t offset)
     {
@@ -44,7 +48,7 @@ class Index
         return reinterpret_cast<unsigned char *>(buffer);
     }
 
-    constexpr off_t _get_record_off(uint64_t vid) noexcept
+    constexpr unsigned _get_record_off(uint64_t vid) noexcept
     {
         return RECORD_SIZE + (vid % SLOTS) * RECORD_SIZE;
     }
@@ -75,8 +79,8 @@ public:
     block_trie_info *get_trie_info(uint64_t vid)
     {
         // aligned blocking read from fd
-        off_t record_off = _get_record_off(vid);
-        block_start_off_ = round_down_4k(record_off);
+        unsigned record_off = _get_record_off(vid);
+        block_start_off_ = round_down_align<unsigned, PAGE_BITS>(record_off);
 
         if (block_start_off_) {
             if (mmap_block_) {
@@ -91,7 +95,7 @@ public:
 
     void write_record(uint64_t vid, uint64_t root_off)
     {
-        off_t record_off = _get_record_off(vid);
+        unsigned record_off = _get_record_off(vid);
         if (record_off >= block_start_off_ + PAGE_SIZE) {
             // renew mmap_block_
             if (mmap_block_) {

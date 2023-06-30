@@ -30,6 +30,8 @@ struct IORecord
 
 class AsyncIO final
 {
+    constexpr static size_t READ_BLOCK_SIZE = 2048;
+
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
     struct write_uring_data_t
     {
@@ -74,7 +76,7 @@ public:
         , readcb_(readcb)
         , write_buffer_(wr_pool_.alloc())
         , buffer_idx_(0)
-        , block_off_(round_up_4k(block_off))
+        , block_off_(round_up_align(block_off))
     {
         MONAD_ASSERT(write_buffer_);
     }
@@ -131,17 +133,13 @@ public:
             poll_uring();
         }
 
-        bool across_blocks =
-            uring_data->buffer_off + MAX_DISK_NODE_SIZE > PAGE_SIZE;
-        unsigned read_size = across_blocks ? 2 * PAGE_SIZE : PAGE_SIZE;
-
         unsigned char *rd_buffer = rd_pool_.alloc();
         MONAD_ASSERT(rd_buffer);
 
         uring_data->buffer = rd_buffer;
 
         submit_request(
-            rd_buffer, read_size, uring_data->offset, uring_data, false);
+            rd_buffer, READ_BLOCK_SIZE, uring_data->offset, uring_data, false);
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;

@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 
         int fd = trans.get_fd();
         // init indexer
-        Index index(fd);
+        index_t index(fd);
 
         // initialize root and block offset for write
         uint64_t block_off;

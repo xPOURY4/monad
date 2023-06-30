@@ -3,26 +3,28 @@
 #include <monad/trie/config.hpp>
 
 #include <bit>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-#define PAGE_SIZE 4096
-
-template <class T>
-constexpr T round_up_4k(T const x)
+// default to 1 << 9 = 512 aligned value
+template <std::unsigned_integral T, unsigned bits = 9>
+inline constexpr T round_up_align(T const x) noexcept
 {
-    return ((x - 1) >> 12 << 12) + PAGE_SIZE;
+    size_t constexpr mask = (1UL << bits) - 1;
+    return (x + mask) & ~mask;
 }
 
-template <class T>
-constexpr T round_down_4k(T const x)
+template <std::unsigned_integral T, unsigned bits = 9>
+inline constexpr T round_down_align(T const x) noexcept
 {
-    return x >> 12 << 12;
+    size_t constexpr mask = ~((1UL << bits) - 1);
+    return x & mask;
 }
 
-static constexpr unsigned child_index(uint16_t const mask, unsigned const i)
+inline constexpr unsigned child_index(uint16_t const mask, unsigned const i)
 {
     uint16_t const filter = UINT16_MAX >> (16 - i);
     return std::popcount(static_cast<uint16_t>(mask & filter));
