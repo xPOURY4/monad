@@ -62,7 +62,7 @@ static merkle_node_t *batch_upsert_commit(
         update_vec.push_back(Update{
             {keccak_keys + i * 32,
              erase ? std::nullopt
-                   : std::optional<Data>{byte_string_view(
+                   : std::optional<Data>{monad::byte_string_view(
                          keccak_values + i * 32, 32)}},
             UpdateMemberHook{}});
         updates.push_front(update_vec[i - keccak_offset]);

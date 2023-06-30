@@ -1,6 +1,11 @@
 #include <monad/trie/io.hpp>
 #include <monad/trie/node_helper.hpp>
 
+#if __GNUC__ == 12 && !defined(__clang__)
+    #pragma GCC diagnostic ignored "-Warray-bounds" // is broken on GCC 12
+    #pragma GCC diagnostic ignored "-Wstringop-overread" // is broken on GCC 12
+#endif
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 // TODO: store leaf data separate from its parent.

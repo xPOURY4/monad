@@ -11,7 +11,11 @@
 
 #include <cstddef>
 
-using namespace monad;
+#if __GNUC__ == 12 && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Warray-bounds" // is broken on GCC 12
+    #pragma GCC diagnostic ignored "-Wstringop-overread" // is broken on GCC 12
+#endif
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -139,3 +143,7 @@ static inline void encode_branch_extension(
 }
 
 MONAD_TRIE_NAMESPACE_END
+
+#if __GNUC__ == 12 && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
