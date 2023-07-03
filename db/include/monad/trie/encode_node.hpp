@@ -9,7 +9,7 @@
 
 #include <ethash/keccak.hpp>
 
-#include <cstddef>
+#include <cassert>
 
 #if __GNUC__ == 12 && !defined(__clang__)
     #pragma GCC diagnostic push
@@ -20,16 +20,16 @@
 MONAD_TRIE_NAMESPACE_BEGIN
 
 inline void
-to_node_reference(byte_string_view rlp, unsigned char *data) noexcept
+to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
 {
     if (rlp.size() >= sizeof(merkle_child_info_t::noderef_t)) {
         memcpy(
-            data,
+            dest,
             ethash::keccak256(rlp.data(), rlp.size()).bytes,
             sizeof(merkle_child_info_t::noderef_t));
     }
     else {
-        memcpy(data, rlp.data(), rlp.size());
+        memcpy(dest, rlp.data(), rlp.size());
     }
 }
 
@@ -41,7 +41,7 @@ to_node_reference(byte_string_view rlp, unsigned char *data) noexcept
  */
 inline void encode_two_piece(
     byte_string_view const first, byte_string_view const second,
-    unsigned char *const data)
+    unsigned char *const dest)
 {
     size_t first_len = rlp::string_length(first),
            second_len = rlp::string_length(second);
@@ -55,7 +55,7 @@ inline void encode_two_piece(
     size_t rlp_len = rlp::list_length(encoded_strings);
     unsigned char rlp[rlp_len];
     rlp::encode_list(rlp, encoded_strings);
-    to_node_reference(byte_string_view(rlp, rlp_len), data);
+    to_node_reference(byte_string_view(rlp, rlp_len), dest);
 }
 
 inline void encode_leaf(
@@ -86,7 +86,7 @@ inline void encode_leaf(
         child->noderef.data());
 }
 
-inline void encode_branch(merkle_node_t *const branch, unsigned char *data)
+inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
 {
     auto str_rlp_len = [](int n) {
         return rlp::string_length(byte_string(32, 1)) * n +
@@ -113,7 +113,7 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *data)
     size_t branch_rlp_len = rlp::list_length(encoded_strings);
     unsigned char branch_rlp[branch_rlp_len];
     rlp::encode_list(branch_rlp, encoded_strings);
-    to_node_reference(byte_string_view(branch_rlp, branch_rlp_len), data);
+    to_node_reference(byte_string_view(branch_rlp, branch_rlp_len), dest);
 }
 
 /* Note that when branch_node path > 0, our branch is Extension + Branch

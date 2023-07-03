@@ -3,6 +3,8 @@
 #include <monad/trie/config.hpp>
 
 #include <bit>
+#include <cstddef>
+#include <cstdint>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 

@@ -8,6 +8,8 @@
 
 #include <boost/pool/object_pool.hpp>
 
+#include <cstddef>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 struct tnode_t;

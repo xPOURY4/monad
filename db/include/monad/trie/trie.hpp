@@ -1,8 +1,8 @@
 #pragma once
 
+#include <monad/core/byte_string.hpp>
 #include <monad/trie/config.hpp>
 
-#include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
@@ -17,9 +17,13 @@ void update_callback(void *user_data);
 class MerkleTrie final
 {
     merkle_node_t *root_;
-    tnode_t::unique_ptr_type root_tnode_;
     AsyncIO &io_;
     const int cache_levels_;
+
+    const byte_string empty_trie_hash{
+        {0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45,
+         0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c,
+         0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21}};
 
 public:
     merkle_node_t *do_update(
@@ -36,37 +40,69 @@ public:
 
     void upward_update_data(tnode_t *curr_tnode);
 
-    MerkleTrie(AsyncIO &io, int cache_levels = 5)
-        : root_(nullptr)
-        , root_tnode_(nullptr)
+    MerkleTrie(AsyncIO &io, merkle_node_t *root = nullptr, int cache_levels = 5)
+        : root_(root)
         , io_(io)
-        , cache_levels_(cache_levels){};
+        , cache_levels_(cache_levels)
+    {
+    }
 
     ~MerkleTrie()
     {
-        MONAD_ASSERT(!root_tnode_ || !root_tnode_->npending);
+        if (root_) {
+            free_trie(root_);
+        }
     };
 
-    void process_updates(
-        uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
-        index_t &index)
+    off_t process_updates(monad::mpt::UpdateList &updates)
     {
+        merkle_node_t *prev_root = root_ ? root_ : get_new_merkle_node(0, 0);
+        MONAD_ASSERT(prev_root);
+
         Request *updateq = Request::pool.construct(updates);
         SubRequestInfo requests;
         updateq->split_into_subqueues(&requests, /*not root*/ false);
 
-        root_tnode_ = get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_update(prev_root, requests, root_tnode_.get());
+        tnode_t::unique_ptr_type root_tnode =
+            get_new_tnode(nullptr, 0, 0, nullptr);
+        root_ = do_update(prev_root, requests, root_tnode.get());
 
         // after update, also need to poll until no submission left in uring
         // and write record to the indexing part in the beginning of file
-        int64_t root_off = io_.flush(root_);
-        index.write_record(vid, root_off);
+        off_t root_off = io_.flush(root_);
+
+        // tear down previous trie version and free tnode
+        MONAD_ASSERT(!root_tnode || !root_tnode->npending);
+        free_trie(prev_root);
+
+        return root_off;
     }
 
-    void root_hash(unsigned char *const hash_data)
+    void root_hash(unsigned char *const dest)
     {
-        encode_branch(root_, hash_data);
+        unsigned nsubnodes_valid = std::popcount(root_->valid_mask);
+        if (!nsubnodes_valid) {
+            memcpy(dest, empty_trie_hash.data(), 32);
+        }
+        else if (nsubnodes_valid == 1) {
+            uint8_t only_child = std::countr_zero(root_->valid_mask);
+            set_nibble(root_->children[0].path, 0, only_child);
+
+            merkle_child_info_t *child = &root_->children[0];
+            unsigned char relpath[33];
+            encode_two_piece(
+                compact_encode(
+                    relpath,
+                    child->path,
+                    0,
+                    child->path_len,
+                    child->path_len == 64),
+                byte_string_view{child->data, child->data_len},
+                dest);
+        }
+        else {
+            encode_branch(root_, dest);
+        }
     }
 
     constexpr merkle_node_t *get_root()
@@ -78,9 +114,14 @@ public:
     {
         return io_;
     }
+
+    void set_root(merkle_node_t *root)
+    {
+        root_ = root;
+    }
 };
 
-static_assert(sizeof(MerkleTrie) == 32);
+static_assert(sizeof(MerkleTrie) == 56);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END

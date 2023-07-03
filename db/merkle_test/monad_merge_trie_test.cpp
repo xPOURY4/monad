@@ -52,11 +52,11 @@ void __print_char_arr_in_hex(char *arr, int n)
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
-static merkle_node_t *batch_upsert_commit(
-    std::ostream &csv_writer, uint64_t block_id, merkle_node_t *prev_root,
-    int64_t keccak_offset, int64_t offset, int64_t nkeys,
-    unsigned char *const keccak_keys, unsigned char *const keccak_values,
-    bool erase, AsyncIO &io, index_t &index)
+inline void batch_upsert_commit(
+    std::ostream &csv_writer, uint64_t block_id, int64_t keccak_offset,
+    int64_t offset, int64_t nkeys, unsigned char *const keccak_keys,
+    unsigned char *const keccak_values, bool erase, MerkleTrie &trie,
+    index_t &index)
 {
     double tm_ram;
 
@@ -75,8 +75,8 @@ static merkle_node_t *batch_upsert_commit(
 
     auto ts_before = std::chrono::steady_clock::now();
 
-    MerkleTrie trie(io);
-    trie.process_updates(block_id, updates, prev_root, index);
+    int64_t root_off = trie.process_updates(updates);
+    index.write_record(block_id, root_off);
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -103,9 +103,6 @@ static merkle_node_t *batch_upsert_commit(
         csv_writer << (offset + keccak_offset + nkeys) << ","
                    << ((double)nkeys / tm_ram) << std::endl;
     }
-
-    free_trie(prev_root);
-    return trie.get_root();
 }
 
 void prepare_keccak(
@@ -175,18 +172,19 @@ int main(int argc, char *argv[])
 
         Transaction trans(dbname_path);
 
+        int fd = trans.get_fd();
         // init indexer
-        Index index(trans.get_fd());
+        Index index(fd);
 
         // initialize root and block offset for write
-        merkle_node_t *prev_root, *root;
-        uint64_t block_off = index.get_start_offset();
+        uint64_t block_off;
+        merkle_node_t *root;
         if (append) {
             block_trie_info *trie_info = index.get_trie_info(vid);
             MONAD_ASSERT(trie_info->vid == vid);
             block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
             // blocking get_root
-            root = read_node(trans.get_fd(), trie_info->root_off);
+            root = read_node(fd, trie_info->root_off);
 
             unsigned char root_data[32];
             encode_branch(root, (unsigned char *)&root_data);
@@ -199,12 +197,15 @@ int main(int argc, char *argv[])
             ++vid;
         }
         else {
+            block_off = index.get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
         AsyncIO io(ring, rwbuf, block_off, &update_callback);
 
-        int fds[1] = {trans.get_fd()};
+        int fds[1] = {fd};
         io.uring_register_files(fds, 1);
+
+        MerkleTrie trie(io, root);
 
         int64_t max_key = n_slices * SLICE_LEN + offset;
         /* start profiling upsert and commit */
@@ -226,18 +227,16 @@ int main(int argc, char *argv[])
                 fflush(stdout);
             }
 
-            prev_root = root;
-            root = batch_upsert_commit(
+            batch_upsert_commit(
                 csv_writer,
                 vid,
-                prev_root,
                 (iter % 100) * SLICE_LEN,
                 offset,
                 SLICE_LEN,
                 keccak_keys.get(),
                 keccak_values.get(),
                 false,
-                io,
+                trie,
                 index);
 
             ++vid;
@@ -245,35 +244,31 @@ int main(int argc, char *argv[])
             if (erase && iter % 2) {
                 fprintf(stdout, "> erase iter = %d\n", iter);
                 fflush(stdout);
-                prev_root = root;
-                root = batch_upsert_commit(
+                batch_upsert_commit(
                     csv_writer,
                     vid,
-                    prev_root,
                     (iter % 100) * SLICE_LEN,
                     offset,
                     SLICE_LEN,
                     keccak_keys.get(),
                     keccak_values.get(),
                     true,
-                    io,
+                    trie,
                     index);
                 ++vid;
 
                 fprintf(stdout, "> dup batch iter = %d\n", iter);
-                prev_root = root;
 
-                root = batch_upsert_commit(
+                batch_upsert_commit(
                     csv_writer,
                     vid,
-                    prev_root,
                     (iter % 100) * SLICE_LEN,
                     offset,
                     SLICE_LEN,
                     keccak_keys.get(),
                     keccak_values.get(),
                     false,
-                    io,
+                    trie,
                     index);
                 ++vid;
             }

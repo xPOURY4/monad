@@ -6,7 +6,7 @@ MONAD_TRIE_NAMESPACE_BEGIN
 Request *Request::split_into_subqueues(
     SubRequestInfo *const subinfo, bool const not_root)
 {
-    if (is_leaf()) {
+    if (is_leaf() && not_root) {
         pi = 64;
         return this;
     }

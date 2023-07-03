@@ -5,7 +5,8 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
 
-#include <cstddef>
+#include <cassert>
+#include <cstdint>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
