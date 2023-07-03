@@ -16,6 +16,7 @@
 #include <monad/trie/tr.hpp>
 #include <monad/trie/trie.hpp>
 
+#include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -52,7 +53,6 @@ static merkle_node_t *batch_upsert_commit(
     int64_t offset, int64_t nkeys, unsigned char *const keccak_keys,
     unsigned char *const keccak_values, bool erase, AsyncIO &io, Index &index)
 {
-    struct timespec ts_before, ts_after;
     double tm_ram;
 
     std::vector<Update> update_vec;
@@ -68,14 +68,16 @@ static merkle_node_t *batch_upsert_commit(
         updates.push_front(update_vec[i - keccak_offset]);
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_before);
+    auto ts_before = std::chrono::steady_clock::now();
 
     MerkleTrie trie;
     trie.process_updates(block_id, updates, prev_root, io, index);
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_after);
-    tm_ram = ((double)ts_after.tv_sec + (double)ts_after.tv_nsec / 1e9) -
-             ((double)ts_before.tv_sec + (double)ts_before.tv_nsec / 1e9);
+    auto ts_after = std::chrono::steady_clock::now();
+    tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                 ts_after - ts_before)
+                 .count() /
+             1000000000.0;
 
     unsigned char root_data[32];
     trie.root_hash((unsigned char *)&root_data);
