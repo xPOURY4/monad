@@ -4,7 +4,9 @@
 
 #include <monad/mpt/update.hpp>
 
-#include <boost/pool/object_pool.hpp>
+#include <monad/trie/allocators.hpp>
+
+#include <cassert>
 
 #include <memory>
 
@@ -19,14 +21,30 @@ struct Request
     uint8_t prev_child_i;
     merkle_node_t *prev_parent;
     monad::mpt::UpdateList pending;
-    static inline boost::object_pool<Request> pool{};
 
-    Request(monad::mpt::UpdateList &updates, uint8_t path_len = 0)
+    using allocator_type = boost_unordered_pool_allocator<Request>;
+    static allocator_type &pool()
+    {
+        static allocator_type v;
+        return v;
+    }
+    using unique_ptr_type = std::unique_ptr<
+        Request, unique_ptr_allocator_deleter<allocator_type, &Request::pool>>;
+    static unique_ptr_type
+    make(monad::mpt::UpdateList &&updates, uint8_t path_len = 0)
+    {
+        return allocate_unique<allocator_type, &Request::pool>(
+            Request(std::move(updates), path_len));
+    }
+
+private:
+    Request(monad::mpt::UpdateList &&updates, uint8_t path_len)
         : pi(path_len)
         , pending(std::move(updates))
     {
     }
 
+public:
     bool is_leaf()
     {
         return pending.size() == 1;
@@ -47,8 +65,8 @@ struct Request
         return pi;
     }
 
-    Request *
-    split_into_subqueues(SubRequestInfo *subinfo, bool not_root = true);
+    unique_ptr_type split_into_subqueues(
+        unique_ptr_type self, SubRequestInfo *subinfo, bool not_root = true);
 };
 static_assert(sizeof(Request) == 24);
 static_assert(alignof(Request) == 8);
@@ -57,13 +75,22 @@ struct SubRequestInfo
 {
     uint16_t mask{0};
     uint8_t path_len{0};
-    std::unique_ptr<Request *[]> subqueues;
+    owning_span<Request::unique_ptr_type> subqueues;
 
-    SubRequestInfo() = default;
+    constexpr SubRequestInfo() = default;
 
-    Request *operator[](int i)
+    const Request::unique_ptr_type &operator[](size_t i) const &
     {
-        return subqueues[child_index(mask, i)];
+        const auto idx = child_index(mask, i);
+        assert(idx < subqueues.size());
+        return subqueues[idx];
+    }
+
+    Request::unique_ptr_type &&operator[](size_t i) &&
+    {
+        const auto idx = child_index(mask, i);
+        assert(idx < subqueues.size());
+        return std::move(subqueues[idx]);
     }
 
     const unsigned char *get_path()
@@ -72,7 +99,7 @@ struct SubRequestInfo
     }
 };
 
-static_assert(sizeof(SubRequestInfo) == 16);
+static_assert(sizeof(SubRequestInfo) == 24);
 static_assert(alignof(SubRequestInfo) == 8);
 
 MONAD_TRIE_NAMESPACE_END

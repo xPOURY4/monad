@@ -1,14 +1,16 @@
 #include <monad/core/nibble.h>
 #include <monad/trie/request.hpp>
 
+#include <cassert>
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
-Request *Request::split_into_subqueues(
-    SubRequestInfo *const subinfo, bool const not_root)
+Request::unique_ptr_type Request::split_into_subqueues(
+    unique_ptr_type self, SubRequestInfo *subinfo, bool const not_root)
 {
     if (is_leaf() && not_root) {
         pi = 64;
-        return this;
+        return self;
     }
     monad::mpt::UpdateList tmp_queues[16];
     while (!pending.empty()) { // pop
@@ -20,25 +22,26 @@ Request *Request::split_into_subqueues(
         }
         tmp_queues[branch].push_front(req);
     }
-    int nsubnodes = std::popcount(subinfo->mask);
+    size_t nsubnodes = size_t(std::popcount(subinfo->mask));
     if (nsubnodes == 1 && not_root) {
         int only_child = std::countr_zero(subinfo->mask);
         pending = std::move(tmp_queues[only_child]);
         ++pi;
         subinfo->mask = 0;
-        return this;
+        return self;
     }
     else { // if is root, or if more than one subinfo branch
-        subinfo->subqueues = std::make_unique<Request *[]>(nsubnodes);
+        subinfo->subqueues = owning_span<Request::unique_ptr_type>(nsubnodes);
         subinfo->path_len = pi;
-        for (int i = 0, child_idx = 0; i < 16; ++i) {
-            if (subinfo->mask & 1u << i) {
+        for (uint16_t i = 0, child_idx = 0, bit = 1; i < 16; ++i, bit <<= 1) {
+            if ((subinfo->mask & bit) != 0) {
+                assert(child_idx < subinfo->subqueues.size());
                 subinfo->subqueues[child_idx++] =
-                    pool.construct(tmp_queues[i], pi + 1);
+                    Request::make(std::move(tmp_queues[i]), pi + 1);
             }
         }
-        pool.destroy(this);
-        return nullptr;
+        self.reset(); // destroys *this
+        return {};
     }
 }
 

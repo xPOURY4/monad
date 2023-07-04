@@ -28,7 +28,7 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
 
 void AsyncIO::submit_request(
     unsigned char *const buffer, unsigned int nbytes, unsigned long long offset,
-    void *const uring_data, bool is_write)
+    void *uring_data, bool is_write)
 {
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
@@ -50,11 +50,14 @@ void AsyncIO::submit_request(
 void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
 {
     // write user data
-    write_uring_data_t *user_data = write_uring_data_t::pool.malloc();
-    *user_data = (write_uring_data_t){
-        .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer};
+    write_uring_data_t::unique_ptr_type user_data =
+        write_uring_data_t::make(write_uring_data_t{
+            .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer});
 
-    submit_request(buffer, rwbuf_.get_write_size(), offset, user_data, true);
+    // We release the ownership of uring_data to io_uring. We reclaim
+    // ownership after we reap the i/o completion.
+    submit_request(
+        buffer, rwbuf_.get_write_size(), offset, user_data.release(), true);
     ++records_.inflight;
 }
 
@@ -75,7 +78,8 @@ void AsyncIO::poll_uring()
     if (auto write_data = reinterpret_cast<write_uring_data_t *>(data);
         write_data->rw_flag == uring_data_type_t::IS_WRITE) {
         wr_pool_.release(reinterpret_cast<write_uring_data_t *>(data)->buffer);
-        write_uring_data_t::pool.destroy(
+        // Reclaim ownership, and release
+        (void)write_uring_data_t::unique_ptr_type(
             reinterpret_cast<write_uring_data_t *>(data));
     }
     else {

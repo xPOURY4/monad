@@ -6,9 +6,9 @@
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
+#include <monad/trie/allocators.hpp>
 #include <monad/trie/node_helper.hpp>
 
-#include <boost/pool/object_pool.hpp>
 #include <cstddef>
 #include <functional>
 
@@ -38,7 +38,22 @@ class AsyncIO final
         uring_data_type_t rw_flag;
         char pad[7];
         unsigned char *buffer;
-        static inline boost::object_pool<write_uring_data_t> pool{};
+
+        using allocator_type =
+            boost_unordered_pool_allocator<write_uring_data_t>;
+        static allocator_type &pool()
+        {
+            static allocator_type v;
+            return v;
+        }
+        using unique_ptr_type = std::unique_ptr<
+            write_uring_data_t, unique_ptr_allocator_deleter<
+                                    allocator_type, &write_uring_data_t::pool>>;
+        static unique_ptr_type make(write_uring_data_t v)
+        {
+            return allocate_unique<allocator_type, &write_uring_data_t::pool>(
+                v);
+        }
     };
 
     static_assert(sizeof(write_uring_data_t) == 16);
@@ -59,7 +74,7 @@ class AsyncIO final
 
     void submit_request(
         unsigned char *const buffer, unsigned int nbytes,
-        unsigned long long offset, void *const uring_data, bool is_write);
+        unsigned long long offset, void *uring_data, bool is_write);
 
     void submit_write_request(unsigned char *buffer, int64_t const offset);
 
@@ -125,8 +140,8 @@ public:
         return root_off;
     }
 
-    template <typename TReadData>
-    void async_read_request(TReadData *uring_data)
+    template <unique_ptr TReadData>
+    void async_read_request(TReadData uring_data)
     {
         // get io_uring sqe, if no available entry, wait on poll() to reap some
         while (records_.inflight >= uring_.get_sq_entries()) {
@@ -138,8 +153,11 @@ public:
 
         uring_data->buffer = rd_buffer;
 
+        // We release the ownership of uring_data to io_uring. We reclaim
+        // ownership after we reap the i/o completion.
+        auto *uring_data_ = uring_data.release();
         submit_request(
-            rd_buffer, READ_BLOCK_SIZE, uring_data->offset, uring_data, false);
+            rd_buffer, READ_BLOCK_SIZE, uring_data_->offset, uring_data_, false);
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;

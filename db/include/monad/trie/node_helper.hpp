@@ -58,8 +58,8 @@ inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
     constexpr unsigned size_of_node_ref = 32;
     size_t total = 0;
-    for (int i = 0; i < node->nsubnodes; ++i) {
-        if (node->tomb_arr_mask & 1u << i) {
+    for (uint16_t i = 0, bit = 1; i < node->nsubnodes; ++i, bit <<= 1) {
+        if (node->tomb_arr_mask & bit) {
             continue;
         }
         if (node->children[i].data) {
@@ -100,8 +100,8 @@ copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
     copy->valid_mask = copy->mask;
     copy->path_len = prev_node->path_len;
     copy->nsubnodes = nsubnodes;
-    for (int i = 0, copy_child_i = 0; i < 16; ++i) {
-        if (copy->mask & 1u << i) {
+    for (uint16_t i = 0, copy_child_i = 0, bit = 1; i < 16; ++i, bit <<= 1) {
+        if (copy->mask & bit) {
             if (i != except_i) {
                 assign_prev_child_to_new(
                     prev_node,

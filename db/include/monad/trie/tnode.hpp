@@ -23,9 +23,9 @@ struct tnode_t
     }
     using unique_ptr_type = std::unique_ptr<
         tnode_t, unique_ptr_allocator_deleter<allocator_type, &tnode_t::pool>>;
-    static unique_ptr_type make()
+    static unique_ptr_type make(tnode_t v)
     {
-        return allocate_unique<allocator_type, &tnode_t::pool>();
+        return allocate_unique<allocator_type, &tnode_t::pool>(std::move(v));
     }
 };
 static_assert(sizeof(tnode_t) == 24);
@@ -35,11 +35,11 @@ static inline tnode_t::unique_ptr_type get_new_tnode(
     tnode_t *const parent_tnode, uint8_t new_branch_ni,
     uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
 { // no npending
-    auto branch_tnode = tnode_t::make();
-    branch_tnode->node = new_branch;
-    branch_tnode->parent = parent_tnode;
-    branch_tnode->child_ni = new_branch_ni;
-    branch_tnode->child_idx = new_branch_arr_i;
+    auto branch_tnode = tnode_t::make(tnode_t{
+        .parent = parent_tnode,
+        .node = new_branch,
+        .child_ni = new_branch_ni,
+        .child_idx = new_branch_arr_i});
 
     return branch_tnode;
 }

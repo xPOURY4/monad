@@ -487,7 +487,7 @@ class owning_span : public std::span<T>
             }
             catch (...) {
                 while (n > 0) {
-                    allocator_traits::destroy(alloc, &p[n - 1]);
+                    allocator_traits::destroy(alloc, &p[--n]);
                 }
                 allocator_traits::deallocate(alloc, p, no);
                 throw;

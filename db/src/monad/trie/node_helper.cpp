@@ -14,9 +14,8 @@ void serialize_node_to_buffer(
     unsigned char *write_pos, merkle_node_t const *const node)
 {
     auto write_item = [&](void *p, const auto &i) {
-        using type = std::decay_t<decltype(i)>;
-        std::memcpy(p, &i, sizeof(type));
-        write_pos += sizeof(type);
+        std::memcpy(p, &i, sizeof(i));
+        write_pos += sizeof(i);
     };
 
     auto write_item_len = [&](void *p, const auto *i, const uint8_t len) {
@@ -28,8 +27,8 @@ void serialize_node_to_buffer(
     MONAD_DEBUG_ASSERT(
         merkle_child_count_valid(node) >= 1); // root can have 1 child
 
-    for (int i = 0; i < node->nsubnodes; ++i) {
-        if (node->tomb_arr_mask & 1u << i) {
+    for (uint16_t i = 0, bit = 1; i < node->nsubnodes; ++i, bit <<= 1) {
+        if (node->tomb_arr_mask & bit) {
             continue;
         }
         merkle_child_info_t const &child = node->children[i];

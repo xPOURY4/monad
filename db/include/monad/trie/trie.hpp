@@ -37,12 +37,13 @@ public:
         tnode_t *curr_tnode, unsigned char const pi = 0);
 
     void update_trie(
-        Request *const updates, unsigned char pi,
+        Request::unique_ptr_type updates, unsigned char pi,
         merkle_node_t *const new_parent, uint8_t const new_child_ni,
         tnode_t *parent_tnode);
 
     void build_new_trie(
-        merkle_node_t *const parent, uint8_t const arr_idx, Request *updates);
+        merkle_node_t *const parent, uint8_t const arr_idx,
+        Request::unique_ptr_type updates);
 
     void upward_update_data(tnode_t *curr_tnode);
 
@@ -67,9 +68,10 @@ public:
         merkle_node_t *prev_root = root_ ? root_ : get_new_merkle_node(0, 0);
         MONAD_ASSERT(prev_root);
 
-        Request *updateq = Request::pool.construct(updates);
+        Request::unique_ptr_type updateq = Request::make(std::move(updates));
         SubRequestInfo requests;
-        updateq->split_into_subqueues(&requests, /*not root*/ false);
+        updateq = updateq->split_into_subqueues(
+            std::move(updateq), &requests, /*not root*/ false);
 
         tnode_t::unique_ptr_type root_tnode =
             get_new_tnode(nullptr, 0, 0, nullptr);
