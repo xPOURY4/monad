@@ -200,12 +200,13 @@ int main(int argc, char *argv[])
             block_off = index.get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
-        AsyncIO io(ring, rwbuf, block_off, &update_callback);
+        auto io =
+            std::make_unique<AsyncIO>(ring, rwbuf, block_off, &update_callback);
 
         int fds[1] = {fd};
-        io.uring_register_files(fds, 1);
+        io->uring_register_files(fds, 1);
 
-        MerkleTrie trie(io, root);
+        MerkleTrie trie(root, std::move(io));
 
         int64_t max_key = n_slices * SLICE_LEN + offset;
         /* start profiling upsert and commit */

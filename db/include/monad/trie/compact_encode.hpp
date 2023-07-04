@@ -21,8 +21,12 @@ inline constexpr byte_string_view compact_encode(
     unsigned char *const res, unsigned char const *const path, uint8_t si,
     uint8_t ei, bool terminating) noexcept
 {
-    assert(ei > si);
+    assert(ei >= si);
     unsigned ci = si, path_len = ei - si;
+    if (path_len == 0) {
+        res[0] = 0x20;
+        return byte_string_view(res, 1);
+    }
     const bool odd = (path_len & 1u) != 0;
     res[0] = terminating ? 0x20 : 0x00;
 

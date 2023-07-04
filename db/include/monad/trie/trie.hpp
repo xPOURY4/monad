@@ -10,6 +10,12 @@
 // TODO: later remove this, will be a user-configurable parameter of MerkleTrie
 #define CACHE_LEVELS 5
 
+#if !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Warray-bounds"
+    #pragma GCC diagnostic ignored "-Wstringop-overread"
+#endif
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 void update_callback(void *user_data);
@@ -17,7 +23,7 @@ void update_callback(void *user_data);
 class MerkleTrie final
 {
     merkle_node_t *root_;
-    AsyncIO &io_;
+    std::unique_ptr<AsyncIO> io_;
     const int cache_levels_;
 
     const byte_string empty_trie_hash{
@@ -40,9 +46,11 @@ public:
 
     void upward_update_data(tnode_t *curr_tnode);
 
-    MerkleTrie(AsyncIO &io, merkle_node_t *root = nullptr, int cache_levels = 5)
+    MerkleTrie(
+        merkle_node_t *root = nullptr, std::unique_ptr<AsyncIO> &&io = nullptr,
+        int cache_levels = 5)
         : root_(root)
-        , io_(io)
+        , io_(std::move(io))
         , cache_levels_(cache_levels)
     {
     }
@@ -67,10 +75,12 @@ public:
             get_new_tnode(nullptr, 0, 0, nullptr);
         root_ = do_update(prev_root, requests, root_tnode.get());
 
-        // after update, also need to poll until no submission left in uring
-        // and write record to the indexing part in the beginning of file
-        off_t root_off = io_.flush(root_);
-
+        off_t root_off = 0;
+        if (io_) {
+            // after update, also need to poll until no submission left in uring
+            // and write record to the indexing part in the beginning of file
+            root_off = io_->flush(root_);
+        }
         // tear down previous trie version and free tnode
         MONAD_ASSERT(!root_tnode || !root_tnode->npending);
         free_trie(prev_root);
@@ -110,9 +120,9 @@ public:
         return root_;
     }
 
-    constexpr AsyncIO &get_io()
+    constexpr AsyncIO *get_io()
     {
-        return io_;
+        return io_.get();
     }
 
     void set_root(merkle_node_t *root)
@@ -125,3 +135,7 @@ static_assert(sizeof(MerkleTrie) == 56);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
+
+#if !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif

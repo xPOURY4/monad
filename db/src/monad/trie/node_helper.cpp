@@ -89,7 +89,7 @@ merkle_node_t *deserialize_node_from_buffer(
             read_pos += sizeof(merkle_child_info_t::data_len_t);
             child.data =
                 static_cast<unsigned char *>(std::malloc(child.data_len));
-            MONAD_DEBUG_ASSERT(child.data != nullptr);
+            MONAD_ASSERT(child.data != nullptr);
             read_item_len(child.data, read_pos, child.data_len);
         }
         // read relative path from disk

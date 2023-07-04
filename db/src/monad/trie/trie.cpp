@@ -19,7 +19,7 @@ void update_callback(void *user_data)
 
     data->updates->prev_parent->children[data->updates->prev_child_i].next =
         node;
-    data->trie->get_io().release_read_buffer(data->buffer);
+    data->trie->get_io()->release_read_buffer(data->buffer);
 
     // callback to update_trie() from where that request left out
     data->trie->update_trie(
@@ -57,12 +57,15 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
         else {
             // ready to sum for curr->node and update data in parent
             encode_branch_extension(parent, curr_tnode->child_idx);
-            parent->children[curr_tnode->child_idx].fnext =
-                io_.async_write_node(curr_tnode->node);
-            if (parent->children[curr_tnode->child_idx].path_len >=
-                cache_levels_) {
-                free_node(curr);
-                parent->children[child_idx].next = nullptr;
+            if (io_) {
+                parent->children[curr_tnode->child_idx].fnext =
+                    io_->async_write_node(curr_tnode->node);
+                if (parent->path_len &&
+                    parent->children[curr_tnode->child_idx].path_len >=
+                        cache_levels_) {
+                    free_node(curr);
+                    parent->children[child_idx].next = nullptr;
+                }
             }
         }
         --curr_tnode->parent->npending;
@@ -108,10 +111,13 @@ void MerkleTrie::build_new_trie(
         // hash node and write to disk
         parent->children[arr_idx].next = new_node;
         encode_branch_extension(parent, arr_idx);
-        parent->children[arr_idx].fnext = io_.async_write_node(new_node);
-        if (parent->children[arr_idx].path_len >= cache_levels_) {
-            free_node(parent->children[arr_idx].next);
-            parent->children[arr_idx].next = nullptr;
+        if (io_) {
+            parent->children[arr_idx].fnext = io_->async_write_node(new_node);
+            if (parent->path_len && // parent could be root
+                parent->children[arr_idx].path_len >= cache_levels_) {
+                free_node(parent->children[arr_idx].next);
+                parent->children[arr_idx].next = nullptr;
+            }
         }
     }
 }
@@ -226,10 +232,10 @@ void MerkleTrie::update_trie(
             // case 1. prev_path_len <= request path len, prev_node is not leaf
             // go down next level in prev trie along the next nibble in read
             // request
-            if (!prev_node) {
+            if (!prev_node && io_) {
                 updates->prev_parent = prev_parent;
                 updates->prev_child_i = prev_child_i;
-                io_.async_read_request<
+                io_->async_read_request<
                     update_uring_data_t>(get_update_uring_data(
                     updates, pi, new_parent, new_child_ni, parent_tnode, this));
                 return;
@@ -397,12 +403,15 @@ void MerkleTrie::update_trie(
         }
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
-            new_parent->children[new_branch_arr_i].fnext =
-                io_.async_write_node(new_branch);
-            if (new_parent->children[new_branch_arr_i].path_len >=
-                cache_levels_) {
-                free_node(new_branch);
-                new_parent->children[new_branch_arr_i].next = nullptr;
+            if (io_) {
+                new_parent->children[new_branch_arr_i].fnext =
+                    io_->async_write_node(new_branch);
+                if (new_parent->path_len &&
+                    new_parent->children[new_branch_arr_i].path_len >=
+                        cache_levels_) {
+                    free_node(new_branch);
+                    new_parent->children[new_branch_arr_i].next = nullptr;
+                }
             }
         }
     }
