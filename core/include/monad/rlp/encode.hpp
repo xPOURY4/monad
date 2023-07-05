@@ -3,6 +3,7 @@
 #include <monad/rlp/config.hpp>
 
 #include <monad/core/byte_string.hpp>
+#include <monad/core/cmemory.hpp>
 
 #include <bit>
 #include <cstddef>
@@ -27,13 +28,18 @@ namespace impl
         size_t const lz_bits = std::countl_zero(n);
         size_t const lz_bytes = lz_bits / 8;
         n <<= lz_bytes * 8;
-        size_t const n_be = [&n] {
+        union
+        {
+            size_t n_be;
+            unsigned char n_be_bytes[sizeof(size_t)];
+        };
+        n_be = [&n] {
             if constexpr (std::endian::native == std::endian::little) {
                 return std::byteswap(n);
             }
             return n;
         }();
-        *((size_t *)d) = n_be;
+        cmemcpy(d, n_be_bytes, sizeof(size_t));
         return d + (sizeof(size_t) - lz_bytes);
     }
 }
