@@ -22,9 +22,9 @@ static_assert(alignof(block_trie_info) == 8);
 
 template <
     unsigned RECORD_SIZE = 16, unsigned SLOTS = 3600 * 4,
-    unsigned PAGE_BITS = 12,
+    unsigned CPU_PAGE_BITS_TO_USE = CPU_PAGE_BITS,
     unsigned BLOCK_START_OFF =
-        round_up_align<unsigned, PAGE_BITS>(RECORD_SIZE *SLOTS)>
+        round_up_align<CPU_PAGE_BITS_TO_USE>(RECORD_SIZE *SLOTS)>
 class Index
 {
     int fd_;
@@ -32,17 +32,19 @@ class Index
     unsigned char *header_block_;
     unsigned char *mmap_block_;
 
-    constexpr static size_t PAGE_SIZE = 1UL << 12;
+    constexpr static size_t CPU_PAGE_SIZE = (1UL << CPU_PAGE_BITS_TO_USE);
 
-    unsigned char *_memmap(off_t offset)
+    unsigned char *_memmap(file_offset_t offset)
     {
+        // Trap unintentional use of high bit offsets
+        MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
         void *buffer = mmap(
             nullptr,
-            PAGE_SIZE,
+            CPU_PAGE_SIZE,
             PROT_READ | PROT_WRITE,
             MAP_SHARED,
             fd_,
-            offset);
+            off_t(offset));
         MONAD_ASSERT(buffer != MAP_FAILED);
 
         return reinterpret_cast<unsigned char *>(buffer);
@@ -65,9 +67,9 @@ public:
     ~Index()
     {
         if (mmap_block_) {
-            MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+            MONAD_ASSERT(!munmap(mmap_block_, CPU_PAGE_SIZE));
         }
-        MONAD_ASSERT(!munmap(header_block_, PAGE_SIZE));
+        MONAD_ASSERT(!munmap(header_block_, CPU_PAGE_SIZE));
     }
 
     constexpr size_t get_start_offset()
@@ -80,11 +82,11 @@ public:
     {
         // aligned blocking read from fd
         unsigned record_off = _get_record_off(vid);
-        block_start_off_ = round_down_align<unsigned, PAGE_BITS>(record_off);
+        block_start_off_ = round_down_align<CPU_PAGE_BITS_TO_USE>(record_off);
 
         if (block_start_off_) {
             if (mmap_block_) {
-                MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+                MONAD_ASSERT(!munmap(mmap_block_, CPU_PAGE_SIZE));
             }
             mmap_block_ = _memmap(block_start_off_);
             return reinterpret_cast<block_trie_info *>(
@@ -96,12 +98,12 @@ public:
     void write_record(uint64_t vid, uint64_t root_off)
     {
         unsigned record_off = _get_record_off(vid);
-        if (record_off >= block_start_off_ + PAGE_SIZE) {
+        if (record_off >= block_start_off_ + CPU_PAGE_SIZE) {
             // renew mmap_block_
             if (mmap_block_) {
-                MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+                MONAD_ASSERT(!munmap(mmap_block_, CPU_PAGE_SIZE));
             }
-            block_start_off_ += PAGE_SIZE;
+            block_start_off_ += CPU_PAGE_SIZE;
             mmap_block_ = _memmap(block_start_off_);
         }
         // update vid record slot
@@ -111,7 +113,7 @@ public:
             block_trie_info{vid, root_off};
         // update header vid
         *reinterpret_cast<uint64_t *>(header_block_) = vid;
-        MONAD_ASSERT(!msync(tmp_block, PAGE_SIZE, MS_ASYNC));
+        MONAD_ASSERT(!msync(tmp_block, CPU_PAGE_SIZE, MS_ASYNC));
     }
 };
 

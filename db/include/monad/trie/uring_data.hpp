@@ -23,11 +23,11 @@ struct update_uring_data_t
     MerkleTrie *trie;
     // read buffer
     unsigned char *buffer;
-    int64_t offset;
+    file_offset_t offset;
     Request::unique_ptr_type updates;
     merkle_node_t *new_parent;
     tnode_t *parent_tnode;
-    int16_t buffer_off;
+    uint16_t buffer_off;
     unsigned char pi;
     uint8_t new_child_ni;
 
@@ -56,10 +56,10 @@ inline update_uring_data_t::unique_ptr_type get_update_uring_data(
     tnode_t *parent_tnode, MerkleTrie *trie)
 {
     // prep uring data
-    int64_t node_offset =
+    file_offset_t node_offset =
         updates->prev_parent->children[updates->prev_child_i].fnext;
-    int64_t offset = round_down_align(static_cast<uint64_t>(node_offset));
-    int16_t buffer_off = node_offset - offset;
+    file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
+    uint16_t buffer_off = uint16_t(node_offset - offset);
 
     return update_uring_data_t::make(update_uring_data_t{
         .rw_flag = uring_data_type_t::IS_READ,

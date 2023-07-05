@@ -27,9 +27,12 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
 }
 
 void AsyncIO::submit_request(
-    unsigned char *const buffer, unsigned int nbytes, unsigned long long offset,
+    unsigned char *const buffer, unsigned int nbytes, file_offset_t offset,
     void *uring_data, bool is_write)
 {
+    // Trap unintentional use of high bit offsets
+    MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
+
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);

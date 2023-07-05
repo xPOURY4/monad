@@ -31,14 +31,15 @@ inline size_t get_merkle_node_size(uint8_t const nsubnodes)
     return sizeof(merkle_node_t) + nsubnodes * sizeof(merkle_child_info_t);
 }
 
-inline merkle_node_t *read_node(int fd, uint64_t node_offset)
+inline merkle_node_t *read_node(int fd, file_offset_t node_offset)
 { // blocking read
-    int64_t offset = (node_offset >> 9) << 9;
-    int16_t buffer_off = node_offset - offset;
-    // TODO(niall): Use a page here to avoid a RMW silent copy
-    auto buffer = std::make_unique<unsigned char[]>(1UL << 11);
-    MONAD_ASSERT(offset == lseek(fd, offset, SEEK_SET));
-    MONAD_ASSERT(read(fd, buffer.get(), 1UL << 11) != -1);
+    file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
+    file_offset_t buffer_off = node_offset - offset;
+    size_t bytestoread =
+        round_up_align<DISK_PAGE_BITS>(MAX_DISK_NODE_SIZE + buffer_off);
+    auto buffer = std::make_unique<unsigned char[]>(bytestoread);
+    MONAD_ASSERT(
+        pread(fd, buffer.get(), bytestoread, offset) == ssize_t(bytestoread));
     merkle_node_t *node =
         deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
     return node;

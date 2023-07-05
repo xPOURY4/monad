@@ -15,7 +15,7 @@ struct merkle_child_info_t
 {
     typedef uint8_t data_len_t;
     typedef uint8_t path_len_t;
-    typedef int64_t fnext_t;
+    typedef file_offset_t fnext_t;
     typedef std::array<unsigned char, 32> noderef_t;
 
     noderef_t noderef;

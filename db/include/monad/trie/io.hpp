@@ -30,8 +30,10 @@ struct IORecord
 
 class AsyncIO final
 {
+public:
     constexpr static size_t READ_BLOCK_SIZE = 2048;
 
+private:
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
     struct write_uring_data_t
     {
@@ -73,8 +75,8 @@ class AsyncIO final
     IORecord records_;
 
     void submit_request(
-        unsigned char *const buffer, unsigned int nbytes,
-        unsigned long long offset, void *uring_data, bool is_write);
+        unsigned char *const buffer, unsigned int nbytes, file_offset_t offset,
+        void *uring_data, bool is_write);
 
     void submit_write_request(unsigned char *buffer, int64_t const offset);
 
@@ -91,7 +93,7 @@ public:
         , readcb_(readcb)
         , write_buffer_(wr_pool_.alloc())
         , buffer_idx_(0)
-        , block_off_(round_up_align(block_off))
+        , block_off_(round_up_align<DISK_PAGE_BITS>(block_off))
     {
         MONAD_ASSERT(write_buffer_);
     }
@@ -157,7 +159,11 @@ public:
         // ownership after we reap the i/o completion.
         auto *uring_data_ = uring_data.release();
         submit_request(
-            rd_buffer, READ_BLOCK_SIZE, uring_data_->offset, uring_data_, false);
+            rd_buffer,
+            READ_BLOCK_SIZE,
+            uring_data_->offset,
+            uring_data_,
+            false);
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;

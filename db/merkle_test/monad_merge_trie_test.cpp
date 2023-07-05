@@ -27,7 +27,6 @@
 #include <filesystem>
 #include <iostream>
 
-#define MIN(x, y) x > y ? y : x
 #define SLICE_LEN 100000
 
 using namespace monad::trie;
@@ -54,7 +53,7 @@ void __print_char_arr_in_hex(char *arr, int n)
 */
 inline void batch_upsert_commit(
     std::ostream &csv_writer, uint64_t block_id, int64_t keccak_offset,
-    int64_t offset, int64_t nkeys, unsigned char *const keccak_keys,
+    file_offset_t offset, int64_t nkeys, unsigned char *const keccak_keys,
     unsigned char *const keccak_values, bool erase, MerkleTrie &trie,
     index_t &index)
 {
@@ -91,7 +90,7 @@ inline void batch_upsert_commit(
     __print_char_arr_in_hex((char *)root_data, 32);
     fprintf(
         stdout,
-        "next_key_id: %lu, nkeys upserted: %lu, upsert+pre+commit in "
+        "next_key_id: %llu, nkeys upserted: %lu, upsert+pre+commit in "
         "RAM: "
         "%f /s, total_t %.4f s\n",
         offset + keccak_offset + nkeys,
@@ -137,7 +136,7 @@ int main(int argc, char *argv[])
     bool append = false;
     uint64_t vid = 0;
     std::filesystem::path dbname_path = "test.db", csv_stats_path;
-    int64_t offset = 0;
+    file_offset_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
     CLI::App cli{"monad_merge_trie_test"};
@@ -215,7 +214,7 @@ int main(int argc, char *argv[])
                 }
                 // pre-calculate keccak
                 prepare_keccak(
-                    MIN(keccak_cap, max_key - offset),
+                    std::min(keccak_cap, max_key - int64_t(offset)),
                     keccak_keys.get(),
                     keccak_values.get(),
                     0,
