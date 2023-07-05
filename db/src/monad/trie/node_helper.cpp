@@ -12,7 +12,7 @@ MONAD_TRIE_NAMESPACE_BEGIN
 void serialize_node_to_buffer(
     unsigned char *write_pos, merkle_node_t const *const node)
 {
-    *(uint16_t *)write_pos = node->valid_mask;
+    std::memcpy(write_pos, &node->valid_mask, SIZE_OF_SUBNODE_BITMASK);
     write_pos += SIZE_OF_SUBNODE_BITMASK;
     MONAD_ASSERT(merkle_child_count_valid(node) > 1);
 
@@ -20,9 +20,9 @@ void serialize_node_to_buffer(
         if (node->tomb_arr_mask & 1u << i) {
             continue;
         }
-        *(int64_t *)write_pos = node->children[i].fnext;
+        std::memcpy(write_pos, &node->children[i].fnext, SIZE_OF_FILE_OFFSET);
         write_pos += SIZE_OF_FILE_OFFSET;
-        std::memcpy(write_pos, &(node->children[i].noderef), 32);
+        std::memcpy(write_pos, &(node->children[i].noderef), SIZE_OF_NODE_REF);
         write_pos += SIZE_OF_NODE_REF;
 
         *write_pos = node->children[i].path_len;
@@ -51,15 +51,19 @@ merkle_node_t *deserialize_node_from_buffer(
     unsigned char const *read_pos, unsigned char const node_path_len)
 {
     assert(node_path_len < 64);
-    uint16_t const mask = *(uint16_t *)read_pos;
+    uint16_t const mask = [read_pos] {
+        uint16_t ret = 0;
+        std::memcpy(&ret, read_pos, SIZE_OF_SUBNODE_BITMASK);
+        return ret;
+    }();
     read_pos += SIZE_OF_SUBNODE_BITMASK;
     merkle_node_t *node = get_new_merkle_node(mask, node_path_len);
 
     for (unsigned i = 0; i < node->nsubnodes; ++i) {
-        node->children[i].fnext = *(int64_t *)read_pos;
+        std::memcpy(&node->children[i].fnext, read_pos, SIZE_OF_FILE_OFFSET);
         read_pos += SIZE_OF_FILE_OFFSET;
 
-        std::memcpy(&(node->children[i].noderef), read_pos, 32);
+        std::memcpy(&(node->children[i].noderef), read_pos, SIZE_OF_NODE_REF);
         read_pos += SIZE_OF_NODE_REF;
 
         node->children[i].path_len = *read_pos;
