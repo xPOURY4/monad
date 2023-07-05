@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#define MAX_DISK_NODE_SIZE 1536
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 // helper functions
@@ -54,6 +56,7 @@ inline void free_node(merkle_node_t *const node)
 
 inline size_t get_disk_node_size(merkle_node_t const *const node)
 {
+    constexpr unsigned size_of_node_ref = 32;
     size_t total = 0;
     for (int i = 0; i < node->nsubnodes; ++i) {
         if (node->tomb_arr_mask & 1u << i) {
@@ -66,9 +69,10 @@ inline size_t get_disk_node_size(merkle_node_t const *const node)
         }
         total += (node->children[i].path_len + 1) / 2 - node->path_len / 2;
     }
-    return SIZE_OF_SUBNODE_BITMASK + total +
+    return total + sizeof(merkle_node_t::mask_t) +
            merkle_child_count_valid(node) *
-               (SIZE_OF_NODE_REF + SIZE_OF_FILE_OFFSET + SIZE_OF_PATH_LEN);
+               (size_of_node_ref + sizeof(merkle_child_info_t::fnext_t) +
+                sizeof(merkle_child_info_t::path_len_t));
 }
 
 inline merkle_node_t *

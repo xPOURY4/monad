@@ -22,8 +22,11 @@ MONAD_TRIE_NAMESPACE_BEGIN
 inline void
 to_node_reference(byte_string_view rlp, unsigned char *data) noexcept
 {
-    if (rlp.size() >= 32) {
-        memcpy(data, ethash::keccak256(rlp.data(), rlp.size()).bytes, 32);
+    if (rlp.size() >= sizeof(merkle_child_info_t::noderef_t)) {
+        memcpy(
+            data,
+            ethash::keccak256(rlp.data(), rlp.size()).bytes,
+            sizeof(merkle_child_info_t::noderef_t));
     }
     else {
         memcpy(data, rlp.data(), rlp.size());
@@ -75,12 +78,12 @@ inline void encode_leaf(
     }
     child->data_len = value.size();
     std::memcpy(child->data, value.data(), value.size());
-    unsigned char relpath[33];
+    unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
     encode_two_piece(
         compact_encode(
             relpath, child->path, parent->path_len + 1, child->path_len, true),
         byte_string_view{child->data, child->data_len},
-        child->noderef);
+        child->noderef.data());
 }
 
 inline void encode_branch(merkle_node_t *const branch, unsigned char *data)
@@ -96,8 +99,9 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *data)
             result = rlp::encode_string(
                 result,
                 byte_string_view{
-                    branch->children[merkle_child_index(branch, i)].noderef,
-                    32});
+                    branch->children[merkle_child_index(branch, i)]
+                        .noderef.data(),
+                    sizeof(merkle_child_info_t::noderef_t)});
         }
         else {
             result = rlp::encode_string(result, byte_string{});
@@ -132,11 +136,12 @@ inline void encode_branch_extension(
     }
     else {
         // hash both branch and extension
-        child->data_len = 32;
-        child->data = static_cast<unsigned char *>(std::malloc(32));
+        child->data_len = sizeof(merkle_child_info_t::noderef_t);
+        child->data = static_cast<unsigned char *>(
+            std::malloc(sizeof(merkle_child_info_t::noderef_t)));
         MONAD_ASSERT(child->data != nullptr);
         encode_branch(child->next, child->data);
-        unsigned char relpath[33];
+        unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
         encode_two_piece(
             compact_encode(
                 relpath,

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <monad/trie/config.hpp>
-#include <monad/trie/constants.hpp>
 #include <monad/trie/util.hpp>
 
 #include <monad/core/assert.h>
@@ -21,7 +20,10 @@ struct block_trie_info
 static_assert(sizeof(block_trie_info) == 16);
 static_assert(alignof(block_trie_info) == 8);
 
-class Index final
+template <
+    unsigned RECORD_SIZE = 16, unsigned SLOTS = 3600 * 4,
+    unsigned BLOCK_START_OFF = round_up_4k(RECORD_SIZE *SLOTS)>
+class Index
 {
     int fd_;
     unsigned block_start_off_;
@@ -109,7 +111,9 @@ public:
     }
 };
 
-static_assert(sizeof(Index) == 24);
-static_assert(alignof(Index) == 8);
+using index_t = Index<>;
+
+static_assert(sizeof(index_t) == 24);
+static_assert(alignof(index_t) == 8);
 
 MONAD_TRIE_NAMESPACE_END

@@ -56,7 +56,7 @@ static merkle_node_t *batch_upsert_commit(
     std::ostream &csv_writer, uint64_t block_id, merkle_node_t *prev_root,
     int64_t keccak_offset, int64_t offset, int64_t nkeys,
     unsigned char *const keccak_keys, unsigned char *const keccak_values,
-    bool erase, AsyncIO &io, Index &index)
+    bool erase, AsyncIO &io, index_t &index)
 {
     double tm_ram;
 

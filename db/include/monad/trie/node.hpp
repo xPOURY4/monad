@@ -1,9 +1,9 @@
 #pragma once
 
 #include <monad/core/assert.h>
-#include <monad/trie/constants.hpp>
 #include <monad/trie/util.hpp>
 
+#include <array>
 #include <cstddef>
 #include <type_traits>
 
@@ -14,14 +14,19 @@ struct merkle_node_t;
 // maintain lifetime of data_view.data()
 struct merkle_child_info_t
 {
-    unsigned char noderef[32];
-    int64_t fnext; // TODO: change to off48_t
+    typedef uint8_t data_len_t;
+    typedef uint8_t path_len_t;
+    typedef int64_t fnext_t;
+    typedef std::array<unsigned char, 32> noderef_t;
+
+    noderef_t noderef;
+    fnext_t fnext; // TODO: change to off48_t
     merkle_node_t *next;
     unsigned char *data;
-    unsigned char data_len;
-    unsigned char path_len;
+    data_len_t data_len; // in bytes
+    path_len_t path_len; // in nibbles
     char pad[6];
-    unsigned char path[32];
+    unsigned char path[32]; // TODO: change to var length
 };
 
 static_assert(sizeof(merkle_child_info_t) == 96);
@@ -30,11 +35,14 @@ static_assert(std::is_trivially_copyable_v<merkle_child_info_t>);
 
 struct merkle_node_t
 {
-    uint16_t mask;
-    uint16_t valid_mask;
-    uint16_t tomb_arr_mask;
+    typedef uint16_t mask_t;
+    typedef uint8_t path_len_t;
+
+    mask_t mask;
+    mask_t valid_mask;
+    mask_t tomb_arr_mask;
     uint8_t nsubnodes;
-    unsigned char path_len;
+    path_len_t path_len;
 
     merkle_child_info_t children[0];
 };

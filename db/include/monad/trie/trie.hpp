@@ -9,6 +9,9 @@
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
 
+// TODO: later remove this, will be a user-configurable parameter of MerkleTrie
+#define CACHE_LEVELS 5
+
 MONAD_TRIE_NAMESPACE_BEGIN
 
 void update_callback(void *user_data, AsyncIO &io);
@@ -43,7 +46,7 @@ public:
 
     void process_updates(
         uint64_t vid, monad::mpt::UpdateList &updates, merkle_node_t *prev_root,
-        AsyncIO &io, Index &index)
+        AsyncIO &io, index_t &index)
     {
         Request *updateq = Request::pool.construct(updates);
         SubRequestInfo requests;
