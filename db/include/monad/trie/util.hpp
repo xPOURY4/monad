@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include <limits.h>
 #include <linux/types.h> // for __u64
 #include <sys/user.h> // for PAGE_SIZE
 
@@ -23,6 +24,8 @@ using file_offset_t = __u64;
 
 //! The maximum disk storage used by a serialised merkle node
 static constexpr uint16_t MAX_DISK_NODE_SIZE = 2674;
+//! The invalid file offset
+static constexpr file_offset_t INVALID_OFFSET = file_offset_t(-1);
 
 //! The CPU page size and bits to assume
 static constexpr uint16_t CPU_PAGE_SIZE = 4096;

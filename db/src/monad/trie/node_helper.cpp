@@ -21,8 +21,7 @@ void serialize_node_to_buffer(
     };
 
     write_item(write_pos, node->valid_mask);
-    MONAD_DEBUG_ASSERT(
-        merkle_child_count_valid(node) >= 1); // root can have 1 child
+    MONAD_DEBUG_ASSERT(merkle_child_count_valid(node) >= 1);
 
     for (uint16_t i = 0, bit = 1; i < node->size(); ++i, bit <<= 1) {
         if (node->tomb_arr_mask & bit) {

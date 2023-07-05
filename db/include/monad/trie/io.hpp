@@ -79,8 +79,8 @@ class AsyncIO final
         unsigned char *const buffer, unsigned int nbytes, file_offset_t offset,
         void *uring_data, bool is_write);
 
-    void
-    submit_write_request(unsigned char *buffer, file_offset_t const offset);
+    void submit_write_request(
+        unsigned char *buffer, file_offset_t const offset, unsigned write_size);
 
     void poll_uring();
 
@@ -116,11 +116,13 @@ public:
     {
         // handle the last buffer to write
         if (buffer_idx_ > 1) {
-            submit_write_request(write_buffer_, block_off_);
+            submit_write_request(
+                write_buffer_, block_off_, rwbuf_.get_write_size());
         }
         else {
             wr_pool_.release(write_buffer_);
         }
+        // poll the last buffer submitted for write
         while (records_.inflight) {
             poll_uring();
         }
@@ -143,16 +145,42 @@ public:
         file_offset_t offset_written_to;
         unsigned bytes_appended;
     };
-    async_write_node_result async_write_node(merkle_node_t *node);
+    async_write_node_result async_write_node(merkle_node_t const *const node);
 
+    void flush_last_buffer()
+    {
+        // Write the last pending buffer for current block.
+        // mainly useful for unit test purposes for now, where updates are not
+        // enough to fill single buffer. So there's gap where node is
+        // deallocated but not yet reaching disk for read.
+        // Always cache the latest version(s) in memory will resolve this
+        // problem nicely.
+        if (buffer_idx_ > 1) {
+            unsigned write_size = round_up_align<DISK_PAGE_BITS>(buffer_idx_);
+            submit_write_request(write_buffer_, block_off_, write_size);
+            write_buffer_ = wr_pool_.alloc();
+            MONAD_ASSERT(write_buffer_);
+            block_off_ += write_size;
+            buffer_idx_ = 0;
+
+            poll_uring();
+            MONAD_ASSERT(records_.inflight == 0);
+        }
+    }
     // invoke at the end of each block
     async_write_node_result flush(merkle_node_t *root)
     {
         while (records_.inflight) {
             poll_uring();
         }
-        auto root_off = async_write_node(root);
-        // pending root write, will submit or poll in next round
+        // only write root to disk if trie is not empty
+        // root write is pending, will submit or poll in next round
+        auto root_off = root->valid_mask
+                            ? async_write_node(root)
+                            : async_write_node_result{INVALID_OFFSET, 0};
+
+        // flush_last_buffer();
+        MONAD_ASSERT(records_.inflight <= 1);
 
         records_.nreads = 0;
         return root_off;
@@ -183,19 +211,6 @@ public:
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;
-    }
-
-    inline merkle_node_ptr read_node(file_offset_t node_offset)
-    { // blocking read
-        file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
-        file_offset_t buffer_off = node_offset - offset;
-        size_t bytestoread =
-            round_up_align<DISK_PAGE_BITS>(MAX_DISK_NODE_SIZE + buffer_off);
-        auto buffer = std::make_unique<unsigned char[]>(bytestoread);
-        MONAD_ASSERT(
-            pread(fds_[READ], buffer.get(), bytestoread, offset) ==
-            ssize_t(bytestoread));
-        return deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
     }
 };
 

@@ -4,9 +4,15 @@ function(add_trie_test target)
 
   target_link_libraries(${target} PUBLIC monad_trie GTest::gtest_main)
 
-  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+  gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/test/)
 endfunction()
 
 add_trie_test(allocators_test "allocators.cpp")
 add_trie_test(max_disk_node_size_test "max_disk_node_size.cpp")
-add_trie_test(index_test "index.cpp")
+add_trie_test(index_test "index.cpp" )
+add_trie_test(compact_encode_test "compact_encode.cpp")
+add_trie_test(
+    single_trie_test 
+    "trie_fixtures.hpp"
+    "single_trie.cpp"
+)

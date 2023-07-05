@@ -2,9 +2,10 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-AsyncIO::async_write_node_result AsyncIO::async_write_node(merkle_node_t *node)
+AsyncIO::async_write_node_result
+AsyncIO::async_write_node(merkle_node_t const *const node)
 {
-    // always one write buffer in use but not submitted
+    // always one write buffer in use but not yet submitted
     while (records_.inflight >= uring_.get_sq_entries() - 1) {
         poll_uring();
     }
@@ -12,7 +13,8 @@ AsyncIO::async_write_node_result AsyncIO::async_write_node(merkle_node_t *node)
     unsigned size = get_disk_node_size(node);
     if (size + buffer_idx_ > rwbuf_.get_write_size()) {
         // submit write request
-        submit_write_request(write_buffer_, block_off_);
+        submit_write_request(
+            write_buffer_, block_off_, rwbuf_.get_write_size());
 
         // renew buffer
         block_off_ += rwbuf_.get_write_size();
@@ -27,8 +29,8 @@ AsyncIO::async_write_node_result AsyncIO::async_write_node(merkle_node_t *node)
 }
 
 void AsyncIO::submit_request(
-    unsigned char *const buffer, unsigned int nbytes, file_offset_t offset,
-    void *uring_data, bool is_write)
+    unsigned char *const buffer, unsigned int const nbytes,
+    file_offset_t const offset, void *const uring_data, bool const is_write)
 {
     // Trap unintentional use of high bit offsets
     MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
@@ -51,7 +53,8 @@ void AsyncIO::submit_request(
 }
 
 void AsyncIO::submit_write_request(
-    unsigned char *buffer, file_offset_t const offset)
+    unsigned char *const buffer, file_offset_t const offset,
+    unsigned const write_size)
 {
     // write user data
     write_uring_data_t::unique_ptr_type user_data =
@@ -60,8 +63,7 @@ void AsyncIO::submit_write_request(
 
     // We release the ownership of uring_data to io_uring. We reclaim
     // ownership after we reap the i/o completion.
-    submit_request(
-        buffer, rwbuf_.get_write_size(), offset, user_data.release(), true);
+    submit_request(buffer, write_size, offset, user_data.release(), true);
     ++records_.inflight;
 }
 

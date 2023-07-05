@@ -34,7 +34,7 @@ static_assert(alignof(std::optional<Data>) == 8);
 
 struct UpdateBase
 {
-    unsigned char *key;
+    unsigned char const *key;
     std::optional<Data> opt;
 };
 
@@ -64,5 +64,16 @@ using UpdateList = boost::intrusive::slist<
 
 static_assert(sizeof(UpdateList) == 8);
 static_assert(alignof(UpdateList) == 8);
+
+template <class T>
+concept key_type = requires(T a) { a.data(); };
+template <key_type T>
+[[nodiscard]] inline Update
+make_update(T const &key, byte_string_view const &value)
+{
+    return Update{
+        {key.data(), value.size() ? std::optional<Data>{value} : std::nullopt},
+        UpdateMemberHook{}};
+}
 
 MONAD_MPT_NAMESPACE_END

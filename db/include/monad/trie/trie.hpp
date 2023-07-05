@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/core/byte_string.hpp>
+#include <monad/core/hex_literal.hpp>
 #include <monad/trie/config.hpp>
 #include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
@@ -9,12 +10,13 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-static const byte_string empty_trie_hash{
-    {0x56, 0xe8, 0x1f, 0x17, 0x1b, 0xcc, 0x55, 0xa6, 0xff, 0x83, 0x45,
-     0xe6, 0x92, 0xc0, 0xf8, 0x6e, 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c,
-     0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21}};
+static const byte_string empty_trie_hash = [] {
+    using namespace ::monad::literals;
+    return 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex;
+}();
 
 void update_callback(void *user_data);
+
 class MerkleTrie final
 {
     merkle_node_ptr root_;
@@ -70,17 +72,21 @@ public:
             get_new_tnode(nullptr, 0, 0, nullptr);
         root_ = do_update(prev_root.get(), requests, root_tnode.get());
 
-        file_offset_t root_off = 0;
         if (io_) {
             // after update, also need to poll until no submission left in uring
             // and write record to the indexing part in the beginning of file
-            root_off = io_->flush(root_.get()).offset_written_to;
+            file_offset_t root_off = io_->flush(root_.get()).offset_written_to;
             if (index_) {
                 index_->write_record(block_id, root_off);
             }
         }
-        // tear down previous trie version and free tnode
+        // tear down previous version trie and free tnode
         MONAD_ASSERT(!root_tnode || !root_tnode->npending);
+    }
+
+    void flush_last_buffer()
+    {
+        io_->flush_last_buffer();
     }
 
     void root_hash(unsigned char *const dest)
@@ -119,6 +125,11 @@ public:
     AsyncIO *get_io()
     {
         return io_.get();
+    }
+
+    void set_root(merkle_node_ptr root)
+    {
+        root_ = std::move(root);
     }
 };
 

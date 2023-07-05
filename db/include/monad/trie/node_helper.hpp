@@ -60,7 +60,7 @@ inline unsigned get_disk_node_size(merkle_node_t const *const node)
 }
 
 inline merkle_node_ptr
-get_new_merkle_node(uint16_t const mask, unsigned char path_len)
+get_new_merkle_node(uint16_t const mask = 0, unsigned char path_len = 0)
 {
     uint8_t const nsubnodes = std::popcount(mask);
     auto new_branch = merkle_node_t::make_with_children(nsubnodes);
