@@ -22,7 +22,7 @@ MONAD_TRIE_NAMESPACE_BEGIN
 inline void
 to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
 {
-    if (rlp.size() >= sizeof(merkle_child_info_t::noderef_t)) {
+    if (MONAD_LIKELY(rlp.size() >= sizeof(merkle_child_info_t::noderef_t))) {
         memcpy(
             dest,
             ethash::keccak256(rlp.data(), rlp.size()).bytes,

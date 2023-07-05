@@ -10,7 +10,7 @@
 // TODO: later remove this, will be a user-configurable parameter of MerkleTrie
 #define CACHE_LEVELS 5
 
-#if !defined(__clang__)
+#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Warray-bounds"
     #pragma GCC diagnostic ignored "-Wstringop-overread"
@@ -91,10 +91,11 @@ public:
     void root_hash(unsigned char *const dest)
     {
         unsigned nsubnodes_valid = std::popcount(root_->valid_mask);
-        if (!nsubnodes_valid) {
+
+        if (MONAD_UNLIKELY(!nsubnodes_valid)) {
             memcpy(dest, empty_trie_hash.data(), 32);
         }
-        else if (nsubnodes_valid == 1) {
+        else if (MONAD_UNLIKELY(nsubnodes_valid == 1)) {
             uint8_t only_child = std::countr_zero(root_->valid_mask);
             auto *child =
                 &root_->children[merkle_child_index(root_, only_child)];
@@ -136,6 +137,6 @@ static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
 
-#if !defined(__clang__)
+#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
     #pragma GCC diagnostic pop
 #endif
