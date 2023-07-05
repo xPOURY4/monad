@@ -1,6 +1,8 @@
 #include <CLI/CLI.hpp>
 #include <cassert>
 #include <ethash/keccak.h>
+#include <sys/syscall.h> // for SYS_gettid
+#include <unistd.h> // for syscall()
 
 #include <monad/core/byte_string.hpp>
 
@@ -135,6 +137,7 @@ int main(int argc, char *argv[])
     unsigned sq_thread_cpu = 15;
     bool erase = false;
     CLI::App cli{"monad_merge_trie_test"};
+    printf("main() runs on tid %ld\n", syscall(SYS_gettid));
     cli.add_flag("--append", append, "append on a specific version in db");
     cli.add_option("--vid", vid, "append on a specific version in db");
     cli.add_option("--db-name", dbname, "db file name");
