@@ -29,6 +29,7 @@ add_library(monad_core STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/core/cmemory.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/core/endian.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/core/hex_literal.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/core/likely.h"
     "${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h"
@@ -91,3 +92,5 @@ function(monad_add_test target)
 endfunction()
 
 monad_add_test(encode_test "${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_test.cpp")
+monad_add_test(literal_test "${PROJECT_SOURCE_DIR}/src/monad/core/literal_test.cpp")
+

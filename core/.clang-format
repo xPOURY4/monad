@@ -43,3 +43,4 @@ BreakConstructorInitializers: BeforeComma
 BreakInheritanceList: BeforeComma
 IndentExternBlock: NoIndent
 IndentPPDirectives: BeforeHash
+InsertBraces: true
