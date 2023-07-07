@@ -7,12 +7,6 @@
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
 
-#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Warray-bounds"
-    #pragma GCC diagnostic ignored "-Wstringop-overread"
-#endif
-
 MONAD_TRIE_NAMESPACE_BEGIN
 
 static const byte_string empty_trie_hash{
@@ -23,34 +17,27 @@ static const byte_string empty_trie_hash{
 void update_callback(void *user_data);
 class MerkleTrie final
 {
-    merkle_node_t *root_;
+    merkle_node_ptr root_;
     std::shared_ptr<AsyncIO> io_;
     std::shared_ptr<index_t> index_;
     const int cache_levels_;
 
 public:
     MerkleTrie(
-        merkle_node_t *root = nullptr, std::shared_ptr<AsyncIO> io = {},
+        merkle_node_ptr root = {}, std::shared_ptr<AsyncIO> io = {},
         std::shared_ptr<index_t> index = {}, int cache_levels = 5)
-        : root_(root)
+        : root_(std::move(root))
         , io_(std::move(io))
         , index_(std::move(index))
         , cache_levels_(cache_levels)
     {
     }
 
-    ~MerkleTrie()
-    {
-        if (root_) {
-            free_trie(root_);
-        }
-    };
-
     ////////////////////////////////////////////////////////////////////
     // Update helper functions
     ////////////////////////////////////////////////////////////////////
 
-    merkle_node_t *do_update(
+    merkle_node_ptr do_update(
         merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
         tnode_t *curr_tnode, unsigned char const pi = 0);
 
@@ -71,8 +58,8 @@ public:
 
     void process_updates(monad::mpt::UpdateList &updates, uint64_t block_id = 0)
     {
-        merkle_node_t *prev_root = root_ ? root_ : get_new_merkle_node(0, 0);
-        MONAD_ASSERT(prev_root);
+        merkle_node_ptr prev_root =
+            root_ ? std::move(root_) : get_new_merkle_node(0, 0);
 
         Request::unique_ptr_type updateq = Request::make(std::move(updates));
         SubRequestInfo requests;
@@ -81,20 +68,19 @@ public:
 
         tnode_t::unique_ptr_type root_tnode =
             get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_update(prev_root, requests, root_tnode.get());
+        root_ = do_update(prev_root.get(), requests, root_tnode.get());
 
         file_offset_t root_off = 0;
         if (io_) {
             // after update, also need to poll until no submission left in uring
             // and write record to the indexing part in the beginning of file
-            root_off = io_->flush(root_).offset_written_to;
+            root_off = io_->flush(root_.get()).offset_written_to;
             if (index_) {
                 index_->write_record(block_id, root_off);
             }
         }
         // tear down previous trie version and free tnode
         MONAD_ASSERT(!root_tnode || !root_tnode->npending);
-        free_trie(prev_root);
     }
 
     void root_hash(unsigned char *const dest)
@@ -107,7 +93,7 @@ public:
         else if (MONAD_UNLIKELY(nsubnodes_valid == 1)) {
             uint8_t only_child = std::countr_zero(root_->valid_mask);
             auto *child =
-                &root_->children[merkle_child_index(root_, only_child)];
+                &root_->children()[merkle_child_index(root_.get(), only_child)];
             set_nibble(child->path, 0, only_child);
             unsigned char relpath[33];
             encode_two_piece(
@@ -117,27 +103,22 @@ public:
                     0,
                     child->path_len(),
                     child->path_len() == 64),
-                byte_string_view{child->data, child->data_len()},
+                byte_string_view{child->data.get(), child->data_len()},
                 dest);
         }
         else {
-            encode_branch(root_, dest);
+            encode_branch(root_.get(), dest);
         }
     }
 
     constexpr merkle_node_t *get_root()
     {
-        return root_;
+        return root_.get();
     }
 
     AsyncIO *get_io()
     {
         return io_.get();
-    }
-
-    void set_root(merkle_node_t *root)
-    {
-        root_ = root;
     }
 };
 
@@ -145,7 +126,3 @@ static_assert(sizeof(MerkleTrie) == 48);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
-
-#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
-    #pragma GCC diagnostic pop
-#endif

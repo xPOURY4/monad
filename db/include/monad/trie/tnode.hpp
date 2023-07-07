@@ -3,10 +3,10 @@
 #include <monad/trie/config.hpp>
 
 #include <monad/trie/allocators.hpp>
+#include <monad/trie/node.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 // helper struct: node of a upward pointing tree
-struct merkle_node_t;
 struct tnode_t
 {
     tnode_t *parent;
@@ -31,9 +31,9 @@ struct tnode_t
 static_assert(sizeof(tnode_t) == 24);
 static_assert(alignof(tnode_t) == 8);
 
-static inline tnode_t::unique_ptr_type get_new_tnode(
+inline tnode_t::unique_ptr_type get_new_tnode(
     tnode_t *const parent_tnode, uint8_t new_branch_ni,
-    uint8_t const new_branch_arr_i, merkle_node_t *const new_branch)
+    uint8_t const new_branch_arr_i, merkle_node_t *new_branch)
 { // no npending
     auto branch_tnode = tnode_t::make(tnode_t{
         .parent = parent_tnode,

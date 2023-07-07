@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
 
         // initialize root and block offset for write
         file_offset_t block_off;
-        merkle_node_t *root;
+        merkle_node_ptr root;
         if (append) {
             auto root_off = index->get_history_root_off(vid);
             if (!root_off.has_value()) {
@@ -190,7 +190,7 @@ int main(int argc, char *argv[])
         auto io = std::make_shared<AsyncIO>(
             dbname_path, ring, rwbuf, block_off, &update_callback);
 
-        MerkleTrie trie(root, io, index);
+        MerkleTrie trie(std::move(root), std::move(io), std::move(index));
 
         unsigned char root_data[32];
         trie.root_hash(root_data);

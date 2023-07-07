@@ -13,7 +13,7 @@
 MONAD_TRIE_NAMESPACE_BEGIN
 
 struct SubRequestInfo;
-struct merkle_node_t;
+class merkle_node_t;
 
 struct Request
 {

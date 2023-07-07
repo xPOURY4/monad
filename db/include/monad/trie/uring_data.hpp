@@ -12,6 +12,7 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
+class merkle_node_t;
 struct tnode_t;
 class MerkleTrie;
 enum class uring_data_type_t : unsigned char;
@@ -57,7 +58,7 @@ inline update_uring_data_t::unique_ptr_type get_update_uring_data(
     tnode_t *parent_tnode, MerkleTrie *trie)
 {
     // prep uring data
-    auto &child = updates->prev_parent->children[updates->prev_child_i];
+    auto &child = updates->prev_parent->children()[updates->prev_child_i];
     file_offset_t node_offset = child.fnext();
     file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
     uint16_t buffer_off = uint16_t(node_offset - offset);

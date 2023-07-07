@@ -10,15 +10,15 @@ void update_callback(void *user_data)
 {
     // construct the node from the read buffer
     update_uring_data_t::unique_ptr_type data((update_uring_data_t *)user_data);
-    merkle_node_t *node = deserialize_node_from_buffer(
+    merkle_node_ptr node = deserialize_node_from_buffer(
         data->buffer + data->buffer_off,
-        data->updates->prev_parent->children[data->updates->prev_child_i]
+        data->updates->prev_parent->children()[data->updates->prev_child_i]
             .path_len());
-    assert(node->nsubnodes > 1);
+    assert(node->size() > 1);
     assert(node->mask);
 
-    data->updates->prev_parent->children[data->updates->prev_child_i].next =
-        node;
+    data->updates->prev_parent->children()[data->updates->prev_child_i].next =
+        std::move(node);
     data->trie->get_io()->release_read_buffer(data->buffer);
 
     // callback to update_trie() from where that request left out
@@ -38,8 +38,8 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
         return;
     }
     while (!curr_tnode->npending && curr_tnode->parent) {
-        merkle_node_t *parent = curr_tnode->parent->node,
-                      *curr = curr_tnode->node;
+        merkle_node_t *parent = curr_tnode->parent->node;
+        auto *curr = curr_tnode->node;
         uint8_t child_idx = curr_tnode->child_idx,
                 child_ni = curr_tnode->child_ni;
         // TODO: dup of the logic in merge_trie
@@ -47,8 +47,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
         if (nvalid == 0) {
             parent->valid_mask &= ~(1u << child_ni);
             parent->tomb_arr_mask |= 1u << child_idx;
-            parent->children[child_idx].next = nullptr;
-            free_node(curr);
+            parent->children()[child_idx].next.reset();
         }
         else if (nvalid == 1) {
             connect_only_grandchild(parent, child_idx);
@@ -58,15 +57,11 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
             encode_branch_extension(parent, curr_tnode->child_idx);
             if (io_) {
                 auto written = io_->async_write_node(curr_tnode->node);
-                parent->children[curr_tnode->child_idx].set_fnext(
-                    written.offset_written_to);
-                parent->children[curr_tnode->child_idx]
-                    .set_node_len_upper_bound(written.bytes_appended);
-                if (parent->path_len &&
-                    parent->children[curr_tnode->child_idx].path_len() >=
-                        cache_levels_) {
-                    free_node(curr);
-                    parent->children[child_idx].next = nullptr;
+                auto &child = parent->children()[curr_tnode->child_idx];
+                child.set_fnext(written.offset_written_to);
+                child.set_node_len_upper_bound(written.bytes_appended);
+                if (parent->path_len && child.path_len() >= cache_levels_) {
+                    parent->children()[child_idx].next.reset();
                 }
             }
         }
@@ -82,8 +77,8 @@ void set_child_path_n_len(
     merkle_node_t *const parent, uint8_t const child_idx,
     unsigned char const *const path, uint8_t const path_len)
 {
-    parent->children[child_idx].set_path_len(path_len);
-    std::memcpy(parent->children[child_idx].path, path, (path_len + 1) / 2);
+    parent->children()[child_idx].set_path_len(path_len);
+    std::memcpy(parent->children()[child_idx].path, path, (path_len + 1) / 2);
 }
 
 void MerkleTrie::build_new_trie(
@@ -94,7 +89,7 @@ void MerkleTrie::build_new_trie(
     if (updates->is_leaf()) {
         set_child_path_n_len(parent, arr_idx, updates->get_path(), 64);
         encode_leaf(parent, arr_idx, updates->get_only_leaf().opt.value().val);
-        parent->children[arr_idx].next = nullptr;
+        parent->children()[arr_idx].next.reset();
     }
     else {
         while (
@@ -105,42 +100,43 @@ void MerkleTrie::build_new_trie(
         set_child_path_n_len(
             parent, arr_idx, nextlevel.get_path(), nextlevel.path_len);
         // reconstruct the underlying trie from each nextlevel update list
-        merkle_node_t *new_node =
+        merkle_node_ptr new_node =
             get_new_merkle_node(nextlevel.mask, nextlevel.path_len);
         for (uint16_t i = 0, child_idx = 0, bit = 1; i < 16; ++i, bit <<= 1) {
             if (nextlevel.mask & bit) {
-                build_new_trie(new_node, child_idx++, std::move(nextlevel)[i]);
+                build_new_trie(
+                    new_node.get(), child_idx++, std::move(nextlevel)[i]);
             }
         }
         // hash node and write to disk
-        parent->children[arr_idx].next = new_node;
+        parent->children()[arr_idx].next = std::move(new_node);
         encode_branch_extension(parent, arr_idx);
         if (io_) {
-            auto written = io_->async_write_node(new_node);
-            parent->children[arr_idx].set_fnext(written.offset_written_to);
-            parent->children[arr_idx].set_node_len_upper_bound(
-                written.bytes_appended);
+            auto written =
+                io_->async_write_node(parent->children()[arr_idx].next.get());
+            auto &child = parent->children()[arr_idx];
+            child.set_fnext(written.offset_written_to);
+            child.set_node_len_upper_bound(written.bytes_appended);
             if (parent->path_len && // parent could be root
-                parent->children[arr_idx].path_len() >= cache_levels_) {
-                free_node(parent->children[arr_idx].next);
-                parent->children[arr_idx].next = nullptr;
+                child.path_len() >= cache_levels_) {
+                child.next.reset();
             }
         }
     }
 }
 
 // @param nextlevel: all updates pending on different children of prev_root
-merkle_node_t *MerkleTrie::do_update(
+merkle_node_ptr MerkleTrie::do_update(
     merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
     tnode_t *const curr_tnode, unsigned char const pi)
 {
     // both prev_root and requests are branching out at pi
     MONAD_ASSERT(pi == prev_root->path_len);
-    merkle_node_t *new_root = get_new_merkle_node(
-        prev_root->valid_mask | nextlevel.mask, prev_root->path_len);
     // construct current tnode, and connect to parent tnode
-    curr_tnode->node = new_root;
-    curr_tnode->npending = new_root->nsubnodes;
+    merkle_node_ptr new_root = get_new_merkle_node(
+        prev_root->valid_mask | nextlevel.mask, prev_root->path_len);
+    curr_tnode->node = new_root.get();
+    curr_tnode->npending = new_root->size();
 
     // Can do better with bit op loop
     for (uint16_t i = 0, bit = 1, child_idx = 0; i < 16; ++i, bit <<= 1) {
@@ -152,18 +148,15 @@ merkle_node_t *MerkleTrie::do_update(
                 update_trie(
                     std::move(nextlevel)[i],
                     pi + 1,
-                    new_root,
+                    new_root.get(),
                     i,
                     curr_tnode); // repsonsible to delete nextlevel[i]
             }
             else { // prev has branches, nextlevel does not
-                merkle_child_info_t *prev_child =
-                    &prev_root->children[merkle_child_index(prev_root, i)];
-                new_root->children[child_idx] = *prev_child;
+                merkle_child_info_t &prev_child =
+                    prev_root->children()[merkle_child_index(prev_root, i)];
+                new_root->children()[child_idx] = std::move(prev_child);
                 // only 1 ref per node for now
-                prev_child->next = nullptr;
-                prev_child->data = nullptr;
-                prev_child->set_data_len(0);
                 --curr_tnode->npending;
             }
             ++child_idx;
@@ -172,7 +165,7 @@ merkle_node_t *MerkleTrie::do_update(
             // prev has no branch, nextlevel does
             // this case must be account creation (not deletion)
             build_new_trie(
-                new_root,
+                new_root.get(),
                 child_idx++,
                 std::move(nextlevel)[i]); // responsible to free nextlevel[i]
             --curr_tnode->npending;
@@ -193,16 +186,16 @@ void MerkleTrie::update_trie(
 {
     merkle_node_t *const prev_parent = updates->prev_parent;
     uint8_t const prev_child_i = updates->prev_child_i;
-    merkle_node_t *prev_node = prev_parent->children[prev_child_i].next;
+    merkle_node_t *prev_node = prev_parent->children()[prev_child_i].next.get();
     assert(!(prev_parent->tomb_arr_mask & 1u << prev_child_i));
 
     uint8_t const new_branch_arr_i =
         merkle_child_index(new_parent, new_child_ni);
     unsigned char const prev_path_len =
-        prev_parent->children[prev_child_i].path_len();
-    unsigned char *const prev_path = prev_parent->children[prev_child_i].path;
+        prev_parent->children()[prev_child_i].path_len();
+    unsigned char *const prev_path = prev_parent->children()[prev_child_i].path;
 
-    merkle_node_t *new_branch = nullptr;
+    merkle_node_ptr new_branch;
     tnode_t::unique_ptr_type branch_tnode;
     unsigned char next_nibble;
     SubRequestInfo nextlevel;
@@ -217,13 +210,12 @@ void MerkleTrie::update_trie(
             }
             else {
                 // exact prefix match for leaf
-                assert(prev_parent->children[prev_child_i].data);
-                new_parent->children[new_branch_arr_i].data =
-                    prev_parent->children[prev_child_i].data;
-                new_parent->children[new_branch_arr_i].set_data_len(
-                    prev_parent->children[prev_child_i].data_len());
-                prev_parent->children[prev_child_i].data = nullptr;
-                prev_parent->children[prev_child_i].set_data_len(0);
+                assert(prev_parent->children()[prev_child_i].data);
+                new_parent->children()[new_branch_arr_i].data.swap(
+                    prev_parent->children()[prev_child_i].data);
+                new_parent->children()[new_branch_arr_i].set_data_len(
+                    prev_parent->children()[prev_child_i].data_len());
+                prev_parent->children()[prev_child_i].set_data_len(0);
                 set_child_path_n_len(
                     new_parent, new_branch_arr_i, prev_path, prev_path_len);
                 encode_leaf(
@@ -266,7 +258,7 @@ void MerkleTrie::update_trie(
                         parent_tnode,
                         new_child_ni,
                         new_branch_arr_i,
-                        new_branch);
+                        new_branch.get());
                     branch_tnode->npending = 1;
                     // go down next level in prev trie
                     updates->prev_parent = prev_node;
@@ -275,7 +267,7 @@ void MerkleTrie::update_trie(
                     update_trie(
                         std::move(updates),
                         pi + 1,
-                        new_branch,
+                        new_branch.get(),
                         next_nibble,
                         branch_tnode.get()); // responsible for deleting updates
                 }
@@ -291,12 +283,12 @@ void MerkleTrie::update_trie(
                                 assign_prev_child_to_new(
                                     prev_node,
                                     merkle_child_index(prev_node, i),
-                                    new_branch,
+                                    new_branch.get(),
                                     child_idx++);
                             }
                             else {
                                 build_new_trie(
-                                    new_branch,
+                                    new_branch.get(),
                                     child_idx++,
                                     std::move(updates));
                             }
@@ -306,7 +298,10 @@ void MerkleTrie::update_trie(
             }
             else { // case 1.2. if prev_path_len == updates path len
                 branch_tnode = get_new_tnode(
-                    parent_tnode, new_child_ni, new_branch_arr_i, new_branch);
+                    parent_tnode,
+                    new_child_ni,
+                    new_branch_arr_i,
+                    new_branch.get());
                 new_branch =
                     do_update(prev_node, nextlevel, branch_tnode.get(), pi);
             }
@@ -328,16 +323,16 @@ void MerkleTrie::update_trie(
                         parent_tnode,
                         new_child_ni,
                         new_branch_arr_i,
-                        new_branch);
+                        new_branch.get());
                 }
                 // populate new_branch's children with each subqueue of requests
                 // except for the `next_nibble` branch
                 for (uint16_t i = 0, child_idx = 0, bit = 1; i < 16;
                      ++i, bit <<= 1) {
-                    if (new_branch->mask & bit) {
+                    if (new_branch.get()->mask & bit) {
                         if (i != next_nibble) {
                             build_new_trie(
-                                new_branch,
+                                new_branch.get(),
                                 child_idx++,
                                 std::move(nextlevel)[i]);
                         }
@@ -353,7 +348,7 @@ void MerkleTrie::update_trie(
                                 update_trie(
                                     std::move(nextlevel)[next_nibble],
                                     pi + 1,
-                                    new_branch,
+                                    new_branch.get(),
                                     next_nibble,
                                     branch_tnode.get());
                                 ++child_idx;
@@ -362,7 +357,7 @@ void MerkleTrie::update_trie(
                                 assign_prev_child_to_new(
                                     prev_parent,
                                     prev_child_i,
-                                    new_branch,
+                                    new_branch.get(),
                                     child_idx++);
                             }
                         }
@@ -380,12 +375,12 @@ void MerkleTrie::update_trie(
             continue;
         }
         else { // mismatch in the middle of a node rel path
-            // prev_parent->children[prev_child_i] must be ext node
+            // prev_parent->children()[prev_child_i] must be ext node
             assert(
-                prev_parent->children[prev_child_i].path_len() -
+                prev_parent->children()[prev_child_i].path_len() -
                         prev_parent->path_len >
                     1 &&
-                prev_parent->children[prev_child_i].data);
+                prev_parent->children()[prev_child_i].data);
             // curr nibble mismatch, create a new branch node with 2 children
             new_branch =
                 get_new_merkle_node(1u << prev_nibble | 1u << tmp_nibble, pi);
@@ -393,30 +388,33 @@ void MerkleTrie::update_trie(
             // new_branch -> prev_nibble
             unsigned int prev_idx = prev_nibble > tmp_nibble;
             assign_prev_child_to_new(
-                prev_parent, prev_child_i, new_branch, prev_idx);
+                prev_parent, prev_child_i, new_branch.get(), prev_idx);
             // new_branch -> tmp_nibble
-            build_new_trie(new_branch, !prev_idx, std::move(updates));
+            build_new_trie(new_branch.get(), !prev_idx, std::move(updates));
             break;
         }
     }
     // update new_parent's specific child
-    new_parent->children[new_branch_arr_i].next = new_branch;
+    auto *new_branch_ptr = new_branch.get();
+    new_parent->children()[new_branch_arr_i].next = std::move(new_branch);
     set_child_path_n_len(new_parent, new_branch_arr_i, prev_path, pi);
-    if (new_branch) {
-        new_branch->path_len = pi;
+    if (new_branch_ptr != nullptr) {
+        new_branch_ptr->path_len = pi;
         if (branch_tnode) {
             if (branch_tnode->npending) {
+                // @Vicky: Why do we need to drop managed ownership of this?
+                // Can't we store it somewhere for the i/o completion callback
+                // to pick up?
                 branch_tnode.release();
                 return;
             }
         }
-        // new_branch has 0 or 1 valid children
-        unsigned nvalid = merkle_child_count_valid(new_branch);
+        // new_branch_ptr has 0 or 1 valid children
+        unsigned nvalid = merkle_child_count_valid(new_branch_ptr);
         if (nvalid == 0) {
             new_parent->valid_mask &= ~(1u << new_child_ni);
             new_parent->tomb_arr_mask |= 1u << new_branch_arr_i;
-            new_parent->children[new_branch_arr_i].next = nullptr;
-            free_node(new_branch);
+            new_parent->children()[new_branch_arr_i].next.reset();
         }
         else if (nvalid == 1) {
             connect_only_grandchild(new_parent, new_branch_arr_i);
@@ -424,16 +422,12 @@ void MerkleTrie::update_trie(
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
             if (io_) {
-                auto written = io_->async_write_node(new_branch);
-                new_parent->children[new_branch_arr_i].set_fnext(
-                    written.offset_written_to);
-                new_parent->children[new_branch_arr_i].set_node_len_upper_bound(
-                    written.bytes_appended);
-                if (new_parent->path_len &&
-                    new_parent->children[new_branch_arr_i].path_len() >=
-                        cache_levels_) {
-                    free_node(new_branch);
-                    new_parent->children[new_branch_arr_i].next = nullptr;
+                auto written = io_->async_write_node(new_branch_ptr);
+                auto &child = new_parent->children()[new_branch_arr_i];
+                child.set_fnext(written.offset_written_to);
+                child.set_node_len_upper_bound(written.bytes_appended);
+                if (new_parent->path_len && child.path_len() >= cache_levels_) {
+                    new_parent->children()[new_branch_arr_i].next.reset();
                 }
             }
         }

@@ -752,6 +752,11 @@ public:
     using value_type = std::byte;
     using size_type = typename _impl_type::size_type;
     using difference_type = typename _impl_type::difference_type;
+    static constexpr size_t allocation_lower_bound = lower_bound;
+    static constexpr size_t allocation_upper_bound = upper_bound;
+    static constexpr size_t allocation_divisor = divisor;
+    static constexpr size_t allocation_less_than_lower_bound =
+        less_than_lower_bound;
 
     array_of_boost_pools_allocator(
         const size_type nnext_size = 32, const size_type nmax_size = 0)

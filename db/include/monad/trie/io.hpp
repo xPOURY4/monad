@@ -185,7 +185,7 @@ public:
         ++records_.nreads;
     }
 
-    inline merkle_node_t *read_node(file_offset_t node_offset)
+    inline merkle_node_ptr read_node(file_offset_t node_offset)
     { // blocking read
         file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
         file_offset_t buffer_off = node_offset - offset;
@@ -195,9 +195,7 @@ public:
         MONAD_ASSERT(
             pread(fds_[READ], buffer.get(), bytestoread, offset) ==
             ssize_t(bytestoread));
-        merkle_node_t *node =
-            deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
-        return node;
+        return deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
     }
 };
 
