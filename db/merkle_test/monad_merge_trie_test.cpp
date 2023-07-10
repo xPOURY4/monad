@@ -185,15 +185,6 @@ int main(int argc, char *argv[])
             block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
             // blocking get_root
             root = read_node(fd, trie_info->root_off);
-
-            unsigned char root_data[32];
-            encode_branch(root, (unsigned char *)&root_data);
-            fprintf(
-                stdout,
-                "version %lu, root_off %lu, root->data after precommit: ",
-                trie_info->vid,
-                trie_info->root_off);
-            __print_char_arr_in_hex((char *)root_data, 32);
             ++vid;
         }
         else {
@@ -207,6 +198,10 @@ int main(int argc, char *argv[])
         io->uring_register_files(fds, 1);
 
         MerkleTrie trie(root, std::move(io));
+        unsigned char root_data[32];
+        trie.root_hash(root_data);
+        fprintf(stdout, "root->data: ");
+        __print_char_arr_in_hex((char *)root_data, 32);
 
         int64_t max_key = n_slices * SLICE_LEN + offset;
         /* start profiling upsert and commit */

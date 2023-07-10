@@ -96,9 +96,9 @@ public:
         }
         else if (nsubnodes_valid == 1) {
             uint8_t only_child = std::countr_zero(root_->valid_mask);
-            set_nibble(root_->children[0].path, 0, only_child);
-
-            merkle_child_info_t *child = &root_->children[0];
+            auto *child =
+                &root_->children[merkle_child_index(root_, only_child)];
+            set_nibble(child->path, 0, only_child);
             unsigned char relpath[33];
             encode_two_piece(
                 compact_encode(
