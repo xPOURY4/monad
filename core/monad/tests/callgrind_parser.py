@@ -4,8 +4,8 @@ import fileinput
 
 
 def parse(input):
-    pattern_func = "^fn=\([0-9]+\).*(?=[\n])"
-    pattern_callee = "^cfn=\([0-9]+\).*(?=[\n])"
+    pattern_func = "^fn=\\([0-9]+\\).*(?=[\n])"
+    pattern_callee = "^cfn=\\([0-9]+\\).*(?=[\n])"
     in_a_function = False
     in_callee_function = False
     name = ""
@@ -46,6 +46,9 @@ def parse(input):
                 num = number.group(0).split(" ")[1]
                 name_to_instr_self[name] += int(num)
 
+    name_to_instr_self = {
+        key: val for key, val in name_to_instr_self.items() if val != 0
+    }
     # sort in ascending order
     name_to_instr_self = dict(sorted(name_to_instr_self.items(), key=lambda x: x[0]))
 

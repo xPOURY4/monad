@@ -111,7 +111,7 @@ def _create_test_class(test_dir):
     test_ids = _get_test_ids(test_dir)
     for test_id in test_ids:
 
-        def test_func(self):
+        def test_func(self, test_id=test_id):
             TestDisas._run_test(test_id)
 
         setattr(TestDisas, "test_%s" % (test_id,), test_func)

@@ -62,6 +62,7 @@ target_include_directories(monad_core
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC mimalloc uring)
 
+set(ETHASH_TESTING YES)
 add_subdirectory("third_party/ethash")
 
 add_library(monad_core_disas SHARED

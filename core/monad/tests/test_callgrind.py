@@ -25,13 +25,24 @@ def _get_test_ids(test_dir):
 
 def _create_test_class(test_dir):
     class TestCallgrind:
+        @staticmethod
         def _load_test(test_id):
             test_file = path.join(TestCallgrind._test_dir, "%s.json" % (test_id,))
             with open(test_file, "r") as f:
                 data = json.load(f)
             return data
 
-        def _gen_callgrind(test_id):
+        @staticmethod
+        def _load_result(test_id):
+            test_file = path.join(
+                TestCallgrind._test_dir, "_%s.callgrind.json" % (test_id,)
+            )
+            with open(test_file, "r") as f:
+                data = json.load(f)
+            return data
+
+        @staticmethod
+        def _gen_result(test_id):
             data = TestCallgrind._load_test(test_id)
             if not path.isabs(data["binary_name"]):
                 files = glob("build/**/%s" % (data["binary_name"],), recursive=True)
@@ -53,19 +64,32 @@ def _create_test_class(test_dir):
                 result = callgrind_parser.parse(
                     fileinput.input(files=path.join(tmp, "callgrind.out"))
                 )
-            return json.dumps(result, indent=2)
+            return result
 
+        @staticmethod
         def _save_result(test_id):
-            result = TestCallgrind._gen_callgrind(test_id)
+            result = json.dumps(TestCallgrind._gen_result(test_id), indent=2)
             output_file = path.join(
                 TestCallgrind._test_dir, "_%s.callgrind.json" % (test_id,)
             )
             with open(output_file, "w") as f:
                 f.write(result)
 
+        @staticmethod
+        def _run_test(test_id):
+            expected_result = TestCallgrind._load_result(test_id)
+            current_result = TestCallgrind._gen_result(test_id)
+            assert expected_result == current_result
+
     setattr(TestCallgrind, "_test_dir", test_dir)
 
     test_ids = _get_test_ids(test_dir)
+    for test_id in test_ids:
+
+        def test_func(self, test_id=test_id):
+            TestCallgrind._run_test(test_id)
+
+        setattr(TestCallgrind, "test_%s" % (test_id,), test_func)
 
     return TestCallgrind
 
@@ -78,8 +102,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("cmd", choices=("generate",))
-    args = vars(parser.parse_args())
-    if args["cmd"] == "generate":
+    args = parser.parse_args()
+    if args.cmd == "generate":
         test_ids = _get_test_ids(__test_dir)
         for test_id in test_ids:
             TestCallgrind._save_result(test_id)
