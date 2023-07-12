@@ -203,11 +203,13 @@ int main(int argc, char *argv[])
         fprintf(stdout, "root->data: ");
         __print_char_arr_in_hex((char *)root_data, 32);
 
+        auto begin_test = std::chrono::steady_clock::now();
         int64_t max_key = n_slices * SLICE_LEN + offset;
         /* start profiling upsert and commit */
         for (int iter = 0; iter < n_slices; ++iter) {
             // renew keccak values
             if (!(iter * SLICE_LEN % keccak_cap)) {
+                auto begin_prepare_keccak = std::chrono::steady_clock::now();
                 if (iter) {
                     offset += keccak_cap;
                 }
@@ -221,6 +223,8 @@ int main(int argc, char *argv[])
                 fprintf(
                     stdout, "Finish preparing keccak.\nStart transactions\n");
                 fflush(stdout);
+                auto end_prepare_keccak = std::chrono::steady_clock::now();
+                begin_test += end_prepare_keccak - begin_prepare_keccak;
             }
 
             batch_upsert_commit(
@@ -271,6 +275,15 @@ int main(int argc, char *argv[])
         }
 
         free_trie(root);
+        auto end_test = std::chrono::steady_clock::now();
+        auto test_secs = std::chrono::duration_cast<std::chrono::microseconds>(
+                             end_test - begin_test)
+                             .count() /
+                         1000000.0;
+        printf("\nTotal test time: %f secs.\n", test_secs);
+        if (csv_writer) {
+            csv_writer << "\n\"Total test time:\"," << test_secs << std::endl;
+        }
     }
     catch (const CLI::CallForHelp &e) {
         std::cout << cli.help() << std::flush;
