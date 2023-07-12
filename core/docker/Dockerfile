@@ -18,6 +18,7 @@ RUN yum -y install \
   ninja-build
 
 RUN yum -y install \
+  google-benchmark \
   gtest \
   liburing \
   liburing-debuginfo \
@@ -25,6 +26,7 @@ RUN yum -y install \
   mimalloc-debuginfo
 
 RUN yum -y install \
+  google-benchmark-devel \
   gtest-devel \
   liburing-devel \
   mimalloc-devel

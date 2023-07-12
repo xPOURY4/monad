@@ -5,7 +5,7 @@ project(monad_core)
 ############
 ### deps
 ############
-
+include("third_party/ethash/cmake/cable/bootstrap.cmake")
 include("cmake/find_dependency.cmake")
 find_dependency(mimalloc REQUIRED)
 
@@ -62,6 +62,8 @@ target_include_directories(monad_core
 )
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC mimalloc uring)
+
+add_subdirectory("third_party/ethash")
 
 add_library(monad_core_disas SHARED
     "${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp"
