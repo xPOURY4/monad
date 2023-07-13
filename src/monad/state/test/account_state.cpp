@@ -207,7 +207,7 @@ TYPED_TEST(AccountStateTest, create_account_working_copy)
 
     auto bs = typename decltype(s)::WorkingCopy{s};
 
-    bs.create_contract(a);
+    bs.create_account(a);
     bs.set_balance(a, 38'000);
     bs.set_nonce(a, 2);
 
@@ -279,7 +279,7 @@ TYPED_TEST(AccountStateTest, destruct_touched_dead_working_copy)
 
     auto bs = typename decltype(s)::WorkingCopy{s};
 
-    bs.create_contract(a);
+    bs.create_account(a);
     bs.set_balance(a, 38'000);
     bs.destruct_touched_dead();
     bs.destruct_suicides();
@@ -308,7 +308,7 @@ TYPED_TEST(AccountStateTest, revert_touched_working_copy)
 
     bs.access_account(a);
     bs.set_balance(a, 15'000);
-    bs.create_contract(b);
+    bs.create_account(b);
     bs.revert();
     EXPECT_FALSE(s.account_exists(b));
 
@@ -330,7 +330,7 @@ TYPED_TEST(AccountStateTest, can_merge_fresh)
 
     s.access_account(b);
     s.access_account(c);
-    s.create_contract(a);
+    s.create_account(a);
     s.set_nonce(a, 1);
     s.set_balance(a, 38'000);
     s.set_balance(b, 42'000);
@@ -359,7 +359,7 @@ TYPED_TEST(AccountStateTest, can_merge_onto_merged)
 
     s.access_account(a);
     s.access_account(b);
-    s.create_contract(c);
+    s.create_account(c);
     s.set_nonce(c, 1);
     s.set_balance(c, 38'000);
     s.set_balance(b, 42'000);
@@ -419,7 +419,7 @@ TYPED_TEST(AccountStateTest, cant_merge_conflicting_adds)
 
     auto s = typename decltype(t)::WorkingCopy{t};
 
-    s.create_contract(a);
+    s.create_account(a);
     s.set_nonce(a, 1);
     s.set_balance(a, 80'000);
 
@@ -484,7 +484,7 @@ TYPED_TEST(AccountStateTest, merge_multiple_changes)
 
         s.access_account(b);
         s.access_account(c);
-        s.create_contract(a);
+        s.create_account(a);
         s.set_nonce(a, 1);
         s.set_balance(a, 38'000);
         s.set_balance(b, 42'000);
@@ -502,7 +502,7 @@ TYPED_TEST(AccountStateTest, merge_multiple_changes)
         auto s = typename decltype(t)::WorkingCopy{t};
 
         s.access_account(b);
-        s.create_contract(c);
+        s.create_account(c);
         s.set_balance(c, 22'000);
         s.set_nonce(c, 1);
         s.set_balance(b, 48'000);
@@ -609,7 +609,7 @@ TYPED_TEST(AccountStateTest, can_commit_multiple)
 
         s.access_account(b);
         s.access_account(c);
-        s.create_contract(a);
+        s.create_account(a);
         s.set_nonce(a, 1);
         s.set_balance(a, 38'000);
         s.set_balance(b, 42'000);
@@ -626,7 +626,7 @@ TYPED_TEST(AccountStateTest, can_commit_multiple)
         s.access_account(a);
         s.access_account(b);
         s.access_account(d);
-        s.create_contract(c);
+        s.create_account(c);
         s.set_balance(c, 22'000);
         s.set_nonce(c, 1);
         s.set_balance(b, 48'000);
