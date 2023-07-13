@@ -7,11 +7,9 @@ enable_testing()
 ### deps
 ############
 add_subdirectory("monad-core")
-add_custom_target(exclude_monad_core_tests ALL 
-    COMMAND rm -f "monad-core/third_party/ethash/CTestTestfile.cmake")
 
 include("monad-core/cmake/find_dependency.cmake")
-find_package(Boost COMPONENTS "" REQUIRED)
+find_package(Boost 1.78 COMPONENTS "" REQUIRED)
 find_package(GTest)
 
 ############
@@ -30,12 +28,12 @@ add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/trie/io_senders.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/request.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/uring_data.hpp"
 
     "${PROJECT_SOURCE_DIR}/src/monad/trie/io.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/trie/node_helper.cpp"

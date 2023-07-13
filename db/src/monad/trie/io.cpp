@@ -29,8 +29,8 @@ AsyncIO::async_write_node(merkle_node_t const *const node)
 }
 
 void AsyncIO::submit_request(
-    unsigned char *const buffer, unsigned int const nbytes,
-    file_offset_t const offset, void *const uring_data, bool const is_write)
+    std::span<std::byte> buffer, file_offset_t offset, void *uring_data,
+    bool is_write)
 {
     // Trap unintentional use of high bit offsets
     MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
@@ -40,10 +40,10 @@ void AsyncIO::submit_request(
     MONAD_ASSERT(sqe);
 
     if (is_write) {
-        io_uring_prep_write_fixed(sqe, WRITE, buffer, nbytes, offset, 1);
+        io_uring_prep_write_fixed(sqe, WRITE, buffer.data(), buffer.size(), offset, 1);
     }
     else {
-        io_uring_prep_read_fixed(sqe, READ, buffer, nbytes, offset, 0);
+        io_uring_prep_read_fixed(sqe, READ, buffer.data(), buffer.size(), offset, 0);
     }
     sqe->flags |= IOSQE_FIXED_FILE;
 
@@ -58,12 +58,15 @@ void AsyncIO::submit_write_request(
 {
     // write user data
     write_uring_data_t::unique_ptr_type user_data =
-        write_uring_data_t::make(write_uring_data_t{
-            .rw_flag = uring_data_type_t::IS_WRITE, .buffer = buffer});
+        write_uring_data_t::make(*this, buffer);
 
     // We release the ownership of uring_data to io_uring. We reclaim
     // ownership after we reap the i/o completion.
-    submit_request(buffer, write_size, offset, user_data.release(), true);
+    submit_request(
+        {(std::byte *)buffer, write_size},
+        offset,
+        user_data.release(),
+        true);
     ++records_.inflight;
 }
 
@@ -78,18 +81,23 @@ void AsyncIO::poll_uring()
 
     void *data = io_uring_cqe_get_data(cqe);
     MONAD_ASSERT(data);
+    auto *state = reinterpret_cast<erased_connected_operation *>(data);
+    result<size_t> res = (cqe->res < 0) ? result<size_t>(posix_code(-cqe->res))
+                                        : result<size_t>(cqe->res);
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
+    cqe = nullptr;
 
     --records_.inflight;
-    if (auto write_data = reinterpret_cast<write_uring_data_t *>(data);
-        write_data->rw_flag == uring_data_type_t::IS_WRITE) {
-        wr_pool_.release(reinterpret_cast<write_uring_data_t *>(data)->buffer);
+    if (state->is_append()) {
+        MONAD_ASSERT(res);
+        auto write_data = static_cast<write_uring_data_t *>(state);
+        wr_pool_.release(write_data->buffer);
         // Reclaim ownership, and release
         (void)write_uring_data_t::unique_ptr_type(
             reinterpret_cast<write_uring_data_t *>(data));
     }
     else {
-        readcb_(data);
+        state->completed(std::move(res));
     }
 }
 

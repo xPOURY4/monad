@@ -50,6 +50,10 @@ static constexpr uint16_t CPU_PAGE_BITS = 12;
 static constexpr uint16_t DISK_PAGE_SIZE = 512;
 static constexpr uint16_t DISK_PAGE_BITS = 9;
 
+//! The DMA friendly page size and bits
+static constexpr uint16_t DMA_PAGE_SIZE = 64;
+static constexpr uint16_t DMA_PAGE_BITS = 6;
+
 //! The types suitable for rounding up or down
 template <class T, unsigned bits>
 concept safely_roundable_type =

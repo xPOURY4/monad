@@ -1,36 +1,11 @@
 #include <variant>
 
 #include <monad/trie/encode_node.hpp>
+#include <monad/trie/io_senders.hpp>
 #include <monad/trie/trie.hpp>
-#include <monad/trie/uring_data.hpp>
+#include <monad/trie/util.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
-
-void update_callback(void *user_data)
-{
-    // construct the node from the read buffer
-    update_uring_data_t::unique_ptr_type data((update_uring_data_t *)user_data);
-    merkle_node_ptr node = deserialize_node_from_buffer(
-        data->buffer + data->buffer_off,
-        data->updates->prev_parent->children()[data->updates->prev_child_i]
-            .path_len());
-    assert(node->size() > 1);
-    assert(node->mask);
-
-    data->updates->prev_parent->children()[data->updates->prev_child_i].next =
-        std::move(node);
-    data->trie->get_io().release_read_buffer(data->buffer);
-
-    // callback to update_trie() from where that request left out
-    data->trie->update_trie(
-        std::move(data->updates),
-        data->pi,
-        data->new_parent,
-        data->new_child_ni,
-        data->parent_tnode);
-    // upward update parent until parent has more than one valid subnodes
-    data->trie->upward_update_data(data->parent_tnode);
-}
 
 void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
 {
@@ -178,6 +153,77 @@ merkle_node_ptr MerkleTrie::do_update(
     return new_root;
 }
 
+struct update_receiver
+{
+    MerkleTrie *trie;
+    file_offset_t offset;
+    Request::unique_ptr_type updates;
+    merkle_node_t *new_parent;
+    tnode_t *parent_tnode;
+    uint16_t buffer_off;
+    unsigned char pi;
+    uint8_t new_child_ni;
+    unsigned bytes_to_read;
+
+    update_receiver(
+        Request::unique_ptr_type _updates, unsigned char _pi,
+        merkle_node_t *const _new_parent, uint8_t const _new_child_ni,
+        tnode_t *_parent_tnode, MerkleTrie *_trie)
+        : trie(_trie)
+        , updates(std::move(_updates))
+        , new_parent(_new_parent)
+        , parent_tnode(_parent_tnode)
+        , pi(_pi)
+        , new_child_ni(_new_child_ni)
+    {
+        // prep uring data
+        auto &child = updates->prev_parent->children()[updates->prev_child_i];
+        file_offset_t node_offset = child.fnext();
+        offset = round_down_align<DISK_PAGE_BITS>(node_offset);
+        buffer_off = uint16_t(node_offset - offset);
+        bytes_to_read = round_up_align<DISK_PAGE_BITS>(
+            buffer_off + child.node_len_upper_bound());
+    }
+
+    void set_value(
+        erased_connected_operation *rawstate,
+        result<std::span<const std::byte>> _buffer)
+    {
+        // Re-adopt ownership of operation state
+        erased_connected_operation_ptr state(rawstate);
+        MONAD_ASSERT(_buffer);
+        std::span<const std::byte> buffer = std::move(_buffer).assume_value();
+        // construct the node from the read buffer
+        auto &child = updates->prev_parent->children()[updates->prev_child_i];
+        auto node_path_len = child.path_len();
+        MONAD_ASSERT(buffer.size() >= buffer_off + node_path_len);
+        merkle_node_ptr node = deserialize_node_from_buffer(
+            (unsigned char *)buffer.data() + buffer_off, node_path_len);
+        assert(node->size() > 1);
+        assert(node->mask);
+
+        child.next = std::move(node);
+
+        // callback to update_trie() from where that request
+        // left out
+        trie->update_trie(
+            std::move(updates), pi, new_parent, new_child_ni, parent_tnode);
+        // upward update parent until parent has more than one
+        // valid subnodes
+        trie->upward_update_data(parent_tnode);
+        // when state destructs, i/o buffer is released for reuse
+    }
+};
+struct read_update_sender : read_single_buffer_sender
+{
+    read_update_sender(const update_receiver &receiver)
+        : read_single_buffer_sender(
+              receiver.offset, {(std::byte *)nullptr /*set by AsyncIO for us*/,
+                                receiver.bytes_to_read})
+    {
+    }
+};
+
 /* @param updates: pending on node prev_parent->prev_child_i
  * @param pi: curr pi we traverse down the trie
  * @param prev_parent/prev_child_i: the prev node we are comparing at with
@@ -234,19 +280,27 @@ void MerkleTrie::update_trie(
         }
         // if min_path_len == pi, all nibbles in prev_nodes are matched
         if (pi == prev_path_len) {
-            // case 1. prev_path_len <= request path len, prev_node is not leaf
-            // go down next level in prev trie along the next nibble in read
-            // request
+            // case 1. prev_path_len <= request path len, prev_node is not
+            // leaf go down next level in prev trie along the next nibble in
+            // read request
             if (!prev_node && io_) {
                 updates->prev_parent = prev_parent;
                 updates->prev_child_i = prev_child_i;
-                io_->async_read_request(get_update_uring_data(
+                update_receiver receiver(
                     std::move(updates),
                     pi,
                     new_parent,
                     new_child_ni,
                     parent_tnode,
-                    this));
+                    this);
+                read_update_sender sender(receiver);
+                auto iostate =
+                    io_->make_connected(std::move(sender), std::move(receiver));
+                // TEMPORARY: Handle temporary i/o submission failure
+                MONAD_ASSERT(iostate->initiate());
+                // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
+                // management until i/o completes
+                iostate.release();
                 return;
             }
             // compare pending updates, and if possible, split at pi
@@ -331,8 +385,8 @@ void MerkleTrie::update_trie(
                         new_branch_arr_i,
                         new_branch.get());
                 }
-                // populate new_branch's children with each subqueue of requests
-                // except for the `next_nibble` branch
+                // populate new_branch's children with each subqueue of
+                // requests except for the `next_nibble` branch
                 for (uint16_t i = 0, child_idx = 0, bit = 1; i < 16;
                      ++i, bit <<= 1) {
                     if (new_branch.get()->mask & bit) {
@@ -373,8 +427,8 @@ void MerkleTrie::update_trie(
                 break;
             }
         }
-        // not reach the last nibble in current node yet, continue comparing for
-        // next nibble
+        // not reach the last nibble in current node yet, continue comparing
+        // for next nibble
         unsigned char prev_nibble = get_nibble(prev_path, pi),
                       tmp_nibble = get_nibble(updates->get_path(), pi);
         if (prev_nibble == tmp_nibble) { // curr nibble matched
@@ -388,7 +442,8 @@ void MerkleTrie::update_trie(
                         prev_parent->path_len >
                     1 &&
                 prev_parent->children()[prev_child_i].data);
-            // curr nibble mismatch, create a new branch node with 2 children
+            // curr nibble mismatch, create a new branch node with 2
+            // children
             new_branch =
                 get_new_merkle_node(1u << prev_nibble | 1u << tmp_nibble, pi);
 
@@ -414,8 +469,8 @@ void MerkleTrie::update_trie(
         if (branch_tnode) {
             if (branch_tnode->npending) {
                 // @Vicky: Why do we need to drop managed ownership of this?
-                // Can't we store it somewhere for the i/o completion callback
-                // to pick up?
+                // Can't we store it somewhere for the i/o completion
+                // callback to pick up?
                 branch_tnode.release();
                 return;
             }

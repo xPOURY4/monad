@@ -30,7 +30,7 @@ public:
 
     on_disk_trie_fixture_t()
         : ring(monad::io::Ring(2, 0))
-        , rwbuf(monad::io::Buffers(ring, 2, 2))
+        , rwbuf(monad::io::Buffers(ring, 2, 2, 8192))
         , trie([&, this] {
             auto index = std::make_shared<index_t>(use_anonymous_inode_tag{});
             file_offset_t block_off = index->get_start_offset();
@@ -38,11 +38,7 @@ public:
                 IS_ACCOUNT,
                 nullptr,
                 std::make_shared<AsyncIO>(
-                    use_anonymous_inode_tag{},
-                    ring,
-                    rwbuf,
-                    block_off,
-                    &update_callback),
+                    use_anonymous_inode_tag{}, ring, rwbuf, block_off),
                 index,
                 5);
         }())

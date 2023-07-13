@@ -4,10 +4,10 @@
 
 #include <monad/trie/encode_node.hpp>
 #include <monad/trie/node.hpp>
+#include <monad/trie/util.hpp>
 
 #include <filesystem>
 #include <memory>
-
 MONAD_TRIE_NAMESPACE_BEGIN
 
 void serialize_node_to_buffer(

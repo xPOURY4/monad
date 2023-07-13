@@ -1,0 +1,322 @@
+#include "gtest/gtest.h"
+
+#include "monad/trie/io_senders.hpp"
+#include "monad/trie/small_prng.hpp"
+
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/future.hpp>
+#include <boost/outcome/coroutine_support.hpp>
+
+#include <fcntl.h>
+
+#include <chrono>
+#include <coroutine>
+#include <optional>
+#include <span>
+#include <vector>
+
+namespace
+{
+    using namespace MONAD_TRIE_NAMESPACE;
+    static constexpr size_t TEST_FILE_SIZE = 1024 * 1024;
+    static constexpr size_t MAX_CONCURRENCY = 4;
+    static const std::vector<std::byte> testfilecontents = [] {
+        std::vector<std::byte> ret(TEST_FILE_SIZE);
+        std::span<
+            small_prng::value_type,
+            TEST_FILE_SIZE / sizeof(small_prng::value_type)>
+            s((small_prng::value_type *)ret.data(),
+              TEST_FILE_SIZE / sizeof(small_prng::value_type));
+        small_prng rand;
+        for (auto &i : s) {
+            i = rand();
+        }
+        return ret;
+    }();
+    static monad::io::Ring testring(MAX_CONCURRENCY * 2, 0);
+    static monad::io::Buffers testrwbuf{
+        testring, MAX_CONCURRENCY * 2, MAX_CONCURRENCY * 2, 1UL << 13};
+    static auto testio = [] {
+        auto ret = std::make_unique<AsyncIO>(
+            use_anonymous_inode_tag{}, testring, testrwbuf, 0);
+        MONAD_ASSERT(
+            TEST_FILE_SIZE ==
+            ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
+        return ret;
+    }();
+    small_prng test_rand;
+
+    struct read_single_buffer_operation_states_base
+    {
+        virtual bool reinitiate(
+            erased_connected_operation *i,
+            std::span<const std::byte> buffer) = 0;
+    };
+    template <receiver Receiver>
+    class read_single_buffer_operation_states final
+        : public read_single_buffer_operation_states_base
+    {
+        using _io_state_type = AsyncIO::connected_operation_unique_ptr_type<
+            read_single_buffer_sender, Receiver>;
+        std::vector<_io_state_type> _states;
+        std::vector<std::byte> _buffers;
+        bool _test_is_done{false};
+        unsigned _op_count{0};
+
+    public:
+        explicit read_single_buffer_operation_states(size_t total)
+            : _buffers(total)
+        {
+            _states.reserve(total);
+            for (size_t n = 0; n < total; n++) {
+                auto offset = test_rand() % TEST_FILE_SIZE;
+                _states.push_back(testio->make_connected(
+                    read_single_buffer_sender(offset, {&_buffers[n], 1}),
+                    Receiver{this}));
+            }
+        }
+        ~read_single_buffer_operation_states()
+        {
+            stop();
+        }
+        unsigned count() const noexcept
+        {
+            return _op_count;
+        }
+        void initiate()
+        {
+            _test_is_done = false;
+            for (auto &i : _states) {
+                ASSERT_TRUE(i->initiate());
+            }
+            _op_count = _states.size();
+        }
+        void stop()
+        {
+            _test_is_done = true;
+            testio->wait_until_done();
+        }
+        virtual bool reinitiate(
+            erased_connected_operation *i,
+            std::span<const std::byte> buffer) override final
+        {
+            auto *state = static_cast<typename _io_state_type::pointer>(i);
+            EXPECT_EQ(
+                buffer.front(), testfilecontents[state->sender().offset()]);
+            if (!_test_is_done) {
+                auto offset = test_rand() % TEST_FILE_SIZE;
+                state->reset(
+                    std::tuple{offset, state->sender().buffer()}, std::tuple{});
+                if (!state->initiate()) {
+                    // Can't use ASSERT_TRUE() here, it is not coroutine aware
+                    abort();
+                }
+                _op_count++;
+                return true;
+            }
+            return false;
+        }
+        read_single_buffer_sender &sender(size_t idx) noexcept
+        {
+            return _states[idx]->sender();
+        }
+        Receiver &receiver(size_t idx) noexcept
+        {
+            return _states[idx]->receiver();
+        }
+    };
+
+    /* A receiver which just immediately asks the sender
+    to reinitiate the i/o. This test models traditional
+    completion handler based i/o.
+    */
+    struct completion_handler_io_receiver
+    {
+        read_single_buffer_operation_states_base *state;
+
+        explicit completion_handler_io_receiver(
+            read_single_buffer_operation_states_base *s)
+            : state(s)
+        {
+        }
+        void set_value(
+            erased_connected_operation *rawstate,
+            result<std::span<const std::byte>> buffer)
+        {
+            ASSERT_TRUE(buffer);
+            state->reinitiate(rawstate, buffer.assume_value());
+        }
+        void reset() {}
+    };
+
+    TEST(AsyncIO, completion_handler_sender_receiver)
+    {
+        read_single_buffer_operation_states<completion_handler_io_receiver>
+            states(MAX_CONCURRENCY);
+        auto begin = std::chrono::steady_clock::now(), end = begin;
+        states.initiate();
+        for (; end - begin < std::chrono::seconds(5);
+             end = std::chrono::steady_clock::now()) {
+            testio->poll(256);
+        }
+        states.stop();
+        end = std::chrono::steady_clock::now();
+        auto diff =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+                  << " random single byte reads per second from file length "
+                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+    }
+
+    /* A receiver which suspends and resumes a C++ coroutine
+     */
+    struct cpp_suspend_resume_io_receiver
+    {
+        using result_type = std::pair<
+            erased_connected_operation *, result<std::span<const std::byte>>>;
+        std::coroutine_handle<> _h;
+        std::optional<result_type> res;
+
+        explicit cpp_suspend_resume_io_receiver(
+            read_single_buffer_operation_states_base *)
+        {
+        }
+        void set_value(
+            erased_connected_operation *rawstate,
+            result<std::span<const std::byte>> buffer)
+        {
+            assert(!res.has_value());
+            res = {rawstate, std::move(buffer)};
+            _h.resume();
+        }
+        void reset()
+        {
+            _h = {};
+            res = {};
+        }
+
+        // This is the C++ coroutine machinery which declares
+        // that this type is an awaitable
+        bool await_ready() const noexcept
+        {
+            return res.has_value();
+        }
+        void await_suspend(std::coroutine_handle<> h)
+        {
+            assert(!res.has_value());
+            _h = h;
+        }
+        result_type await_resume()
+        {
+            assert(res.has_value());
+            auto ret = std::move(*res);
+            res = {};
+            return ret;
+        }
+    };
+
+    TEST(AsyncIO, cpp_coroutine_sender_receiver)
+    {
+        read_single_buffer_operation_states<cpp_suspend_resume_io_receiver>
+            states(MAX_CONCURRENCY);
+        auto begin = std::chrono::steady_clock::now(), end = begin;
+        auto coroutine = [&](cpp_suspend_resume_io_receiver &receiver)
+            -> BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void> {
+            for (;;) {
+                auto [rawstate, buffer] = co_await receiver;
+                // Can't use gtest ASSERT_TRUE here as it is not coroutine
+                // compatible
+                if (!buffer) {
+                    abort();
+                }
+                if (!states.reinitiate(rawstate, buffer.assume_value())) {
+                    co_return;
+                }
+            }
+        };
+        std::vector<BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void>>
+            awaitables;
+        awaitables.reserve(MAX_CONCURRENCY);
+        for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
+            awaitables.push_back(coroutine(states.receiver(n)));
+        }
+        states.initiate();
+        for (; end - begin < std::chrono::seconds(5);
+             end = std::chrono::steady_clock::now()) {
+            testio->poll(256);
+        }
+        states.stop();
+        awaitables.clear();
+        end = std::chrono::steady_clock::now();
+        auto diff =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+                  << " random single byte reads per second from file length "
+                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+    }
+
+    /* A receiver which suspends and resumes a Boost.Fiber
+     */
+    struct fiber_suspend_resume_io_receiver
+    {
+        using result_type = std::pair<
+            erased_connected_operation *, result<std::span<const std::byte>>>;
+        boost::fibers::promise<result_type> promise;
+
+        explicit fiber_suspend_resume_io_receiver(
+            read_single_buffer_operation_states_base *)
+        {
+        }
+        void set_value(
+            erased_connected_operation *rawstate,
+            result<std::span<const std::byte>> buffer)
+        {
+            promise.set_value({rawstate, std::move(buffer)});
+        }
+        void reset()
+        {
+            promise = {};
+        }
+    };
+
+    TEST(AsyncIO, fiber_sender_receiver)
+    {
+        read_single_buffer_operation_states<fiber_suspend_resume_io_receiver>
+            states(MAX_CONCURRENCY);
+        auto begin = std::chrono::steady_clock::now(), end = begin;
+        auto fiber = [&](fiber_suspend_resume_io_receiver *receiver) {
+            for (;;) {
+                auto future = receiver->promise.get_future();
+                auto [rawstate, buffer] = future.get();
+                ASSERT_TRUE(buffer);
+                if (!states.reinitiate(rawstate, buffer.assume_value())) {
+                    return;
+                }
+            }
+        };
+        std::vector<boost::fibers::fiber> fibers;
+        fibers.reserve(MAX_CONCURRENCY);
+        for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
+            fibers.emplace_back(
+                boost::fibers::fiber(fiber, &states.receiver(n)));
+        }
+        states.initiate();
+        for (; end - begin < std::chrono::seconds(5);
+             end = std::chrono::steady_clock::now()) {
+            boost::this_fiber::yield();
+            testio->poll(256);
+        }
+        states.stop();
+        for (auto &i : fibers) {
+            i.join();
+        }
+        fibers.clear();
+        end = std::chrono::steady_clock::now();
+        auto diff =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+                  << " random single byte reads per second from file length "
+                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+    }
+
+}

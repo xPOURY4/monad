@@ -18,8 +18,11 @@ RUN yum -y install \
   ninja-build
 
 RUN yum -y install \
+  gmock \
+  gmock-debuginfo \
   google-benchmark \
   gtest \
+  gtest-debuginfo \
   liburing \
   liburing-debuginfo \
   mimalloc \
@@ -29,6 +32,7 @@ RUN yum -y install \
 RUN yum -y install \
   boost-devel \
   cli11-devel \
+  gmock-devel \
   google-benchmark-devel \
   gtest-devel \
   liburing-devel \

@@ -39,8 +39,12 @@ public:
     inline const merkle_child_info_t &operator[](uint8_t idx) const noexcept;
 
     using type_allocator = std::allocator<merkle_node_t>;
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
         (8 + 88), (8 + 88 * 17), 88, 8>;
+#else
+    using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
+#endif
 
     using allocator_pair_type = allocators::detail::type_raw_alloc_pair<
         type_allocator, raw_bytes_allocator>;
@@ -192,9 +196,11 @@ struct merkle_child_info_t
 
 static_assert(sizeof(merkle_child_info_t) == 88);
 static_assert(alignof(merkle_child_info_t) == 8);
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
 static_assert(
     merkle_node_t::raw_bytes_allocator::allocation_divisor ==
     sizeof(merkle_child_info_t));
+#endif
 
 inline std::span<merkle_child_info_t> merkle_node_t::children() noexcept
 {
