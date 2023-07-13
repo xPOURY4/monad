@@ -171,15 +171,19 @@ int main(int argc, char *argv[])
 
         int fd = trans.get_fd();
         // init indexer
-        auto index = std::make_shared<index_t>(fd);
+        auto index = std::make_shared<index_t>(fd, dbname_path);
 
         // initialize root and block offset for write
         uint64_t block_off;
         merkle_node_t *root;
         if (append) {
-            uint64_t root_off = index->get_history_root_off(vid);
-            block_off = root_off + MAX_DISK_NODE_SIZE;
-            root = read_node(fd, root_off);
+            auto root_off = index->get_history_root_off(vid);
+            if (!root_off.has_value()) {
+                throw std::out_of_range(
+                    "not support history block lookup for out of range vid");
+            }
+            block_off = root_off.value() + MAX_DISK_NODE_SIZE;
+            root = read_node(fd, root_off.value());
             ++vid;
         }
         else {

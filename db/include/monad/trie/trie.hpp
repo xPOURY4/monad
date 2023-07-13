@@ -7,9 +7,6 @@
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
 
-// TODO: later remove this, will be a user-configurable parameter of MerkleTrie
-#define CACHE_LEVELS 5
-
 #if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Warray-bounds"
