@@ -6,9 +6,6 @@ enable_testing()
 ############
 ### deps
 ############
-include("third_party/ethash/cmake/cable/bootstrap.cmake")
-include("CableBuildInfo")
-
 add_subdirectory("monad-core")
 
 include("monad-core/cmake/find_dependency.cmake")
@@ -51,10 +48,6 @@ target_include_directories(monad_trie
     PUBLIC "${PROJECT_SOURCE_DIR}/include"
 )
 monad_compile_options(monad_trie)
-
-set(ETHASH_BUILD_TESTS OFF)
-
-add_subdirectory("third_party/ethash")
 
 target_link_libraries(monad_trie PRIVATE Boost::boost ethash::keccak)
 target_link_libraries(monad_trie PUBLIC monad_core)

@@ -1,7 +1,3 @@
-[submodule "third_party/ethash"]
-	path = third_party/ethash
-	url = https://github.com/monad-crypto/ethash.git
-	branch = monad
 [submodule "monad-core"]
 	path = monad-core
 	url = git@github.com:monad-crypto/monad-core.git
