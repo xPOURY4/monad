@@ -54,8 +54,7 @@ void __print_char_arr_in_hex(char *arr, int n)
 inline void batch_upsert_commit(
     std::ostream &csv_writer, uint64_t block_id, int64_t keccak_offset,
     file_offset_t offset, int64_t nkeys, unsigned char *const keccak_keys,
-    unsigned char *const keccak_values, bool erase, MerkleTrie &trie,
-    index_t &index)
+    unsigned char *const keccak_values, bool erase, MerkleTrie &trie)
 {
     double tm_ram;
 
@@ -74,8 +73,7 @@ inline void batch_upsert_commit(
 
     auto ts_before = std::chrono::steady_clock::now();
 
-    int64_t root_off = trie.process_updates(updates);
-    index.write_record(block_id, root_off);
+    trie.process_updates(updates, block_id);
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -173,30 +171,28 @@ int main(int argc, char *argv[])
 
         int fd = trans.get_fd();
         // init indexer
-        index_t index(fd);
+        auto index = std::make_shared<index_t>(fd);
 
         // initialize root and block offset for write
         uint64_t block_off;
         merkle_node_t *root;
         if (append) {
-            block_trie_info *trie_info = index.get_trie_info(vid);
-            MONAD_ASSERT(trie_info->vid == vid);
-            block_off = trie_info->root_off + MAX_DISK_NODE_SIZE;
-            // blocking get_root
-            root = read_node(fd, trie_info->root_off);
+            uint64_t root_off = index->get_history_root_off(vid);
+            block_off = root_off + MAX_DISK_NODE_SIZE;
+            root = read_node(fd, root_off);
             ++vid;
         }
         else {
-            block_off = index.get_start_offset();
+            block_off = index->get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
         auto io =
-            std::make_unique<AsyncIO>(ring, rwbuf, block_off, &update_callback);
+            std::make_shared<AsyncIO>(ring, rwbuf, block_off, &update_callback);
 
         int fds[1] = {fd};
         io->uring_register_files(fds, 1);
+        MerkleTrie trie(root, io, index);
 
-        MerkleTrie trie(root, std::move(io));
         unsigned char root_data[32];
         trie.root_hash(root_data);
         fprintf(stdout, "root->data: ");
@@ -235,8 +231,7 @@ int main(int argc, char *argv[])
                 keccak_keys.get(),
                 keccak_values.get(),
                 false,
-                trie,
-                index);
+                trie);
 
             ++vid;
 
@@ -252,8 +247,7 @@ int main(int argc, char *argv[])
                     keccak_keys.get(),
                     keccak_values.get(),
                     true,
-                    trie,
-                    index);
+                    trie);
                 ++vid;
 
                 fprintf(stdout, "> dup batch iter = %d\n", iter);
@@ -267,8 +261,7 @@ int main(int argc, char *argv[])
                     keccak_keys.get(),
                     keccak_values.get(),
                     false,
-                    trie,
-                    index);
+                    trie);
                 ++vid;
             }
         }

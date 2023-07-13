@@ -2,7 +2,7 @@
 
 #include <monad/core/byte_string.hpp>
 #include <monad/trie/config.hpp>
-
+#include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
@@ -23,7 +23,8 @@ void update_callback(void *user_data);
 class MerkleTrie final
 {
     merkle_node_t *root_;
-    std::unique_ptr<AsyncIO> io_;
+    std::shared_ptr<AsyncIO> io_;
+    std::shared_ptr<index_t> index_;
     const int cache_levels_;
 
     const byte_string empty_trie_hash{
@@ -32,6 +33,27 @@ class MerkleTrie final
          0xad, 0xc0, 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21}};
 
 public:
+    MerkleTrie(
+        merkle_node_t *root = nullptr, std::shared_ptr<AsyncIO> io = {},
+        std::shared_ptr<index_t> index = {}, int cache_levels = 5)
+        : root_(root)
+        , io_(std::move(io))
+        , index_(std::move(index))
+        , cache_levels_(cache_levels)
+    {
+    }
+
+    ~MerkleTrie()
+    {
+        if (root_) {
+            free_trie(root_);
+        }
+    };
+
+    ////////////////////////////////////////////////////////////////////
+    // Update helper functions
+    ////////////////////////////////////////////////////////////////////
+
     merkle_node_t *do_update(
         merkle_node_t *const prev_root, SubRequestInfo &nextlevel,
         tnode_t *curr_tnode, unsigned char const pi = 0);
@@ -47,23 +69,11 @@ public:
 
     void upward_update_data(tnode_t *curr_tnode);
 
-    MerkleTrie(
-        merkle_node_t *root = nullptr, std::unique_ptr<AsyncIO> &&io = nullptr,
-        int cache_levels = 5)
-        : root_(root)
-        , io_(std::move(io))
-        , cache_levels_(cache_levels)
-    {
-    }
+    ////////////////////////////////////////////////////////////////////
+    // StateDB Interface
+    ////////////////////////////////////////////////////////////////////
 
-    ~MerkleTrie()
-    {
-        if (root_) {
-            free_trie(root_);
-        }
-    };
-
-    off_t process_updates(monad::mpt::UpdateList &updates)
+    void process_updates(monad::mpt::UpdateList &updates, uint64_t block_id = 0)
     {
         merkle_node_t *prev_root = root_ ? root_ : get_new_merkle_node(0, 0);
         MONAD_ASSERT(prev_root);
@@ -82,12 +92,13 @@ public:
             // after update, also need to poll until no submission left in uring
             // and write record to the indexing part in the beginning of file
             root_off = io_->flush(root_);
+            if (index_) {
+                index_->write_record(block_id, root_off);
+            }
         }
         // tear down previous trie version and free tnode
         MONAD_ASSERT(!root_tnode || !root_tnode->npending);
         free_trie(prev_root);
-
-        return root_off;
     }
 
     void root_hash(unsigned char *const dest)
@@ -134,7 +145,7 @@ public:
     }
 };
 
-static_assert(sizeof(MerkleTrie) == 56);
+static_assert(sizeof(MerkleTrie) == 80);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
