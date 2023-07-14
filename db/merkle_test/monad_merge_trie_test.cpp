@@ -274,7 +274,6 @@ int main(int argc, char *argv[])
             }
         }
 
-        free_trie(root);
         auto end_test = std::chrono::steady_clock::now();
         auto test_secs = std::chrono::duration_cast<std::chrono::microseconds>(
                              end_test - begin_test)
