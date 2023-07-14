@@ -5,7 +5,6 @@ project(monad_core)
 ############
 ### deps
 ############
-include("third_party/ethash/cmake/cable/bootstrap.cmake")
 include("cmake/find_dependency.cmake")
 find_dependency(mimalloc REQUIRED)
 
