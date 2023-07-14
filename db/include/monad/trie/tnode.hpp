@@ -15,7 +15,7 @@ struct tnode_t
     uint8_t child_ni;
     uint8_t child_idx;
 
-    using allocator_type = boost_object_pool_allocator<tnode_t>;
+    using allocator_type = boost_unordered_pool_allocator<tnode_t>;
     static allocator_type &pool()
     {
         static allocator_type v;

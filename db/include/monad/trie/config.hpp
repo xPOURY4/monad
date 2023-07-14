@@ -9,3 +9,5 @@
 #define MONAD_TRIE_NAMESPACE_END                                               \
     }                                                                          \
     }
+
+#define MONAD_TRIE_NAMESPACE ::monad::trie

@@ -7,3 +7,4 @@ function(add_trie_test target)
   add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
 endfunction()
 
+add_trie_test(allocators_test "allocators.cpp")

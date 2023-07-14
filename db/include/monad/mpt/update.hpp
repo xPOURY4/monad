@@ -14,6 +14,16 @@ struct Data
 {
     byte_string_view val;
     byte_string_view aux;
+
+    explicit constexpr Data(byte_string_view v)
+        : val(v)
+    {
+    }
+    constexpr Data(byte_string_view v, byte_string_view a)
+        : val(v)
+        , aux(a)
+    {
+    }
 };
 
 static_assert(sizeof(Data) == 32);
