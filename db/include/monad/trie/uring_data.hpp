@@ -30,6 +30,7 @@ struct update_uring_data_t
     uint16_t buffer_off;
     unsigned char pi;
     uint8_t new_child_ni;
+    unsigned bytes_to_read;
 
     using allocator_type = boost_unordered_pool_allocator<update_uring_data_t>;
     static allocator_type &pool()
@@ -56,10 +57,12 @@ inline update_uring_data_t::unique_ptr_type get_update_uring_data(
     tnode_t *parent_tnode, MerkleTrie *trie)
 {
     // prep uring data
-    file_offset_t node_offset =
-        updates->prev_parent->children[updates->prev_child_i].fnext;
+    auto &child = updates->prev_parent->children[updates->prev_child_i];
+    file_offset_t node_offset = child.fnext();
     file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
     uint16_t buffer_off = uint16_t(node_offset - offset);
+    unsigned bytes_to_read = round_up_align<DISK_PAGE_BITS>(
+        buffer_off + child.node_len_upper_bound());
 
     return update_uring_data_t::make(update_uring_data_t{
         .rw_flag = uring_data_type_t::IS_READ,
@@ -73,6 +76,7 @@ inline update_uring_data_t::unique_ptr_type get_update_uring_data(
         .buffer_off = buffer_off,
         .pi = pi,
         .new_child_ni = new_child_ni,
+        .bytes_to_read = bytes_to_read,
     });
 }
 

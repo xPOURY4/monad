@@ -13,7 +13,7 @@ void update_callback(void *user_data)
     merkle_node_t *node = deserialize_node_from_buffer(
         data->buffer + data->buffer_off,
         data->updates->prev_parent->children[data->updates->prev_child_i]
-            .path_len);
+            .path_len());
     assert(node->nsubnodes > 1);
     assert(node->mask);
 
@@ -57,10 +57,13 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
             // ready to sum for curr->node and update data in parent
             encode_branch_extension(parent, curr_tnode->child_idx);
             if (io_) {
-                parent->children[curr_tnode->child_idx].fnext =
-                    io_->async_write_node(curr_tnode->node);
+                auto written = io_->async_write_node(curr_tnode->node);
+                parent->children[curr_tnode->child_idx].set_fnext(
+                    written.offset_written_to);
+                parent->children[curr_tnode->child_idx]
+                    .set_node_len_upper_bound(written.bytes_appended);
                 if (parent->path_len &&
-                    parent->children[curr_tnode->child_idx].path_len >=
+                    parent->children[curr_tnode->child_idx].path_len() >=
                         cache_levels_) {
                     free_node(curr);
                     parent->children[child_idx].next = nullptr;
@@ -79,7 +82,7 @@ void set_child_path_n_len(
     merkle_node_t *const parent, uint8_t const child_idx,
     unsigned char const *const path, uint8_t const path_len)
 {
-    parent->children[child_idx].path_len = path_len;
+    parent->children[child_idx].set_path_len(path_len);
     std::memcpy(parent->children[child_idx].path, path, (path_len + 1) / 2);
 }
 
@@ -113,9 +116,12 @@ void MerkleTrie::build_new_trie(
         parent->children[arr_idx].next = new_node;
         encode_branch_extension(parent, arr_idx);
         if (io_) {
-            parent->children[arr_idx].fnext = io_->async_write_node(new_node);
+            auto written = io_->async_write_node(new_node);
+            parent->children[arr_idx].set_fnext(written.offset_written_to);
+            parent->children[arr_idx].set_node_len_upper_bound(
+                written.bytes_appended);
             if (parent->path_len && // parent could be root
-                parent->children[arr_idx].path_len >= cache_levels_) {
+                parent->children[arr_idx].path_len() >= cache_levels_) {
                 free_node(parent->children[arr_idx].next);
                 parent->children[arr_idx].next = nullptr;
             }
@@ -157,7 +163,7 @@ merkle_node_t *MerkleTrie::do_update(
                 // only 1 ref per node for now
                 prev_child->next = nullptr;
                 prev_child->data = nullptr;
-                prev_child->data_len = 0;
+                prev_child->set_data_len(0);
                 --curr_tnode->npending;
             }
             ++child_idx;
@@ -193,7 +199,7 @@ void MerkleTrie::update_trie(
     uint8_t const new_branch_arr_i =
         merkle_child_index(new_parent, new_child_ni);
     unsigned char const prev_path_len =
-        prev_parent->children[prev_child_i].path_len;
+        prev_parent->children[prev_child_i].path_len();
     unsigned char *const prev_path = prev_parent->children[prev_child_i].path;
 
     merkle_node_t *new_branch = nullptr;
@@ -214,10 +220,10 @@ void MerkleTrie::update_trie(
                 assert(prev_parent->children[prev_child_i].data);
                 new_parent->children[new_branch_arr_i].data =
                     prev_parent->children[prev_child_i].data;
-                new_parent->children[new_branch_arr_i].data_len =
-                    prev_parent->children[prev_child_i].data_len;
+                new_parent->children[new_branch_arr_i].set_data_len(
+                    prev_parent->children[prev_child_i].data_len());
                 prev_parent->children[prev_child_i].data = nullptr;
-                prev_parent->children[prev_child_i].data_len = 0;
+                prev_parent->children[prev_child_i].set_data_len(0);
                 set_child_path_n_len(
                     new_parent, new_branch_arr_i, prev_path, prev_path_len);
                 encode_leaf(
@@ -376,7 +382,7 @@ void MerkleTrie::update_trie(
         else { // mismatch in the middle of a node rel path
             // prev_parent->children[prev_child_i] must be ext node
             assert(
-                prev_parent->children[prev_child_i].path_len -
+                prev_parent->children[prev_child_i].path_len() -
                         prev_parent->path_len >
                     1 &&
                 prev_parent->children[prev_child_i].data);
@@ -418,10 +424,13 @@ void MerkleTrie::update_trie(
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
             if (io_) {
-                new_parent->children[new_branch_arr_i].fnext =
-                    io_->async_write_node(new_branch);
+                auto written = io_->async_write_node(new_branch);
+                new_parent->children[new_branch_arr_i].set_fnext(
+                    written.offset_written_to);
+                new_parent->children[new_branch_arr_i].set_node_len_upper_bound(
+                    written.bytes_appended);
                 if (new_parent->path_len &&
-                    new_parent->children[new_branch_arr_i].path_len >=
+                    new_parent->children[new_branch_arr_i].path_len() >=
                         cache_levels_) {
                     free_node(new_branch);
                     new_parent->children[new_branch_arr_i].next = nullptr;

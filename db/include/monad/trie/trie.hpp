@@ -83,11 +83,11 @@ public:
             get_new_tnode(nullptr, 0, 0, nullptr);
         root_ = do_update(prev_root, requests, root_tnode.get());
 
-        off_t root_off = 0;
+        file_offset_t root_off = 0;
         if (io_) {
             // after update, also need to poll until no submission left in uring
             // and write record to the indexing part in the beginning of file
-            root_off = io_->flush(root_);
+            root_off = io_->flush(root_).offset_written_to;
             if (index_) {
                 index_->write_record(block_id, root_off);
             }
@@ -115,9 +115,9 @@ public:
                     relpath,
                     child->path,
                     0,
-                    child->path_len,
-                    child->path_len == 64),
-                byte_string_view{child->data, child->data_len},
+                    child->path_len(),
+                    child->path_len() == 64),
+                byte_string_view{child->data, child->data_len()},
                 dest);
         }
         else {
@@ -130,7 +130,7 @@ public:
         return root_;
     }
 
-    constexpr AsyncIO *get_io()
+    AsyncIO *get_io()
     {
         return io_.get();
     }

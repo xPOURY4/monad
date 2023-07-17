@@ -21,6 +21,9 @@ MONAD_TRIE_NAMESPACE_BEGIN
 //! The same type io_uring uses for offsets into files during i/o
 using file_offset_t = __u64;
 
+//! The maximum disk storage used by a serialised merkle node
+static constexpr uint16_t MAX_DISK_NODE_SIZE = 2674;
+
 //! The CPU page size and bits to assume
 static constexpr uint16_t CPU_PAGE_SIZE = 4096;
 static constexpr uint16_t CPU_PAGE_BITS = 12;

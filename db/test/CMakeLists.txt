@@ -8,4 +8,5 @@ function(add_trie_test target)
 endfunction()
 
 add_trie_test(allocators_test "allocators.cpp")
+add_trie_test(max_disk_node_size_test "max_disk_node_size.cpp")
 add_trie_test(index_test "index.cpp")

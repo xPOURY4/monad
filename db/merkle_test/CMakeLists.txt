@@ -9,4 +9,4 @@ add_executable(monad_merge_trie_test
 )
 monad_compile_options(monad_merge_trie_test)
 
-target_link_libraries(monad_merge_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie ethash::keccak)
+target_link_libraries(monad_merge_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie)

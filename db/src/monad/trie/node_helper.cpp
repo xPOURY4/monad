@@ -11,8 +11,10 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 // TODO: store leaf data separate from its parent.
 void serialize_node_to_buffer(
-    unsigned char *write_pos, merkle_node_t const *const node)
+    unsigned char *const write_pos_, merkle_node_t const *const node,
+    unsigned shouldbe_bytes_written)
 {
+    unsigned char *write_pos = write_pos_;
     auto write_item = [&](void *p, const auto &i) {
         std::memcpy(p, &i, sizeof(i));
         write_pos += sizeof(i);
@@ -32,31 +34,35 @@ void serialize_node_to_buffer(
             continue;
         }
         merkle_child_info_t const &child = node->children[i];
-        write_item(write_pos, child.fnext);
+        write_item(write_pos, child.bitpacked);
         write_item_len(
             write_pos, &child.noderef, sizeof(merkle_child_info_t::noderef_t));
 
-        *write_pos = child.path_len;
-        write_pos += sizeof(merkle_child_info_t::path_len_t);
-
         if (child.data) {
             MONAD_DEBUG_ASSERT(
-                partial_path_len(node, i) || child.path_len == 64);
-            *write_pos = child.data_len;
-            write_pos += sizeof(merkle_child_info_t::data_len_t);
-            write_item_len(write_pos, child.data, child.data_len);
+                partial_path_len(node, i) || child.path_len() == 64);
+            write_item_len(write_pos, child.data, child.data_len());
         }
         write_item_len(
             write_pos,
             child.path + node->path_len / 2,
-            (child.path_len + 1) / 2 - node->path_len / 2);
+            (child.path_len() + 1) / 2 - node->path_len / 2);
     }
+    shouldbe_bytes_written -= write_pos - write_pos_;
+    // If this trips, get_disk_node_size() does not match this routine.
+    assert(shouldbe_bytes_written < 2);
+    std::memset(write_pos, 0, shouldbe_bytes_written);
 }
 
 merkle_node_t *deserialize_node_from_buffer(
     unsigned char const *read_pos, unsigned char const node_path_len)
 {
     assert(node_path_len < 64);
+    // Tell the compiler it can hard assume two byte alignment
+    if (((uintptr_t)read_pos & 1) != 0) {
+        assert(false);
+        __builtin_unreachable();
+    }
 
     merkle_node_t::mask_t const mask =
         unaligned_load<merkle_node_t::mask_t>(read_pos);
@@ -76,26 +82,21 @@ merkle_node_t *deserialize_node_from_buffer(
 
     for (unsigned i = 0; i < node->nsubnodes; ++i) {
         merkle_child_info_t &child = node->children[i];
-        read_item(child.fnext, read_pos);
+        read_item(child.bitpacked, read_pos);
         read_item_len(
             &child.noderef, read_pos, sizeof(merkle_child_info_t::noderef));
 
-        child.path_len = *read_pos;
-        read_pos += sizeof(merkle_child_info_t::path_len_t);
-
-        if (partial_path_len(node, i) || child.path_len == 64) {
-            child.data_len = *read_pos;
-            read_pos += sizeof(merkle_child_info_t::data_len_t);
+        if (partial_path_len(node, i) || child.path_len() == 64) {
             child.data =
-                static_cast<unsigned char *>(std::malloc(child.data_len));
+                static_cast<unsigned char *>(std::malloc(child.data_len()));
             MONAD_ASSERT(child.data != nullptr);
-            read_item_len(child.data, read_pos, child.data_len);
+            read_item_len(child.data, read_pos, child.data_len());
         }
         // read relative path from disk
         read_item_len(
             child.path + node->path_len / 2,
             read_pos,
-            (child.path_len + 1) / 2 - node->path_len / 2);
+            (child.path_len() + 1) / 2 - node->path_len / 2);
     }
     return node;
 }
@@ -128,12 +129,12 @@ void assign_prev_child_to_new(
         assert(partial_path_len(prev_parent, prev_child_i));
         if (!partial_path_len(new_parent, new_child_i)) {
             // prev_child is ext node, new_child is branch (not leaf)
-            MONAD_ASSERT(new_child->path_len < 64);
+            MONAD_ASSERT(new_child->path_len() < 64);
             std::memcpy(
-                &new_child->noderef, new_child->data, new_child->data_len);
+                &new_child->noderef, new_child->data, new_child->data_len());
             free(new_child->data);
             new_child->data = nullptr;
-            new_child->data_len = 0;
+            new_child->set_data_len(0);
         }
         else {
             unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
@@ -142,9 +143,9 @@ void assign_prev_child_to_new(
                     relpath,
                     new_child->path,
                     new_parent->path_len + 1,
-                    new_child->path_len,
-                    new_child->path_len == 64),
-                byte_string_view{new_child->data, new_child->data_len},
+                    new_child->path_len(),
+                    new_child->path_len() == 64),
+                byte_string_view{new_child->data, new_child->data_len()},
                 new_child->noderef.data());
         }
     }
@@ -166,7 +167,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
         midnode->children[only_child_i].data = nullptr;
     }
     else {
-        assert(midnode->path_len + 1 == child->path_len);
+        assert(midnode->path_len + 1 == child->path_len());
         child->data = static_cast<unsigned char *>(
             std::malloc(sizeof(merkle_child_info_t::noderef_t)));
         MONAD_ASSERT(child->data != nullptr);
@@ -174,13 +175,13 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
             child->data,
             &child->noderef,
             sizeof(merkle_child_info_t::noderef_t));
-        child->data_len = sizeof(merkle_child_info_t::noderef_t);
+        child->set_data_len(sizeof(merkle_child_info_t::noderef_t));
     }
 
     std::memcpy(
         child->path + (mid_path_len + 1) / 2,
         midnode->children[only_child_i].path + (mid_path_len + 1) / 2,
-        (midnode->children[only_child_i].path_len + 1) / 2 -
+        (midnode->children[only_child_i].path_len() + 1) / 2 -
             (mid_path_len + 1) / 2);
     if (mid_path_len % 2) { // odd path_len
         set_nibble(
@@ -195,11 +196,11 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
             relpath,
             child->path,
             parent->path_len + 1,
-            child->path_len,
-            child->path_len == 64),
-        byte_string_view{child->data, child->data_len},
+            child->path_len(),
+            child->path_len() == 64),
+        byte_string_view{child->data, child->data_len()},
         (unsigned char *)&child->noderef);
-    assert(child->fnext || child->path_len == 64);
+    assert(child->fnext() > 0 || child->path_len() == 64);
     free_node(midnode);
 }
 

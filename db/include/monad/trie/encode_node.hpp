@@ -65,7 +65,7 @@ inline void encode_leaf(
     merkle_child_info_t *child = &parent->children[child_idx];
     // reallocate if size changed
     if (child->data != nullptr) {
-        if (child->data_len != value.size()) {
+        if (child->data_len() != value.size()) {
             auto *newmem = static_cast<unsigned char *>(
                 realloc(child->data, value.size()));
             MONAD_ASSERT(newmem != nullptr);
@@ -76,13 +76,17 @@ inline void encode_leaf(
         child->data = static_cast<unsigned char *>(malloc(value.size()));
         MONAD_ASSERT(child->data != nullptr);
     }
-    child->data_len = value.size();
+    child->set_data_len(value.size());
     std::memcpy(child->data, value.data(), value.size());
     unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
     encode_two_piece(
         compact_encode(
-            relpath, child->path, parent->path_len + 1, child->path_len, true),
-        byte_string_view{child->data, child->data_len},
+            relpath,
+            child->path,
+            parent->path_len + 1,
+            child->path_len(),
+            true),
+        byte_string_view{child->data, child->data_len()},
         child->noderef.data());
 }
 
@@ -136,7 +140,7 @@ inline void encode_branch_extension(
     }
     else {
         // hash both branch and extension
-        child->data_len = sizeof(merkle_child_info_t::noderef_t);
+        child->set_data_len(sizeof(merkle_child_info_t::noderef_t));
         child->data = static_cast<unsigned char *>(
             std::malloc(sizeof(merkle_child_info_t::noderef_t)));
         MONAD_ASSERT(child->data != nullptr);
@@ -147,9 +151,9 @@ inline void encode_branch_extension(
                 relpath,
                 child->path,
                 parent->path_len + 1,
-                child->path_len,
+                child->path_len(),
                 false),
-            byte_string_view{child->data, child->data_len},
+            byte_string_view{child->data, child->data_len()},
             reinterpret_cast<unsigned char *>(&child->noderef));
     }
 }

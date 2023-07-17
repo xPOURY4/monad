@@ -2,14 +2,14 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-file_offset_t AsyncIO::async_write_node(merkle_node_t *node)
+AsyncIO::async_write_node_result AsyncIO::async_write_node(merkle_node_t *node)
 {
     // always one write buffer in use but not submitted
     while (records_.inflight >= uring_.get_sq_entries() - 1) {
         poll_uring();
     }
 
-    size_t size = get_disk_node_size(node);
+    unsigned size = get_disk_node_size(node);
     if (size + buffer_idx_ > rwbuf_.get_write_size()) {
         // submit write request
         submit_write_request(write_buffer_, block_off_);
@@ -21,9 +21,9 @@ file_offset_t AsyncIO::async_write_node(merkle_node_t *node)
         buffer_idx_ = 0;
     }
     file_offset_t ret = block_off_ + buffer_idx_;
-    serialize_node_to_buffer(write_buffer_ + buffer_idx_, node);
+    serialize_node_to_buffer(write_buffer_ + buffer_idx_, node, size);
     buffer_idx_ += size;
-    return ret;
+    return {ret, size};
 }
 
 void AsyncIO::submit_request(

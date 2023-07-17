@@ -9,6 +9,8 @@
 #include <monad/trie/allocators.hpp>
 #include <monad/trie/node_helper.hpp>
 
+#include <fcntl.h>
+
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -31,11 +33,7 @@ struct IORecord
 
 class AsyncIO final
 {
-public:
-    constexpr static size_t READ_BLOCK_SIZE = 2048;
     constexpr static unsigned READ = 0, WRITE = 1;
-
-private:
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
     struct write_uring_data_t
     {
@@ -140,15 +138,20 @@ public:
         rd_pool_.release(buffer);
     };
 
-    file_offset_t async_write_node(merkle_node_t *node);
+    struct async_write_node_result
+    {
+        file_offset_t offset_written_to;
+        unsigned bytes_appended;
+    };
+    async_write_node_result async_write_node(merkle_node_t *node);
 
     // invoke at the end of each block
-    file_offset_t flush(merkle_node_t *root)
+    async_write_node_result flush(merkle_node_t *root)
     {
         while (records_.inflight) {
             poll_uring();
         }
-        file_offset_t root_off = async_write_node(root);
+        auto root_off = async_write_node(root);
         // pending root write, will submit or poll in next round
 
         records_.nreads = 0;
@@ -173,7 +176,7 @@ public:
         auto *uring_data_ = uring_data.release();
         submit_request(
             rd_buffer,
-            READ_BLOCK_SIZE,
+            uring_data_->bytes_to_read,
             uring_data_->offset,
             uring_data_,
             false);

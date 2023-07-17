@@ -7,7 +7,12 @@
 
 #include <memory>
 
-#define MAX_DISK_NODE_SIZE 1536
+#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Warray-bounds"
+    #pragma GCC diagnostic ignored "-Wstringop-overread"
+    #pragma GCC diagnostic ignored "-Wzero-length-bounds"
+#endif
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -15,7 +20,8 @@ MONAD_TRIE_NAMESPACE_BEGIN
 void free_trie(merkle_node_t *const node);
 
 void serialize_node_to_buffer(
-    unsigned char *write_pos, merkle_node_t const *const node);
+    unsigned char *write_pos, merkle_node_t const *const node,
+    unsigned shouldbe_bytes_written);
 
 merkle_node_t *deserialize_node_from_buffer(
     unsigned char const *read_pos, unsigned char const node_path_len);
@@ -55,25 +61,29 @@ inline void free_node(merkle_node_t *const node)
     free(node);
 }
 
-inline size_t get_disk_node_size(merkle_node_t const *const node)
+inline unsigned get_disk_node_size(merkle_node_t const *const node)
 {
     constexpr unsigned size_of_node_ref = 32;
-    size_t total = 0;
+    unsigned total = 0, children_valid = 0;
     for (uint16_t i = 0, bit = 1; i < node->nsubnodes; ++i, bit <<= 1) {
         if (node->tomb_arr_mask & bit) {
             continue;
         }
+        children_valid++;
         if (node->children[i].data) {
             assert(
-                partial_path_len(node, i) || node->children[i].path_len == 64);
-            total += node->children[i].data_len + 1;
+                partial_path_len(node, i) ||
+                node->children[i].path_len() == 64);
+            total += node->children[i].data_len();
         }
-        total += (node->children[i].path_len + 1) / 2 - node->path_len / 2;
+        total += (node->children[i].path_len() + 1) / 2 - node->path_len / 2;
     }
-    return total + sizeof(merkle_node_t::mask_t) +
-           merkle_child_count_valid(node) *
-               (size_of_node_ref + sizeof(merkle_child_info_t::fnext_t) +
-                sizeof(merkle_child_info_t::path_len_t));
+    total +=
+        sizeof(merkle_node_t::mask_t) +
+        children_valid * (size_of_node_ref +
+                          sizeof(merkle_child_info_t::bitpacked_storage_t));
+    total = (total + 1) & ~1;
+    return total;
 }
 
 inline merkle_node_t *
@@ -117,3 +127,7 @@ copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
 }
 
 MONAD_TRIE_NAMESPACE_END
+
+#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
