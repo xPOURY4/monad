@@ -88,12 +88,4 @@ enable_testing()
 
 find_package(GTest REQUIRED)
 
-function(monad_add_test target)
-  add_executable(${target} ${ARGN})
-  monad_compile_options(${target})
-  target_link_libraries(${target} monad_core GTest::GTest GTest::Main)
-  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
-endfunction()
-
-monad_add_test(encode_test "src/monad/rlp/encode_test.cpp")
-monad_add_test(literal_test "src/monad/core/literal_test.cpp")
+add_subdirectory("test")

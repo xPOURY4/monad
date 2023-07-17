@@ -9,6 +9,8 @@
 
 #define MONAD_NAMESPACE_END }
 
+#define MONAD_NAMESPACE ::monad
+
 static_assert(CHAR_BIT == 8);
 
 static_assert(

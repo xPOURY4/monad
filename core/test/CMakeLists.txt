@@ -1,0 +1,10 @@
+function(monad_add_test target)
+    add_executable(${target} ${ARGN})
+    monad_compile_options(${target})
+    target_link_libraries(${target} monad_core GTest::GTest GTest::Main)
+    add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+endfunction()
+
+monad_add_test(allocators_test "allocators.cpp")
+monad_add_test(encode_test "encode_test.cpp")
+monad_add_test(literal_test "literal_test.cpp")
