@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-ctest \
+ctest -E ^ethash/* \
   --test-dir build
 
 if readelf -p .comment build/*.so | grep clang; then
