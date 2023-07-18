@@ -10,6 +10,7 @@
 #include <monad/trie/node_helper.hpp>
 
 #include <cstddef>
+#include <filesystem>
 #include <functional>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -32,6 +33,7 @@ class AsyncIO final
 {
 public:
     constexpr static size_t READ_BLOCK_SIZE = 2048;
+    constexpr static unsigned READ = 0, WRITE = 1;
 
 private:
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
@@ -61,6 +63,7 @@ private:
     static_assert(sizeof(write_uring_data_t) == 16);
     static_assert(alignof(write_uring_data_t) == 8);
 
+    int fds_[2];
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
@@ -84,7 +87,8 @@ private:
 
 public:
     AsyncIO(
-        monad::io::Ring &ring, monad::io::Buffers &rwbuf, uint64_t block_off,
+        std::filesystem::path &p, monad::io::Ring &ring,
+        monad::io::Buffers &rwbuf, uint64_t block_off,
         std::function<void(void *)> readcb)
         : uring_(ring)
         , rwbuf_(rwbuf)
@@ -96,9 +100,19 @@ public:
         , block_off_(round_up_align<DISK_PAGE_BITS>(block_off))
     {
         MONAD_ASSERT(write_buffer_);
+
+        // append only file descriptor
+        fds_[WRITE] = open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0777);
+        MONAD_ASSERT(fds_[WRITE] != -1);
+        // read only file descriptor
+        fds_[READ] = open(p.c_str(), O_RDONLY | O_DIRECT, 0777);
+        MONAD_ASSERT(fds_[READ] != -1);
+
+        // register files
+        MONAD_ASSERT(!io_uring_register_files(
+            const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
     }
 
-    // TODO: unregister uring file
     ~AsyncIO()
     {
         // handle the last buffer to write
@@ -112,20 +126,18 @@ public:
             poll_uring();
         }
         MONAD_ASSERT(!records_.inflight);
+
         MONAD_ASSERT(!io_uring_unregister_files(
             const_cast<io_uring *>(&uring_.get_ring())));
+
+        close(fds_[READ]);
+        close(fds_[WRITE]);
     }
 
     void release_read_buffer(unsigned char *const buffer)
     {
         rd_pool_.release(buffer);
     };
-
-    void uring_register_files(int const *fds, unsigned nr_files)
-    {
-        MONAD_ASSERT(!io_uring_register_files(
-            const_cast<io_uring *>(&uring_.get_ring()), fds, nr_files));
-    }
 
     int64_t async_write_node(merkle_node_t *node);
 
@@ -168,9 +180,24 @@ public:
         ++records_.inflight_rd;
         ++records_.nreads;
     }
+
+    inline merkle_node_t *read_node(file_offset_t node_offset)
+    { // blocking read
+        file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
+        file_offset_t buffer_off = node_offset - offset;
+        size_t bytestoread =
+            round_up_align<DISK_PAGE_BITS>(MAX_DISK_NODE_SIZE + buffer_off);
+        auto buffer = std::make_unique<unsigned char[]>(bytestoread);
+        MONAD_ASSERT(
+            pread(fds_[READ], buffer.get(), bytestoread, offset) ==
+            ssize_t(bytestoread));
+        merkle_node_t *node =
+            deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
+        return node;
+    }
 };
 
-static_assert(sizeof(AsyncIO) == 104);
+static_assert(sizeof(AsyncIO) == 112);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_TRIE_NAMESPACE_END

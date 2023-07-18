@@ -1,20 +1,16 @@
 #include "gtest/gtest.h"
 
 #include <monad/trie/index.hpp>
-#include <monad/trie/tr.hpp>
 
 using namespace monad::trie;
 
 struct IndexTestFixture : public testing::Test
 {
 protected:
-    Transaction tr;
-
 public:
     index_t index;
-    IndexTestFixture(std::filesystem::path path = "index_test.db")
-        : tr(Transaction(path))
-        , index(index_t(tr.get_fd(), path))
+    IndexTestFixture(std::filesystem::path p = "index_test.db")
+        : index(p)
     {
     }
 };

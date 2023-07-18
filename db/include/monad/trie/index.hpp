@@ -9,6 +9,8 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+
+#include <fcntl.h>
 #include <sys/mman.h>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -56,9 +58,13 @@ class Index
     }
 
 public:
-    // TODO: open a rd wr fd
-    Index(int const fd, std::filesystem::path &p)
-        : fd_(fd)
+    Index(std::filesystem::path &p)
+        : fd_([&] {
+            int flag = O_CREAT | O_RDWR;
+            int fd = open(p.c_str(), flag, 0777);
+            MONAD_ASSERT(fd != -1);
+            return fd;
+        }())
         , block_start_off_(0)
         , header_block_(_memmap(0))
         , mmap_block_(nullptr)
@@ -80,6 +86,14 @@ public:
             MONAD_ASSERT(!munmap(mmap_block_, CPU_PAGE_SIZE));
         }
         MONAD_ASSERT(!munmap(header_block_, CPU_PAGE_SIZE));
+
+        close(fd_);
+        fd_ = -1;
+    }
+
+    constexpr int get_rw_fd() noexcept
+    {
+        return fd_;
     }
 
     constexpr unsigned get_num_slots() noexcept

@@ -38,10 +38,10 @@ void AsyncIO::submit_request(
     MONAD_ASSERT(sqe);
 
     if (is_write) {
-        io_uring_prep_write_fixed(sqe, 0, buffer, nbytes, offset, 1);
+        io_uring_prep_write_fixed(sqe, WRITE, buffer, nbytes, offset, 1);
     }
     else {
-        io_uring_prep_read_fixed(sqe, 0, buffer, nbytes, offset, 0);
+        io_uring_prep_read_fixed(sqe, READ, buffer, nbytes, offset, 0);
     }
     sqe->flags |= IOSQE_FIXED_FILE;
 

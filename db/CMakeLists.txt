@@ -33,7 +33,6 @@ add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/request.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/tr.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/uring_data.hpp"
 

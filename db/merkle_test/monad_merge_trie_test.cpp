@@ -15,7 +15,6 @@
 #include <monad/trie/index.hpp>
 #include <monad/trie/io.hpp>
 #include <monad/trie/node_helper.hpp>
-#include <monad/trie/tr.hpp>
 #include <monad/trie/trie.hpp>
 
 #include <chrono>
@@ -164,14 +163,12 @@ int main(int argc, char *argv[])
         // init uring
         monad::io::Ring ring(128, sq_thread_cpu);
 
-        // init buffer
-        monad::io::Buffers rwbuf{ring, 128, 128, 1UL << 13};
+        // init buffer: default buffer size
+        // TODO: pass in a preallocated memory
+        monad::io::Buffers rwbuf{ring, 128, 128};
 
-        Transaction trans(dbname_path);
-
-        int fd = trans.get_fd();
         // init indexer
-        auto index = std::make_shared<index_t>(fd, dbname_path);
+        auto index = std::make_shared<index_t>(dbname_path);
 
         // initialize root and block offset for write
         uint64_t block_off;
@@ -183,18 +180,16 @@ int main(int argc, char *argv[])
                     "not support history block lookup for out of range vid");
             }
             block_off = root_off.value() + MAX_DISK_NODE_SIZE;
-            root = read_node(fd, root_off.value());
+            root = read_node(index->get_rw_fd(), root_off.value());
             ++vid;
         }
         else {
             block_off = index->get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
-        auto io =
-            std::make_shared<AsyncIO>(ring, rwbuf, block_off, &update_callback);
+        auto io = std::make_shared<AsyncIO>(
+            dbname_path, ring, rwbuf, block_off, &update_callback);
 
-        int fds[1] = {fd};
-        io->uring_register_files(fds, 1);
         MerkleTrie trie(root, io, index);
 
         unsigned char root_data[32];
