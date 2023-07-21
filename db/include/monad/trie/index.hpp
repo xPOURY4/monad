@@ -60,8 +60,7 @@ class Index
 public:
     Index(std::filesystem::path &p)
         : fd_([&] {
-            int flag = O_CREAT | O_RDWR;
-            int fd = open(p.c_str(), flag, 0777);
+            int fd = open(p.c_str(), O_CREAT | O_RDWR, 0600);
             MONAD_ASSERT(fd != -1);
             return fd;
         }())

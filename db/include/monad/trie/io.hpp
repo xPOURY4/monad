@@ -102,10 +102,10 @@ public:
         MONAD_ASSERT(write_buffer_);
 
         // append only file descriptor
-        fds_[WRITE] = open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0777);
+        fds_[WRITE] = open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0600);
         MONAD_ASSERT(fds_[WRITE] != -1);
         // read only file descriptor
-        fds_[READ] = open(p.c_str(), O_RDONLY | O_DIRECT, 0777);
+        fds_[READ] = open(p.c_str(), O_RDONLY | O_DIRECT);
         MONAD_ASSERT(fds_[READ] != -1);
 
         // register files
