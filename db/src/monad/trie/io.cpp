@@ -2,7 +2,7 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-int64_t AsyncIO::async_write_node(merkle_node_t *node)
+file_offset_t AsyncIO::async_write_node(merkle_node_t *node)
 {
     // always one write buffer in use but not submitted
     while (records_.inflight >= uring_.get_sq_entries() - 1) {
@@ -20,7 +20,7 @@ int64_t AsyncIO::async_write_node(merkle_node_t *node)
         MONAD_ASSERT(write_buffer_);
         buffer_idx_ = 0;
     }
-    int64_t ret = block_off_ + buffer_idx_;
+    file_offset_t ret = block_off_ + buffer_idx_;
     serialize_node_to_buffer(write_buffer_ + buffer_idx_, node);
     buffer_idx_ += size;
     return ret;
@@ -50,7 +50,8 @@ void AsyncIO::submit_request(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
-void AsyncIO::submit_write_request(unsigned char *buffer, int64_t const offset)
+void AsyncIO::submit_write_request(
+    unsigned char *buffer, file_offset_t const offset)
 {
     // write user data
     write_uring_data_t::unique_ptr_type user_data =

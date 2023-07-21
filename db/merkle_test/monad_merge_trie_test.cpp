@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         auto index = std::make_shared<index_t>(dbname_path);
 
         // initialize root and block offset for write
-        uint64_t block_off;
+        file_offset_t block_off;
         merkle_node_t *root;
         if (append) {
             auto root_off = index->get_history_root_off(vid);

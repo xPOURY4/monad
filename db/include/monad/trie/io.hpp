@@ -72,7 +72,7 @@ private:
 
     unsigned char *write_buffer_;
     size_t buffer_idx_;
-    uint64_t block_off_;
+    file_offset_t block_off_;
 
     // IO records
     IORecord records_;
@@ -81,14 +81,15 @@ private:
         unsigned char *const buffer, unsigned int nbytes, file_offset_t offset,
         void *uring_data, bool is_write);
 
-    void submit_write_request(unsigned char *buffer, int64_t const offset);
+    void
+    submit_write_request(unsigned char *buffer, file_offset_t const offset);
 
     void poll_uring();
 
 public:
     AsyncIO(
         std::filesystem::path &p, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf, uint64_t block_off,
+        monad::io::Buffers &rwbuf, file_offset_t block_off,
         std::function<void(void *)> readcb)
         : uring_(ring)
         , rwbuf_(rwbuf)
@@ -139,15 +140,15 @@ public:
         rd_pool_.release(buffer);
     };
 
-    int64_t async_write_node(merkle_node_t *node);
+    file_offset_t async_write_node(merkle_node_t *node);
 
     // invoke at the end of each block
-    int64_t flush(merkle_node_t *root)
+    file_offset_t flush(merkle_node_t *root)
     {
         while (records_.inflight) {
             poll_uring();
         }
-        int64_t root_off = async_write_node(root);
+        file_offset_t root_off = async_write_node(root);
         // pending root write, will submit or poll in next round
 
         records_.nreads = 0;

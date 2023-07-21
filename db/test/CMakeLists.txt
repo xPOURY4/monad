@@ -8,8 +8,4 @@ function(add_trie_test target)
 endfunction()
 
 add_trie_test(allocators_test "allocators.cpp")
-
-add_trie_test(
-    monad-trie-libtest 
-    "index.cpp" 
-)
+add_trie_test(index_test "index.cpp")

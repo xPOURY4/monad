@@ -112,8 +112,8 @@ public:
         unsigned record_off = _get_record_off(vid);
         // 512 aligned blocking read from fd
         unsigned offset = round_down_align<DISK_PAGE_BITS>(record_off);
-        auto buffer = std::make_unique<unsigned char[]>(1UL << 9);
-        MONAD_ASSERT(pread(fd_, buffer.get(), 1UL << 9, offset) != -1);
+        auto buffer = std::make_unique<unsigned char[]>(DISK_PAGE_SIZE);
+        MONAD_ASSERT(pread(fd_, buffer.get(), DISK_PAGE_SIZE, offset) != -1);
 
         auto info = reinterpret_cast<block_trie_info_t *>(
             buffer.get() + record_off - offset);
@@ -123,7 +123,7 @@ public:
         return info->root_off;
     }
 
-    void write_record(uint64_t vid, uint64_t root_off)
+    void write_record(uint64_t vid, file_offset_t root_off)
     {
         unsigned record_off = _get_record_off(vid);
 
