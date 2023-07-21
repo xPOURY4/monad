@@ -188,7 +188,8 @@ int main(int argc, char *argv[])
         auto io = std::make_shared<AsyncIO>(
             dbname_path, ring, rwbuf, block_off, &update_callback);
 
-        MerkleTrie trie(std::move(root), std::move(io), std::move(index));
+        MerkleTrie trie(
+            false, std::move(root), std::move(io), std::move(index));
 
         unsigned char root_data[32];
         trie.root_hash(root_data);

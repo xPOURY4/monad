@@ -31,13 +31,16 @@ to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
  */
 inline void encode_two_piece(
     byte_string_view const first, byte_string_view const second,
-    unsigned char *const dest)
+    unsigned const second_offset, unsigned char *const dest)
 {
+    assert(second.size() > second_offset);
+    auto second_to_use = byte_string_view{
+        second.data() + second_offset, second.size() - second_offset};
     size_t first_len = rlp::string_length(first),
-           second_len = rlp::string_length(second);
+           second_len = rlp::string_length(second_to_use);
     unsigned char rlp_string[first_len + second_len];
     unsigned char *result = rlp::encode_string(rlp_string, first);
-    result = rlp::encode_string(result, second);
+    result = rlp::encode_string(result, second_to_use);
     assert((unsigned long)(result - rlp_string) == first_len + second_len);
     byte_string_view encoded_strings =
         byte_string_view{rlp_string, first_len + second_len};
@@ -50,8 +53,13 @@ inline void encode_two_piece(
 
 inline void encode_leaf(
     merkle_node_t *const parent, unsigned char const child_idx,
-    byte_string_view const value)
+    byte_string_view const value, bool const is_account)
 {
+    /* If is_account, value = [offset to storage trie, rlp(account)]
+       Else, value = rlp(storage)
+    */
+    // TODO: first byte of rlp(storage) is always 0x80 + 32, remove the byte on
+    // disk
     merkle_child_info_t *child = &parent->children()[child_idx];
     // reallocate if size changed
     if (child->data) {
@@ -74,6 +82,7 @@ inline void encode_leaf(
             child->path_len(),
             true),
         byte_string_view{child->data.get(), child->data_len()},
+        is_account ? ROOT_OFFSET_SIZE : 0,
         child->noderef.data());
 }
 
@@ -141,6 +150,7 @@ inline void encode_branch_extension(
                 child->path_len(),
                 false),
             byte_string_view{child->data.get(), child->data_len()},
+            0,
             reinterpret_cast<unsigned char *>(&child->noderef));
     }
 }

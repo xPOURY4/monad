@@ -29,7 +29,17 @@ make_update(std::pair<monad::byte_string, monad::byte_string> const &kvpair)
 namespace fixed_updates
 {
     // single update
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
+        {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345671_hex,
+         0x0000000000000000deadcafedeadcafedeadcafedeadcafedeadcafedeadcafedeadcafedeadcafe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
+
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
@@ -42,7 +52,17 @@ namespace fixed_updates
 
 namespace unrelated_leaves
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+        {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe_hex},
+        {0x2234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadcafedeadcafedeadcafedeadcafedeadcafedeadcafedeadcafedeadcafe_hex},
+        {0x3234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
+
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
         {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -53,13 +73,25 @@ namespace unrelated_leaves
          0xdeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
 };
 
+constexpr auto &get_fixed_updates(bool is_account)
+{
+    return is_account ? fixed_updates::account_kv : fixed_updates::storage_kv;
+}
+
+constexpr auto &get_unrelated_updates(bool is_account)
+{
+    return is_account ? unrelated_leaves::account_kv
+                      : unrelated_leaves::storage_kv;
+}
+
 template <typename TFixture>
 struct TrieTest : public TFixture
 {
 };
 
-using TrieTypes =
-    ::testing::Types<in_memory_trie_fixture_t, on_disk_trie_fixture_t>;
+using TrieTypes = ::testing::Types<
+    in_memory_trie_fixture_t<true>, on_disk_trie_fixture_t<true>,
+    in_memory_trie_fixture_t<false>, on_disk_trie_fixture_t<false>>;
 
 TYPED_TEST_SUITE(TrieTest, TrieTypes);
 
@@ -71,11 +103,11 @@ public:
 
     TrieUpdateFixture()
     {
+        auto &kv = get_fixed_updates(this->is_account());
+
         std::vector<Update> update_vec;
         std::ranges::transform(
-            fixed_updates::kv,
-            std::back_inserter(update_vec),
-            [](auto &su) -> Update {
+            kv, std::back_inserter(update_vec), [](auto &su) -> Update {
                 auto &[k, v] = su;
                 return make_update(k, v);
             });
@@ -84,8 +116,10 @@ public:
 };
 
 using TrieUpdateTypes = ::testing::Types<
-    TrieUpdateFixture<in_memory_trie_fixture_t>,
-    TrieUpdateFixture<on_disk_trie_fixture_t>>;
+    TrieUpdateFixture<in_memory_trie_fixture_t<true>>,
+    TrieUpdateFixture<on_disk_trie_fixture_t<true>>,
+    TrieUpdateFixture<in_memory_trie_fixture_t<false>>,
+    TrieUpdateFixture<on_disk_trie_fixture_t<false>>>;
 
 template <typename TFixture>
 struct TrieUpdateTest : public TFixture
@@ -115,7 +149,9 @@ TYPED_TEST(TrieTest, OneElement)
         key =
             0x1234567812345678123456781234567812345678123456781234567812345678_hex,
         value =
-            0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex;
+            this->is_account()
+                ? 0x0000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex
+                : 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex;
 
     Update a = make_update(key, value);
     updates.push_front(a);
@@ -128,7 +164,9 @@ TYPED_TEST(TrieTest, OneElement)
 
     // update again
     value =
-        0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex;
+        this->is_account()
+            ? 0x0000000000000000deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex
+            : 0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex;
 
     a = make_update(key, value);
     updates.pop_front();
@@ -144,9 +182,11 @@ TYPED_TEST(TrieTest, OneElement)
 
 TYPED_TEST(TrieTest, Simple)
 {
+    auto &kv = get_fixed_updates(this->is_account());
+
     std::vector<Update> update_vec;
-    update_vec.push_back(make_update(fixed_updates::kv[0]));
-    update_vec.push_back(make_update(fixed_updates::kv[1]));
+    update_vec.push_back(make_update(kv[0]));
+    update_vec.push_back(make_update(kv[1]));
 
     this->process_updates(update_vec);
 
@@ -155,8 +195,8 @@ TYPED_TEST(TrieTest, Simple)
         0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
 
     // two other updates for next batch
-    update_vec[0] = make_update(fixed_updates::kv[2]);
-    update_vec[1] = make_update(fixed_updates::kv[3]);
+    update_vec[0] = make_update(kv[2]);
+    update_vec[1] = make_update(kv[3]);
 
     this->process_updates(update_vec);
 
@@ -167,11 +207,13 @@ TYPED_TEST(TrieTest, Simple)
 
 TYPED_TEST(TrieTest, UnrelatedLeavesWithRead)
 {
-
     UpdateList updates;
     std::vector<Update> update_vec;
-    update_vec.push_back(make_update(unrelated_leaves::kv[0]));
-    update_vec.push_back(make_update(unrelated_leaves::kv[1]));
+
+    auto &kv = get_unrelated_updates(this->is_account());
+
+    update_vec.push_back(make_update(kv[0]));
+    update_vec.push_back(make_update(kv[1]));
 
     this->process_updates(update_vec);
     EXPECT_EQ(
@@ -179,8 +221,8 @@ TYPED_TEST(TrieTest, UnrelatedLeavesWithRead)
         0xc2cbdf038f464a595ac12a257d48cc2a36614f0adfd2e9a08b79c5b34b52316a_hex);
 
     // two other updates for next batch
-    update_vec[0] = make_update(unrelated_leaves::kv[2]);
-    update_vec[1] = make_update(unrelated_leaves::kv[3]);
+    update_vec[0] = make_update(kv[2]);
+    update_vec[1] = make_update(kv[3]);
 
     this->process_updates(update_vec);
     EXPECT_EQ(
@@ -188,21 +230,13 @@ TYPED_TEST(TrieTest, UnrelatedLeavesWithRead)
         0xd339cf4033aca65996859d35da4612b642664cc40734dbdd40738aa47f1e3e44_hex);
 
     // read from trie
-    EXPECT_EQ(
-        this->trie.read(unrelated_leaves::kv[0].first).value(),
-        unrelated_leaves::kv[0].second);
+    EXPECT_EQ(this->trie.read(kv[0].first).value(), kv[0].second);
 
-    EXPECT_EQ(
-        this->trie.read(unrelated_leaves::kv[1].first).value(),
-        unrelated_leaves::kv[1].second);
+    EXPECT_EQ(this->trie.read(kv[1].first).value(), kv[1].second);
 
-    EXPECT_EQ(
-        this->trie.read(unrelated_leaves::kv[2].first).value(),
-        unrelated_leaves::kv[2].second);
+    EXPECT_EQ(this->trie.read(kv[2].first).value(), kv[2].second);
 
-    EXPECT_EQ(
-        this->trie.read(unrelated_leaves::kv[3].first).value(),
-        unrelated_leaves::kv[3].second);
+    EXPECT_EQ(this->trie.read(kv[3].first).value(), kv[3].second);
 }
 
 TYPED_TEST(TrieUpdateTest, None)
@@ -215,11 +249,11 @@ TYPED_TEST(TrieUpdateTest, None)
 
 TYPED_TEST(TrieUpdateTest, RemoveEverything)
 {
+    auto &kv = get_fixed_updates(this->is_account());
+
     std::vector<Update> update_vec;
     std::ranges::transform(
-        fixed_updates::kv,
-        std::back_inserter(update_vec),
-        [](auto &su) -> Update {
+        kv, std::back_inserter(update_vec), [](auto &su) -> Update {
             auto &[k, v] = su;
             return make_update(k, {});
         });
@@ -232,9 +266,11 @@ TYPED_TEST(TrieUpdateTest, RemoveEverything)
 
 TYPED_TEST(TrieUpdateTest, DeleteSingleBranch)
 {
+    auto &kv = get_fixed_updates(this->is_account());
+
     std::vector<Update> update_vec;
-    update_vec.push_back(make_update(fixed_updates::kv[2].first, {}));
-    update_vec.push_back(make_update(fixed_updates::kv[3].first, {}));
+    update_vec.push_back(make_update(kv[2].first, {}));
+    update_vec.push_back(make_update(kv[3].first, {}));
 
     this->process_updates({update_vec});
 
@@ -245,30 +281,32 @@ TYPED_TEST(TrieUpdateTest, DeleteSingleBranch)
 
 TYPED_TEST(TrieUpdateTest, DeleteOneAtATime)
 {
+    auto &kv = get_fixed_updates(this->is_account());
+
     std::vector<Update> update_vec;
 
-    update_vec.push_back(make_update(fixed_updates::kv[2].first, {}));
+    update_vec.push_back(make_update(kv[2].first, {}));
     this->process_updates(update_vec);
     EXPECT_EQ(
         this->root_hash(),
         0xd8b34a85db25148b1901459eac9805edadaa20b03f41fecd3b571f3b549e2774_hex);
 
     update_vec.clear();
-    update_vec.push_back(make_update(fixed_updates::kv[1].first, {}));
+    update_vec.push_back(make_update(kv[1].first, {}));
     this->process_updates(update_vec);
     EXPECT_EQ(
         this->root_hash(),
         0x107c8dd7bf9e7ca1faaa2c5856b412a8d7fccfa0005ca2500673a86b9c1760de_hex);
 
     update_vec.clear();
-    update_vec.push_back(make_update(fixed_updates::kv[0].first, {}));
+    update_vec.push_back(make_update(kv[0].first, {}));
     this->process_updates(update_vec);
     EXPECT_EQ(
         this->root_hash(),
         0x15fa9c02a40994d2d4f9c9b21daba3c4e455985490de5f9ae4889548f34d5873_hex);
 
     update_vec.clear();
-    update_vec.push_back(make_update(fixed_updates::kv[3].first, {}));
+    update_vec.push_back(make_update(kv[3].first, {}));
     this->process_updates(update_vec);
     EXPECT_EQ(
         this->root_hash(),
@@ -281,21 +319,15 @@ TYPED_TEST(TrieUpdateTest, DeleteOneAtATime)
 
 TYPED_TEST(TrieUpdateTest, ReadFromTrie)
 {
-    EXPECT_EQ(
-        this->trie.read(fixed_updates::kv[0].first).value(),
-        fixed_updates::kv[0].second);
+    auto &kv = get_fixed_updates(this->is_account());
 
-    EXPECT_EQ(
-        this->trie.read(fixed_updates::kv[1].first).value(),
-        fixed_updates::kv[1].second);
+    EXPECT_EQ(this->trie.read(kv[0].first).value(), kv[0].second);
 
-    EXPECT_EQ(
-        this->trie.read(fixed_updates::kv[2].first).value(),
-        fixed_updates::kv[2].second);
+    EXPECT_EQ(this->trie.read(kv[1].first).value(), kv[1].second);
 
-    EXPECT_EQ(
-        this->trie.read(fixed_updates::kv[3].first).value(),
-        fixed_updates::kv[3].second);
+    EXPECT_EQ(this->trie.read(kv[2].first).value(), kv[2].second);
+
+    EXPECT_EQ(this->trie.read(kv[3].first).value(), kv[3].second);
 
     EXPECT_FALSE(
         this->trie
@@ -304,25 +336,36 @@ TYPED_TEST(TrieUpdateTest, ReadFromTrie)
             .has_value());
 }
 
-using OnDiskTrieUpdateTest = TrieUpdateFixture<on_disk_trie_fixture_t>;
+using OnDiskTrieUpdateTypes = ::testing::Types<
+    TrieUpdateFixture<on_disk_trie_fixture_t<true>>,
+    TrieUpdateFixture<on_disk_trie_fixture_t<false>>>;
 
-TEST_F(OnDiskTrieUpdateTest, HistoryReadFromTrie)
+template <typename TFixture>
+struct OnDiskTrieUpdateTest : public TFixture
 {
+};
+
+TYPED_TEST_SUITE(OnDiskTrieUpdateTest, OnDiskTrieUpdateTypes);
+
+TYPED_TEST(OnDiskTrieUpdateTest, HistoryReadFromTrie)
+{
+    auto &fixed_kv = get_fixed_updates(this->is_account());
+    auto &unrelated_kv = get_unrelated_updates(this->is_account());
 
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[0].first, 0).value(),
-        fixed_updates::kv[0].second);
+        this->trie.read_history(fixed_kv[0].first, 0).value(),
+        fixed_kv[0].second);
 
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[2].first, 0).value(),
-        fixed_updates::kv[2].second);
+        this->trie.read_history(fixed_kv[2].first, 0).value(),
+        fixed_kv[2].second);
 
     UpdateList updates;
     std::vector<Update> update_vec;
 
     // Block 1
-    update_vec.push_back(make_update(unrelated_leaves::kv[0]));
-    update_vec.push_back(make_update(unrelated_leaves::kv[1]));
+    update_vec.push_back(make_update(unrelated_kv[0]));
+    update_vec.push_back(make_update(unrelated_kv[1]));
     this->process_updates(update_vec, 1);
     EXPECT_EQ(
         this->root_hash(),
@@ -330,23 +373,22 @@ TEST_F(OnDiskTrieUpdateTest, HistoryReadFromTrie)
 
     // Block 2
     update_vec.clear();
-    update_vec.push_back(make_update(unrelated_leaves::kv[2]));
-    update_vec.push_back(make_update(unrelated_leaves::kv[3]));
+    update_vec.push_back(make_update(unrelated_kv[2]));
+    update_vec.push_back(make_update(unrelated_kv[3]));
     this->process_updates(update_vec, 2);
 
     // Read history
     // read kv[0] from block 1: success
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[0].first, 1).value(),
-        unrelated_leaves::kv[0].second);
+        this->trie.read_history(unrelated_kv[0].first, 1).value(),
+        unrelated_kv[0].second);
 
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[1].first, 1).value(),
-        unrelated_leaves::kv[1].second);
+        this->trie.read_history(unrelated_kv[1].first, 1).value(),
+        unrelated_kv[1].second);
 
     // read kv[0] from block 0: fail
-    EXPECT_FALSE(
-        this->trie.read_history(unrelated_leaves::kv[0].first, 0).has_value());
+    EXPECT_FALSE(this->trie.read_history(unrelated_kv[0].first, 0).has_value());
 
     EXPECT_EQ(
         this->root_hash(),
@@ -354,41 +396,41 @@ TEST_F(OnDiskTrieUpdateTest, HistoryReadFromTrie)
 
     // key inserted at block 0 and updated at block 1
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[0].first, 0).value(),
-        fixed_updates::kv[0].second);
+        this->trie.read_history(fixed_kv[0].first, 0).value(),
+        fixed_kv[0].second);
 
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[0].first, 1).value(),
-        unrelated_leaves::kv[1].second);
+        this->trie.read_history(fixed_kv[0].first, 1).value(),
+        unrelated_kv[1].second);
 
     // key inserted at block 0
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[1].first, 2).value(),
-        fixed_updates::kv[1].second);
+        this->trie.read_history(fixed_kv[1].first, 2).value(),
+        fixed_kv[1].second);
 
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[2].first, 2).value(),
-        fixed_updates::kv[2].second);
+        this->trie.read_history(fixed_kv[2].first, 2).value(),
+        fixed_kv[2].second);
 
     EXPECT_EQ(
-        this->trie.read_history(fixed_updates::kv[3].first, 2).value(),
-        fixed_updates::kv[3].second);
+        this->trie.read_history(fixed_kv[3].first, 2).value(),
+        fixed_kv[3].second);
 
     // key inserted at block 1
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[0].first, 2).value(),
-        unrelated_leaves::kv[0].second);
+        this->trie.read_history(unrelated_kv[0].first, 2).value(),
+        unrelated_kv[0].second);
 
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[1].first, 2).value(),
-        unrelated_leaves::kv[1].second);
+        this->trie.read_history(unrelated_kv[1].first, 2).value(),
+        unrelated_kv[1].second);
 
     // key inserted at block 2
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[2].first, 2).value(),
-        unrelated_leaves::kv[2].second);
+        this->trie.read_history(unrelated_kv[2].first, 2).value(),
+        unrelated_kv[2].second);
 
     EXPECT_EQ(
-        this->trie.read_history(unrelated_leaves::kv[3].first, 2).value(),
-        unrelated_leaves::kv[3].second);
+        this->trie.read_history(unrelated_kv[3].first, 2).value(),
+        unrelated_kv[3].second);
 }

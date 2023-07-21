@@ -97,7 +97,8 @@ merkle_node_ptr deserialize_node_from_buffer(
 // parent path_len: always start writing from path_len / 2
 void assign_prev_child_to_new(
     merkle_node_t *const prev_parent, uint8_t const prev_child_i,
-    merkle_node_t *const new_parent, uint8_t const new_child_i)
+    merkle_node_t *const new_parent, uint8_t const new_child_i,
+    bool const is_account)
 {
     merkle_child_info_t *new_child = &new_parent->children()[new_child_i],
                         *prev_child = &prev_parent->children()[prev_child_i];
@@ -125,12 +126,15 @@ void assign_prev_child_to_new(
                     new_child->path_len(),
                     new_child->path_len() == 64),
                 byte_string_view{new_child->data.get(), new_child->data_len()},
+                (new_child->path_len() == 64 && is_account) ? ROOT_OFFSET_SIZE
+                                                            : 0,
                 new_child->noderef.data());
         }
     }
 }
 
-void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
+void connect_only_grandchild(
+    merkle_node_t *parent, uint8_t child_idx, bool const is_account)
 {
     merkle_child_info_t *child = &parent->children()[child_idx];
     unsigned char midnode_path[sizeof(merkle_child_info_t::path)];
@@ -174,6 +178,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
             child->path_len(),
             child->path_len() == 64),
         byte_string_view{child->data.get(), child->data_len()},
+        child->path_len() == 64 && is_account ? ROOT_OFFSET_SIZE : 0,
         (unsigned char *)&child->noderef);
     assert(child->fnext() > 0 || child->path_len() == 64);
 }

@@ -19,9 +19,10 @@ merkle_node_ptr deserialize_node_from_buffer(
 
 void assign_prev_child_to_new(
     merkle_node_t *prev_parent, uint8_t prev_child_i, merkle_node_t *new_parent,
-    uint8_t new_child_i);
+    uint8_t new_child_i, bool const is_account);
 
-void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx);
+void connect_only_grandchild(
+    merkle_node_t *parent, uint8_t child_idx, bool const is_account);
 
 inline merkle_node_ptr read_node(
     int fd, file_offset_t node_offset, unsigned char const node_path_len = 0)
@@ -74,8 +75,8 @@ get_new_merkle_node(uint16_t const mask = 0, unsigned char path_len = 0)
     return new_branch;
 }
 
-inline merkle_node_ptr
-copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
+inline merkle_node_ptr copy_merkle_node_except(
+    merkle_node_t *prev_node, uint8_t except_i, bool const is_account)
 { // only copy valid subnodes
     const uint8_t nsubnodes = merkle_child_count_valid(prev_node);
     auto copy = merkle_node_t::make_with_children(nsubnodes);
@@ -89,7 +90,8 @@ copy_merkle_node_except(merkle_node_t *prev_node, uint8_t except_i)
                     prev_node,
                     merkle_child_index(prev_node, i),
                     copy.get(),
-                    copy_child_i);
+                    copy_child_i,
+                    is_account);
             }
             ++copy_child_i;
         }

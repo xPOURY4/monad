@@ -29,27 +29,32 @@ class MerkleTrie final
     std::shared_ptr<AsyncIO> io_;
     std::shared_ptr<index_t> index_;
     const int cache_levels_;
+    const bool is_account_;
 
 public:
     MerkleTrie(
-        merkle_node_ptr root = {}, std::shared_ptr<AsyncIO> io = {},
-        std::shared_ptr<index_t> index = {}, int cache_levels = 5)
+        bool const is_account, merkle_node_ptr root = {},
+        std::shared_ptr<AsyncIO> io = {}, std::shared_ptr<index_t> index = {},
+        int cache_levels = 5)
         : root_(std::move(root))
         , io_(std::move(io))
         , index_(std::move(index))
         , cache_levels_(cache_levels)
+        , is_account_(is_account)
     {
     }
 
     MerkleTrie(
-        file_offset_t const root_off, std::shared_ptr<AsyncIO> io,
-        std::shared_ptr<index_t> index = {}, int cache_levels = 5)
+        bool const is_account, file_offset_t const root_off,
+        std::shared_ptr<AsyncIO> io, std::shared_ptr<index_t> index = {},
+        int cache_levels = 5)
         : root_(
               root_off == INVALID_OFFSET ? get_new_merkle_node(0, 0)
                                          : read_node(io->get_rd_fd(), root_off))
         , io_(std::move(io))
         , index_(std::move(index))
         , cache_levels_(cache_levels)
+        , is_account_(is_account)
     {
     }
 
@@ -76,7 +81,8 @@ public:
     // StateDB Interface
     ////////////////////////////////////////////////////////////////////
 
-    void process_updates(monad::mpt::UpdateList &updates, uint64_t block_id = 0)
+    void process_updates(
+        monad::mpt::UpdateList &updates, uint64_t const block_id = 0)
     {
         merkle_node_ptr prev_root =
             root_ ? std::move(root_) : get_new_merkle_node(0, 0);
@@ -131,6 +137,7 @@ public:
                     child->path_len(),
                     child->path_len() == 64),
                 byte_string_view{child->data.get(), child->data_len()},
+                child->path_len() == 64 && is_account_ ? ROOT_OFFSET_SIZE : 0,
                 dest);
         }
         else {
@@ -227,6 +234,11 @@ public:
     void set_root(merkle_node_ptr root)
     {
         root_ = std::move(root);
+    }
+
+    constexpr bool is_account() const
+    {
+        return is_account_;
     }
 
     ////////////////////////////////////////////////////////////////////

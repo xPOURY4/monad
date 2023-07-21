@@ -12,6 +12,7 @@
 using namespace monad::trie;
 using namespace monad::mpt;
 
+template <bool IS_ACCOUNT>
 struct on_disk_trie_fixture_t : public testing::Test
 {
 protected:
@@ -20,6 +21,12 @@ protected:
 
 public:
     MerkleTrie trie;
+
+    constexpr bool is_account()
+    {
+        return IS_ACCOUNT;
+    };
+
     on_disk_trie_fixture_t()
         : ring(monad::io::Ring(128, 15))
         , rwbuf(monad::io::Buffers(ring, 128, 128))
@@ -28,6 +35,7 @@ public:
             auto index = std::make_shared<index_t>(p);
             file_offset_t block_off = index->get_start_offset();
             return MerkleTrie(
+                IS_ACCOUNT,
                 nullptr,
                 std::make_shared<AsyncIO>(
                     p, ring, rwbuf, block_off, &update_callback),
@@ -61,10 +69,16 @@ public:
     }
 };
 
+template <bool IS_ACCOUNT>
 struct in_memory_trie_fixture_t : public testing::Test
 {
 
-    MerkleTrie trie{};
+    MerkleTrie trie{IS_ACCOUNT};
+
+    constexpr bool is_account()
+    {
+        return IS_ACCOUNT;
+    };
 
     void process_updates(std::vector<Update> &update_vec)
     {

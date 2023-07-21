@@ -50,7 +50,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
             parent->children()[child_idx].next.reset();
         }
         else if (nvalid == 1) {
-            connect_only_grandchild(parent, child_idx);
+            connect_only_grandchild(parent, child_idx, is_account_);
         }
         else {
             // ready to sum for curr->node and update data in parent
@@ -88,7 +88,11 @@ void MerkleTrie::build_new_trie(
     SubRequestInfo nextlevel;
     if (updates->is_leaf()) {
         set_child_path_n_len(parent, arr_idx, updates->get_path(), 64);
-        encode_leaf(parent, arr_idx, updates->get_only_leaf().opt.value().val);
+        encode_leaf(
+            parent,
+            arr_idx,
+            updates->get_only_leaf().opt.value().val,
+            is_account_);
         parent->children()[arr_idx].next.reset();
     }
     else {
@@ -221,7 +225,8 @@ void MerkleTrie::update_trie(
                 encode_leaf(
                     new_parent,
                     new_branch_arr_i,
-                    updates->get_only_leaf().opt.value().val);
+                    updates->get_only_leaf().opt.value().val,
+                    is_account_);
             }
             --parent_tnode->npending;
             updates.reset();
@@ -252,8 +257,8 @@ void MerkleTrie::update_trie(
                 if (prev_node->valid_mask & 1u << next_nibble) {
                     // same branch out at pi in new trie as in prev trie, except
                     // for next_nibble should be left empty for next level merge
-                    new_branch =
-                        copy_merkle_node_except(prev_node, next_nibble);
+                    new_branch = copy_merkle_node_except(
+                        prev_node, next_nibble, is_account_);
                     branch_tnode = get_new_tnode(
                         parent_tnode,
                         new_child_ni,
@@ -284,7 +289,8 @@ void MerkleTrie::update_trie(
                                     prev_node,
                                     merkle_child_index(prev_node, i),
                                     new_branch.get(),
-                                    child_idx++);
+                                    child_idx++,
+                                    is_account_);
                             }
                             else {
                                 build_new_trie(
@@ -358,7 +364,8 @@ void MerkleTrie::update_trie(
                                     prev_parent,
                                     prev_child_i,
                                     new_branch.get(),
-                                    child_idx++);
+                                    child_idx++,
+                                    is_account_);
                             }
                         }
                     }
@@ -388,7 +395,11 @@ void MerkleTrie::update_trie(
             // new_branch -> prev_nibble
             unsigned int prev_idx = prev_nibble > tmp_nibble;
             assign_prev_child_to_new(
-                prev_parent, prev_child_i, new_branch.get(), prev_idx);
+                prev_parent,
+                prev_child_i,
+                new_branch.get(),
+                prev_idx,
+                is_account_);
             // new_branch -> tmp_nibble
             build_new_trie(new_branch.get(), !prev_idx, std::move(updates));
             break;
@@ -417,7 +428,7 @@ void MerkleTrie::update_trie(
             new_parent->children()[new_branch_arr_i].next.reset();
         }
         else if (nvalid == 1) {
-            connect_only_grandchild(new_parent, new_branch_arr_i);
+            connect_only_grandchild(new_parent, new_branch_arr_i, is_account_);
         }
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
