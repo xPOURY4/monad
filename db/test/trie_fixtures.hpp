@@ -25,26 +25,31 @@ public:
         , rwbuf(monad::io::Buffers(ring, 128, 128))
         , trie([&] {
             std::filesystem::path p = "unittest.db";
+            auto index = std::make_shared<index_t>(p);
+            file_offset_t block_off = index->get_start_offset();
             return MerkleTrie(
                 nullptr,
-                std::make_shared<AsyncIO>(p, ring, rwbuf, 0, &update_callback));
+                std::make_shared<AsyncIO>(
+                    p, ring, rwbuf, block_off, &update_callback),
+                index,
+                5);
         }())
     {
     }
 
-    void process_updates(std::vector<Update> &update_vec)
+    void process_updates(std::vector<Update> &update_vec, uint64_t block_id = 0)
     {
         UpdateList updates;
         for (auto it = update_vec.begin(); it != update_vec.end(); ++it) {
             updates.push_front(*it);
         }
-        trie.process_updates(updates);
+        trie.process_updates(updates, block_id);
         trie.flush_last_buffer();
     }
 
-    void process_updates(UpdateList &updates)
+    void process_updates(UpdateList &updates, uint64_t block_id = 0)
     {
-        trie.process_updates(updates);
+        trie.process_updates(updates, block_id);
         trie.flush_last_buffer();
     }
 

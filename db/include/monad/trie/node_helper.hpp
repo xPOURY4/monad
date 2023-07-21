@@ -5,6 +5,7 @@
 #include <monad/trie/encode_node.hpp>
 #include <monad/trie/node.hpp>
 
+#include <filesystem>
 #include <memory>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -22,16 +23,19 @@ void assign_prev_child_to_new(
 
 void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx);
 
-inline merkle_node_ptr read_node(int fd, file_offset_t node_offset)
+inline merkle_node_ptr read_node(
+    int fd, file_offset_t node_offset, unsigned char const node_path_len = 0)
 { // blocking read
     file_offset_t offset = round_down_align<DISK_PAGE_BITS>(node_offset);
     file_offset_t buffer_off = node_offset - offset;
     size_t bytestoread =
         round_up_align<DISK_PAGE_BITS>(MAX_DISK_NODE_SIZE + buffer_off);
     auto buffer = std::make_unique<unsigned char[]>(bytestoread);
-    MONAD_ASSERT(
-        pread(fd, buffer.get(), bytestoread, offset) == ssize_t(bytestoread));
-    return deserialize_node_from_buffer(buffer.get() + buffer_off, 0);
+    // read size is not always down aligned MAX_DISK_NODE_SIZE because file
+    // size can be smaller than that
+    MONAD_ASSERT(pread(fd, buffer.get(), bytestoread, offset) > 0);
+    return deserialize_node_from_buffer(
+        buffer.get() + buffer_off, node_path_len);
 }
 
 inline unsigned get_disk_node_size(merkle_node_t const *const node)

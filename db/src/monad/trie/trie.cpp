@@ -19,7 +19,7 @@ void update_callback(void *user_data)
 
     data->updates->prev_parent->children()[data->updates->prev_child_i].next =
         std::move(node);
-    data->trie->get_io()->release_read_buffer(data->buffer);
+    data->trie->get_io().release_read_buffer(data->buffer);
 
     // callback to update_trie() from where that request left out
     data->trie->update_trie(
@@ -54,7 +54,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
         }
         else {
             // ready to sum for curr->node and update data in parent
-            encode_branch_extension(parent, curr_tnode->child_idx);
+            encode_branch_extension(parent, child_idx);
             if (io_) {
                 auto written = io_->async_write_node(curr_tnode->node);
                 auto &child = parent->children()[curr_tnode->child_idx];

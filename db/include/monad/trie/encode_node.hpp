@@ -65,7 +65,7 @@ inline void encode_leaf(
     }
     child->set_data_len(value.size());
     std::memcpy(child->data.get(), value.data(), value.size());
-    unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
+    unsigned char relpath[sizeof(merkle_child_info_t::path) + 1];
     encode_two_piece(
         compact_encode(
             relpath,

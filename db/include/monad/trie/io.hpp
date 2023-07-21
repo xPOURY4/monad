@@ -179,7 +179,6 @@ public:
                             ? async_write_node(root)
                             : async_write_node_result{INVALID_OFFSET, 0};
 
-        // flush_last_buffer();
         MONAD_ASSERT(records_.inflight <= 1);
 
         records_.nreads = 0;
@@ -211,6 +210,11 @@ public:
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;
+    }
+
+    constexpr int get_rd_fd() noexcept
+    {
+        return fds_[READ];
     }
 };
 
