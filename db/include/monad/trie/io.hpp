@@ -32,13 +32,6 @@ using ::boost::outcome_v2::experimental::success;
 class AsyncIO;
 class read_single_buffer_sender;
 
-enum class uring_data_type_t : unsigned char
-{
-    UNKNOWN = 0,
-    IS_APPEND,
-    IS_READ
-};
-
 /* The following Sender-Receiver implementation is loosely based on
 https://wg21.link/p2300 `std::execution`. We don't actually
 implement P2300 because:
@@ -103,15 +96,13 @@ which will also call `reset()` on its sender and receiver.
 class erased_connected_operation
 {
 protected:
-    const uring_data_type_t
-        _rw_flag; // TEMPORARY: for layout compatibility with write_uring_data_t
+    bool _is_write{false};
     bool _being_executed{false};
     AsyncIO &_io;
+    erased_connected_operation *_next{nullptr};
 
-    constexpr erased_connected_operation(bool is_append, AsyncIO &io)
-        : _rw_flag(
-              is_append ? uring_data_type_t::IS_APPEND
-                        : uring_data_type_t::IS_READ)
+    constexpr erased_connected_operation(bool is_write, AsyncIO &io)
+        : _is_write(is_write)
         , _io(io)
     {
     }
@@ -123,11 +114,11 @@ public:
     }
     bool is_read() const noexcept
     {
-        return _rw_flag == uring_data_type_t::IS_READ;
+        return !_is_write;
     }
-    bool is_append() const noexcept
+    bool is_write() const noexcept
     {
-        return _rw_flag == uring_data_type_t::IS_APPEND;
+        return _is_write;
     }
     bool is_currently_being_executed() const noexcept
     {
@@ -136,6 +127,10 @@ public:
     AsyncIO &executor() noexcept
     {
         return _io;
+    }
+    erased_connected_operation *&next() noexcept
+    {
+        return _next;
     }
     virtual void completed(result<size_t> bytes_transferred) = 0;
     void reset() {}
@@ -166,6 +161,8 @@ that.
 template <sender Sender, receiver Receiver>
 class connected_operation final : public erased_connected_operation
 {
+    friend class AsyncIO;
+
 public:
     using sender_type = Sender;
     using receiver_type = Receiver;
@@ -203,7 +200,8 @@ private:
 public:
     connected_operation(
         AsyncIO &io, sender_type &&sender, receiver_type &&receiver)
-        : erased_connected_operation(false, io)
+        : erased_connected_operation(
+              std::is_const_v<typename Sender::buffer_type::element_type>, io)
         , _sender(static_cast<Sender &&>(sender))
         , _receiver(static_cast<Receiver &&>(receiver))
     {
@@ -213,7 +211,7 @@ public:
         AsyncIO &io, std::piecewise_construct_t,
         std::tuple<SenderArgs...> sender_args,
         std::tuple<ReceiverArgs...> receiver_args)
-        : erased_connected_operation(false, io)
+        : erased_connected_operation(Sender::is_append, io)
         , _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
         , _receiver(std::make_from_tuple<Receiver>(std::move(receiver_args)))
     {
@@ -321,81 +319,33 @@ class AsyncIO final
     constexpr static unsigned READ = 0, WRITE = 1;
 
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
-    struct write_uring_data_t final
-        :
-        /* TEMPORARY, for layout compatibility with sender-receiver */
-        public erased_connected_operation
-    {
-        unsigned char *buffer;
-
-        write_uring_data_t(AsyncIO &io, unsigned char *b)
-            : erased_connected_operation(true, io)
-            , buffer(b)
-        {
-        }
-
-        virtual void completed(result<size_t>) override final
-        {
-            abort();
-        }
-
-        using allocator_type =
-            allocators::boost_unordered_pool_allocator<write_uring_data_t>;
-        static allocator_type &pool()
-        {
-            static allocator_type v;
-            return v;
-        }
-        using unique_ptr_type = std::unique_ptr<
-            write_uring_data_t, allocators::unique_ptr_allocator_deleter<
-                                    allocator_type, &write_uring_data_t::pool>>;
-        static unique_ptr_type make(AsyncIO &io, unsigned char *b)
-        {
-            return allocators::
-                allocate_unique<allocator_type, &write_uring_data_t::pool>(
-                    io, b);
-        }
-    };
-
-    static_assert(sizeof(write_uring_data_t) == 32);
-    static_assert(alignof(write_uring_data_t) == 8);
-
     int fds_[2];
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
     monad::io::BufferPool wr_pool_;
 
-    unsigned char *write_buffer_;
-    size_t buffer_idx_;
-    file_offset_t block_off_;
-
     // IO records
     IORecord records_;
 
     void submit_request(
-        std::span<std::byte> buffer, file_offset_t offset, void *uring_data,
-        bool is_write);
+        std::span<std::byte> buffer, file_offset_t offset, void *uring_data);
+    void submit_request(
+        std::span<const std::byte> buffer, file_offset_t offset,
+        void *uring_data);
 
-    void submit_write_request(
-        unsigned char *buffer, file_offset_t const offset, unsigned write_size);
-
-    void poll_uring();
+    bool poll_uring(bool blocking);
 
 public:
     AsyncIO(
         std::pair<int, int> fds, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf, file_offset_t block_off)
+        monad::io::Buffers &rwbuf)
         : fds_{fds.first, fds.second}
         , uring_(ring)
         , rwbuf_(rwbuf)
         , rd_pool_(monad::io::BufferPool(rwbuf, true))
         , wr_pool_(monad::io::BufferPool(rwbuf, false))
-        , write_buffer_(wr_pool_.alloc())
-        , buffer_idx_(0)
-        , block_off_(round_up_align<DISK_PAGE_BITS>(block_off))
     {
-        MONAD_ASSERT(write_buffer_);
         MONAD_ASSERT(fds_[WRITE] != -1);
         MONAD_ASSERT(fds_[READ] != -1);
 
@@ -404,8 +354,8 @@ public:
             const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
     }
     AsyncIO(
-        std::filesystem::path &p, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf, file_offset_t block_off)
+        const std::filesystem::path &p, monad::io::Ring &ring,
+        monad::io::Buffers &rwbuf)
         : AsyncIO(
               [&p]() -> std::pair<int, int> {
                   int fds[2];
@@ -416,12 +366,12 @@ public:
                   fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT);
                   return {fds[0], fds[1]};
               }(),
-              ring, rwbuf, block_off)
+              ring, rwbuf)
     {
     }
     AsyncIO(
         use_anonymous_inode_tag, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf, file_offset_t block_off)
+        monad::io::Buffers &rwbuf)
         : AsyncIO(
               []() -> std::pair<int, int> {
                   int fds[2];
@@ -429,14 +379,13 @@ public:
                   fds[1] = dup(fds[0]);
                   return {fds[0], fds[1]};
               }(),
-              ring, rwbuf, block_off)
+              ring, rwbuf)
     {
     }
 
     ~AsyncIO()
     {
         wait_until_done();
-        wr_pool_.release(write_buffer_);
         MONAD_ASSERT(!records_.inflight);
 
         MONAD_ASSERT(!io_uring_unregister_files(
@@ -446,78 +395,49 @@ public:
         ::close(fds_[WRITE]);
     }
 
-    size_t poll(size_t count = size_t(-1))
+    // Blocks until at least one completion is processed, returning number
+    // of completions processed.
+    size_t poll_blocking(size_t count = 1)
     {
-        // handle the last buffer to write
-        if (buffer_idx_ > 1) {
-            submit_write_request(
-                write_buffer_, block_off_, rwbuf_.get_write_size());
-        }
         size_t n = 0;
         for (; n < count && records_.inflight > 0; n++) {
-            poll_uring();
+            poll_uring(n == 0);
+        }
+        return n;
+    }
+
+    // Never blocks
+    size_t poll_nonblocking(size_t count = size_t(-1))
+    {
+        size_t n = 0;
+        for (; n < count && records_.inflight > 0; n++) {
+            if (!poll_uring(false)) {
+                break;
+            }
         }
         return n;
     }
 
     void wait_until_done()
     {
-        poll(size_t(-1));
+        poll_blocking(size_t(-1));
     }
 
-    struct async_write_node_result
+    void flush()
     {
-        file_offset_t offset_written_to;
-        unsigned bytes_appended;
-    };
-    async_write_node_result async_write_node(merkle_node_t const *const node);
-
-    void flush_last_buffer()
-    {
-        // Write the last pending buffer for current block.
-        // mainly useful for unit test purposes for now, where updates are not
-        // enough to fill single buffer. So there's gap where node is
-        // deallocated but not yet reaching disk for read.
-        // Always cache the latest version(s) in memory will resolve this
-        // problem nicely.
-        if (buffer_idx_ > 1) {
-            unsigned write_size = round_up_align<DISK_PAGE_BITS>(buffer_idx_);
-            submit_write_request(write_buffer_, block_off_, write_size);
-            write_buffer_ = wr_pool_.alloc();
-            MONAD_ASSERT(write_buffer_);
-            block_off_ += write_size;
-            buffer_idx_ = 0;
-
-            poll_uring();
-            MONAD_ASSERT(records_.inflight == 0);
-        }
-    }
-    // invoke at the end of each block
-    async_write_node_result flush(merkle_node_t *root)
-    {
-        while (records_.inflight) {
-            poll_uring();
-        }
-        // only write root to disk if trie is not empty
-        // root write is pending, will submit or poll in next round
-        auto root_off = root->valid_mask
-                            ? async_write_node(root)
-                            : async_write_node_result{INVALID_OFFSET, 0};
-
-        MONAD_ASSERT(records_.inflight <= 1);
-
+        wait_until_done();
         records_.nreads = 0;
-        return root_off;
     }
 
     void submit_read_request(
         std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
     {
-        // get io_uring sqe, if no available entry, wait on poll() to reap some
+        // get io_uring sqe, if no available entry, wait on poll() to reap
+        // some
         while (records_.inflight >= uring_.get_sq_entries()) {
-            poll_uring();
+            poll_uring(true);
         }
-        submit_request(buffer, offset, uring_data, false);
+        submit_request(buffer, offset, uring_data);
         ++records_.inflight;
         ++records_.inflight_rd;
         ++records_.nreads;
@@ -528,16 +448,39 @@ public:
         return fds_[READ];
     }
 
+    void submit_write_request(
+        std::span<const std::byte> buffer, file_offset_t offset,
+        void *uring_data)
+    {
+        // get io_uring sqe, if no available entry, wait on poll() to reap
+        // some
+        while (records_.inflight >= uring_.get_sq_entries()) {
+            poll_uring(true);
+        }
+        submit_request(buffer, offset, uring_data);
+        ++records_.inflight;
+    }
+
     /* This isn't the ideal place to put this, but only AsyncIO knows how to
     get i/o buffers into which to place connected i/o states.
     */
-    static constexpr size_t BUFFER_SIZE = round_up_align<DISK_PAGE_BITS>(
-        uint16_t(MAX_DISK_NODE_SIZE + 2 * DISK_PAGE_SIZE - 1));
-    template <class ConnectedOperationType>
+    static constexpr size_t MAX_CONNECTED_OPERATION_SIZE = DISK_PAGE_SIZE;
+    static constexpr size_t READ_BUFFER_SIZE = round_up_align<DISK_PAGE_BITS>(
+        uint16_t(MAX_DISK_NODE_SIZE + DISK_PAGE_SIZE));
+    static constexpr size_t WRITE_BUFFER_SIZE =
+        8 * 1024 * 1024 - MAX_CONNECTED_OPERATION_SIZE;
+    static constexpr size_t MONAD_IO_BUFFERS_READ_SIZE =
+        round_up_align<CPU_PAGE_BITS>(
+            READ_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
+    static constexpr size_t MONAD_IO_BUFFERS_WRITE_SIZE =
+        round_up_align<CPU_PAGE_BITS>(
+            WRITE_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
+    template <class ConnectedOperationType, bool is_write>
     struct registered_io_buffer_with_connected_operation
     {
         // read buffer
-        alignas(DMA_PAGE_SIZE) std::byte buffer[BUFFER_SIZE];
+        alignas(DMA_PAGE_SIZE)
+            std::byte buffer[is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE];
         ConnectedOperationType state[0];
 
         constexpr registered_io_buffer_with_connected_operation() {}
@@ -548,11 +491,22 @@ public:
     {
         void operator()(erased_connected_operation *p) const
         {
-            auto *buffer = (unsigned char *)p - BUFFER_SIZE;
+            const bool is_write = p->is_write();
+            auto *buffer = (unsigned char *)p -
+                           (is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE);
             assert(((uintptr_t)buffer & (CPU_PAGE_SIZE - 1)) == 0);
             auto &io = p->executor();
             p->~erased_connected_operation();
-            io.rd_pool_.release(buffer);
+#ifndef NDEBUG
+            memset((void *)p, 0xff, MAX_CONNECTED_OPERATION_SIZE);
+            memset((void *)buffer, 0xff, READ_BUFFER_SIZE);
+#endif
+            if (is_write) {
+                io.wr_pool_.release(buffer);
+            }
+            else {
+                io.rd_pool_.release(buffer);
+            }
         }
     };
     using erased_connected_operation_unique_ptr_type = std::unique_ptr<
@@ -565,31 +519,47 @@ public:
             std::declval<Receiver>())),
         registered_io_buffer_with_connected_operation_unique_ptr_deleter>;
 
+private:
+    template <bool is_write, class buffer_value_type, class F>
+    auto _make_connected_impl(F &&connect)
+    {
+        using connected_type = decltype(connect());
+        static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
+        auto *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
+        MONAD_ASSERT(mem != nullptr);
+        assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
+        auto read_size =
+            is_write ? rwbuf_.get_write_size() : rwbuf_.get_read_size();
+        (void)read_size;
+        assert(
+            read_size >= (is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE) +
+                             sizeof(connected_type));
+        assert(((void)mem[0], true));
+        auto *buffer = new (mem) registered_io_buffer_with_connected_operation<
+            connected_type,
+            is_write>;
+        auto ret = std::unique_ptr<
+            connected_type,
+            registered_io_buffer_with_connected_operation_unique_ptr_deleter>(
+            new (buffer->state) connected_type(connect()));
+        ret->sender().reset(
+            ret->sender().offset(),
+            {(buffer_value_type *)buffer, ret->sender().buffer().size()});
+        return ret;
+    }
+
+public:
     template <sender Sender, receiver Receiver>
         requires(requires(
             Receiver r, erased_connected_operation *o,
             typename Sender::result_type x) { r.set_value(o, std::move(x)); })
     auto make_connected(Sender &&sender, Receiver &&receiver)
     {
-        using connected_type =
-            decltype(connect(*this, std::move(sender), std::move(receiver)));
-        static_assert(sizeof(connected_type) <= CPU_PAGE_SIZE);
-        auto *mem = rd_pool_.alloc();
-        MONAD_ASSERT(mem != nullptr);
-        assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
-        assert(rwbuf_.get_read_size() >= BUFFER_SIZE + sizeof(connected_type));
-        assert(((void)mem[0], true));
-        auto *buffer = new (mem)
-            registered_io_buffer_with_connected_operation<connected_type>;
-        auto ret = std::unique_ptr<
-            connected_type,
-            registered_io_buffer_with_connected_operation_unique_ptr_deleter>(
-            new (buffer->state) connected_type(
-                connect(*this, std::move(sender), std::move(receiver))));
-        ret->sender().reset(
-            ret->sender().offset(),
-            {(std::byte *)buffer, ret->sender().buffer().size()});
-        return ret;
+        using buffer_value_type = typename Sender::buffer_type::element_type;
+        constexpr bool is_write = std::is_const_v<buffer_value_type>;
+        return _make_connected_impl<is_write, buffer_value_type>([&] {
+            return connect(*this, std::move(sender), std::move(receiver));
+        });
     }
     template <
         sender Sender, receiver Receiver, class... SenderArgs,
@@ -606,30 +576,30 @@ public:
         std::piecewise_construct_t _, std::tuple<SenderArgs...> &&sender_args,
         std::tuple<ReceiverArgs...> &&receiver_args)
     {
-        using connected_type = decltype(connect<Sender, Receiver>(
-            *this, _, std::move(sender_args), std::move(receiver_args)));
-        static_assert(sizeof(connected_type) <= CPU_PAGE_SIZE);
-        auto *mem = rd_pool_.alloc();
-        MONAD_ASSERT(mem != nullptr);
-        assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
-        assert(rwbuf_.get_read_size() >= BUFFER_SIZE + sizeof(connected_type));
-        assert(((void)mem[0], true));
-        auto *buffer = new (mem)
-            registered_io_buffer_with_connected_operation<connected_type>;
-        auto ret = std::unique_ptr<
-            connected_type,
-            registered_io_buffer_with_connected_operation_unique_ptr_deleter>(
-            new (buffer->state) connected_type(connect<Sender, Receiver>(
-                *this, _, std::move(sender_args), std::move(receiver_args))));
-        ret->sender().change_io_buffer_address(
-            {(std::byte *)buffer, BUFFER_SIZE});
-        return ret;
+        using buffer_value_type = typename Sender::buffer_type::element_type;
+        constexpr bool is_write = std::is_const_v<buffer_value_type>;
+        return _make_connected_impl<is_write, buffer_value_type>([&] {
+            return connect<Sender, Receiver>(
+                *this, _, std::move(sender_args), std::move(receiver_args));
+        });
     }
 };
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 80);
+static_assert(sizeof(AsyncIO) == 56);
 static_assert(alignof(AsyncIO) == 8);
+
+struct erased_connected_operation_deleter_io_receiver
+{
+    void set_value(
+        erased_connected_operation *rawstate,
+        result<std::span<const std::byte>> res)
+    {
+        MONAD_ASSERT(res);
+        AsyncIO::erased_connected_operation_unique_ptr_type{rawstate};
+    }
+    void reset() {}
+};
 
 MONAD_TRIE_NAMESPACE_END

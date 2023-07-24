@@ -2,49 +2,43 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-AsyncIO::async_write_node_result
-AsyncIO::async_write_node(merkle_node_t const *const node)
-{
-    // always one write buffer in use but not yet submitted
-    while (records_.inflight >= uring_.get_sq_entries() - 1) {
-        poll_uring();
-    }
-
-    unsigned size = get_disk_node_size(node);
-    if (size + buffer_idx_ > rwbuf_.get_write_size()) {
-        // submit write request
-        submit_write_request(
-            write_buffer_, block_off_, rwbuf_.get_write_size());
-
-        // renew buffer
-        block_off_ += rwbuf_.get_write_size();
-        write_buffer_ = wr_pool_.alloc();
-        MONAD_ASSERT(write_buffer_);
-        buffer_idx_ = 0;
-    }
-    file_offset_t ret = block_off_ + buffer_idx_;
-    serialize_node_to_buffer(write_buffer_ + buffer_idx_, node, size);
-    buffer_idx_ += size;
-    return {ret, size};
-}
-
 void AsyncIO::submit_request(
-    std::span<std::byte> buffer, file_offset_t offset, void *uring_data,
-    bool is_write)
+    std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
 {
     // Trap unintentional use of high bit offsets
     MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
+    assert((offset & (DISK_PAGE_SIZE - 1)) == 0);
+    assert(buffer.size() <= READ_BUFFER_SIZE);
+#ifndef NDEBUG
+    memset(buffer.data(), 0xff, buffer.size());
+#endif
 
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
-    if (is_write) {
-        io_uring_prep_write_fixed(sqe, WRITE, buffer.data(), buffer.size(), offset, 1);
-    }
-    else {
-        io_uring_prep_read_fixed(sqe, READ, buffer.data(), buffer.size(), offset, 0);
-    }
+    io_uring_prep_read_fixed(
+        sqe, READ, buffer.data(), buffer.size(), offset, 0);
+    sqe->flags |= IOSQE_FIXED_FILE;
+
+    io_uring_sqe_set_data(sqe, uring_data);
+    MONAD_ASSERT(
+        io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
+}
+void AsyncIO::submit_request(
+    std::span<const std::byte> buffer, file_offset_t offset, void *uring_data)
+{
+    // Trap unintentional use of high bit offsets
+    MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
+    assert((offset & (DISK_PAGE_SIZE - 1)) == 0);
+    assert(buffer.size() <= WRITE_BUFFER_SIZE);
+
+    struct io_uring_sqe *sqe =
+        io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
+    MONAD_ASSERT(sqe);
+
+    io_uring_prep_write_fixed(
+        sqe, WRITE, buffer.data(), buffer.size(), offset, 1);
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
@@ -52,32 +46,22 @@ void AsyncIO::submit_request(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
-void AsyncIO::submit_write_request(
-    unsigned char *const buffer, file_offset_t const offset,
-    unsigned const write_size)
-{
-    // write user data
-    write_uring_data_t::unique_ptr_type user_data =
-        write_uring_data_t::make(*this, buffer);
-
-    // We release the ownership of uring_data to io_uring. We reclaim
-    // ownership after we reap the i/o completion.
-    submit_request(
-        {(std::byte *)buffer, write_size},
-        offset,
-        user_data.release(),
-        true);
-    ++records_.inflight;
-}
-
-void AsyncIO::poll_uring()
+bool AsyncIO::poll_uring(bool blocking)
 {
     // TODO: handle resource temporarily unavailable error, resubmit the
     // request
-    struct io_uring_cqe *cqe;
+    struct io_uring_cqe *cqe = nullptr;
 
-    MONAD_ASSERT(
-        !io_uring_wait_cqe(const_cast<io_uring *>(&uring_.get_ring()), &cqe));
+    if (blocking) {
+        MONAD_ASSERT(!io_uring_wait_cqe(
+            const_cast<io_uring *>(&uring_.get_ring()), &cqe));
+    }
+    else {
+        if (0 != io_uring_peek_cqe(
+                     const_cast<io_uring *>(&uring_.get_ring()), &cqe)) {
+            return false;
+        }
+    }
 
     void *data = io_uring_cqe_get_data(cqe);
     MONAD_ASSERT(data);
@@ -88,17 +72,11 @@ void AsyncIO::poll_uring()
     cqe = nullptr;
 
     --records_.inflight;
-    if (state->is_append()) {
-        MONAD_ASSERT(res);
-        auto write_data = static_cast<write_uring_data_t *>(state);
-        wr_pool_.release(write_data->buffer);
-        // Reclaim ownership, and release
-        (void)write_uring_data_t::unique_ptr_type(
-            reinterpret_cast<write_uring_data_t *>(data));
+    if (!state->is_write()) {
+        --records_.inflight_rd;
     }
-    else {
-        state->completed(std::move(res));
-    }
+    state->completed(std::move(res));
+    return true;
 }
 
 MONAD_TRIE_NAMESPACE_END

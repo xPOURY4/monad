@@ -30,15 +30,17 @@ public:
 
     on_disk_trie_fixture_t()
         : ring(monad::io::Ring(2, 0))
-        , rwbuf(monad::io::Buffers(ring, 2, 2, 8192))
+        , rwbuf(monad::io::Buffers(
+              ring, 2, 2, AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+              AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE))
         , trie([&, this] {
             auto index = std::make_shared<index_t>(use_anonymous_inode_tag{});
-            file_offset_t block_off = index->get_start_offset();
             return MerkleTrie(
                 IS_ACCOUNT,
+                index->get_start_offset(),
                 nullptr,
                 std::make_shared<AsyncIO>(
-                    use_anonymous_inode_tag{}, ring, rwbuf, block_off),
+                    use_anonymous_inode_tag{}, ring, rwbuf),
                 index,
                 5);
         }())
@@ -52,13 +54,13 @@ public:
             updates.push_front(*it);
         }
         trie.process_updates(updates, block_id);
-        trie.flush_last_buffer();
+        trie.get_io().flush();
     }
 
     void process_updates(UpdateList &updates, uint64_t block_id = 0)
     {
         trie.process_updates(updates, block_id);
-        trie.flush_last_buffer();
+        trie.get_io().flush();
     }
 
     monad::byte_string root_hash()
@@ -73,7 +75,7 @@ template <bool IS_ACCOUNT>
 struct in_memory_trie_fixture_t : public testing::Test
 {
 
-    MerkleTrie trie{IS_ACCOUNT};
+    MerkleTrie trie{IS_ACCOUNT, 0};
 
     constexpr bool is_account()
     {

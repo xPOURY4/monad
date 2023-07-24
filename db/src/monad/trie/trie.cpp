@@ -31,7 +31,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
             // ready to sum for curr->node and update data in parent
             encode_branch_extension(parent, child_idx);
             if (io_) {
-                auto written = io_->async_write_node(curr_tnode->node);
+                auto written = async_write_node(curr_tnode->node);
                 auto &child = parent->children()[curr_tnode->child_idx];
                 child.set_fnext(written.offset_written_to);
                 child.set_node_len_upper_bound(written.bytes_appended);
@@ -92,7 +92,7 @@ void MerkleTrie::build_new_trie(
         encode_branch_extension(parent, arr_idx);
         if (io_) {
             auto written =
-                io_->async_write_node(parent->children()[arr_idx].next.get());
+                async_write_node(parent->children()[arr_idx].next.get());
             auto &child = parent->children()[arr_idx];
             child.set_fnext(written.offset_written_to);
             child.set_node_len_upper_bound(written.bytes_appended);
@@ -189,6 +189,7 @@ struct update_receiver
         erased_connected_operation *rawstate,
         result<std::span<const std::byte>> _buffer)
     {
+        assert(updates);
         // Re-adopt ownership of operation state
         erased_connected_operation_ptr state(rawstate);
         MONAD_ASSERT(_buffer);
@@ -294,8 +295,10 @@ void MerkleTrie::update_trie(
                     parent_tnode,
                     this);
                 read_update_sender sender(receiver);
+                assert(receiver.offset < node_writer_->sender().offset());
                 auto iostate =
                     io_->make_connected(std::move(sender), std::move(receiver));
+                assert(iostate->receiver().updates);
                 // TEMPORARY: Handle temporary i/o submission failure
                 MONAD_ASSERT(iostate->initiate());
                 // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
@@ -488,7 +491,7 @@ void MerkleTrie::update_trie(
         else {
             encode_branch_extension(new_parent, new_branch_arr_i);
             if (io_) {
-                auto written = io_->async_write_node(new_branch_ptr);
+                auto written = async_write_node(new_branch_ptr);
                 auto &child = new_parent->children()[new_branch_arr_i];
                 child.set_fnext(written.offset_written_to);
                 child.set_node_len_upper_bound(written.bytes_appended);
@@ -500,6 +503,68 @@ void MerkleTrie::update_trie(
     }
     --parent_tnode->npending;
     return;
+}
+
+MerkleTrie::async_write_node_result
+MerkleTrie::async_write_node(merkle_node_t *node)
+{
+    io_->poll_nonblocking(1);
+    auto *sender = &node_writer_->sender();
+    const auto size = get_disk_node_size(node);
+    const async_write_node_result ret{
+        sender->offset() + sender->written_buffer_bytes(), size};
+    const auto remaining_bytes = sender->remaining_buffer_bytes();
+    [[likely]] if (size <= remaining_bytes) {
+        auto *where_to_serialize = sender->advance_buffer_append(size);
+        assert(where_to_serialize != nullptr);
+        serialize_node_to_buffer(
+            (unsigned char *)where_to_serialize, node, size);
+    }
+    else {
+        // renew write sender
+        auto to_initiate = replace_node_writer_(remaining_bytes);
+        sender = &node_writer_->sender();
+        auto *where_to_serialize = (unsigned char *)sender->buffer().data();
+        assert(where_to_serialize != nullptr);
+        serialize_node_to_buffer(where_to_serialize, node, size);
+        // Move the front of this into the tail of to_initiate
+        auto *where_to_serialize2 =
+            to_initiate->sender().advance_buffer_append(remaining_bytes);
+        assert(where_to_serialize2 != nullptr);
+        memcpy(where_to_serialize2, where_to_serialize, remaining_bytes);
+        memmove(
+            where_to_serialize,
+            where_to_serialize + remaining_bytes,
+            size - remaining_bytes);
+        sender->advance_buffer_append(size - remaining_bytes);
+        MONAD_ASSERT(to_initiate->initiate());
+        // shall be recycled by the i/o receiver
+        to_initiate.release();
+    }
+    return ret;
+}
+
+MerkleTrie::async_write_node_result
+MerkleTrie::flush_and_write_new_root_node(merkle_node_t *root)
+{
+    io_->flush();
+    if (!root->valid_mask) {
+        return {INVALID_OFFSET, 0};
+    }
+    auto ret = async_write_node(root);
+    // Round up with all bits zero
+    auto *sender = &node_writer_->sender();
+    auto written = sender->written_buffer_bytes();
+    auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
+    const auto tozerobytes = paddedup - written;
+    auto *tozero = sender->advance_buffer_append(tozerobytes);
+    assert(tozero != nullptr);
+    memset(tozero, 0, tozerobytes);
+    auto to_initiate = replace_node_writer_();
+    MONAD_ASSERT(to_initiate->initiate());
+    // shall be recycled by the i/o receiver
+    to_initiate.release();
+    return ret;
 }
 
 MONAD_TRIE_NAMESPACE_END

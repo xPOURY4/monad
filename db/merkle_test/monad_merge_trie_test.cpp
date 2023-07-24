@@ -163,7 +163,12 @@ int main(int argc, char *argv[])
 
         // init buffer: default buffer size
         // TODO: pass in a preallocated memory
-        monad::io::Buffers rwbuf{ring, 256, 128, 1U << 13};
+        monad::io::Buffers rwbuf{
+            ring,
+            256,
+            16,
+            AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
         // init indexer
         auto index = std::make_shared<index_t>(dbname_path);
@@ -185,11 +190,10 @@ int main(int argc, char *argv[])
             block_off = index->get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
-        auto io =
-            std::make_shared<AsyncIO>(dbname_path, ring, rwbuf, block_off);
+        auto io = std::make_shared<AsyncIO>(dbname_path, ring, rwbuf);
 
         MerkleTrie trie(
-            false, std::move(root), std::move(io), std::move(index));
+            false, block_off, std::move(root), std::move(io), std::move(index));
 
         unsigned char root_data[32];
         trie.root_hash(root_data);

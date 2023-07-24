@@ -31,10 +31,20 @@ inline merkle_node_ptr read_node(
     file_offset_t buffer_off = node_offset - offset;
     size_t bytestoread =
         round_up_align<DISK_PAGE_BITS>(MAX_DISK_NODE_SIZE + buffer_off);
-    alignas(DISK_PAGE_SIZE) unsigned char buffer[bytestoread];
+    alignas(DMA_PAGE_SIZE) unsigned char buffer[round_up_align<DISK_PAGE_BITS>(
+        MAX_DISK_NODE_SIZE + DISK_PAGE_SIZE * 2U)];
     // read size is not always down aligned MAX_DISK_NODE_SIZE because file
     // size can be smaller than that
-    MONAD_ASSERT(pread(fd, buffer, bytestoread, offset) > 0);
+    ssize_t bytes_read = pread(fd, buffer, bytestoread, offset);
+    if (bytes_read < 0) {
+        fprintf(
+            stderr,
+            "FATAL: pread(%zu, %llu) failed with '%s'\n",
+            bytestoread,
+            offset,
+            strerror(errno));
+    }
+    MONAD_ASSERT(bytes_read > 0);
     return deserialize_node_from_buffer(buffer + buffer_off, node_path_len);
 }
 

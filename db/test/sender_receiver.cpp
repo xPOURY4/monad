@@ -9,6 +9,7 @@
 
 #include <fcntl.h>
 
+#include <array>
 #include <chrono>
 #include <coroutine>
 #include <optional>
@@ -38,7 +39,7 @@ namespace
         testring, MAX_CONCURRENCY * 2, MAX_CONCURRENCY * 2, 1UL << 13};
     static auto testio = [] {
         auto ret = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf, 0);
+            use_anonymous_inode_tag{}, testring, testrwbuf);
         MONAD_ASSERT(
             TEST_FILE_SIZE ==
             ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
@@ -59,7 +60,7 @@ namespace
         using _io_state_type = AsyncIO::connected_operation_unique_ptr_type<
             read_single_buffer_sender, Receiver>;
         std::vector<_io_state_type> _states;
-        std::vector<std::byte> _buffers;
+        std::vector<std::array<std::byte, DISK_PAGE_SIZE>> _buffers;
         bool _test_is_done{false};
         unsigned _op_count{0};
 
@@ -69,9 +70,11 @@ namespace
         {
             _states.reserve(total);
             for (size_t n = 0; n < total; n++) {
-                auto offset = test_rand() % TEST_FILE_SIZE;
+                auto offset = round_down_align<DISK_PAGE_BITS>(
+                    test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
                 _states.push_back(testio->make_connected(
-                    read_single_buffer_sender(offset, {&_buffers[n], 1}),
+                    read_single_buffer_sender(
+                        offset, {_buffers[n].data(), DISK_PAGE_SIZE}),
                     Receiver{this}));
             }
         }
@@ -104,7 +107,8 @@ namespace
             EXPECT_EQ(
                 buffer.front(), testfilecontents[state->sender().offset()]);
             if (!_test_is_done) {
-                auto offset = test_rand() % TEST_FILE_SIZE;
+                auto offset = round_down_align<DISK_PAGE_BITS>(
+                    test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
                 state->reset(
                     std::tuple{offset, state->sender().buffer()}, std::tuple{});
                 if (!state->initiate()) {
@@ -157,7 +161,7 @@ namespace
         states.initiate();
         for (; end - begin < std::chrono::seconds(5);
              end = std::chrono::steady_clock::now()) {
-            testio->poll(256);
+            testio->poll_blocking(256);
         }
         states.stop();
         end = std::chrono::steady_clock::now();
@@ -168,6 +172,10 @@ namespace
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
 
+#if __GNUC__ == 12
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
     /* A receiver which suspends and resumes a C++ coroutine
      */
     struct cpp_suspend_resume_io_receiver
@@ -192,7 +200,7 @@ namespace
         void reset()
         {
             _h = {};
-            res = {};
+            res.reset();
         }
 
         // This is the C++ coroutine machinery which declares
@@ -209,11 +217,14 @@ namespace
         result_type await_resume()
         {
             assert(res.has_value());
-            auto ret = std::move(*res);
-            res = {};
+            auto ret = std::move(res).value();
+            res.reset();
             return ret;
         }
     };
+#if __GNUC__ == 12
+    #pragma GCC diagnostic pop
+#endif
 
     TEST(AsyncIO, cpp_coroutine_sender_receiver)
     {
@@ -243,7 +254,7 @@ namespace
         states.initiate();
         for (; end - begin < std::chrono::seconds(5);
              end = std::chrono::steady_clock::now()) {
-            testio->poll(256);
+            testio->poll_blocking(256);
         }
         states.stop();
         awaitables.clear();
@@ -304,7 +315,7 @@ namespace
         for (; end - begin < std::chrono::seconds(5);
              end = std::chrono::steady_clock::now()) {
             boost::this_fiber::yield();
-            testio->poll(256);
+            testio->poll_blocking(256);
         }
         states.stop();
         for (auto &i : fibers) {

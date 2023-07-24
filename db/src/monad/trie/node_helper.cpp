@@ -45,7 +45,9 @@ void serialize_node_to_buffer(
     shouldbe_bytes_written -= write_pos - write_pos_;
     // If this trips, get_disk_node_size() does not match this routine.
     assert(shouldbe_bytes_written < 2);
-    std::memset(write_pos, 0, shouldbe_bytes_written);
+    if (shouldbe_bytes_written > 0) {
+        *write_pos = 0;
+    }
 }
 
 merkle_node_ptr deserialize_node_from_buffer(
