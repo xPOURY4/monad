@@ -1,10 +1,10 @@
 #include <CLI/CLI.hpp>
 #include <cassert>
-#include <ethash/keccak.h>
 #include <sys/syscall.h> // for SYS_gettid
 #include <unistd.h> // for syscall()
 
 #include <monad/core/byte_string.hpp>
+#include <monad/core/keccak.h>
 
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
@@ -112,12 +112,10 @@ void prepare_keccak(
     for (size_t i = idx_offset; i < idx_offset + nkeys; ++i) {
         // assign keccak256 on i to key
         key = i + offset;
-        auto hash = ethash::keccak256((const uint8_t *)&key, 8);
-        std::memcpy(keccak_keys + i * 32, hash.bytes, 32);
+        keccak256((const unsigned char *)&key, 8, keccak_keys + i * 32);
 
         val = key * 2;
-        hash = ethash::keccak256((const uint8_t *)&val, 8);
-        std::memcpy(keccak_values + i * 32, hash.str, 32);
+        keccak256((const unsigned char *)&val, 8, keccak_values + i * 32);
     }
 }
 

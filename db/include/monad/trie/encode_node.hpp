@@ -1,13 +1,12 @@
 #pragma once
 
 #include <monad/core/byte_string.hpp>
+#include <monad/core/keccak.h>
 #include <monad/core/nibble.h>
 #include <monad/rlp/encode.hpp>
 
 #include <monad/trie/compact_encode.hpp>
 #include <monad/trie/node.hpp>
-
-#include <ethash/keccak.hpp>
 
 #include <cassert>
 
@@ -17,10 +16,7 @@ inline void
 to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
 {
     if (MONAD_LIKELY(rlp.size() >= sizeof(merkle_child_info_t::noderef_t))) {
-        memcpy(
-            dest,
-            ethash::keccak256(rlp.data(), rlp.size()).bytes,
-            sizeof(merkle_child_info_t::noderef_t));
+        keccak256(rlp.data(), rlp.size(), dest);
     }
     else {
         memcpy(dest, rlp.data(), rlp.size());

@@ -49,7 +49,7 @@ target_include_directories(monad_trie
 monad_compile_options(monad_trie)
 
 target_link_libraries(monad_trie PRIVATE Boost::boost)
-target_link_libraries(monad_trie PUBLIC monad_core ethash::keccak)
+target_link_libraries(monad_trie PUBLIC monad_core)
 
 add_library(monad_trie_disas SHARED
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/node_disas.cpp"
