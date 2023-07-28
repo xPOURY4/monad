@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(monad_core)
+project(monad_core LANGUAGES C CXX ASM)
 
 # ##############################################################################
 # deps
@@ -18,6 +18,12 @@ function(monad_compile_options target)
     ${target} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 endfunction()
 
+add_library(
+  openssl_sha3_asm INTERFACE
+  "third_party/openssl/crypto/sha/asm/keccak1600-avx2.S"
+  "third_party/openssl/crypto/sha/asm/keccak1600-avx512.S")
+target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
+
 # ##############################################################################
 # libs
 # ##############################################################################
@@ -31,6 +37,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/core/cmemory.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/core/endian.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/core/hex_literal.hpp"
+  "include/monad/core/keccak.h"
   "${PROJECT_SOURCE_DIR}/include/monad/core/likely.h"
   "${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h"
@@ -38,6 +45,8 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/core/unaligned.hpp"
   "${PROJECT_SOURCE_DIR}/src/monad/core/assert.c"
+  "src/monad/core/keccak.c"
+  "src/monad/core/keccak_impl.S"
   # io
   "${PROJECT_SOURCE_DIR}/include/monad/io/buffer_pool.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp"
@@ -59,7 +68,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp")
 target_include_directories(monad_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
 monad_compile_options(monad_core)
-target_link_libraries(monad_core PUBLIC mimalloc uring)
+target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
 set(ETHASH_TESTING YES)
 add_subdirectory("third_party/ethash")
