@@ -30,43 +30,43 @@ target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
 
 add_library(
   monad_core STATIC
-  "${PROJECT_SOURCE_DIR}/include/monad/config.hpp"
+  "include/monad/config.hpp"
   # core
-  "${PROJECT_SOURCE_DIR}/include/monad/core/assert.h"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/byte_string.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/cmemory.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/endian.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/hex_literal.hpp"
+  "include/monad/core/assert.h"
+  "include/monad/core/byte_string.hpp"
+  "include/monad/core/cmemory.hpp"
+  "include/monad/core/endian.hpp"
+  "include/monad/core/hex_literal.hpp"
   "include/monad/core/keccak.h"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/likely.h"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/math.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/nibble.h"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/offset.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/size_of.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/core/unaligned.hpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/core/assert.c"
+  "include/monad/core/likely.h"
+  "include/monad/core/math.hpp"
+  "include/monad/core/nibble.h"
+  "include/monad/core/offset.hpp"
+  "include/monad/core/size_of.hpp"
+  "include/monad/core/unaligned.hpp"
+  "src/monad/core/assert.c"
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
   # io
-  "${PROJECT_SOURCE_DIR}/include/monad/io/buffer_pool.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/io/buffers.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/io/config.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/io/ring.hpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/io/buffer_pool.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/io/buffers.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/io/ring.cpp"
+  "include/monad/io/buffer_pool.hpp"
+  "include/monad/io/buffers.hpp"
+  "include/monad/io/config.hpp"
+  "include/monad/io/ring.hpp"
+  "src/monad/io/buffer_pool.cpp"
+  "src/monad/io/buffers.cpp"
+  "src/monad/io/ring.cpp"
   # mem
-  "${PROJECT_SOURCE_DIR}/include/monad/mem/cpool.h"
-  "${PROJECT_SOURCE_DIR}/include/monad/mem/huge_mem.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/mem/mem_map.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/mem/pool_allocator.hpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mem/huge_mem.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mem/mem_map.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mem/pool_allocator.cpp"
+  "include/monad/mem/cpool.h"
+  "include/monad/mem/huge_mem.hpp"
+  "include/monad/mem/mem_map.hpp"
+  "include/monad/mem/pool_allocator.hpp"
+  "src/monad/mem/huge_mem.cpp"
+  "src/monad/mem/mem_map.cpp"
+  "src/monad/mem/pool_allocator.cpp"
   # rlp
-  "${PROJECT_SOURCE_DIR}/include/monad/rlp/config.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/rlp/encode.hpp")
-target_include_directories(monad_core PUBLIC "${PROJECT_SOURCE_DIR}/include")
+  "include/monad/rlp/config.hpp"
+  "include/monad/rlp/encode.hpp")
+target_include_directories(monad_core PUBLIC "include")
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
@@ -75,10 +75,8 @@ add_subdirectory("third_party/ethash")
 
 add_library(
   monad_core_disas SHARED
-  "${PROJECT_SOURCE_DIR}/src/monad/core/math_disas.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/core/offset_disas.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mem/cpool_disas.c"
-  "${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_disas.cpp")
+  "src/monad/core/math_disas.cpp" "src/monad/core/offset_disas.cpp"
+  "src/monad/mem/cpool_disas.c" "src/monad/rlp/encode_disas.cpp")
 monad_compile_options(monad_core_disas)
 target_link_libraries(monad_core_disas PUBLIC monad_core)
 
@@ -97,7 +95,5 @@ function(monad_add_test target)
   add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
 endfunction()
 
-monad_add_test(encode_test
-               "${PROJECT_SOURCE_DIR}/src/monad/rlp/encode_test.cpp")
-monad_add_test(literal_test
-               "${PROJECT_SOURCE_DIR}/src/monad/core/literal_test.cpp")
+monad_add_test(encode_test "src/monad/rlp/encode_test.cpp")
+monad_add_test(literal_test "src/monad/core/literal_test.cpp")
