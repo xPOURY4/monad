@@ -134,12 +134,15 @@ void assign_prev_child_to_new(
 void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
 {
     merkle_child_info_t *child = &parent->children()[child_idx];
+    unsigned char midnode_path[sizeof(merkle_child_info_t::path)];
+    memcpy(midnode_path, child->path, sizeof(merkle_child_info_t::path));
     merkle_node_t *midnode = child->next.get();
     uint8_t only_child_i =
         merkle_child_index(midnode, std::countr_zero(midnode->valid_mask));
     unsigned mid_path_len = midnode->path_len;
     parent->children()[child_idx].copy_or_swap(
         midnode->children()[only_child_i]);
+    memcpy(child->path, midnode_path, sizeof(merkle_child_info_t::path));
     if (!parent->children()[child_idx].data) {
         assert(midnode->path_len + 1 == child->path_len());
         child->data = make_resizeable_unique_for_overwrite<unsigned char[]>(
@@ -163,7 +166,7 @@ void connect_only_grandchild(merkle_node_t *parent, uint8_t child_idx)
             get_nibble(midnode->children()[only_child_i].path, mid_path_len));
     }
     // TODO: can optimize it: only recompute once
-    unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
+    unsigned char relpath[sizeof(merkle_child_info_t::path) + 1];
     encode_two_piece(
         compact_encode(
             relpath,
