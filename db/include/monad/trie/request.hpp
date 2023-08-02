@@ -4,7 +4,7 @@
 
 #include <monad/mpt/update.hpp>
 
-#include <monad/trie/allocators.hpp>
+#include <monad/mem/allocators.hpp>
 
 #include <cassert>
 
@@ -22,18 +22,19 @@ struct Request
     merkle_node_t *prev_parent;
     monad::mpt::UpdateList pending;
 
-    using allocator_type = boost_unordered_pool_allocator<Request>;
+    using allocator_type = allocators::boost_unordered_pool_allocator<Request>;
     static allocator_type &pool()
     {
         static allocator_type v;
         return v;
     }
     using unique_ptr_type = std::unique_ptr<
-        Request, unique_ptr_allocator_deleter<allocator_type, &Request::pool>>;
+        Request, allocators::unique_ptr_allocator_deleter<
+                     allocator_type, &Request::pool>>;
     static unique_ptr_type
     make(monad::mpt::UpdateList &&updates, uint8_t path_len = 0)
     {
-        return allocate_unique<allocator_type, &Request::pool>(
+        return allocators::allocate_unique<allocator_type, &Request::pool>(
             Request(std::move(updates), path_len));
     }
 
@@ -75,7 +76,7 @@ struct SubRequestInfo
 {
     uint16_t mask{0};
     uint8_t path_len{0};
-    owning_span<Request::unique_ptr_type> subqueues;
+    allocators::owning_span<Request::unique_ptr_type> subqueues;
 
     constexpr SubRequestInfo() = default;
 

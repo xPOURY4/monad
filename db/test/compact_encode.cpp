@@ -8,7 +8,7 @@ using namespace monad::trie;
 
 TEST(Encoding, CompactEncode)
 {
-    unsigned char res[33];
+    unsigned char res[33]{};
 
     auto path = monad::byte_string{0x12, 0x34, 0x50};
     EXPECT_EQ(

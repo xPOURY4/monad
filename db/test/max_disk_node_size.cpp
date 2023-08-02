@@ -12,7 +12,7 @@ namespace
         auto node = merkle_node_t::make_with_children(255);
         node->mask = 0xffff;
         for (size_t n = 0; n < CHILDREN; n++) {
-            node->children()[n].data =
+            node->children()[n].data = MONAD_NAMESPACE::allocators::
                 make_resizeable_unique_for_overwrite<unsigned char[]>(255);
             node->children()[n].set_data_len(110);
             node->children()[n].set_path_len(33);

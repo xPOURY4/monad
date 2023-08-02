@@ -7,7 +7,6 @@ function(add_trie_test target)
   gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/test/)
 endfunction()
 
-add_trie_test(allocators_test "allocators.cpp")
 add_trie_test(max_disk_node_size_test "max_disk_node_size.cpp")
 add_trie_test(index_test "index.cpp" )
 add_trie_test(compact_encode_test "compact_encode.cpp")

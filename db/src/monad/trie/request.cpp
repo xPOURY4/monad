@@ -31,7 +31,8 @@ Request::unique_ptr_type Request::split_into_subqueues(
         return self;
     }
     else { // if is root, or if more than one subinfo branch
-        subinfo->subqueues = owning_span<Request::unique_ptr_type>(nsubnodes);
+        subinfo->subqueues =
+            allocators::owning_span<Request::unique_ptr_type>(nsubnodes);
         subinfo->path_len = pi;
         for (uint16_t i = 0, child_idx = 0, bit = 1; i < 16; ++i, bit <<= 1) {
             if ((subinfo->mask & bit) != 0) {

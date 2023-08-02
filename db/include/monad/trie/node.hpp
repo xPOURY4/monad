@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/core/assert.h>
-#include <monad/trie/allocators.hpp>
+#include <monad/mem/allocators.hpp>
 #include <monad/trie/util.hpp>
 
 #include <array>
@@ -39,11 +39,11 @@ public:
     inline const merkle_child_info_t &operator[](uint8_t idx) const noexcept;
 
     using type_allocator = std::allocator<merkle_node_t>;
-    using raw_bytes_allocator =
-        array_of_boost_pools_allocator<(8 + 88), (8 + 88 * 17), 88, 8>;
+    using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
+        (8 + 88), (8 + 88 * 17), 88, 8>;
 
-    using allocator_pair_type =
-        detail::type_raw_alloc_pair<type_allocator, raw_bytes_allocator>;
+    using allocator_pair_type = allocators::detail::type_raw_alloc_pair<
+        type_allocator, raw_bytes_allocator>;
     static allocator_pair_type pool()
     {
         static type_allocator a;
@@ -53,7 +53,7 @@ public:
     static inline size_t get_deallocate_count(merkle_node_t *p);
     using unique_ptr_type = std::unique_ptr<
         merkle_node_t,
-        unique_ptr_aliasing_allocator_deleter<
+        allocators::unique_ptr_aliasing_allocator_deleter<
             type_allocator, raw_bytes_allocator, &merkle_node_t::pool,
             &merkle_node_t::get_deallocate_count>>;
 
@@ -86,7 +86,7 @@ struct merkle_child_info_t
 
     noderef_t noderef;
     merkle_node_ptr next;
-    resizeable_unique_ptr<unsigned char[]> data;
+    allocators::resizeable_unique_ptr<unsigned char[]> data;
 
     // Bitfields do NOT allow these to span byte boundaries, it can be slow!
     struct bitpacked_storage_t
@@ -235,7 +235,7 @@ merkle_node_t::make_with_children(uint8_t childcount)
     assert(childcount <= 16);
     const size_t storagebytes =
         sizeof(merkle_node_t) + childcount * sizeof(merkle_child_info_t);
-    auto ret = allocate_aliasing_unique<
+    auto ret = allocators::allocate_aliasing_unique<
         type_allocator,
         raw_bytes_allocator,
         &merkle_node_t::pool,

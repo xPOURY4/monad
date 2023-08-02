@@ -38,15 +38,18 @@ inline void encode_two_piece(
         second.data() + second_offset, second.size() - second_offset};
     size_t first_len = rlp::string_length(first),
            second_len = rlp::string_length(second_to_use);
-    unsigned char rlp_string[first_len + second_len];
-    unsigned char *result = rlp::encode_string(rlp_string, first);
+    assert(first_len + second_len <= 160);
+    unsigned char rlp_string[160];
+    auto result = rlp::encode_string(rlp_string, first);
     result = rlp::encode_string(result, second_to_use);
-    assert((unsigned long)(result - rlp_string) == first_len + second_len);
+    assert(
+        (unsigned long)(result.data() - rlp_string) == first_len + second_len);
     byte_string_view encoded_strings =
         byte_string_view{rlp_string, first_len + second_len};
 
     size_t rlp_len = rlp::list_length(encoded_strings);
-    unsigned char rlp[rlp_len];
+    assert(rlp_len <= 160);
+    unsigned char rlp[160];
     rlp::encode_list(rlp, encoded_strings);
     to_node_reference(byte_string_view(rlp, rlp_len), dest);
 }
@@ -69,7 +72,8 @@ inline void encode_leaf(
     }
     else {
         child->data =
-            make_resizeable_unique_for_overwrite<unsigned char[]>(value.size());
+            allocators::make_resizeable_unique_for_overwrite<unsigned char[]>(
+                value.size());
     }
     child->set_data_len(value.size());
     std::memcpy(child->data.get(), value.data(), value.size());
@@ -88,12 +92,15 @@ inline void encode_leaf(
 
 inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
 {
+#ifndef NDEBUG
     auto str_rlp_len = [](int n) {
         return rlp::string_length(byte_string(32, 1)) * n +
                rlp::string_length({}) * (17 - n);
     }(branch->size());
-    unsigned char branch_str_rlp[str_rlp_len];
-    unsigned char *result = branch_str_rlp;
+    assert(str_rlp_len <= 544);
+#endif
+    unsigned char branch_str_rlp[544];
+    std::span<unsigned char> result = branch_str_rlp;
     for (int i = 0, tmp = 1; i < 16; ++i, tmp <<= 1) {
         if (branch->valid_mask & tmp) {
             result = rlp::encode_string(
@@ -109,9 +116,11 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
     }
     // encode empty value string
     result = rlp::encode_string(result, byte_string{});
-    byte_string_view encoded_strings(branch_str_rlp, result - branch_str_rlp);
+    byte_string_view encoded_strings(
+        branch_str_rlp, result.data() - branch_str_rlp);
     size_t branch_rlp_len = rlp::list_length(encoded_strings);
-    unsigned char branch_rlp[branch_rlp_len];
+    assert(branch_rlp_len <= 544);
+    unsigned char branch_rlp[544];
     rlp::encode_list(branch_rlp, encoded_strings);
     to_node_reference(byte_string_view(branch_rlp, branch_rlp_len), dest);
 }
@@ -138,8 +147,9 @@ inline void encode_branch_extension(
     else {
         // hash both branch and extension
         child->set_data_len(sizeof(merkle_child_info_t::noderef_t));
-        child->data = make_resizeable_unique_for_overwrite<unsigned char[]>(
-            sizeof(merkle_child_info_t::noderef_t));
+        child->data =
+            allocators::make_resizeable_unique_for_overwrite<unsigned char[]>(
+                sizeof(merkle_child_info_t::noderef_t));
         encode_branch(child->next.get(), child->data.get());
         unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
         encode_two_piece(

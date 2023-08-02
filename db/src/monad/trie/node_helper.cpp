@@ -81,8 +81,8 @@ merkle_node_ptr deserialize_node_from_buffer(
             &child.noderef, read_pos, sizeof(merkle_child_info_t::noderef));
 
         if (partial_path_len(node.get(), i) || child.path_len() == 64) {
-            child.data = make_resizeable_unique_for_overwrite<unsigned char[]>(
-                child.data_len());
+            child.data = allocators::make_resizeable_unique_for_overwrite<
+                unsigned char[]>(child.data_len());
             read_item_len(child.data.get(), read_pos, child.data_len());
         }
         // read relative path from disk
@@ -148,8 +148,9 @@ void connect_only_grandchild(
     memcpy(child->path, midnode_path, sizeof(merkle_child_info_t::path));
     if (!parent->children()[child_idx].data) {
         assert(midnode->path_len + 1 == child->path_len());
-        child->data = make_resizeable_unique_for_overwrite<unsigned char[]>(
-            sizeof(merkle_child_info_t::noderef_t));
+        child->data =
+            allocators::make_resizeable_unique_for_overwrite<unsigned char[]>(
+                sizeof(merkle_child_info_t::noderef_t));
         std::memcpy(
             child->data.get(),
             &child->noderef,

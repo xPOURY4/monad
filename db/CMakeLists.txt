@@ -25,7 +25,6 @@ add_library(monad_trie STATIC
 
     "${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp"
 
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/allocators.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp"

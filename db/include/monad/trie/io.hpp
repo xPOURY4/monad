@@ -6,7 +6,7 @@
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
-#include <monad/trie/allocators.hpp>
+#include <monad/mem/allocators.hpp>
 #include <monad/trie/node_helper.hpp>
 
 #include <fcntl.h>
@@ -42,19 +42,19 @@ class AsyncIO final
         unsigned char *buffer;
 
         using allocator_type =
-            boost_unordered_pool_allocator<write_uring_data_t>;
+            allocators::boost_unordered_pool_allocator<write_uring_data_t>;
         static allocator_type &pool()
         {
             static allocator_type v;
             return v;
         }
         using unique_ptr_type = std::unique_ptr<
-            write_uring_data_t, unique_ptr_allocator_deleter<
+            write_uring_data_t, allocators::unique_ptr_allocator_deleter<
                                     allocator_type, &write_uring_data_t::pool>>;
         static unique_ptr_type make(write_uring_data_t v)
         {
-            return allocate_unique<allocator_type, &write_uring_data_t::pool>(
-                v);
+            return allocators::
+                allocate_unique<allocator_type, &write_uring_data_t::pool>(v);
         }
     };
 
@@ -185,7 +185,7 @@ public:
         return root_off;
     }
 
-    template <unique_ptr TReadData>
+    template <allocators::unique_ptr TReadData>
     void async_read_request(TReadData uring_data)
     {
         // get io_uring sqe, if no available entry, wait on poll() to reap some

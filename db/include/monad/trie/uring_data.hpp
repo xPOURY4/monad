@@ -6,7 +6,7 @@
 #include <monad/trie/node.hpp>
 #include <monad/trie/request.hpp>
 
-#include <monad/trie/allocators.hpp>
+#include <monad/mem/allocators.hpp>
 
 #include <cstddef>
 
@@ -33,19 +33,21 @@ struct update_uring_data_t
     uint8_t new_child_ni;
     unsigned bytes_to_read;
 
-    using allocator_type = boost_unordered_pool_allocator<update_uring_data_t>;
+    using allocator_type =
+        allocators::boost_unordered_pool_allocator<update_uring_data_t>;
     static allocator_type &pool()
     {
         static allocator_type v;
         return v;
     }
     using unique_ptr_type = std::unique_ptr<
-        update_uring_data_t, unique_ptr_allocator_deleter<
+        update_uring_data_t, allocators::unique_ptr_allocator_deleter<
                                  allocator_type, &update_uring_data_t::pool>>;
     static unique_ptr_type make(update_uring_data_t v)
     {
-        return allocate_unique<allocator_type, &update_uring_data_t::pool>(
-            std::move(v));
+        return allocators::
+            allocate_unique<allocator_type, &update_uring_data_t::pool>(
+                std::move(v));
     }
 };
 

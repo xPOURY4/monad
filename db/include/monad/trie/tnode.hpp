@@ -2,7 +2,7 @@
 
 #include <monad/trie/config.hpp>
 
-#include <monad/trie/allocators.hpp>
+#include <monad/mem/allocators.hpp>
 #include <monad/trie/node.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
@@ -15,17 +15,19 @@ struct tnode_t
     uint8_t child_ni;
     uint8_t child_idx;
 
-    using allocator_type = boost_unordered_pool_allocator<tnode_t>;
+    using allocator_type = allocators::boost_unordered_pool_allocator<tnode_t>;
     static allocator_type &pool()
     {
         static allocator_type v;
         return v;
     }
     using unique_ptr_type = std::unique_ptr<
-        tnode_t, unique_ptr_allocator_deleter<allocator_type, &tnode_t::pool>>;
+        tnode_t, allocators::unique_ptr_allocator_deleter<
+                     allocator_type, &tnode_t::pool>>;
     static unique_ptr_type make(tnode_t v)
     {
-        return allocate_unique<allocator_type, &tnode_t::pool>(std::move(v));
+        return allocators::allocate_unique<allocator_type, &tnode_t::pool>(
+            std::move(v));
     }
 };
 static_assert(sizeof(tnode_t) == 24);

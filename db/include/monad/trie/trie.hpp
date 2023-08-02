@@ -8,12 +8,6 @@
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
 
-#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Warray-bounds"
-    #pragma GCC diagnostic ignored "-Wstringop-overread"
-#endif
-
 MONAD_TRIE_NAMESPACE_BEGIN
 
 static const byte_string empty_trie_hash = [] {
@@ -226,7 +220,7 @@ public:
         return root_.get();
     }
 
-    constexpr AsyncIO &get_io() const
+    AsyncIO &get_io() const
     {
         return *io_;
     }
@@ -250,7 +244,3 @@ static_assert(sizeof(MerkleTrie) == 48);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END
-
-#if (__GNUC__ == 12 || __GNUC__ == 13) && !defined(__clang__)
-    #pragma GCC diagnostic pop
-#endif
