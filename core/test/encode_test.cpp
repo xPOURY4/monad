@@ -44,31 +44,31 @@ TEST(rlp, impl_length_length)
 TEST(rlp, impl_encode_length)
 {
     unsigned char buf[8];
-    unsigned char *result;
+    std::span<unsigned char> result;
 
     result = monad::rlp::impl::encode_length(buf, 0);
-    EXPECT_EQ(result - buf, 0);
+    EXPECT_EQ(result.data() - buf, 0);
 
     result = monad::rlp::impl::encode_length(buf, 1);
-    EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{1});
+    EXPECT_EQ(result.data() - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string{1});
 
     result = monad::rlp::impl::encode_length(buf, 255);
-    EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{255});
+    EXPECT_EQ(result.data() - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string{255});
 
     result = monad::rlp::impl::encode_length(buf, 256);
-    EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({1, 0}));
+    EXPECT_EQ(result.data() - buf, 2);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string({1, 0}));
 
     result = monad::rlp::impl::encode_length(buf, 258);
-    EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({1, 2}));
+    EXPECT_EQ(result.data() - buf, 2);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string({1, 2}));
 
     result = monad::rlp::impl::encode_length(buf, 0xFFFFFFFFFFFFFFFFUL);
-    EXPECT_EQ(result - buf, 8);
+    EXPECT_EQ(result.data() - buf, 8);
     EXPECT_TRUE(
-        byte_string_view(buf, result) ==
+        byte_string_view(buf, result.data()) ==
         byte_string({0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}));
 }
 
@@ -101,34 +101,36 @@ TEST(rlp, string_length)
 TEST(rlp, encode_string)
 {
     unsigned char buf[256];
-    unsigned char *result;
+    std::span<unsigned char> result;
 
     result = monad::rlp::encode_string(buf, byte_string({1}));
-    EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({1}));
+    EXPECT_EQ(result.data() - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string({1}));
 
     result = monad::rlp::encode_string(buf, byte_string({128}));
-    EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({129, 128}));
+    EXPECT_EQ(result.data() - buf, 2);
+    EXPECT_TRUE(
+        byte_string_view(buf, result.data()) == byte_string({129, 128}));
 
     result = monad::rlp::encode_string(buf, byte_string{});
-    EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({128}));
+    EXPECT_EQ(result.data() - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string({128}));
 
     result = monad::rlp::encode_string(buf, byte_string({1, 2}));
-    EXPECT_EQ(result - buf, 3);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({130, 1, 2}));
+    EXPECT_EQ(result.data() - buf, 3);
+    EXPECT_TRUE(
+        byte_string_view(buf, result.data()) == byte_string({130, 1, 2}));
 
     result = monad::rlp::encode_string(buf, byte_string(55, 1));
-    EXPECT_EQ(result - buf, 56);
+    EXPECT_EQ(result.data() - buf, 56);
     EXPECT_TRUE(
-        byte_string_view(buf, result) ==
+        byte_string_view(buf, result.data()) ==
         byte_string({183}) + byte_string(55, 1));
 
     result = monad::rlp::encode_string(buf, byte_string(56, 1));
-    EXPECT_EQ(result - buf, 58);
+    EXPECT_EQ(result.data() - buf, 58);
     EXPECT_TRUE(
-        byte_string_view(buf, result) ==
+        byte_string_view(buf, result.data()) ==
         byte_string({184, 56}) + byte_string(56, 1));
 }
 
@@ -155,29 +157,30 @@ TEST(rlp, list_length)
 TEST(rlp, encode_list)
 {
     unsigned char buf[256];
-    unsigned char *result;
+    std::span<unsigned char> result;
 
     result = monad::rlp::encode_list(buf, byte_string{});
-    EXPECT_EQ(result - buf, 1);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string{192});
+    EXPECT_EQ(result.data() - buf, 1);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string{192});
 
     result = monad::rlp::encode_list(buf, byte_string{1});
-    EXPECT_EQ(result - buf, 2);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({193, 1}));
+    EXPECT_EQ(result.data() - buf, 2);
+    EXPECT_TRUE(byte_string_view(buf, result.data()) == byte_string({193, 1}));
 
     result = monad::rlp::encode_list(buf, byte_string{1, 2});
-    EXPECT_EQ(result - buf, 3);
-    EXPECT_TRUE(byte_string_view(buf, result) == byte_string({194, 1, 2}));
+    EXPECT_EQ(result.data() - buf, 3);
+    EXPECT_TRUE(
+        byte_string_view(buf, result.data()) == byte_string({194, 1, 2}));
 
     result = monad::rlp::encode_list(buf, byte_string(55, 1));
-    EXPECT_EQ(result - buf, 56);
+    EXPECT_EQ(result.data() - buf, 56);
     EXPECT_TRUE(
-        byte_string_view(buf, result) ==
+        byte_string_view(buf, result.data()) ==
         byte_string({247}) + byte_string(55, 1));
 
     result = monad::rlp::encode_list(buf, byte_string(56, 1));
-    EXPECT_EQ(result - buf, 58);
+    EXPECT_EQ(result.data() - buf, 58);
     EXPECT_TRUE(
-        byte_string_view(buf, result) ==
+        byte_string_view(buf, result.data()) ==
         byte_string({248, 56}) + byte_string(56, 1));
 }

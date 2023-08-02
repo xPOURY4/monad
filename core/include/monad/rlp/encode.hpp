@@ -8,6 +8,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstring>
+#include <span>
 
 MONAD_RLP_NAMESPACE_BEGIN
 
@@ -23,7 +24,8 @@ namespace impl
     /**
      * always stores sizeof(size_t) bytes
      */
-    constexpr unsigned char *encode_length(unsigned char *d, size_t n)
+    constexpr std::span<unsigned char>
+    encode_length(std::span<unsigned char> d, size_t n)
     {
         size_t const lz_bits = std::countl_zero(n);
         size_t const lz_bytes = lz_bits / 8;
@@ -39,8 +41,15 @@ namespace impl
             }
             return n;
         }();
-        cmemcpy(d, n_be_bytes, sizeof(size_t));
-        return d + (sizeof(size_t) - lz_bytes);
+        if (d.size() < sizeof(size_t)) {
+#ifdef NDEBUG
+            __builtin_unreachable();
+#else
+            abort();
+#endif
+        }
+        cmemcpy(d.data(), n_be_bytes, sizeof(size_t));
+        return d.subspan((sizeof(size_t) - lz_bytes));
     }
 }
 
@@ -60,22 +69,39 @@ constexpr size_t string_length(byte_string_view const s)
     }
 }
 
-constexpr unsigned char *
-encode_string(unsigned char *d, byte_string_view const s)
+constexpr std::span<unsigned char>
+encode_string(std::span<unsigned char> d, byte_string_view const s)
 {
     if (s.size() == 1 and s[0] <= 0x7F) {
-        *d++ = s[0];
+        d[0] = s[0];
+        d = d.subspan(1);
     }
     else if (s.size() <= 55) {
-        *d++ = 0x80 + s.size();
-        std::memcpy(d, s.data(), s.size());
-        d += s.size();
+        d[0] = 0x80 + s.size();
+        d = d.subspan(1);
+        if (d.size() < s.size()) {
+#ifdef NDEBUG
+            __builtin_unreachable();
+#else
+            abort();
+#endif
+        }
+        std::memcpy(d.data(), s.data(), s.size());
+        d = d.subspan(s.size());
     }
     else {
-        *d++ = 0xB7 + impl::length_length(s.size());
+        d[0] = 0xB7 + impl::length_length(s.size());
+        d = d.subspan(1);
         d = impl::encode_length(d, s.size());
-        std::memcpy(d, s.data(), s.size());
-        d += s.size();
+        if (d.size() < s.size()) {
+#ifdef NDEBUG
+            __builtin_unreachable();
+#else
+            abort();
+#endif
+        }
+        std::memcpy(d.data(), s.data(), s.size());
+        d = d.subspan(s.size());
     }
     return d;
 }
@@ -93,18 +119,35 @@ constexpr size_t list_length(byte_string_view const s)
     }
 }
 
-constexpr unsigned char *encode_list(unsigned char *d, byte_string_view const s)
+constexpr std::span<unsigned char>
+encode_list(std::span<unsigned char> d, byte_string_view const s)
 {
     if (s.size() <= 55) {
-        *d++ = 0xC0 + s.size();
-        std::memcpy(d, s.data(), s.size());
-        d += s.size();
+        d[0] = 0xC0 + s.size();
+        d = d.subspan(1);
+        if (d.size() < s.size()) {
+#ifdef NDEBUG
+            __builtin_unreachable();
+#else
+            abort();
+#endif
+        }
+        std::memcpy(d.data(), s.data(), s.size());
+        d = d.subspan(s.size());
     }
     else {
-        *d++ = 0xF7 + impl::length_length(s.size());
+        d[0] = 0xF7 + impl::length_length(s.size());
+        d = d.subspan(1);
         d = impl::encode_length(d, s.size());
-        std::memcpy(d, s.data(), s.size());
-        d += s.size();
+        if (d.size() < s.size()) {
+#ifdef NDEBUG
+            __builtin_unreachable();
+#else
+            abort();
+#endif
+        }
+        std::memcpy(d.data(), s.data(), s.size());
+        d = d.subspan(s.size());
     }
     return d;
 }
