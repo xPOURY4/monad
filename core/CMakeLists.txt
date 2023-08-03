@@ -30,6 +30,8 @@ target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
 
 add_library(
   monad_core STATIC
+  "c/include/monad/core/bit_util.h"
+
   "include/monad/config.hpp"
   # core
   "include/monad/core/assert.h"
@@ -68,7 +70,7 @@ add_library(
   # rlp
   "include/monad/rlp/config.hpp"
   "include/monad/rlp/encode.hpp")
-target_include_directories(monad_core PUBLIC "include")
+target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
@@ -91,3 +93,5 @@ enable_testing()
 find_package(GTest REQUIRED)
 
 add_subdirectory("test")
+
+monad_add_test(bit_util_test c/src/monad/core/bit_util_test.cpp)
