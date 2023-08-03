@@ -32,7 +32,7 @@ static constexpr auto to = 0xbebebebebebebebebebebebebebebebebebebebe_address;
 static constexpr auto a = 0xa5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5_address;
 static constexpr auto o = 0xb5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5_address;
 
-using code_db_t = std::unordered_map<address_t, byte_string>;
+using code_db_t = std::unordered_map<bytes32_t, byte_string>;
 using account_store_db_t = db::InMemoryDB;
 
 template <class TState, concepts::fork_traits<TState> TTraits>
