@@ -211,7 +211,7 @@ TEST(RocksTrieDB, block_history_for_constructor_with_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x3f7578fb3acc297f8847c7885717733b268cb52dc6b8e5a68aff31c254b6b5b3_bytes32);
-        EXPECT_EQ(db.block_number(), block_number - 1u);
+        EXPECT_EQ(db.starting_block_number, block_number - 1u);
     }
 
     {
@@ -231,7 +231,7 @@ TEST(RocksTrieDB, block_history_for_constructor_with_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x0169f0b22c30d7d6f0bb7ea2a07be178e216b72f372a6a7bafe55602e5650e60_bytes32);
-        EXPECT_EQ(db.block_number(), block_number - 1u);
+        EXPECT_EQ(db.starting_block_number, block_number - 1u);
     }
 
     {
@@ -239,7 +239,7 @@ TEST(RocksTrieDB, block_history_for_constructor_with_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x0169f0b22c30d7d6f0bb7ea2a07be178e216b72f372a6a7bafe55602e5650e60_bytes32);
-        EXPECT_EQ(db.block_number(), block_number);
+        EXPECT_EQ(db.starting_block_number, block_number);
     }
 
     {
@@ -251,7 +251,7 @@ TEST(RocksTrieDB, block_history_for_constructor_with_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x3f7578fb3acc297f8847c7885717733b268cb52dc6b8e5a68aff31c254b6b5b3_bytes32);
-        EXPECT_EQ(db.block_number(), block_number - 1u);
+        EXPECT_EQ(db.starting_block_number, block_number - 1u);
     }
 }
 
@@ -277,7 +277,7 @@ TEST(RocksTrieDB, block_history_for_constructor_without_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x3f7578fb3acc297f8847c7885717733b268cb52dc6b8e5a68aff31c254b6b5b3_bytes32);
-        EXPECT_EQ(db.block_number(), block_number - 1u);
+        EXPECT_EQ(db.starting_block_number, block_number - 1u);
     }
 
     {
@@ -297,7 +297,7 @@ TEST(RocksTrieDB, block_history_for_constructor_without_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x0169f0b22c30d7d6f0bb7ea2a07be178e216b72f372a6a7bafe55602e5650e60_bytes32);
-        EXPECT_EQ(db.block_number(), block_number - 1u);
+        EXPECT_EQ(db.starting_block_number, block_number - 1u);
     }
 
     {
@@ -305,7 +305,7 @@ TEST(RocksTrieDB, block_history_for_constructor_without_start_block_number)
         EXPECT_EQ(
             db.root_hash(),
             0x0169f0b22c30d7d6f0bb7ea2a07be178e216b72f372a6a7bafe55602e5650e60_bytes32);
-        EXPECT_EQ(db.block_number(), block_number);
+        EXPECT_EQ(db.starting_block_number, block_number);
     }
 }
 
