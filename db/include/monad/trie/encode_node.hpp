@@ -12,14 +12,17 @@
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
-inline void
+// return length of noderef
+inline uint8_t
 to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
 {
     if (MONAD_LIKELY(rlp.size() >= sizeof(merkle_child_info_t::noderef_t))) {
         keccak256(rlp.data(), rlp.size(), dest);
+        return 32;
     }
     else {
         memcpy(dest, rlp.data(), rlp.size());
+        return rlp.size();
     }
 }
 
@@ -28,8 +31,9 @@ to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
  *  2. value
  *  rlp encode the 2-element list to bytes
  *  keccak the rlp encoded bytes if len >= 32
+ * @return: length of the result
  */
-inline void encode_two_piece(
+inline uint8_t encode_two_piece(
     byte_string_view const first, byte_string_view const second,
     unsigned const second_offset, unsigned char *const dest)
 {
@@ -51,7 +55,7 @@ inline void encode_two_piece(
     assert(rlp_len <= 160);
     unsigned char rlp[160];
     rlp::encode_list(rlp, encoded_strings);
-    to_node_reference(byte_string_view(rlp, rlp_len), dest);
+    return to_node_reference(byte_string_view(rlp, rlp_len), dest);
 }
 
 inline void encode_leaf(
@@ -78,7 +82,7 @@ inline void encode_leaf(
     child->set_data_len(value.size());
     std::memcpy(child->data.get(), value.data(), value.size());
     unsigned char relpath[sizeof(merkle_child_info_t::path) + 1];
-    encode_two_piece(
+    child->set_noderef_len(encode_two_piece(
         compact_encode(
             relpath,
             child->path,
@@ -87,10 +91,10 @@ inline void encode_leaf(
             true),
         byte_string_view{child->data.get(), child->data_len()},
         is_account ? ROOT_OFFSET_SIZE : 0,
-        child->noderef.data());
+        child->noderef.data()));
 }
 
-inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
+inline uint8_t encode_branch(merkle_node_t *const branch, unsigned char *dest)
 {
 #ifndef NDEBUG
     auto str_rlp_len = [](int n) {
@@ -103,12 +107,21 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
     std::span<unsigned char> result = branch_str_rlp;
     for (int i = 0, tmp = 1; i < 16; ++i, tmp <<= 1) {
         if (branch->valid_mask & tmp) {
-            result = rlp::encode_string(
-                result,
-                byte_string_view{
-                    branch->children()[merkle_child_index(branch, i)]
-                        .noderef.data(),
-                    sizeof(merkle_child_info_t::noderef_t)});
+            merkle_child_info_t *child =
+                &branch->children()[merkle_child_index(branch, i)];
+            if (child->noderef_len() < 32) {
+                // meaning the child's noderef is rlp encoded but not keccaked,
+                // not need to encode the encoded bytes again here
+                memcpy(
+                    result.data(), child->noderef.data(), child->noderef_len());
+                result = result.subspan(child->noderef_len());
+            }
+            else {
+                result = rlp::encode_string(
+                    result,
+                    byte_string_view{
+                        child->noderef.data(), child->noderef_len()});
+            }
         }
         else {
             result = rlp::encode_string(result, byte_string{});
@@ -122,7 +135,8 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
     assert(branch_rlp_len <= 544);
     unsigned char branch_rlp[544];
     rlp::encode_list(branch_rlp, encoded_strings);
-    to_node_reference(byte_string_view(branch_rlp, branch_rlp_len), dest);
+    return to_node_reference(
+        byte_string_view(branch_rlp, branch_rlp_len), dest);
 }
 
 /* Note that when branch_node path > 0, our branch is Extension + Branch
@@ -138,21 +152,23 @@ inline void encode_branch(merkle_node_t *const branch, unsigned char *dest)
 inline void encode_branch_extension(
     merkle_node_t *const parent, unsigned char const child_idx)
 {
-    merkle_child_info_t *child = &parent->children()[child_idx];
+    merkle_child_info_t *const child = &parent->children()[child_idx];
     if (!partial_path_len(parent, child_idx)) {
-        encode_branch(
-            child->next.get(),
-            reinterpret_cast<unsigned char *>(&child->noderef));
+        child->set_noderef_len(
+            encode_branch(child->next.get(), child->noderef.data()));
     }
     else {
         // hash both branch and extension
-        child->set_data_len(sizeof(merkle_child_info_t::noderef_t));
+        // TODO: avoid dup copy the branch node ref
+        unsigned char branch_ref[32];
+        child->set_data_len(encode_branch(child->next.get(), branch_ref));
         child->data =
             allocators::make_resizeable_unique_for_overwrite<unsigned char[]>(
-                sizeof(merkle_child_info_t::noderef_t));
-        encode_branch(child->next.get(), child->data.get());
-        unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
-        encode_two_piece(
+                child->data_len());
+        memcpy(child->data.get(), branch_ref, child->data_len());
+
+        unsigned char relpath[sizeof(merkle_child_info_t::path) + 1];
+        child->set_noderef_len(encode_two_piece(
             compact_encode(
                 relpath,
                 child->path,
@@ -161,7 +177,7 @@ inline void encode_branch_extension(
                 false),
             byte_string_view{child->data.get(), child->data_len()},
             0,
-            reinterpret_cast<unsigned char *>(&child->noderef));
+            child->noderef.data()));
     }
 }
 

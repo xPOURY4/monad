@@ -41,7 +41,7 @@ public:
     using type_allocator = std::allocator<merkle_node_t>;
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
-        (8 + 88), (8 + 88 * 17), 88, 8>;
+        (8 + 96), (8 + 96 * 17), 96, 8>;
 #else
     using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -100,8 +100,9 @@ struct merkle_child_info_t
         uint64_t data_len : 8; // in bytes, max possible is 256
         uint64_t path_len : 7; // in nibbles, max possible is 64
         uint64_t node_len_disk_pages1 : 1;
+        uint64_t noderef_len : 8; // in bytes, max 32
     } bitpacked;
-    static_assert(sizeof(bitpacked) == 8);
+    static_assert(sizeof(bitpacked) == 16);
     static_assert(
         std::endian::native == std::endian::little,
         "C bitfields stored to disk have the endian of their machine, big "
@@ -127,6 +128,15 @@ struct merkle_child_info_t
     {
         bitpacked.data_len = v;
     }
+    constexpr data_len_t noderef_len() const noexcept
+    {
+        return bitpacked.noderef_len;
+    }
+    constexpr void set_noderef_len(data_len_t v) noexcept
+    {
+        bitpacked.noderef_len = v;
+    }
+
     constexpr unsigned node_len_upper_bound() const noexcept
     {
         /* Size histogram from monad_merge_trie_test:
@@ -194,7 +204,7 @@ struct merkle_child_info_t
     }
 };
 
-static_assert(sizeof(merkle_child_info_t) == 88);
+static_assert(sizeof(merkle_child_info_t) == 96);
 static_assert(alignof(merkle_child_info_t) == 8);
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
 static_assert(

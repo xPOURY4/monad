@@ -40,7 +40,6 @@ inline merkle_node_ptr read_node(
 
 inline unsigned get_disk_node_size(merkle_node_t const *const node)
 {
-    constexpr unsigned size_of_node_ref = 32;
     unsigned total = 0, children_valid = 0;
     for (uint16_t i = 0, bit = 1; i < node->size(); ++i, bit <<= 1) {
         if (node->tomb_arr_mask & bit) {
@@ -53,12 +52,11 @@ inline unsigned get_disk_node_size(merkle_node_t const *const node)
                 node->children()[i].path_len() == 64);
             total += node->children()[i].data_len();
         }
+        total += node->children()[i].noderef_len();
         total += (node->children()[i].path_len() + 1) / 2 - node->path_len / 2;
     }
-    total +=
-        sizeof(merkle_node_t::mask_t) +
-        children_valid * (size_of_node_ref +
-                          sizeof(merkle_child_info_t::bitpacked_storage_t));
+    total += sizeof(merkle_node_t::mask_t) +
+             children_valid * sizeof(merkle_child_info_t::bitpacked_storage_t);
     total = (total + 1) & ~1;
     return total;
 }

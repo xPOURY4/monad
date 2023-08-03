@@ -73,6 +73,41 @@ namespace unrelated_leaves
          0xdeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
 };
 
+namespace var_len_updates
+{
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+        {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000dead_hex},
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000beef_hex},
+        {0x2234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000ba_hex},
+        {0x3234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeef_hex},
+        {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefcafe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345671_hex,
+         0x0000000000000000deadcafedeadcafedeadcafedeadcafedead_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbabedeadbabedeadbabedead_hex}};
+
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
+        {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
+         0xdead_hex},
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0xbeef_hex},
+        {0x2234567812345678123456781234567812345678123456781234567812345678_hex,
+         0xba_hex},
+        {0x3234567812345678123456781234567812345678123456781234567812345678_hex,
+         0xdeadbeef_hex},
+        {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
+         0xdeadbeefcafe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345671_hex,
+         0xdeadcafedeadcafedeadcafedeadcafedead_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
+         0xdeadbabedeadbabedeadbabedead_hex}};
+};
+
 constexpr auto &get_fixed_updates(bool is_account)
 {
     return is_account ? fixed_updates::account_kv : fixed_updates::storage_kv;
@@ -82,6 +117,12 @@ constexpr auto &get_unrelated_updates(bool is_account)
 {
     return is_account ? unrelated_leaves::account_kv
                       : unrelated_leaves::storage_kv;
+}
+
+constexpr auto &get_varlen_updates(bool is_account)
+{
+    return is_account ? var_len_updates::account_kv
+                      : var_len_updates::storage_kv;
 }
 
 template <typename TFixture>
@@ -237,6 +278,80 @@ TYPED_TEST(TrieTest, UnrelatedLeavesWithRead)
     EXPECT_EQ(this->trie.read(kv[2].first).value(), kv[2].second);
 
     EXPECT_EQ(this->trie.read(kv[3].first).value(), kv[3].second);
+}
+
+TYPED_TEST(TrieTest, VarLengthLeafData)
+{
+    UpdateList updates;
+    std::vector<Update> update_vec;
+
+    auto &kv = get_varlen_updates(this->is_account());
+
+    update_vec.push_back(make_update(kv[0]));
+    update_vec.push_back(make_update(kv[1]));
+
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
+
+    // two other updates for next batch
+    update_vec[0] = make_update(kv[2]);
+    update_vec[1] = make_update(kv[3]);
+
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0x30175d933b55cc3528abc7083210296967ea3ccb2afeb12d966a7789e8d0fc1f_hex);
+
+    // four other updates
+    update_vec.clear();
+    update_vec.push_back(make_update(kv[4]));
+    update_vec.push_back(make_update(kv[5]));
+    update_vec.push_back(make_update(kv[6]));
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0x399580bb7585999a086e9bc6f29af647019826b49ef9d84004b0b03323ddb212_hex);
+
+    // read from trie
+    EXPECT_EQ(this->trie.read(kv[0].first).value(), kv[0].second);
+
+    EXPECT_EQ(this->trie.read(kv[1].first).value(), kv[1].second);
+
+    EXPECT_EQ(this->trie.read(kv[2].first).value(), kv[2].second);
+
+    EXPECT_EQ(this->trie.read(kv[3].first).value(), kv[3].second);
+
+    EXPECT_EQ(this->trie.read(kv[4].first).value(), kv[4].second);
+
+    EXPECT_EQ(this->trie.read(kv[5].first).value(), kv[5].second);
+
+    EXPECT_EQ(this->trie.read(kv[6].first).value(), kv[6].second);
+
+    // a bunch of erases
+    update_vec.clear();
+    update_vec.push_back(make_update(kv[4].first, {}));
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0x3467f96b8c7a1f9646cbee98500111b37d160ec0f02844b2bdcb89c8bcd3878a_hex);
+
+    update_vec.clear();
+    update_vec.push_back(make_update(kv[6].first, {}));
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0xdba3fae4737cde5014f6200508d7659ccc146b760e3a2ded47d7c422372b6b6c_hex);
+
+    update_vec.clear();
+    update_vec.push_back(make_update(kv[2].first, {}));
+    update_vec.push_back(make_update(kv[3].first, {}));
+    update_vec.push_back(make_update(kv[5].first, {}));
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
 }
 
 TYPED_TEST(TrieUpdateTest, None)

@@ -29,8 +29,7 @@ void serialize_node_to_buffer(
         }
         merkle_child_info_t const &child = node->children()[i];
         write_item(write_pos, child.bitpacked);
-        write_item_len(
-            write_pos, &child.noderef, sizeof(merkle_child_info_t::noderef_t));
+        write_item_len(write_pos, &child.noderef, child.noderef_len());
 
         if (child.data) {
             MONAD_DEBUG_ASSERT(
@@ -77,8 +76,7 @@ merkle_node_ptr deserialize_node_from_buffer(
     for (unsigned i = 0; i < node->size(); ++i) {
         merkle_child_info_t &child = node->children()[i];
         read_item(child.bitpacked, read_pos);
-        read_item_len(
-            &child.noderef, read_pos, sizeof(merkle_child_info_t::noderef));
+        read_item_len(&child.noderef, read_pos, child.noderef_len());
 
         if (partial_path_len(node.get(), i) || child.path_len() == 64) {
             child.data = allocators::make_resizeable_unique_for_overwrite<
@@ -113,12 +111,13 @@ void assign_prev_child_to_new(
                 &new_child->noderef,
                 new_child->data.get(),
                 new_child->data_len());
+            new_child->set_noderef_len(new_child->data_len());
             new_child->data.reset();
             new_child->set_data_len(0);
         }
         else {
             unsigned char relpath[sizeof(merkle_child_info_t::noderef_t) + 1];
-            encode_two_piece(
+            uint64_t noderef_len = encode_two_piece(
                 compact_encode(
                     relpath,
                     new_child->path,
@@ -129,6 +128,7 @@ void assign_prev_child_to_new(
                 (new_child->path_len() == 64 && is_account) ? ROOT_OFFSET_SIZE
                                                             : 0,
                 new_child->noderef.data());
+            new_child->set_noderef_len(noderef_len);
         }
     }
 }
@@ -150,12 +150,9 @@ void connect_only_grandchild(
         assert(midnode->path_len + 1 == child->path_len());
         child->data =
             allocators::make_resizeable_unique_for_overwrite<unsigned char[]>(
-                sizeof(merkle_child_info_t::noderef_t));
-        std::memcpy(
-            child->data.get(),
-            &child->noderef,
-            sizeof(merkle_child_info_t::noderef_t));
-        child->set_data_len(sizeof(merkle_child_info_t::noderef_t));
+                sizeof(child->noderef_len()));
+        std::memcpy(child->data.get(), &child->noderef, child->noderef_len());
+        child->set_data_len(child->noderef_len());
     }
 
     std::memcpy(
@@ -171,7 +168,7 @@ void connect_only_grandchild(
     }
     // TODO: can optimize it: only recompute once
     unsigned char relpath[sizeof(merkle_child_info_t::path) + 1];
-    encode_two_piece(
+    uint64_t noderef_len = encode_two_piece(
         compact_encode(
             relpath,
             child->path,
@@ -180,7 +177,8 @@ void connect_only_grandchild(
             child->path_len() == 64),
         byte_string_view{child->data.get(), child->data_len()},
         child->path_len() == 64 && is_account ? ROOT_OFFSET_SIZE : 0,
-        (unsigned char *)&child->noderef);
+        child->noderef.data());
+    child->set_noderef_len(noderef_len);
     assert(child->fnext() > 0 || child->path_len() == 64);
 }
 
