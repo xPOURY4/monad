@@ -9,7 +9,7 @@ namespace
     {
         static constexpr size_t CHILDREN = 16;
         using namespace MONAD_TRIE_NAMESPACE;
-        auto node = merkle_node_t::make_with_children(255);
+        auto node = merkle_node_t::make_with_children(CHILDREN);
         node->mask = 0xffff;
         for (size_t n = 0; n < CHILDREN; n++) {
             node->children()[n].data = MONAD_NAMESPACE::allocators::

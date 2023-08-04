@@ -6,16 +6,28 @@
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
+#include <boost/lexical_cast.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <gtest/gtest.h>
+#include <string>
 #include <vector>
 
 using namespace monad::trie;
 using namespace monad::mpt;
 
+std::string make_unique_filename()
+{
+    using boost::lexical_cast;
+    using boost::uuids::random_generator;
+    return lexical_cast<std::string>((random_generator())()) + ".db";
+}
+
 template <bool IS_ACCOUNT>
 struct on_disk_trie_fixture_t : public testing::Test
 {
 protected:
+    std::filesystem::path dbpath;
     monad::io::Ring ring;
     monad::io::Buffers rwbuf;
 
@@ -28,21 +40,22 @@ public:
     };
 
     on_disk_trie_fixture_t()
-        : ring(monad::io::Ring(128, 0))
-        , rwbuf(monad::io::Buffers(ring, 8, 8))
-        , trie([&] {
-            std::filesystem::path p = "unittest.db";
-            auto index = std::make_shared<index_t>(p);
+        : dbpath(make_unique_filename())
+        , ring(monad::io::Ring(2, 0))
+        , rwbuf(monad::io::Buffers(ring, 2, 2))
+        , trie([&, this] {
+            auto index = std::make_shared<index_t>(dbpath);
             file_offset_t block_off = index->get_start_offset();
             return MerkleTrie(
                 IS_ACCOUNT,
                 nullptr,
                 std::make_shared<AsyncIO>(
-                    p, ring, rwbuf, block_off, &update_callback),
+                    dbpath, ring, rwbuf, block_off, &update_callback),
                 index,
                 5);
         }())
     {
+        unlink(dbpath.c_str());
     }
 
     void process_updates(std::vector<Update> &update_vec, uint64_t block_id = 0)

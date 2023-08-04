@@ -111,7 +111,7 @@ public:
                 auto &[k, v] = su;
                 return make_update(k, v);
             });
-        process_updates({update_vec});
+        process_updates(update_vec);
     }
 };
 
