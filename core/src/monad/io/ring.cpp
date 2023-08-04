@@ -1,16 +1,13 @@
 #include <monad/io/ring.hpp>
 
 #include <monad/core/assert.h>
-#include <monad/core/running_on_ci.hpp>
 
 MONAD_IO_NAMESPACE_BEGIN
 
 Ring::Ring(unsigned const entries, unsigned const sq_thread_cpu)
     : ring_{}
     , params_{
-          .flags = !running_on_ci()
-                       ? (IORING_SETUP_SQPOLL | IORING_SETUP_SQ_AFF)
-                       : 0,
+          .flags = IORING_SETUP_SQPOLL | IORING_SETUP_SQ_AFF,
           .sq_thread_cpu = sq_thread_cpu,
           .sq_thread_idle = 60 * 1000}
 {
