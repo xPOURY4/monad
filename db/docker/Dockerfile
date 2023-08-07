@@ -23,7 +23,8 @@ RUN yum -y install \
   liburing \
   liburing-debuginfo \
   mimalloc \
-  mimalloc-debuginfo
+  mimalloc-debuginfo \
+  valgrind
 
 RUN yum -y install \
   boost-devel \
@@ -31,7 +32,8 @@ RUN yum -y install \
   google-benchmark-devel \
   gtest-devel \
   liburing-devel \
-  mimalloc-devel
+  mimalloc-devel \
+  valgrind-devel
 
 RUN yum -y install \
   gdb \
