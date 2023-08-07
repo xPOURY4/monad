@@ -28,8 +28,8 @@ public:
     };
 
     on_disk_trie_fixture_t()
-        : ring(monad::io::Ring(128, 15))
-        , rwbuf(monad::io::Buffers(ring, 128, 128))
+        : ring(monad::io::Ring(128, 0))
+        , rwbuf(monad::io::Buffers(ring, 8, 8))
         , trie([&] {
             std::filesystem::path p = "unittest.db";
             auto index = std::make_shared<index_t>(p);
