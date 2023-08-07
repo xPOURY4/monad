@@ -1,8 +1,9 @@
-import callgrind_parser
-from glob import glob
-from os import path
+from monad.tests import callgrind_parser
+
 import fileinput
 import json
+from glob import glob
+from os import path
 from subprocess import check_output
 from tempfile import TemporaryDirectory
 
