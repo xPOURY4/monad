@@ -47,5 +47,4 @@ RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} CFL
 
 RUN cd src && ./monad-core/scripts/build.sh
 
-RUN cd src && PYTHONPATH="/monad-trie/monad-core/monad/tests" ./monad-core/scripts/test.sh
-
+RUN cd src && PYTHONPATH="monad-core" ./monad-core/scripts/test.sh
