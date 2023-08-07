@@ -42,10 +42,9 @@ COPY . monad-core
 ARG CC
 ARG CXX
 ARG CMAKE_BUILD_TYPE
-ARG CI=false
 
 RUN cd monad-core && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ASMFLAGS="-march=haswell" ./scripts/configure.sh
 
 RUN cd monad-core && ./scripts/build.sh
 
-RUN cd monad-core && CI=${CI:?} PYTHONPATH="/monad-core/monad/tests" ./scripts/test.sh
+RUN cd monad-core && PYTHONPATH="/monad-core/monad/tests" ./scripts/test.sh

@@ -17,12 +17,12 @@ public:
 
     HugeMem(HugeMem &&) = default;
 
-    size_t get_size() const noexcept
+    [[gnu::always_inline]] size_t get_size() const
     {
         return size_;
     }
 
-    unsigned char *get_data() const noexcept
+    [[gnu::always_inline]] unsigned char *get_data() const
     {
         return data_;
     }
