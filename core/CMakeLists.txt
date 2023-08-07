@@ -31,6 +31,8 @@ target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
 add_library(
   monad_core STATIC
   "c/include/monad/core/bit_util.h"
+  "c/include/monad/mem/huge_mem.h"
+  "c/src/monad/mem/huge_mem.c"
 
   "include/monad/config.hpp"
   # core
@@ -59,12 +61,10 @@ add_library(
   "src/monad/io/ring.cpp"
   # mem
   "include/monad/mem/cpool.h"
-  "include/monad/mem/huge_mem.h"
   "include/monad/mem/huge_mem.hpp"
   "include/monad/mem/dynamic_allocator.hpp"
   "include/monad/mem/mem_map.hpp"
   "include/monad/mem/pool_allocator.hpp"
-  "src/monad/mem/huge_mem.c"
   "src/monad/mem/huge_mem.cpp"
   "src/monad/mem/mem_map.cpp"
   "src/monad/mem/pool_allocator.cpp"
