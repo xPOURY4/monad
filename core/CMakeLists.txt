@@ -96,3 +96,4 @@ find_package(GTest REQUIRED)
 add_subdirectory("test")
 
 monad_add_test(bit_util_test c/src/monad/core/bit_util_test.cpp)
+monad_add_test(huge_mem_test c/src/monad/mem/huge_mem_test.cpp)

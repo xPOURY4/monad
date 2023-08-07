@@ -1,20 +1,19 @@
 #pragma once
 
-#include <assert.h>
-#include <stdalign.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-typedef struct huge_mem_t
+struct huge_mem
 {
     size_t size;
     unsigned char *data;
-} huge_mem_t;
+};
+
+typedef struct huge_mem huge_mem_t;
 
 static_assert(sizeof(huge_mem_t) == 16);
 static_assert(alignof(huge_mem_t) == 8);
