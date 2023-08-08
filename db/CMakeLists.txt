@@ -7,6 +7,8 @@ enable_testing()
 ### deps
 ############
 add_subdirectory("monad-core")
+add_custom_target(exclude_monad_core_tests ALL 
+    COMMAND rm -f "monad-core/third_party/ethash/CTestTestfile.cmake")
 
 include("monad-core/cmake/find_dependency.cmake")
 find_package(Boost COMPONENTS "" REQUIRED)

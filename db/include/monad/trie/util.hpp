@@ -2,15 +2,21 @@
 
 #include <monad/trie/config.hpp>
 
+#include <monad/core/assert.h>
+
 #include <bit>
+#include <cerrno>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <type_traits>
 
+#include <fcntl.h>
 #include <limits.h>
 #include <linux/types.h> // for __u64
 #include <sys/user.h> // for PAGE_SIZE
+#include <unistd.h>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -21,6 +27,11 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 //! The same type io_uring uses for offsets into files during i/o
 using file_offset_t = __u64;
+
+//! Tag type for tests to ask for anonymous inodes
+struct use_anonymous_inode_tag
+{
+};
 
 //! The maximum disk storage used by a serialised merkle node
 static constexpr uint16_t MAX_DISK_NODE_SIZE = 2674;
@@ -62,6 +73,24 @@ inline constexpr unsigned child_index(uint16_t const mask, unsigned const i)
 {
     uint16_t const filter = UINT16_MAX >> (16 - i);
     return std::popcount(static_cast<uint16_t>(mask & filter));
+}
+
+//! Creates already deleted file so no need to clean it up
+//! after
+inline int make_temporary_inode() noexcept
+{
+    int fd = ::open("/tmp", O_RDWR | O_TMPFILE, 0600);
+    if (-1 == fd && ENOTSUP == errno) {
+        // O_TMPFILE is not supported on ancient Linux kernels
+        // of the kind apparently Github like to run :(
+        char buffer[] = "/tmp/triedb_XXXXXX";
+        fd = mkstemp(buffer);
+        if (-1 != fd) {
+            unlink(buffer);
+        }
+    }
+    MONAD_ASSERT(fd != -1);
+    return fd;
 }
 
 MONAD_TRIE_NAMESPACE_END

@@ -6,12 +6,14 @@
 #include <monad/core/assert.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <optional>
 
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -58,25 +60,35 @@ class Index
     }
 
 public:
-    Index(std::filesystem::path &p)
-        : fd_([&] {
-            int fd = open(p.c_str(), O_CREAT | O_RDWR, 0600);
-            MONAD_ASSERT(fd != -1);
-            return fd;
-        }())
+    explicit Index(int fd)
+        : fd_(fd)
         , block_start_off_(0)
         , header_block_(_memmap(0))
         , mmap_block_(nullptr)
     {
         // resize file to max index chunk to avoid BusError
         // skip block device
-        if (!std::filesystem::is_block_file(p)) {
-            [&](size_t const new_file_size) {
-                if (std::filesystem::file_size(p) < new_file_size) {
-                    std::filesystem::resize_file(p, new_file_size);
-                }
-            }(get_start_offset());
+        struct stat s;
+        memset(&s, 0, sizeof(s));
+        MONAD_ASSERT(-1 != ::fstat(fd_, &s));
+        if (!(s.st_mode & S_IFBLK)) {
+            const auto offset = get_start_offset();
+            if (file_offset_t(s.st_size) < offset) {
+                MONAD_ASSERT(-1 != ::ftruncate(fd, offset));
+            }
         }
+    }
+    explicit Index(std::filesystem::path &p)
+        : Index([&] {
+            int fd = ::open(p.c_str(), O_CREAT | O_RDWR, 0600);
+            MONAD_ASSERT(fd != -1);
+            return fd;
+        }())
+    {
+    }
+    explicit Index(use_anonymous_inode_tag)
+        : Index(make_temporary_inode())
+    {
     }
 
     ~Index()
@@ -86,7 +98,7 @@ public:
         }
         MONAD_ASSERT(!munmap(header_block_, CPU_PAGE_SIZE));
 
-        close(fd_);
+        ::close(fd_);
         fd_ = -1;
     }
 

@@ -86,10 +86,11 @@ class AsyncIO final
 
 public:
     AsyncIO(
-        std::filesystem::path &p, monad::io::Ring &ring,
+        std::pair<int, int> fds, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf, file_offset_t block_off,
         std::function<void(void *)> readcb)
-        : uring_(ring)
+        : fds_{fds.first, fds.second}
+        , uring_(ring)
         , rwbuf_(rwbuf)
         , rd_pool_(monad::io::BufferPool(rwbuf, true))
         , wr_pool_(monad::io::BufferPool(rwbuf, false))
@@ -99,17 +100,43 @@ public:
         , block_off_(round_up_align<DISK_PAGE_BITS>(block_off))
     {
         MONAD_ASSERT(write_buffer_);
-
-        // append only file descriptor
-        fds_[WRITE] = open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0600);
         MONAD_ASSERT(fds_[WRITE] != -1);
-        // read only file descriptor
-        fds_[READ] = open(p.c_str(), O_RDONLY | O_DIRECT);
         MONAD_ASSERT(fds_[READ] != -1);
 
         // register files
         MONAD_ASSERT(!io_uring_register_files(
             const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
+    }
+    AsyncIO(
+        std::filesystem::path &p, monad::io::Ring &ring,
+        monad::io::Buffers &rwbuf, file_offset_t block_off,
+        std::function<void(void *)> readcb)
+        : AsyncIO(
+              [&p]() -> std::pair<int, int> {
+                  int fds[2];
+                  // append only file descriptor
+                  fds[WRITE] =
+                      ::open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0600);
+                  // read only file descriptor
+                  fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT);
+                  return {fds[0], fds[1]};
+              }(),
+              ring, rwbuf, block_off, readcb)
+    {
+    }
+    AsyncIO(
+        use_anonymous_inode_tag, monad::io::Ring &ring,
+        monad::io::Buffers &rwbuf, file_offset_t block_off,
+        std::function<void(void *)> readcb)
+        : AsyncIO(
+              []() -> std::pair<int, int> {
+                  int fds[2];
+                  fds[0] = make_temporary_inode();
+                  fds[1] = dup(fds[0]);
+                  return {fds[0], fds[1]};
+              }(),
+              ring, rwbuf, block_off, readcb)
+    {
     }
 
     ~AsyncIO()
@@ -131,8 +158,8 @@ public:
         MONAD_ASSERT(!io_uring_unregister_files(
             const_cast<io_uring *>(&uring_.get_ring())));
 
-        close(fds_[READ]);
-        close(fds_[WRITE]);
+        ::close(fds_[READ]);
+        ::close(fds_[WRITE]);
     }
 
     void release_read_buffer(unsigned char *const buffer)
