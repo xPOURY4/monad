@@ -16,6 +16,7 @@ namespace
                 make_resizeable_unique_for_overwrite<unsigned char[]>(255);
             node->children()[n].set_data_len(110);
             node->children()[n].set_path_len(33);
+            node->children()[n].set_noderef_len(32);
         }
         EXPECT_EQ(get_disk_node_size(node.get()), MAX_DISK_NODE_SIZE);
     }

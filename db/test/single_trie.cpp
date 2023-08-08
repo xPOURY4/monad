@@ -29,7 +29,7 @@ make_update(std::pair<monad::byte_string, monad::byte_string> const &kvpair)
 namespace fixed_updates
 {
     // single update
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv{
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
@@ -39,7 +39,7 @@ namespace fixed_updates
         {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000deadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
 
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
@@ -52,7 +52,7 @@ namespace fixed_updates
 
 namespace unrelated_leaves
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv{
         {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -62,7 +62,7 @@ namespace unrelated_leaves
         {0x3234567812345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000deadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
 
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
         {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -75,7 +75,7 @@ namespace unrelated_leaves
 
 namespace var_len_updates
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv{
         {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000dead_hex},
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -91,7 +91,7 @@ namespace var_len_updates
         {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
          0x0000000000000000deadbabedeadbabedeadbabedead_hex}};
 
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv = {
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
         {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdead_hex},
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -352,6 +352,45 @@ TYPED_TEST(TrieTest, VarLengthLeafData)
     EXPECT_EQ(
         this->root_hash(),
         0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
+}
+
+TYPED_TEST(TrieTest, VarLengthLeafSecond)
+{
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> account_kv{
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeef_hex},
+        {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000deadbeefcafebabe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345671_hex,
+         0x0000000000000000deadcafe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
+         0x0000000000000000dead_hex}};
+
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
+        {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
+         0xdeadbeef_hex},
+        {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
+         0xdeadbeefcafebabe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345671_hex,
+         0xdeadcafe_hex},
+        {0x1234567832345678123456781234567812345678123456781234567812345678_hex,
+         0xdead_hex}};
+
+    auto &kv = this->is_account() ? account_kv : storage_kv;
+
+    UpdateList updates;
+    std::vector<Update> update_vec;
+
+    std::ranges::transform(
+        kv, std::back_inserter(update_vec), [](auto &su) -> Update {
+            auto &[k, v] = su;
+            return make_update(k, v);
+        });
+
+    this->process_updates(update_vec);
+    EXPECT_EQ(
+        this->root_hash(),
+        0xb796133251968233b84f3fcf8af88cdb42eeabe793f27835c10e8b46c91dfa4a_hex);
 }
 
 TYPED_TEST(TrieUpdateTest, None)

@@ -100,15 +100,15 @@ struct merkle_child_info_t
         uint64_t data_len : 8; // in bytes, max possible is 256
         uint64_t path_len : 7; // in nibbles, max possible is 64
         uint64_t node_len_disk_pages1 : 1;
-        uint64_t noderef_len : 8; // in bytes, max 32
     } bitpacked;
-    static_assert(sizeof(bitpacked) == 16);
+    static_assert(sizeof(bitpacked) == 8);
     static_assert(
         std::endian::native == std::endian::little,
         "C bitfields stored to disk have the endian of their machine, big "
         "endian would need a bit swapping loader implementation");
 
     unsigned char path[32]; // TODO: change to var length
+    data_len_t noderef_len; // in bytes, max possible is 32
 
     constexpr file_offset_t fnext() const noexcept
     {
@@ -128,13 +128,9 @@ struct merkle_child_info_t
     {
         bitpacked.data_len = v;
     }
-    constexpr data_len_t noderef_len() const noexcept
-    {
-        return bitpacked.noderef_len;
-    }
     constexpr void set_noderef_len(data_len_t v) noexcept
     {
-        bitpacked.noderef_len = v;
+        noderef_len = v;
     }
 
     constexpr unsigned node_len_upper_bound() const noexcept

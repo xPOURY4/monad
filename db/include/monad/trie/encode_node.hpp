@@ -35,17 +35,26 @@ to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
  */
 inline uint8_t encode_two_piece(
     byte_string_view const first, byte_string_view const second,
-    unsigned const second_offset, unsigned char *const dest)
+    unsigned const second_offset, unsigned char *const dest, bool is_leaf)
 {
     assert(second.size() > second_offset);
     auto second_to_use = byte_string_view{
         second.data() + second_offset, second.size() - second_offset};
+    // leaf requires rlp encoding, rlp encoded but unhashed branch nodes don't
+    bool need_encode_second = is_leaf || second_to_use.size() >= 32;
     size_t first_len = rlp::string_length(first),
-           second_len = rlp::string_length(second_to_use);
+           second_len = need_encode_second ? rlp::string_length(second_to_use)
+                                           : second_to_use.size();
     assert(first_len + second_len <= 160);
     unsigned char rlp_string[160];
     auto result = rlp::encode_string(rlp_string, first);
-    result = rlp::encode_string(result, second_to_use);
+    if (need_encode_second) {
+        result = rlp::encode_string(result, second_to_use);
+    }
+    else {
+        memcpy(result.data(), second_to_use.data(), second_to_use.size());
+        result = result.subspan(second_to_use.size());
+    }
     assert(
         (unsigned long)(result.data() - rlp_string) == first_len + second_len);
     byte_string_view encoded_strings =
@@ -91,7 +100,8 @@ inline void encode_leaf(
             true),
         byte_string_view{child->data.get(), child->data_len()},
         is_account ? ROOT_OFFSET_SIZE : 0,
-        child->noderef.data()));
+        child->noderef.data(),
+        true));
 }
 
 inline uint8_t encode_branch(merkle_node_t *const branch, unsigned char *dest)
@@ -109,18 +119,18 @@ inline uint8_t encode_branch(merkle_node_t *const branch, unsigned char *dest)
         if (branch->valid_mask & tmp) {
             merkle_child_info_t *child =
                 &branch->children()[merkle_child_index(branch, i)];
-            if (child->noderef_len() < 32) {
+            if (child->noderef_len < 32) {
                 // meaning the child's noderef is rlp encoded but not keccaked,
                 // not need to encode the encoded bytes again here
                 memcpy(
-                    result.data(), child->noderef.data(), child->noderef_len());
-                result = result.subspan(child->noderef_len());
+                    result.data(), child->noderef.data(), child->noderef_len);
+                result = result.subspan(child->noderef_len);
             }
             else {
                 result = rlp::encode_string(
                     result,
                     byte_string_view{
-                        child->noderef.data(), child->noderef_len()});
+                        child->noderef.data(), child->noderef_len});
             }
         }
         else {
@@ -177,7 +187,8 @@ inline void encode_branch_extension(
                 false),
             byte_string_view{child->data.get(), child->data_len()},
             0,
-            child->noderef.data()));
+            child->noderef.data(),
+            false));
     }
 }
 

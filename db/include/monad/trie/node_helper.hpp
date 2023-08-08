@@ -52,11 +52,13 @@ inline unsigned get_disk_node_size(merkle_node_t const *const node)
                 node->children()[i].path_len() == 64);
             total += node->children()[i].data_len();
         }
-        total += node->children()[i].noderef_len();
+        total += node->children()[i].noderef_len;
         total += (node->children()[i].path_len() + 1) / 2 - node->path_len / 2;
     }
-    total += sizeof(merkle_node_t::mask_t) +
-             children_valid * sizeof(merkle_child_info_t::bitpacked_storage_t);
+    total +=
+        sizeof(merkle_node_t::mask_t) +
+        children_valid * (sizeof(merkle_child_info_t::bitpacked_storage_t) +
+                          sizeof(merkle_child_info_t::data_len_t));
     total = (total + 1) & ~1;
     return total;
 }

@@ -130,7 +130,8 @@ public:
                     child->path_len() == 64),
                 byte_string_view{child->data.get(), child->data_len()},
                 child->path_len() == 64 && is_account_ ? ROOT_OFFSET_SIZE : 0,
-                dest);
+                dest,
+                child->path_len() == 64);
         }
         else {
             encode_branch(root_.get(), dest);

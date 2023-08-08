@@ -34,7 +34,7 @@ struct use_anonymous_inode_tag
 };
 
 //! The maximum disk storage used by a serialised merkle node
-static constexpr uint16_t MAX_DISK_NODE_SIZE = 2674;
+static constexpr uint16_t MAX_DISK_NODE_SIZE = 2690;
 
 //! The invalid file offset
 static constexpr file_offset_t INVALID_OFFSET = file_offset_t(-1);
