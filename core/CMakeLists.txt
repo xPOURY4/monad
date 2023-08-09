@@ -12,6 +12,8 @@ find_dependency(mimalloc REQUIRED)
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
+add_subdirectory("third_party/expected")
+
 add_library(
   openssl_sha3_asm INTERFACE
   "third_party/openssl/crypto/sha/asm/keccak1600-avx2.S"
