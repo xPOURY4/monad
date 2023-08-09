@@ -5,8 +5,22 @@ project(monad_core LANGUAGES C CXX ASM)
 # ##############################################################################
 # deps
 # ##############################################################################
+
 include("cmake/find_dependency.cmake")
 find_dependency(mimalloc REQUIRED)
+
+set(ETHASH_TESTING NO)
+add_subdirectory("third_party/ethash")
+
+add_library(
+  openssl_sha3_asm INTERFACE
+  "third_party/openssl/crypto/sha/asm/keccak1600-avx2.S"
+  "third_party/openssl/crypto/sha/asm/keccak1600-avx512.S")
+target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
+
+# ##############################################################################
+# libs
+# ##############################################################################
 
 function(monad_compile_options target)
   set_property(TARGET ${target} PROPERTY C_STANDARD 23)
@@ -19,21 +33,10 @@ function(monad_compile_options target)
 endfunction()
 
 add_library(
-  openssl_sha3_asm INTERFACE
-  "third_party/openssl/crypto/sha/asm/keccak1600-avx2.S"
-  "third_party/openssl/crypto/sha/asm/keccak1600-avx512.S")
-target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
-
-# ##############################################################################
-# libs
-# ##############################################################################
-
-add_library(
   monad_core STATIC
   "c/include/monad/core/bit_util.h"
   "c/include/monad/mem/huge_mem.h"
   "c/src/monad/mem/huge_mem.c"
-
   "include/monad/config.hpp"
   # core
   "include/monad/core/assert.h"
@@ -74,9 +77,6 @@ add_library(
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
-
-set(ETHASH_TESTING YES)
-add_subdirectory("third_party/ethash")
 
 add_library(
   monad_core_disas SHARED
