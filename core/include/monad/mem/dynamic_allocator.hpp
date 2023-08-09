@@ -83,7 +83,7 @@ public:
         mem_start_ = (uintptr_t)p;
 
         new (p)
-            page_t(nullptr, nullptr, uintptr_t(nullptr), sizeof(page_t), 0, 0);
+            page_t{nullptr, nullptr, uintptr_t(nullptr), sizeof(page_t), 0, 0};
 
         size_t n_total_pages = (size - ((uintptr_t)p - (uintptr_t)mem)) / PAGE;
         for (size_t i = 0; i < n_total_pages - 1; i++) {
@@ -133,7 +133,7 @@ DynamicAllocator<MIN_ALLOC_BITS, MAX_ALLOC_BITS, ALLIGN_BITS, PAGE_BITS>::alloc(
         pages_[slot_num]->prev_ = nullptr;
         pages_[slot_num]->block_size_ = slot_to_size(slot_num);
         pages_[slot_num]->n_blocks_allocated_ = 0;
-        pages_[slot_num]->free_block_ = (uintptr_t)nullptr;
+        pages_[slot_num]->free_block_ = (uintptr_t) nullptr;
     }
 
     // store return address

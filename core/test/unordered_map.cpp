@@ -86,6 +86,7 @@ struct tag
 
 TEST(UnorderedSets, quick_comparative_benchmark)
 {
+#ifdef NDEBUG
     using namespace MONAD_NAMESPACE;
     std::vector<uint32_t> values(5000000);
     small_prng rand;
@@ -132,4 +133,5 @@ TEST(UnorderedSets, quick_comparative_benchmark)
     do_test(tag<bytes<64>>{}, "64 byte values");
     do_test(tag<bytes<256>>{}, "256 byte values");
     do_test(tag<bytes<512>>{}, "512 byte values");
+#endif
 }
