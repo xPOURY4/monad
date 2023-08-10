@@ -5,3 +5,6 @@
 [submodule "third_party/expected"]
 	path = third_party/expected
 	url = https://github.com/TartanLlama/expected.git
+[submodule "third_party/optional"]
+	path = third_party/optional
+	url = https://github.com/TartanLlama/optional.git

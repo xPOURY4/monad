@@ -13,6 +13,8 @@ set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
 add_subdirectory("third_party/expected")
+set(OPTIONAL_BUILD_TESTS OFF)
+add_subdirectory("third_party/optional" SYSTEM)
 
 add_library(
   openssl_sha3_asm INTERFACE
