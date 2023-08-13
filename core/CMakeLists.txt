@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.21)
 
 project(monad_core LANGUAGES C CXX ASM)
 
+option(MONAD_FUZZTEST OFF)
+
 # ##############################################################################
 # deps
 # ##############################################################################
@@ -12,9 +14,21 @@ find_dependency(mimalloc REQUIRED)
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
-set(OPTIONAL_BUILD_TESTS OFF)
+set(EXPECTED_BUILD_PACKAGE OFF)
+set(EXPECTED_BUILD_TESTS OFF)
 add_subdirectory("third_party/expected" SYSTEM)
+set(OPTIONAL_BUILD_PACKAGE OFF)
+set(OPTIONAL_BUILD_TESTS OFF)
 add_subdirectory("third_party/optional" SYSTEM)
+
+add_subdirectory("third_party/nlohmann_json" SYSTEM)
+
+if(MONAD_FUZZTEST)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(ANTLR_BUILD_CPP_TESTS OFF)
+    add_subdirectory("third_party/fuzztest" SYSTEM)
+  endif()
+endif()
 
 add_library(
   openssl_sha3_asm INTERFACE
