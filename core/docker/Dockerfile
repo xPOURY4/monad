@@ -22,4 +22,4 @@ RUN cd monad-core && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE
 
 RUN cd monad-core && ./scripts/build.sh
 
-RUN cd monad-core && ./scripts/test.sh
+RUN cd monad-core && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./scripts/test.sh
