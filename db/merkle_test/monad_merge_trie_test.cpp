@@ -72,7 +72,23 @@ inline void batch_upsert_commit(
 
     auto ts_before = std::chrono::steady_clock::now();
 
-    trie.process_updates(updates, block_id);
+    struct receiver_t
+    {
+        std::optional<merkle_node_t *> res;
+        void
+        set_value(erased_connected_operation *, result<merkle_node_t *> res_)
+        {
+            MONAD_ASSERT(res_);
+            res = std::move(res_).assume_value();
+        }
+    };
+    auto state = connect(
+        MerkleTrie::process_updates_sender(&trie, updates, block_id),
+        receiver_t{});
+    MONAD_ASSERT(state.initiate());
+    while (!state.receiver().res) {
+        trie.get_io().flush();
+    }
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(

@@ -53,14 +53,46 @@ public:
         for (auto it = update_vec.begin(); it != update_vec.end(); ++it) {
             updates.push_front(*it);
         }
-        trie.process_updates(updates, block_id);
-        trie.get_io().flush();
+        struct receiver_t
+        {
+            std::optional<merkle_node_t *> res;
+            void set_value(
+                erased_connected_operation *, result<merkle_node_t *> res_)
+            {
+                MONAD_ASSERT(res_);
+                res = std::move(res_).assume_value();
+            }
+        };
+        auto state = connect(
+            MerkleTrie::process_updates_sender(&trie, updates, block_id),
+            receiver_t{});
+        ASSERT_TRUE(state.initiate());
+        while (!state.receiver().res) {
+            ASSERT_TRUE(trie.get_io().io_in_flight() > 0);
+            trie.get_io().flush();
+        }
     }
 
     void process_updates(UpdateList &updates, uint64_t block_id = 0)
     {
-        trie.process_updates(updates, block_id);
-        trie.get_io().flush();
+        struct receiver_t
+        {
+            std::optional<merkle_node_t *> res;
+            void set_value(
+                erased_connected_operation *, result<merkle_node_t *> res_)
+            {
+                MONAD_ASSERT(res_);
+                res = std::move(res_).assume_value();
+            }
+        };
+        auto state = connect(
+            MerkleTrie::process_updates_sender(&trie, updates, block_id),
+            receiver_t{});
+        ASSERT_TRUE(state.initiate());
+        while (!state.receiver().res) {
+            ASSERT_TRUE(trie.get_io().io_in_flight() > 0);
+            trie.get_io().flush();
+        }
     }
 
     monad::byte_string root_hash()
@@ -88,12 +120,38 @@ struct in_memory_trie_fixture_t : public testing::Test
         for (auto it = update_vec.begin(); it != update_vec.end(); ++it) {
             updates.push_front(*it);
         }
-        trie.process_updates(updates);
+        struct receiver_t
+        {
+            std::optional<merkle_node_t *> res;
+            void set_value(
+                erased_connected_operation *, result<merkle_node_t *> res_)
+            {
+                MONAD_ASSERT(res_);
+                res = std::move(res_).assume_value();
+            }
+        };
+        auto state = connect(
+            MerkleTrie::process_updates_sender(&trie, updates), receiver_t{});
+        ASSERT_TRUE(state.initiate());
+        ASSERT_TRUE(state.receiver().res);
     }
 
     void process_updates(UpdateList &updates)
     {
-        trie.process_updates(updates);
+        struct receiver_t
+        {
+            std::optional<merkle_node_t *> res;
+            void set_value(
+                erased_connected_operation *, result<merkle_node_t *> res_)
+            {
+                MONAD_ASSERT(res_);
+                res = std::move(res_).assume_value();
+            }
+        };
+        auto state = connect(
+            MerkleTrie::process_updates_sender(&trie, updates), receiver_t{});
+        ASSERT_TRUE(state.initiate());
+        ASSERT_TRUE(state.receiver().res);
     }
 
     monad::byte_string root_hash()

@@ -15,6 +15,7 @@
 #include <boost/outcome/try.hpp>
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -25,12 +26,45 @@ MONAD_TRIE_NAMESPACE_BEGIN
 
 template <class T>
 using result = ::boost::outcome_v2::experimental::status_result<T>;
+using ::boost::outcome_v2::experimental::errc;
 using ::boost::outcome_v2::experimental::failure;
 using ::boost::outcome_v2::experimental::posix_code;
 using ::boost::outcome_v2::experimental::success;
 
 class AsyncIO;
 class read_single_buffer_sender;
+class erased_connected_operation;
+
+template <class T>
+concept sender =
+    std::is_destructible_v<T> &&
+    std::is_invocable_r_v<result<void>, T, erased_connected_operation *> &&
+    requires { typename T::result_type; } &&
+    (
+        std::is_same_v<typename T::result_type, result<void>> ||
+        requires(T s, erased_connected_operation *o, result<void> x) {
+            {
+                s.completed(o, std::move(x))
+            } -> std::same_as<typename T::result_type>;
+        } || std::is_same_v<typename T::result_type, result<size_t>> ||
+        requires(T s, erased_connected_operation *o, result<size_t> x) {
+            {
+                s.completed(o, std::move(x))
+            } -> std::same_as<typename T::result_type>;
+        });
+
+template <class T>
+concept receiver = std::is_destructible_v<T>;
+
+template <class Sender, class Receiver>
+concept compatible_sender_receiver =
+    sender<Sender> && receiver<Receiver> &&
+    requires(
+        Receiver r, erased_connected_operation *o,
+        typename Sender::result_type x) { r.set_value(o, std::move(x)); };
+
+template <sender Sender, receiver Receiver>
+class connected_operation;
 
 /* The following Sender-Receiver implementation is loosely based on
 https://wg21.link/p2300 `std::execution`. We don't actually
@@ -95,15 +129,26 @@ which will also call `reset()` on its sender and receiver.
 
 class erased_connected_operation
 {
+    template <sender Sender, receiver Receiver>
+    friend class connected_operation;
+
 protected:
-    bool _is_write{false};
+    enum class _operation_type_t : uint8_t
+    {
+        unknown,
+        read,
+        write
+    } _operation_type{_operation_type_t::unknown};
     bool _being_executed{false};
-    AsyncIO &_io;
+    AsyncIO *_io{nullptr};
     erased_connected_operation *_next{nullptr};
 
-    constexpr erased_connected_operation(bool is_write, AsyncIO &io)
-        : _is_write(is_write)
-        , _io(io)
+    constexpr erased_connected_operation() {}
+
+    constexpr erased_connected_operation(
+        _operation_type_t operation_type, AsyncIO &io)
+        : _operation_type(operation_type)
+        , _io(&io)
     {
     }
 
@@ -112,13 +157,17 @@ public:
     {
         MONAD_ASSERT(!_being_executed);
     }
+    bool is_unknown_operation_type() const noexcept
+    {
+        return _operation_type == _operation_type_t::unknown;
+    }
     bool is_read() const noexcept
     {
-        return !_is_write;
+        return _operation_type == _operation_type_t::read;
     }
     bool is_write() const noexcept
     {
-        return _is_write;
+        return _operation_type == _operation_type_t::write;
     }
     bool is_currently_being_executed() const noexcept
     {
@@ -126,24 +175,278 @@ public:
     }
     AsyncIO &executor() noexcept
     {
-        return _io;
+        return *_io;
     }
     erased_connected_operation *&next() noexcept
     {
         return _next;
     }
+    virtual void completed(result<void> res) = 0;
     virtual void completed(result<size_t> bytes_transferred) = 0;
+    // Overload ambiguity resolver
+    void completed(BOOST_OUTCOME_V2_NAMESPACE::success_type<void> _)
+    {
+        completed(result<void>(_));
+    }
     void reset() {}
 };
 
-template <class T>
-concept sender =
-    std::is_move_constructible_v<T> && std::is_destructible_v<T> &&
-    std::is_invocable_r_v<result<void>, T, erased_connected_operation *> &&
-    requires { typename T::result_type; };
+namespace detail
+{
+    template <class Base, sender Sender, receiver Receiver>
+    struct connected_operation_storage : public Base
+    {
+        friend class AsyncIO;
 
-template <class T>
-concept receiver = std::is_move_constructible_v<T> && std::is_destructible_v<T>;
+        virtual void completed(result<void>) override
+        {
+            // If you reach here, somebody called a void completed()
+            // on a bytes transferred type connected operation
+            abort();
+        }
+        virtual void completed(result<size_t> res) override
+        {
+            // Decay to the void type
+            completed(result<void>(std::move(res).as_failure()));
+        }
+
+    public:
+        using sender_type = Sender;
+        using receiver_type = Receiver;
+        //! True if this connected operation state is resettable and reusable
+        static constexpr bool is_resettable = requires {
+            &sender_type::reset;
+            &receiver_type::reset;
+        };
+
+    protected:
+        Sender _sender;
+        Receiver _receiver;
+
+        // Deduce what kind of connected operation we are
+        static constexpr erased_connected_operation::_operation_type_t
+            _operation_type = []() constexpr {
+                if constexpr (requires {
+                                  typename Sender::buffer_type::element_type;
+                              }) {
+                    constexpr bool is_const = std::is_const_v<
+                        typename Sender::buffer_type::element_type>;
+                    return is_const ? erased_connected_operation::
+                                          _operation_type_t::write
+                                    : erased_connected_operation::
+                                          _operation_type_t::read;
+                }
+                else {
+                    return erased_connected_operation::_operation_type_t::
+                        unknown;
+                }
+            }();
+
+    public:
+        connected_operation_storage(
+            sender_type &&sender, receiver_type &&receiver)
+            : _sender(static_cast<Sender &&>(sender))
+            , _receiver(static_cast<Receiver &&>(receiver))
+        {
+        }
+        connected_operation_storage(
+            AsyncIO &io, sender_type &&sender, receiver_type &&receiver)
+            : erased_connected_operation(_operation_type, io)
+            , _sender(static_cast<Sender &&>(sender))
+            , _receiver(static_cast<Receiver &&>(receiver))
+        {
+        }
+        template <class... SenderArgs, class... ReceiverArgs>
+        connected_operation_storage(
+            std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
+            std::tuple<ReceiverArgs...> receiver_args)
+            : _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
+            , _receiver(
+                  std::make_from_tuple<Receiver>(std::move(receiver_args)))
+        {
+        }
+        template <class... SenderArgs, class... ReceiverArgs>
+        connected_operation_storage(
+            AsyncIO &io, std::piecewise_construct_t,
+            std::tuple<SenderArgs...> sender_args,
+            std::tuple<ReceiverArgs...> receiver_args)
+            : erased_connected_operation(_operation_type, io)
+            , _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
+            , _receiver(
+                  std::make_from_tuple<Receiver>(std::move(receiver_args)))
+        {
+        }
+
+        connected_operation_storage(const connected_operation_storage &) =
+            delete;
+        connected_operation_storage(connected_operation_storage &&) = delete;
+        connected_operation_storage &
+        operator=(const connected_operation_storage &) = delete;
+        connected_operation_storage &
+        operator=(connected_operation_storage &&) = delete;
+        ~connected_operation_storage() = default;
+
+        sender_type &sender() & noexcept
+        {
+            return _sender;
+        }
+        sender_type sender() && noexcept
+        {
+            return static_cast<sender_type &&>(_sender);
+        }
+        receiver_type &receiver() & noexcept
+        {
+            return _receiver;
+        }
+        receiver_type receiver() && noexcept
+        {
+            return static_cast<receiver_type &&>(_receiver);
+        }
+
+        static constexpr bool is_unknown_operation_type() noexcept
+        {
+            return _operation_type ==
+                   erased_connected_operation::_operation_type_t::unknown;
+        }
+        static constexpr bool is_read() noexcept
+        {
+            return _operation_type ==
+                   erased_connected_operation::_operation_type_t::read;
+        }
+        static constexpr bool is_write() noexcept
+        {
+            return _operation_type ==
+                   erased_connected_operation::_operation_type_t::write;
+        }
+
+        //! Initiates the operation. If successful do NOT modify anything after
+        //! this until after completion, it may cause a silent page
+        //! copy-on-write.
+        result<void> initiate() noexcept
+        {
+            this->_being_executed = true;
+            // Prevent compiler reordering write of _being_executed after this
+            // point without using actual atomics.
+            std::atomic_signal_fence(std::memory_order_release);
+            auto r = _sender(this);
+            if (!r) {
+                this->_being_executed = false;
+            }
+            return r;
+        }
+
+        //! Resets the operation state. Only available if both sender and
+        //! receiver implement `reset()`
+        template <class... SenderArgs, class... ReceiverArgs>
+            requires(is_resettable)
+        void reset(
+            std::tuple<SenderArgs...> sender_args,
+            std::tuple<ReceiverArgs...> receiver_args)
+        {
+            MONAD_ASSERT(!this->_being_executed);
+            erased_connected_operation::reset();
+            std::apply(
+                [this](auto &&...args) { _sender.reset(std::move(args)...); },
+                std::move(sender_args));
+            std::apply(
+                [this](auto &&...args) { _receiver.reset(std::move(args)...); },
+                std::move(receiver_args));
+        }
+    };
+
+    template <
+        class Base, sender Sender, receiver Receiver,
+        bool enable =
+            requires(
+                Receiver r, erased_connected_operation *o, result<void> res) {
+                r.set_value(o, std::move(res));
+            } ||
+            requires(
+                Sender s, Receiver r, erased_connected_operation *o,
+                result<void> res) {
+                r.set_value(o, s.completed(o, std::move(res)));
+            }>
+    struct connected_operation_void_completed_implementation : public Base
+    {
+        using Base::Base;
+        static constexpr bool _void_completed_enabled = false;
+    };
+    template <
+        class Base, sender Sender, receiver Receiver,
+        bool enable =
+            requires(
+                Receiver r, erased_connected_operation *o, result<size_t> res) {
+                r.set_value(o, std::move(res));
+            } ||
+            requires(
+                Sender s, Receiver r, erased_connected_operation *o,
+                result<size_t> res) {
+                r.set_value(o, s.completed(o, std::move(res)));
+            }>
+    struct connected_operation_bytes_completed_implementation : public Base
+    {
+        using Base::Base;
+        static constexpr bool _bytes_completed_enabled = false;
+    };
+
+    template <class Base, sender Sender, receiver Receiver>
+    struct connected_operation_void_completed_implementation<
+        Base, Sender, Receiver, true> : public Base
+    {
+        using Base::Base;
+        static constexpr bool _void_completed_enabled = true;
+
+    private:
+        // These will devirtualise and usually disappear entirely from codegen
+        virtual void completed(result<void> res) override final
+        {
+            this->_being_executed = false;
+            if constexpr (requires(Sender x) {
+                              x.completed(
+                                  this, static_cast<result<void> &&>(res));
+                          }) {
+                this->_receiver.set_value(
+                    this,
+                    this->_sender.completed(
+                        this, static_cast<result<void> &&>(res)));
+            }
+            else {
+                this->_receiver.set_value(
+                    this, static_cast<result<void> &&>(res));
+            }
+        }
+    };
+    template <class Base, sender Sender, receiver Receiver>
+    struct connected_operation_bytes_completed_implementation<
+        Base, Sender, Receiver, true> : public Base
+    {
+        using Base::Base;
+        static constexpr bool _bytes_completed_enabled = true;
+
+    private:
+        // This will devirtualise and usually disappear entirely from codegen
+        virtual void completed(result<size_t> bytes_transferred) override final
+        {
+            this->_being_executed = false;
+            if constexpr (requires(Sender x) {
+                              x.completed(
+                                  this,
+                                  static_cast<result<size_t> &&>(
+                                      bytes_transferred));
+                          }) {
+                this->_receiver.set_value(
+                    this,
+                    this->_sender.completed(
+                        this,
+                        static_cast<result<size_t> &&>(bytes_transferred)));
+            }
+            else {
+                this->_receiver.set_value(
+                    this, static_cast<result<size_t> &&>(bytes_transferred));
+            }
+        }
+    };
+}
 
 /*! \class connected_operation
 \brief A connected sender-receiver pair which implements operation state.
@@ -159,126 +462,43 @@ destructed between submission and completion.
 that.
 */
 template <sender Sender, receiver Receiver>
-class connected_operation final : public erased_connected_operation
+class connected_operation final
+    : public detail::connected_operation_void_completed_implementation<
+          detail::connected_operation_bytes_completed_implementation<
+              detail::connected_operation_storage<
+                  erased_connected_operation, Sender, Receiver>,
+              Sender, Receiver>,
+          Sender, Receiver>
 {
-    friend class AsyncIO;
+    using _base = detail::connected_operation_void_completed_implementation<
+        detail::connected_operation_bytes_completed_implementation<
+            detail::connected_operation_storage<
+                erased_connected_operation, Sender, Receiver>,
+            Sender, Receiver>,
+        Sender, Receiver>;
+    static_assert(
+        _base::_void_completed_enabled || _base::_bytes_completed_enabled,
+        "If Sender's result_type is neither result<void> nor "
+        "result<size_t>, it must provide a completed(result<void>) or "
+        "completed(result<size_t>) to transform a completion into the "
+        "appropriate result_type value for the Receiver.");
 
 public:
-    using sender_type = Sender;
-    using receiver_type = Receiver;
-    //! True if this connected operation state is resettable and reusable
-    static constexpr bool is_resettable = requires {
-        &sender_type::reset;
-        &receiver_type::reset;
-    };
-
-private:
-    Sender _sender;
-    Receiver _receiver;
-
-    // This will devirtualise and usually disappear entirely from codegen
-    virtual void completed(result<size_t> bytes_transferred) override
-    {
-        this->_being_executed = false;
-        if constexpr (requires(Sender x) {
-                          x.completed(
-                              this,
-                              static_cast<result<size_t> &&>(
-                                  bytes_transferred));
-                      }) {
-            _receiver.set_value(
-                this,
-                _sender.completed(
-                    this, static_cast<result<size_t> &&>(bytes_transferred)));
-        }
-        else {
-            _receiver.set_value(
-                this, static_cast<result<size_t> &&>(bytes_transferred));
-        }
-    }
-
-public:
-    connected_operation(
-        AsyncIO &io, sender_type &&sender, receiver_type &&receiver)
-        : erased_connected_operation(
-              std::is_const_v<typename Sender::buffer_type::element_type>, io)
-        , _sender(static_cast<Sender &&>(sender))
-        , _receiver(static_cast<Receiver &&>(receiver))
-    {
-    }
-    template <class... SenderArgs, class... ReceiverArgs>
-    connected_operation(
-        AsyncIO &io, std::piecewise_construct_t,
-        std::tuple<SenderArgs...> sender_args,
-        std::tuple<ReceiverArgs...> receiver_args)
-        : erased_connected_operation(Sender::is_append, io)
-        , _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
-        , _receiver(std::make_from_tuple<Receiver>(std::move(receiver_args)))
-    {
-    }
-
-    connected_operation(const connected_operation &) = delete;
-    connected_operation(connected_operation &&) = delete;
-    connected_operation &operator=(const connected_operation &) = delete;
-    connected_operation &operator=(connected_operation &&) = delete;
-    ~connected_operation() = default;
-
-    sender_type &sender() & noexcept
-    {
-        return _sender;
-    }
-    sender_type sender() && noexcept
-    {
-        return static_cast<sender_type &&>(_sender);
-    }
-    receiver_type &receiver() & noexcept
-    {
-        return _receiver;
-    }
-    receiver_type receiver() && noexcept
-    {
-        return static_cast<receiver_type &&>(_receiver);
-    }
-
-    //! Initiates the operation. If successful do NOT modify anything after this
-    //! until after completion, it may cause a silent page copy-on-write.
-    result<void> initiate() noexcept
-    {
-        this->_being_executed = true;
-        // Prevent compiler reordering write of _being_executed after this point
-        // without using actual atomics.
-        std::atomic_signal_fence(std::memory_order_release);
-        auto r = _sender(this);
-        if (!r) {
-            this->_being_executed = false;
-        }
-        return r;
-    }
-
-    //! Resets the operation state. Only available if both sender and receiver
-    //! implement `reset()`
-    template <class... SenderArgs, class... ReceiverArgs>
-        requires(is_resettable)
-    void reset(
-        std::tuple<SenderArgs...> sender_args,
-        std::tuple<ReceiverArgs...> receiver_args)
-    {
-        MONAD_ASSERT(!this->_being_executed);
-        erased_connected_operation::reset();
-        std::apply(
-            [this](auto &&...args) { _sender.reset(std::move(args)...); },
-            std::move(sender_args));
-        std::apply(
-            [this](auto &&...args) { _receiver.reset(std::move(args)...); },
-            std::move(receiver_args));
-    }
+    using _base::_base;
 };
 //! Default connect customisation point taking sender and receiver by value,
 //! requires receiver to be compatible with sender.
 template <sender Sender, receiver Receiver>
-    requires(requires(
-        Receiver r, erased_connected_operation *o,
-        typename Sender::result_type x) { r.set_value(o, std::move(x)); })
+    requires(compatible_sender_receiver<Sender, Receiver>)
+inline connected_operation<Sender, Receiver>
+connect(Sender &&sender, Receiver &&receiver)
+{
+    return connected_operation<Sender, Receiver>(
+        static_cast<Sender &&>(sender), static_cast<Receiver &&>(receiver));
+}
+//! \overload
+template <sender Sender, receiver Receiver>
+    requires(compatible_sender_receiver<Sender, Receiver>)
 inline connected_operation<Sender, Receiver>
 connect(AsyncIO &io, Sender &&sender, Receiver &&receiver)
 {
@@ -291,9 +511,22 @@ template <
     sender Sender, receiver Receiver, class... SenderArgs,
     class... ReceiverArgs>
     requires(
-        requires(
-            Receiver r, erased_connected_operation *o,
-            typename Sender::result_type x) { r.set_value(o, std::move(x)); } &&
+        compatible_sender_receiver<Sender, Receiver> &&
+        std::is_constructible_v<Sender, SenderArgs...> &&
+        std::is_constructible_v<Receiver, ReceiverArgs...>)
+inline connected_operation<Sender, Receiver> connect(
+    std::piecewise_construct_t _, std::tuple<SenderArgs...> &&sender_args,
+    std::tuple<ReceiverArgs...> &&receiver_args)
+{
+    return connected_operation<Sender, Receiver>(
+        _, std::move(sender_args), std::move(receiver_args));
+}
+//! \overload
+template <
+    sender Sender, receiver Receiver, class... SenderArgs,
+    class... ReceiverArgs>
+    requires(
+        compatible_sender_receiver<Sender, Receiver> &&
         std::is_constructible_v<Sender, SenderArgs...> &&
         std::is_constructible_v<Receiver, ReceiverArgs...>)
 inline connected_operation<Sender, Receiver> connect(
@@ -393,6 +626,21 @@ public:
 
         ::close(fds_[READ]);
         ::close(fds_[WRITE]);
+    }
+
+    unsigned io_in_flight() const noexcept
+    {
+        return records_.inflight > 0;
+    }
+
+    unsigned reads_in_flight() const noexcept
+    {
+        return records_.inflight_rd;
+    }
+
+    unsigned writes_in_flight() const noexcept
+    {
+        return records_.inflight - records_.inflight_rd;
     }
 
     // Blocks until at least one completion is processed, returning number

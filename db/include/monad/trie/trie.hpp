@@ -17,6 +17,11 @@ static const byte_string empty_trie_hash = [] {
 
 class MerkleTrie final
 {
+public:
+    class process_updates_sender;
+    friend class process_updates_sender;
+
+private:
     struct write_operation_io_receiver_;
     friend struct write_operation_io_receiver_;
     struct write_operation_io_receiver_
@@ -30,6 +35,10 @@ class MerkleTrie final
             rawstate->next() = parent->write_op_state_cache_;
             parent->write_op_state_cache_ =
                 static_cast<node_writer_unique_ptr_type_::pointer>(rawstate);
+            if (parent->current_process_updates_sender_ != nullptr) {
+                parent->current_process_updates_sender_
+                    ->notify_write_operation_completed_(rawstate);
+            }
         }
         void reset() {}
     };
@@ -45,6 +54,7 @@ class MerkleTrie final
     const bool is_account_;
 
     node_writer_unique_ptr_type_::pointer write_op_state_cache_{nullptr};
+    process_updates_sender *current_process_updates_sender_{nullptr};
 
     node_writer_unique_ptr_type_
     replace_node_writer_(size_t bytes_yet_to_be_appended_to_existing = 0)
@@ -153,33 +163,100 @@ public:
     // StateDB Interface
     ////////////////////////////////////////////////////////////////////
 
-    void process_updates(
-        monad::mpt::UpdateList &updates, uint64_t const block_id = 0)
+    class process_updates_sender
     {
-        merkle_node_ptr prev_root =
-            root_ ? std::move(root_) : get_new_merkle_node(0, 0);
+        friend struct write_operation_io_receiver_;
+        MerkleTrie *parent_;
+        monad::mpt::UpdateList &updates_;
+        uint64_t const block_id_;
 
-        Request::unique_ptr_type updateq = Request::make(std::move(updates));
-        SubRequestInfo requests;
-        updateq = updateq->split_into_subqueues(
-            std::move(updateq), &requests, /*not root*/ false);
+        erased_connected_operation *io_state_{nullptr},
+            *awaiting_block_completion_{nullptr};
+        merkle_node_ptr prev_root_;
+        tnode_t::unique_ptr_type root_tnode_;
 
-        tnode_t::unique_ptr_type root_tnode =
-            get_new_tnode(nullptr, 0, 0, nullptr);
-        root_ = do_update(prev_root.get(), requests, root_tnode.get());
+        static void all_updates_written_indirect_(tnode_t *, void *p) noexcept
+        {
+            ((process_updates_sender *)p)
+                ->notify_write_operation_completed_(nullptr);
+        }
 
-        if (io_) {
-            // after update, also need to poll until no submission left in uring
-            // and write record to the indexing part in the beginning of file
-            file_offset_t root_off =
-                flush_and_write_new_root_node(root_.get()).offset_written_to;
-            if (index_) {
-                index_->write_record(block_id, root_off);
+        // A write buffer just completed flushing, or all updates just got
+        // written (nullptr)
+        void notify_write_operation_completed_(
+            erased_connected_operation *io_state) noexcept
+        {
+            if (!root_tnode_ || root_tnode_->npending() == 0) {
+                if (parent_->io_) {
+                    if (awaiting_block_completion_ == nullptr ||
+                        awaiting_block_completion_ != io_state) {
+                        // flush() will block if there are blocks written
+                        // awaiting notification of completion. So do nothing
+                        // until those complete, we'll get called back here
+                        // every time one of those completes.
+                        if (parent_->io_->writes_in_flight() > 0) {
+                            return;
+                        }
+                        // Write out the remaining pending block of writes and
+                        // the new root node. This should not block.
+                        auto root_off = parent_->flush_and_write_new_root_node(
+                            root_tnode_->node);
+                        if (root_off.offset_written_to != INVALID_OFFSET) {
+                            if (parent_->index_) {
+                                parent_->index_->write_record(
+                                    block_id_, root_off.offset_written_to);
+                            }
+                            awaiting_block_completion_ = root_off.io_state;
+                            return;
+                        }
+                    }
+                    // We can complete now
+                    awaiting_block_completion_ = nullptr;
+                }
+                io_state_->completed(success());
             }
         }
-        // tear down previous version trie and free tnode
-        MONAD_ASSERT(!root_tnode || !root_tnode->npending);
-    }
+
+    public:
+        // Probably should become result<merkle_node_ptr> in the near future?
+        using result_type = result<merkle_node_t *>;
+
+        process_updates_sender(
+            MerkleTrie *trie, monad::mpt::UpdateList &updates,
+            uint64_t const block_id = 0)
+            : parent_(trie)
+            , updates_(updates)
+            , block_id_(block_id)
+        {
+        }
+        result<void> operator()(erased_connected_operation *io_state) noexcept
+        {
+            MONAD_ASSERT(parent_->current_process_updates_sender_ == nullptr);
+            parent_->current_process_updates_sender_ = this;
+            io_state_ = io_state;
+            prev_root_ = parent_->root_ ? std::move(parent_->root_)
+                                        : get_new_merkle_node(0, 0);
+
+            Request::unique_ptr_type updateq =
+                Request::make(std::move(updates_));
+            SubRequestInfo requests;
+            updateq = updateq->split_into_subqueues(
+                std::move(updateq), &requests, /*not root*/ false);
+
+            root_tnode_ = get_new_tnode(
+                &process_updates_sender::all_updates_written_indirect_, this);
+            parent_->root_ = parent_->do_update(
+                prev_root_.get(), requests, root_tnode_.get());
+            return success();
+        }
+        result_type completed(erased_connected_operation *, result<void> res)
+        {
+            BOOST_OUTCOME_TRY(std::move(res));
+            MONAD_ASSERT(parent_->current_process_updates_sender_ == this);
+            parent_->current_process_updates_sender_ = nullptr;
+            return parent_->root_.get();
+        }
+    };
 
     void root_hash(unsigned char *const dest)
     {
@@ -314,6 +391,7 @@ public:
     {
         file_offset_t offset_written_to;
         unsigned bytes_appended;
+        erased_connected_operation *io_state;
     };
     async_write_node_result async_write_node(merkle_node_t *node);
 
@@ -325,7 +403,7 @@ public:
     ////////////////////////////////////////////////////////////////////
 };
 
-static_assert(sizeof(MerkleTrie) == 64);
+static_assert(sizeof(MerkleTrie) == 72);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END

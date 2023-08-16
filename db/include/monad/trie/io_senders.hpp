@@ -55,6 +55,7 @@ public:
 };
 static_assert(sizeof(read_single_buffer_sender) == 24);
 static_assert(alignof(read_single_buffer_sender) == 8);
+static_assert(sender<read_single_buffer_sender>);
 
 class write_single_buffer_sender
 {
@@ -134,5 +135,6 @@ public:
 };
 static_assert(sizeof(write_single_buffer_sender) == 32);
 static_assert(alignof(write_single_buffer_sender) == 8);
+static_assert(sender<write_single_buffer_sender>);
 
 MONAD_TRIE_NAMESPACE_END

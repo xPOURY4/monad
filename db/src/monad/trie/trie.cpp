@@ -12,7 +12,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
     if (!curr_tnode) {
         return;
     }
-    while (!curr_tnode->npending && curr_tnode->parent) {
+    while (!curr_tnode->npending() && curr_tnode->parent) {
         merkle_node_t *parent = curr_tnode->parent->node;
         auto *curr = curr_tnode->node;
         uint8_t child_idx = curr_tnode->child_idx,
@@ -40,7 +40,7 @@ void MerkleTrie::upward_update_data(tnode_t *curr_tnode)
                 }
             }
         }
-        --curr_tnode->parent->npending;
+        curr_tnode->parent->decrement_npending();
         tnode_t *p = curr_tnode->parent;
         tnode_t::unique_ptr_type{curr_tnode};
         curr_tnode = p;
@@ -115,7 +115,7 @@ merkle_node_ptr MerkleTrie::do_update(
     merkle_node_ptr new_root = get_new_merkle_node(
         prev_root->valid_mask | nextlevel.mask, prev_root->path_len);
     curr_tnode->node = new_root.get();
-    curr_tnode->npending = new_root->size();
+    curr_tnode->set_npending(new_root->size());
 
     // Can do better with bit op loop
     for (uint16_t i = 0, bit = 1, child_idx = 0; i < 16; ++i, bit <<= 1) {
@@ -136,7 +136,7 @@ merkle_node_ptr MerkleTrie::do_update(
                     prev_root->children()[merkle_child_index(prev_root, i)];
                 new_root->children()[child_idx] = std::move(prev_child);
                 // only 1 ref per node for now
-                --curr_tnode->npending;
+                curr_tnode->decrement_npending();
             }
             ++child_idx;
         }
@@ -147,7 +147,7 @@ merkle_node_ptr MerkleTrie::do_update(
                 new_root.get(),
                 child_idx++,
                 std::move(nextlevel)[i]); // responsible to free nextlevel[i]
-            --curr_tnode->npending;
+            curr_tnode->decrement_npending();
         }
     }
     return new_root;
@@ -275,7 +275,7 @@ void MerkleTrie::update_trie(
                     updates->get_only_leaf().opt.value().val,
                     is_account_);
             }
-            --parent_tnode->npending;
+            parent_tnode->decrement_npending();
             updates.reset();
             return;
         }
@@ -321,7 +321,7 @@ void MerkleTrie::update_trie(
                         new_child_ni,
                         new_branch_arr_i,
                         new_branch.get());
-                    branch_tnode->npending = 1;
+                    branch_tnode->set_npending(1);
                     // go down next level in prev trie
                     updates->prev_parent = prev_node;
                     updates->prev_child_i =
@@ -401,7 +401,7 @@ void MerkleTrie::update_trie(
                         }
                         else {
                             if (has_ni_branch) {
-                                branch_tnode->npending = 1;
+                                branch_tnode->set_npending(1);
                                 // move to next level update sublist under
                                 // next_nibble
                                 nextlevel[next_nibble]->prev_parent =
@@ -470,7 +470,7 @@ void MerkleTrie::update_trie(
     if (new_branch_ptr != nullptr) {
         new_branch_ptr->path_len = pi;
         if (branch_tnode) {
-            if (branch_tnode->npending) {
+            if (branch_tnode->npending()) {
                 // @Vicky: Why do we need to drop managed ownership of this?
                 // Can't we store it somewhere for the i/o completion
                 // callback to pick up?
@@ -501,7 +501,7 @@ void MerkleTrie::update_trie(
             }
         }
     }
-    --parent_tnode->npending;
+    parent_tnode->decrement_npending();
     return;
 }
 
@@ -512,7 +512,9 @@ MerkleTrie::async_write_node(merkle_node_t *node)
     auto *sender = &node_writer_->sender();
     const auto size = get_disk_node_size(node);
     const async_write_node_result ret{
-        sender->offset() + sender->written_buffer_bytes(), size};
+        sender->offset() + sender->written_buffer_bytes(),
+        size,
+        node_writer_.get()};
     const auto remaining_bytes = sender->remaining_buffer_bytes();
     [[likely]] if (size <= remaining_bytes) {
         auto *where_to_serialize = sender->advance_buffer_append(size);
@@ -549,7 +551,7 @@ MerkleTrie::flush_and_write_new_root_node(merkle_node_t *root)
 {
     io_->flush();
     if (!root->valid_mask) {
-        return {INVALID_OFFSET, 0};
+        return {INVALID_OFFSET, 0, nullptr};
     }
     auto ret = async_write_node(root);
     // Round up with all bits zero
