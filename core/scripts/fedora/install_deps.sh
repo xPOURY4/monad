@@ -1,6 +1,8 @@
 #!/bin/bash
 
 yum -y install \
+  abseil-cpp \
+  abseil-cpp-debuginfo \
   gmock \
   gmock-debuginfo \
   google-benchmark \

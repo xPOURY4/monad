@@ -9,6 +9,7 @@ option(MONAD_FUZZTEST OFF)
 # ##############################################################################
 
 include("cmake/find_dependency.cmake")
+find_dependency(absl REQUIRED)
 find_dependency(mimalloc REQUIRED)
 
 set(ETHASH_TESTING NO)
