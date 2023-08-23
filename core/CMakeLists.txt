@@ -24,6 +24,8 @@ add_subdirectory("third_party/optional" SYSTEM)
 
 add_subdirectory("third_party/nlohmann_json" SYSTEM)
 
+add_subdirectory("third_party/unordered_dense")
+
 if(MONAD_FUZZTEST)
   if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(ANTLR_BUILD_CPP_TESTS OFF)
