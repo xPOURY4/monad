@@ -1,9 +1,10 @@
 #include <variant>
 
 #include <monad/trie/encode_node.hpp>
-#include <monad/trie/io_senders.hpp>
 #include <monad/trie/trie.hpp>
 #include <monad/trie/util.hpp>
+
+#include <monad/async/io_senders.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 
@@ -186,12 +187,12 @@ struct update_receiver
     }
 
     void set_value(
-        erased_connected_operation *rawstate,
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
         result<std::span<const std::byte>> _buffer)
     {
         assert(updates);
         // Re-adopt ownership of operation state
-        erased_connected_operation_ptr state(rawstate);
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation_ptr state(rawstate);
         MONAD_ASSERT(_buffer);
         std::span<const std::byte> buffer = std::move(_buffer).assume_value();
         // construct the node from the read buffer
@@ -215,10 +216,10 @@ struct update_receiver
         // when state destructs, i/o buffer is released for reuse
     }
 };
-struct read_update_sender : read_single_buffer_sender
+struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 {
     read_update_sender(const update_receiver &receiver)
-        : read_single_buffer_sender(
+        : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender(
               receiver.offset, {(std::byte *)nullptr /*set by AsyncIO for us*/,
                                 receiver.bytes_to_read})
     {

@@ -15,6 +15,16 @@ find_package(GTest)
 ############
 ### libs
 ############
+add_library(monad_async STATIC
+     "${PROJECT_SOURCE_DIR}/src/monad/async/io.cpp"
+     "${PROJECT_SOURCE_DIR}/src/monad/async/util.cpp"
+)
+target_include_directories(monad_async
+    PUBLIC "${PROJECT_SOURCE_DIR}/include"
+)
+monad_compile_options(monad_async)
+target_link_libraries(monad_async PUBLIC monad_core)
+
 add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
@@ -23,19 +33,14 @@ add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/update.cpp"
 
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/util.hpp"
-
     "${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/io.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/io_senders.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/request.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp"
 
-    "${PROJECT_SOURCE_DIR}/src/monad/trie/io.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/trie/node_helper.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/trie/request.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/trie/trie.cpp"
@@ -48,7 +53,7 @@ target_include_directories(monad_trie
 monad_compile_options(monad_trie)
 
 target_link_libraries(monad_trie PRIVATE Boost::boost)
-target_link_libraries(monad_trie PUBLIC monad_core)
+target_link_libraries(monad_trie PUBLIC monad_async)
 
 add_library(monad_trie_disas SHARED
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/node_disas.cpp"

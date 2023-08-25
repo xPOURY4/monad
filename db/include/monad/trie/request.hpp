@@ -1,5 +1,6 @@
 #pragma once
 
+#include <monad/trie/config.hpp>
 #include <monad/trie/util.hpp>
 
 #include <monad/mpt/update.hpp>

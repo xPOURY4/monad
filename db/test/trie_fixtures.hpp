@@ -12,6 +12,7 @@
 
 using namespace monad::trie;
 using namespace monad::mpt;
+using MONAD_ASYNC_NAMESPACE::connect;
 
 template <bool IS_ACCOUNT>
 struct on_disk_trie_fixture_t : public testing::Test
@@ -31,15 +32,16 @@ public:
     on_disk_trie_fixture_t()
         : ring(monad::io::Ring(2, 0))
         , rwbuf(monad::io::Buffers(
-              ring, 2, 2, AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-              AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE))
+              ring, 2, 2,
+              MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+              MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE))
         , trie([&, this] {
             auto index = std::make_shared<index_t>(use_anonymous_inode_tag{});
             return MerkleTrie(
                 IS_ACCOUNT,
                 index->get_start_offset(),
                 nullptr,
-                std::make_shared<AsyncIO>(
+                std::make_shared<MONAD_ASYNC_NAMESPACE::AsyncIO>(
                     use_anonymous_inode_tag{}, ring, rwbuf),
                 index,
                 5);
@@ -57,7 +59,8 @@ public:
         {
             std::optional<merkle_node_t *> res;
             void set_value(
-                erased_connected_operation *, result<merkle_node_t *> res_)
+                MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                result<merkle_node_t *> res_)
             {
                 MONAD_ASSERT(res_);
                 res = std::move(res_).assume_value();
@@ -79,7 +82,8 @@ public:
         {
             std::optional<merkle_node_t *> res;
             void set_value(
-                erased_connected_operation *, result<merkle_node_t *> res_)
+                MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                result<merkle_node_t *> res_)
             {
                 MONAD_ASSERT(res_);
                 res = std::move(res_).assume_value();
@@ -124,7 +128,8 @@ struct in_memory_trie_fixture_t : public testing::Test
         {
             std::optional<merkle_node_t *> res;
             void set_value(
-                erased_connected_operation *, result<merkle_node_t *> res_)
+                MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                result<merkle_node_t *> res_)
             {
                 MONAD_ASSERT(res_);
                 res = std::move(res_).assume_value();
@@ -142,7 +147,8 @@ struct in_memory_trie_fixture_t : public testing::Test
         {
             std::optional<merkle_node_t *> res;
             void set_value(
-                erased_connected_operation *, result<merkle_node_t *> res_)
+                MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                result<merkle_node_t *> res_)
             {
                 MONAD_ASSERT(res_);
                 res = std::move(res_).assume_value();

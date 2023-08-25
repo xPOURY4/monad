@@ -4,11 +4,26 @@
 #include <monad/core/hex_literal.hpp>
 #include <monad/trie/config.hpp>
 #include <monad/trie/index.hpp>
-#include <monad/trie/io_senders.hpp>
+#include <monad/trie/node_helper.hpp>
 #include <monad/trie/request.hpp>
 #include <monad/trie/tnode.hpp>
 
+#include <monad/async/io.hpp>
+#include <monad/async/io_senders.hpp>
+
 MONAD_TRIE_NAMESPACE_BEGIN
+
+static_assert(
+    MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE >=
+        round_up_align<DISK_PAGE_BITS>(
+            uint16_t(MAX_DISK_NODE_SIZE + DISK_PAGE_SIZE)),
+    "AsyncIO::READ_BUFFER_SIZE needs to be raised");
+template <class T>
+using result = MONAD_ASYNC_NAMESPACE::result<T>;
+using MONAD_ASYNC_NAMESPACE::errc;
+using MONAD_ASYNC_NAMESPACE::failure;
+using MONAD_ASYNC_NAMESPACE::posix_code;
+using MONAD_ASYNC_NAMESPACE::success;
 
 static const byte_string empty_trie_hash = [] {
     using namespace ::monad::literals;
@@ -28,7 +43,7 @@ private:
     {
         MerkleTrie *parent{nullptr};
         void set_value(
-            erased_connected_operation *rawstate,
+            MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
             result<std::span<const std::byte>> res)
         {
             MONAD_ASSERT(res);
@@ -43,11 +58,12 @@ private:
         void reset() {}
     };
     using node_writer_unique_ptr_type_ =
-        AsyncIO::connected_operation_unique_ptr_type<
-            write_single_buffer_sender, write_operation_io_receiver_>;
+        MONAD_ASYNC_NAMESPACE::AsyncIO::connected_operation_unique_ptr_type<
+            MONAD_ASYNC_NAMESPACE::write_single_buffer_sender,
+            write_operation_io_receiver_>;
 
     merkle_node_ptr root_;
-    std::shared_ptr<AsyncIO> io_;
+    std::shared_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> io_;
     node_writer_unique_ptr_type_ node_writer_;
     std::shared_ptr<index_t> index_;
     const int cache_levels_;
@@ -70,14 +86,16 @@ private:
             sender.reset(
                 ret->sender().offset() + ret->sender().written_buffer_bytes() +
                     bytes_yet_to_be_appended_to_existing,
-                {sender.buffer().data(), AsyncIO::WRITE_BUFFER_SIZE});
+                {sender.buffer().data(),
+                 MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE});
             return ret;
         }
         node_writer_ = io_->make_connected(
-            write_single_buffer_sender{
+            MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
                 ret->sender().offset() + ret->sender().written_buffer_bytes() +
                     bytes_yet_to_be_appended_to_existing,
-                {(const std::byte *)nullptr, AsyncIO::WRITE_BUFFER_SIZE}},
+                {(const std::byte *)nullptr,
+                 MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
             write_operation_io_receiver_{this});
         return ret;
     }
@@ -85,16 +103,18 @@ private:
 public:
     MerkleTrie(
         bool const is_account, file_offset_t block_off,
-        merkle_node_ptr root = {}, std::shared_ptr<AsyncIO> io = {},
+        merkle_node_ptr root = {},
+        std::shared_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> io = {},
         std::shared_ptr<index_t> index = {}, int cache_levels = 5)
         : root_(std::move(root))
         , io_(std::move(io))
         , node_writer_(
               io_ ? io_->make_connected(
-                        write_single_buffer_sender{
+                        MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
                             round_up_align<DISK_PAGE_BITS>(block_off),
                             {(const std::byte *)nullptr,
-                             AsyncIO::WRITE_BUFFER_SIZE}},
+                             MONAD_ASYNC_NAMESPACE::AsyncIO::
+                                 WRITE_BUFFER_SIZE}},
                         write_operation_io_receiver_{this})
                   : node_writer_unique_ptr_type_{})
         , index_(std::move(index))
@@ -105,18 +125,19 @@ public:
 
     MerkleTrie(
         bool const is_account, file_offset_t const root_off,
-        std::shared_ptr<AsyncIO> io, std::shared_ptr<index_t> index = {},
-        int cache_levels = 5)
+        std::shared_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> io,
+        std::shared_ptr<index_t> index = {}, int cache_levels = 5)
         : root_(
               root_off == INVALID_OFFSET ? get_new_merkle_node(0, 0)
                                          : read_node(io->get_rd_fd(), root_off))
         , io_(std::move(io))
         , node_writer_(
               io_ ? io_->make_connected(
-                        write_single_buffer_sender{
+                        MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
                             round_up_align<DISK_PAGE_BITS>(root_off),
                             {(const std::byte *)nullptr,
-                             AsyncIO::WRITE_BUFFER_SIZE}},
+                             MONAD_ASYNC_NAMESPACE::AsyncIO::
+                                 WRITE_BUFFER_SIZE}},
                         write_operation_io_receiver_{this})
                   : node_writer_unique_ptr_type_{})
         , index_(std::move(index))
@@ -170,7 +191,7 @@ public:
         monad::mpt::UpdateList &updates_;
         uint64_t const block_id_;
 
-        erased_connected_operation *io_state_{nullptr},
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state_{nullptr},
             *awaiting_block_completion_{nullptr};
         merkle_node_ptr prev_root_;
         tnode_t::unique_ptr_type root_tnode_;
@@ -184,7 +205,8 @@ public:
         // A write buffer just completed flushing, or all updates just got
         // written (nullptr)
         void notify_write_operation_completed_(
-            erased_connected_operation *io_state) noexcept
+            MONAD_ASYNC_NAMESPACE::erased_connected_operation
+                *io_state) noexcept
         {
             if (!root_tnode_ || root_tnode_->npending() == 0) {
                 if (parent_->io_) {
@@ -229,7 +251,9 @@ public:
             , block_id_(block_id)
         {
         }
-        result<void> operator()(erased_connected_operation *io_state) noexcept
+        result<void>
+        operator()(MONAD_ASYNC_NAMESPACE::erased_connected_operation
+                       *io_state) noexcept
         {
             MONAD_ASSERT(parent_->current_process_updates_sender_ == nullptr);
             parent_->current_process_updates_sender_ = this;
@@ -249,7 +273,9 @@ public:
                 prev_root_.get(), requests, root_tnode_.get());
             return success();
         }
-        result_type completed(erased_connected_operation *, result<void> res)
+        result_type completed(
+            MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+            result<void> res)
         {
             BOOST_OUTCOME_TRY(std::move(res));
             MONAD_ASSERT(parent_->current_process_updates_sender_ == this);
@@ -372,7 +398,7 @@ public:
         return root_.get();
     }
 
-    AsyncIO &get_io() const
+    MONAD_ASYNC_NAMESPACE::AsyncIO &get_io() const
     {
         return *io_;
     }
@@ -391,7 +417,7 @@ public:
     {
         file_offset_t offset_written_to;
         unsigned bytes_appended;
-        erased_connected_operation *io_state;
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
     };
     async_write_node_result async_write_node(merkle_node_t *node);
 

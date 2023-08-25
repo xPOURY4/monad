@@ -1,13 +1,11 @@
 #include "gtest/gtest.h"
 
-#include "monad/trie/io_senders.hpp"
-#include "monad/trie/small_prng.hpp"
+#include "monad/async/io_senders.hpp"
+#include "monad/async/small_prng.hpp"
 
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future.hpp>
 #include <boost/outcome/coroutine_support.hpp>
-
-#include <fcntl.h>
 
 #include <array>
 #include <chrono>
@@ -18,7 +16,7 @@
 
 namespace
 {
-    using namespace MONAD_TRIE_NAMESPACE;
+    using namespace MONAD_ASYNC_NAMESPACE;
     static constexpr size_t TEST_FILE_SIZE = 1024 * 1024;
     static constexpr size_t MAX_CONCURRENCY = 4;
     static const std::vector<std::byte> testfilecontents = [] {
@@ -129,6 +127,61 @@ namespace
             return _states[idx]->receiver();
         }
     };
+
+    TEST(AsyncIO, timed_delay_sender_receiver)
+    {
+        auto check = [](const char *desc, auto &&get_now, auto timeout) {
+            struct receiver_t
+            {
+                bool done{false};
+                void set_value(erased_connected_operation *, result<void> res)
+                {
+                    ASSERT_TRUE(res);
+                    done = true;
+                }
+            };
+            auto state =
+                connect(*testio, timed_delay_sender(timeout), receiver_t{});
+            std::cout << "   " << desc << " ..." << std::endl;
+            auto begin = get_now();
+            ASSERT_TRUE(state.initiate());
+            while (!state.receiver().done) {
+                testio->poll_blocking(1);
+            }
+            auto end = get_now();
+            std::cout << "      io_uring waited for "
+                      << (std::chrono::duration_cast<std::chrono::microseconds>(
+                              end - begin)
+                              .count() /
+                          1000.0)
+                      << " ms." << std::endl;
+            if constexpr (requires { timeout.count(); }) {
+                auto diff = end - begin;
+                EXPECT_GE(diff, timeout);
+                EXPECT_LT(diff, timeout + std::chrono::milliseconds(100));
+            }
+            else {
+                EXPECT_GE(end, timeout);
+                EXPECT_LT(end, timeout + std::chrono::milliseconds(100));
+            }
+        };
+        check(
+            "Relative delay",
+            [] { return std::chrono::steady_clock::now(); },
+            std::chrono::milliseconds(100));
+        check(
+            "Absolute monotonic deadline",
+            [] { return std::chrono::steady_clock::now(); },
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(100));
+        check(
+            "Absolute UTC deadline",
+            [] { return std::chrono::system_clock::now(); },
+            std::chrono::system_clock::now() + std::chrono::milliseconds(100));
+        check(
+            "Instant",
+            [] { return std::chrono::steady_clock::now(); },
+            std::chrono::milliseconds(0));
+    }
 
     /* A receiver which just immediately asks the sender
     to reinitiate the i/o. This test models traditional

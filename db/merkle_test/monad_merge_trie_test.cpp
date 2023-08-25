@@ -11,9 +11,9 @@
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
+#include <monad/async/io.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/trie/index.hpp>
-#include <monad/trie/io.hpp>
 #include <monad/trie/node_helper.hpp>
 #include <monad/trie/trie.hpp>
 
@@ -75,13 +75,15 @@ inline void batch_upsert_commit(
     struct receiver_t
     {
         std::optional<merkle_node_t *> res;
-        void
-        set_value(erased_connected_operation *, result<merkle_node_t *> res_)
+        void set_value(
+            MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+            result<merkle_node_t *> res_)
         {
             MONAD_ASSERT(res_);
             res = std::move(res_).assume_value();
         }
     };
+    using MONAD_ASYNC_NAMESPACE::connect;
     auto state = connect(
         MerkleTrie::process_updates_sender(&trie, updates, block_id),
         receiver_t{});
@@ -183,8 +185,8 @@ int main(int argc, char *argv[])
             ring,
             256,
             16,
-            AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
         // init indexer
         auto index = std::make_shared<index_t>(dbname_path);
@@ -206,7 +208,8 @@ int main(int argc, char *argv[])
             block_off = index->get_start_offset();
             root = get_new_merkle_node(0, 0);
         }
-        auto io = std::make_shared<AsyncIO>(dbname_path, ring, rwbuf);
+        auto io = std::make_shared<MONAD_ASYNC_NAMESPACE::AsyncIO>(
+            dbname_path, ring, rwbuf);
 
         MerkleTrie trie(
             false, block_off, std::move(root), std::move(io), std::move(index));

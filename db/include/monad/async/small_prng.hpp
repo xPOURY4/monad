@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-MONAD_TRIE_NAMESPACE_BEGIN
+MONAD_ASYNC_NAMESPACE_BEGIN
 
 /*! \class small_prng
 \brief From http://burtleburtle.net/bob/rand/smallprng.html, a not awful fast
@@ -33,8 +33,9 @@ public:
         , c(seed)
         , d(seed)
     {
-        for (size_t i = 0; i < 20; ++i)
+        for (size_t i = 0; i < 20; ++i) {
             (*this)();
+        }
     }
 
     //! Return `value_type` of pseudo-randomness
@@ -49,4 +50,4 @@ public:
     }
 };
 
-MONAD_TRIE_NAMESPACE_END
+MONAD_ASYNC_NAMESPACE_END

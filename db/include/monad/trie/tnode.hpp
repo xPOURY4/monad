@@ -1,10 +1,9 @@
 #pragma once
 
 #include <monad/trie/config.hpp>
+#include <monad/trie/node.hpp>
 
 #include <monad/mem/allocators.hpp>
-#include <monad/trie/io.hpp>
-#include <monad/trie/node.hpp>
 
 MONAD_TRIE_NAMESPACE_BEGIN
 // helper struct: node of a upward pointing tree

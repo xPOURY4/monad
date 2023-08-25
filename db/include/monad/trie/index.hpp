@@ -87,7 +87,7 @@ public:
     {
     }
     explicit Index(use_anonymous_inode_tag)
-        : Index(make_temporary_inode())
+        : Index(MONAD_ASYNC_NAMESPACE::make_temporary_inode())
     {
     }
 
@@ -145,7 +145,7 @@ public:
             // map mmap_block_ to a new one
             if (mmap_block_) {
                 MONAD_ASSERT(block_start_off_);
-                MONAD_ASSERT(!munmap(mmap_block_, PAGE_SIZE));
+                MONAD_ASSERT(!munmap(mmap_block_, CPU_PAGE_SIZE));
                 mmap_block_ = nullptr;
             }
             block_start_off_ = new_block_start_off;

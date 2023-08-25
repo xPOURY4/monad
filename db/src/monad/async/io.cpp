@@ -1,6 +1,37 @@
-#include <monad/trie/io.hpp>
+#include <monad/async/io.hpp>
 
-MONAD_TRIE_NAMESPACE_BEGIN
+#include <fcntl.h>
+
+MONAD_ASYNC_NAMESPACE_BEGIN
+
+AsyncIO::AsyncIO(
+    const std::filesystem::path &p, monad::io::Ring &ring,
+    monad::io::Buffers &rwbuf)
+    : AsyncIO(
+          [&p]() -> std::pair<int, int> {
+              int fds[2];
+              // append only file descriptor
+              fds[WRITE] =
+                  ::open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0600);
+              // read only file descriptor
+              fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT);
+              return {fds[0], fds[1]};
+          }(),
+          ring, rwbuf)
+{
+}
+
+AsyncIO::~AsyncIO()
+{
+    wait_until_done();
+    MONAD_ASSERT(!records_.inflight);
+
+    MONAD_ASSERT(
+        !io_uring_unregister_files(const_cast<io_uring *>(&uring_.get_ring())));
+
+    ::close(fds_[READ]);
+    ::close(fds_[WRITE]);
+}
 
 void AsyncIO::submit_request(
     std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
@@ -45,6 +76,25 @@ void AsyncIO::submit_request(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
+void AsyncIO::submit_request(timed_invocation_state *state, void *uring_data)
+{
+    struct io_uring_sqe *sqe =
+        io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
+    MONAD_ASSERT(sqe);
+
+    unsigned flags = 0;
+    if (state->timespec_is_absolute) {
+        flags |= IORING_TIMEOUT_ABS;
+    }
+    if (state->timespec_is_utc_clock) {
+        flags |= IORING_TIMEOUT_REALTIME;
+    }
+    io_uring_prep_timeout(sqe, &state->ts, unsigned(-1), flags);
+
+    io_uring_sqe_set_data(sqe, uring_data);
+    MONAD_ASSERT(
+        io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
+}
 
 bool AsyncIO::poll_uring(bool blocking)
 {
@@ -72,11 +122,14 @@ bool AsyncIO::poll_uring(bool blocking)
     cqe = nullptr;
 
     --records_.inflight;
-    if (!state->is_write()) {
+    if (state->is_read()) {
         --records_.inflight_rd;
+    }
+    else if (state->is_write()) {
+        --records_.inflight_wr;
     }
     state->completed(std::move(res));
     return true;
 }
 
-MONAD_TRIE_NAMESPACE_END
+MONAD_ASYNC_NAMESPACE_END
