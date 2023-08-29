@@ -87,7 +87,7 @@ inline void batch_upsert_commit(
     auto state = connect(
         MerkleTrie::process_updates_sender(&trie, updates, block_id),
         receiver_t{});
-    MONAD_ASSERT(state.initiate());
+    state.initiate();
     while (!state.receiver().res) {
         trie.get_io().flush();
     }
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
         // TODO: pass in a preallocated memory
         monad::io::Buffers rwbuf{
             ring,
-            256,
+            8192,
             16,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};

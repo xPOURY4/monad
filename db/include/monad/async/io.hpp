@@ -25,10 +25,10 @@ class read_single_buffer_sender;
 // helper struct that records IO stats
 struct IORecord
 {
-    unsigned inflight{0};
     unsigned inflight_rd{0};
     unsigned inflight_wr{0};
-    unsigned nreads{0};
+    unsigned inflight_tm{0};
+    unsigned nreads{0}; // Reads done since last `flush()`
 };
 
 class AsyncIO final
@@ -50,14 +50,15 @@ private:
     // IO records
     IORecord records_;
 
-    void submit_request(
+    void _submit_request(
         std::span<std::byte> buffer, file_offset_t offset, void *uring_data);
-    void submit_request(
+    void _submit_request(
         std::span<const std::byte> buffer, file_offset_t offset,
         void *uring_data);
-    void submit_request(timed_invocation_state *state, void *uring_data);
+    void _submit_request(timed_invocation_state *state, void *uring_data);
 
-    bool poll_uring(bool blocking);
+    void _poll_uring_while_submission_queue_full();
+    bool _poll_uring(bool blocking);
 
 public:
     AsyncIO(
@@ -97,7 +98,8 @@ public:
 
     unsigned io_in_flight() const noexcept
     {
-        return records_.inflight;
+        return records_.inflight_rd + records_.inflight_wr +
+               records_.inflight_tm;
     }
 
     unsigned reads_in_flight() const noexcept
@@ -110,13 +112,20 @@ public:
         return records_.inflight_wr;
     }
 
+    unsigned timers_in_flight() const noexcept
+    {
+        return records_.inflight_tm;
+    }
+
     // Blocks until at least one completion is processed, returning number
     // of completions processed.
     size_t poll_blocking(size_t count = 1)
     {
         size_t n = 0;
-        for (; n < count && records_.inflight > 0; n++) {
-            poll_uring(n == 0);
+        for (; n < count; n++) {
+            if (!_poll_uring(n == 0)) {
+                break;
+            }
         }
         return n;
     }
@@ -125,8 +134,8 @@ public:
     size_t poll_nonblocking(size_t count = size_t(-1))
     {
         size_t n = 0;
-        for (; n < count && records_.inflight > 0; n++) {
-            if (!poll_uring(false)) {
+        for (; n < count; n++) {
+            if (!_poll_uring(false)) {
                 break;
             }
         }
@@ -135,7 +144,9 @@ public:
 
     void wait_until_done()
     {
-        poll_blocking(size_t(-1));
+        while (io_in_flight() > 0) {
+            poll_blocking(size_t(-1));
+        }
     }
 
     void flush()
@@ -147,13 +158,7 @@ public:
     void submit_read_request(
         std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
     {
-        // get io_uring sqe, if no available entry, wait on poll() to reap
-        // some
-        while (records_.inflight >= uring_.get_sq_entries()) {
-            poll_uring(true);
-        }
-        submit_request(buffer, offset, uring_data);
-        ++records_.inflight;
+        _submit_request(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;
     }
@@ -167,13 +172,7 @@ public:
         std::span<const std::byte> buffer, file_offset_t offset,
         void *uring_data)
     {
-        // get io_uring sqe, if no available entry, wait on poll() to reap
-        // some
-        while (records_.inflight >= uring_.get_sq_entries()) {
-            poll_uring(true);
-        }
-        submit_request(buffer, offset, uring_data);
-        ++records_.inflight;
+        _submit_request(buffer, offset, uring_data);
         ++records_.inflight_wr;
     }
 
@@ -190,13 +189,8 @@ public:
     void submit_timed_invocation_request(
         timed_invocation_state *info, void *uring_data)
     {
-        // get io_uring sqe, if no available entry, wait on poll() to reap
-        // some
-        while (records_.inflight >= uring_.get_sq_entries()) {
-            poll_uring(true);
-        }
-        submit_request(info, uring_data);
-        ++records_.inflight;
+        _submit_request(info, uring_data);
+        ++records_.inflight_tm;
     }
 
     /* This isn't the ideal place to put this, but only AsyncIO knows how to

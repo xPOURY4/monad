@@ -6,6 +6,65 @@ MONAD_ASYNC_NAMESPACE_BEGIN
 
 namespace detail
 {
+    struct AsyncIO_per_thread_state_t
+    {
+        int within_completions_count{0};
+        struct
+        {
+            erased_connected_operation *first{nullptr}, *last{nullptr};
+        } pending_initiations;
+
+        struct within_completions_holder;
+        within_completions_holder enter_completions();
+        bool am_within_completions() const noexcept
+        {
+            assert(within_completions_count >= 0);
+            return within_completions_count > 0;
+        }
+        bool if_within_completions_add_to_pending_initiations(
+            erased_connected_operation *op)
+        {
+            op->next() = nullptr;
+            if (!am_within_completions()) {
+                within_completions_reached_zero();
+                return false;
+            }
+            if (pending_initiations.first == nullptr) {
+                pending_initiations.first = pending_initiations.last = op;
+                return true;
+            }
+            assert(pending_initiations.last->next() == nullptr);
+            pending_initiations.last->next() = op;
+            pending_initiations.last = op;
+            return true;
+        }
+        void within_completions_reached_zero()
+        {
+            if (pending_initiations.first != nullptr) {
+                within_completions_count++;
+                auto *original_last = pending_initiations.last;
+                while (pending_initiations.first != nullptr) {
+                    erased_connected_operation *op = pending_initiations.first;
+                    pending_initiations.first =
+                        pending_initiations.first->next();
+                    if (pending_initiations.first == nullptr) {
+                        pending_initiations.last = nullptr;
+                    }
+                    op->_do_possibly_deferred_initiate(true);
+                    if (op == original_last) {
+                        // Prevent infinite loops caused by initiations adding
+                        // more stuff to pending initiations
+                        break;
+                    }
+                }
+                within_completions_count--;
+            }
+        }
+    };
+    // Implemented in io.cpp
+    extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
+    AsyncIO_per_thread_state();
+
     template <class Base, sender Sender, receiver Receiver>
     struct connected_operation_storage : public Base
     {
@@ -20,10 +79,16 @@ namespace detail
         virtual void completed(result<size_t> res) override
         {
             // Decay to the void type
-            completed(result<void>(std::move(res).as_failure()));
+            if (!res) {
+                completed(result<void>(std::move(res).as_failure()));
+            }
+            else {
+                completed(result<void>(success()));
+            }
         }
 
     public:
+        using initiation_result = typename Base::initiation_result;
         using sender_type = Sender;
         using receiver_type = Receiver;
         //! True if this connected operation state is resettable and reusable
@@ -54,6 +119,27 @@ namespace detail
                         unknown;
                 }
             }();
+
+        virtual initiation_result
+        _do_possibly_deferred_initiate(bool never_defer) noexcept override
+        {
+            this->_being_executed = true;
+            // Prevent compiler reordering write of _being_executed after this
+            // point without using actual atomics.
+            std::atomic_signal_fence(std::memory_order_release);
+            if (!never_defer &&
+                AsyncIO_per_thread_state()
+                    .if_within_completions_add_to_pending_initiations(this)) {
+                return initiation_result::deferred;
+            }
+            auto r = _sender(this);
+            if (!r) {
+                this->_being_executed = false;
+                completed(std::move(r));
+                return initiation_result::initiation_failed_told_receiver;
+            }
+            return initiation_result::initiation_success;
+        }
 
     public:
         connected_operation_storage(
@@ -132,20 +218,14 @@ namespace detail
                    erased_connected_operation::_operation_type_t::write;
         }
 
-        //! Initiates the operation. If successful do NOT modify anything after
+        //! Initiates the operation, calling the Receiver with any failure,
+        //! returning if deferred or if immediate failure occurred.
+        //! If successful do NOT modify anything after
         //! this until after completion, it may cause a silent page
         //! copy-on-write.
-        result<void> initiate() noexcept
+        initiation_result initiate() noexcept
         {
-            this->_being_executed = true;
-            // Prevent compiler reordering write of _being_executed after this
-            // point without using actual atomics.
-            std::atomic_signal_fence(std::memory_order_release);
-            auto r = _sender(this);
-            if (!r) {
-                this->_being_executed = false;
-            }
-            return r;
+            return this->_do_possibly_deferred_initiate(false);
         }
 
         //! Resets the operation state. Only available if both sender and

@@ -88,7 +88,7 @@ namespace
         {
             _test_is_done = false;
             for (auto &i : _states) {
-                ASSERT_TRUE(i->initiate());
+                i->initiate();
             }
             _op_count = _states.size();
         }
@@ -109,10 +109,7 @@ namespace
                     test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
                 state->reset(
                     std::tuple{offset, state->sender().buffer()}, std::tuple{});
-                if (!state->initiate()) {
-                    // Can't use ASSERT_TRUE() here, it is not coroutine aware
-                    abort();
-                }
+                state->initiate();
                 _op_count++;
                 return true;
             }
@@ -144,7 +141,7 @@ namespace
                 connect(*testio, timed_delay_sender(timeout), receiver_t{});
             std::cout << "   " << desc << " ..." << std::endl;
             auto begin = get_now();
-            ASSERT_TRUE(state.initiate());
+            state.initiate();
             while (!state.receiver().done) {
                 testio->poll_blocking(1);
             }
@@ -383,4 +380,57 @@ namespace
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
 
+    TEST(AsyncIO, stack_overflow_avoided)
+    {
+        static constexpr size_t COUNT = 100000;
+        struct receiver_t;
+        static std::vector<std::unique_ptr<erased_connected_operation>> ops;
+        static unsigned stack_depth = 0, counter = 0,
+                        last_receiver_count = unsigned(-1);
+        ops.reserve(COUNT);
+        struct receiver_t
+        {
+            unsigned count;
+            void set_value(erased_connected_operation *, result<void> res)
+            {
+                static thread_local unsigned stack_level = 0;
+                ASSERT_TRUE(res);
+                // Ensure receivers are invoked in exact order of initiation
+                ASSERT_EQ(last_receiver_count + 1, count);
+                last_receiver_count = count;
+                if (ops.size() < COUNT) {
+                    // Initiate another two operations to create a combinatorial
+                    // explosion
+                    using unique_ptr_type =
+                        AsyncIO::connected_operation_unique_ptr_type<
+                            timed_delay_sender,
+                            receiver_t>;
+                    auto initiate = [] {
+                        unique_ptr_type p(
+                            new unique_ptr_type::element_type(connect(
+                                *testio,
+                                timed_delay_sender(std::chrono::seconds(0)),
+                                receiver_t{counter++})));
+                        p->initiate();
+                        ops.push_back(
+                            std::unique_ptr<erased_connected_operation>(
+                                p.release()));
+                    };
+                    if (stack_level > stack_depth) {
+                        std::cout << "Stack depth reaches " << stack_level
+                                  << std::endl;
+                        stack_depth = stack_level;
+                    }
+                    EXPECT_LT(stack_level, 2);
+                    stack_level++;
+                    initiate();
+                    initiate();
+                    stack_level--;
+                }
+            }
+        };
+        receiver_t{counter++}.set_value(nullptr, success());
+        testio->wait_until_done();
+        EXPECT_GE(ops.size(), COUNT);
+    }
 }

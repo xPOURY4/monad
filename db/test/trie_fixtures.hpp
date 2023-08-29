@@ -69,7 +69,7 @@ public:
         auto state = connect(
             MerkleTrie::process_updates_sender(&trie, updates, block_id),
             receiver_t{});
-        ASSERT_TRUE(state.initiate());
+        state.initiate();
         while (!state.receiver().res) {
             ASSERT_TRUE(trie.get_io().io_in_flight() > 0);
             trie.get_io().flush();
@@ -92,7 +92,7 @@ public:
         auto state = connect(
             MerkleTrie::process_updates_sender(&trie, updates, block_id),
             receiver_t{});
-        ASSERT_TRUE(state.initiate());
+        state.initiate();
         while (!state.receiver().res) {
             ASSERT_TRUE(trie.get_io().io_in_flight() > 0);
             trie.get_io().flush();
@@ -137,7 +137,7 @@ struct in_memory_trie_fixture_t : public testing::Test
         };
         auto state = connect(
             MerkleTrie::process_updates_sender(&trie, updates), receiver_t{});
-        ASSERT_TRUE(state.initiate());
+        state.initiate();
         ASSERT_TRUE(state.receiver().res);
     }
 
@@ -156,7 +156,7 @@ struct in_memory_trie_fixture_t : public testing::Test
         };
         auto state = connect(
             MerkleTrie::process_updates_sender(&trie, updates), receiver_t{});
-        ASSERT_TRUE(state.initiate());
+        state.initiate();
         ASSERT_TRUE(state.receiver().res);
     }
 

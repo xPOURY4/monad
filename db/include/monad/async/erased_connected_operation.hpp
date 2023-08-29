@@ -10,14 +10,28 @@ class AsyncIO;
 template <sender Sender, receiver Receiver>
 class connected_operation;
 
+namespace detail
+{
+    struct AsyncIO_per_thread_state_t;
+};
+
 /* \class erased_connected_operation
 \brief A type erased abstract base class of a connected operation. Lets you
 work with connection operation states with a type you are unaware of.
 */
 class erased_connected_operation
 {
+public:
     template <sender Sender, receiver Receiver>
     friend class connected_operation;
+    friend struct detail::AsyncIO_per_thread_state_t;
+
+    enum class initiation_result
+    {
+        initiation_success,
+        initiation_failed_told_receiver,
+        deferred
+    };
 
 protected:
     enum class _operation_type_t : uint8_t
@@ -39,6 +53,9 @@ protected:
         , _io(&io)
     {
     }
+
+    virtual initiation_result
+    _do_possibly_deferred_initiate(bool never_defer) noexcept = 0;
 
 public:
     virtual ~erased_connected_operation()
@@ -89,6 +106,11 @@ public:
     void completed(BOOST_OUTCOME_V2_NAMESPACE::success_type<void> _)
     {
         completed(result<void>(_));
+    }
+    //! Invoke initiation, sending any failure to the receiver
+    initiation_result initiate() noexcept
+    {
+        return _do_possibly_deferred_initiate(false);
     }
     void reset() {}
 };

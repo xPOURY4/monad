@@ -1,8 +1,43 @@
 #include <monad/async/io.hpp>
 
+#include <cassert>
+
 #include <fcntl.h>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
+
+namespace detail
+{
+    struct AsyncIO_per_thread_state_t::within_completions_holder
+    {
+        AsyncIO_per_thread_state_t *parent;
+        within_completions_holder(AsyncIO_per_thread_state_t *_parent)
+            : parent(_parent)
+        {
+            parent->within_completions_count++;
+        }
+        within_completions_holder(const within_completions_holder &) = delete;
+        within_completions_holder(within_completions_holder &&) = default;
+        ~within_completions_holder()
+        {
+            if (0 == --parent->within_completions_count) {
+                parent->within_completions_reached_zero();
+            }
+        }
+    };
+    AsyncIO_per_thread_state_t::within_completions_holder
+    AsyncIO_per_thread_state_t::enter_completions()
+    {
+        return {this};
+    }
+    extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
+    AsyncIO_per_thread_state()
+    {
+        static thread_local AsyncIO_per_thread_state_t v;
+        return v;
+    }
+
+}
 
 AsyncIO::AsyncIO(
     const std::filesystem::path &p, monad::io::Ring &ring,
@@ -24,7 +59,9 @@ AsyncIO::AsyncIO(
 AsyncIO::~AsyncIO()
 {
     wait_until_done();
-    MONAD_ASSERT(!records_.inflight);
+    MONAD_ASSERT(!records_.inflight_rd);
+    MONAD_ASSERT(!records_.inflight_wr);
+    MONAD_ASSERT(!records_.inflight_tm);
 
     MONAD_ASSERT(
         !io_uring_unregister_files(const_cast<io_uring *>(&uring_.get_ring())));
@@ -33,7 +70,7 @@ AsyncIO::~AsyncIO()
     ::close(fds_[WRITE]);
 }
 
-void AsyncIO::submit_request(
+void AsyncIO::_submit_request(
     std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
 {
     // Trap unintentional use of high bit offsets
@@ -44,6 +81,7 @@ void AsyncIO::submit_request(
     memset(buffer.data(), 0xff, buffer.size());
 #endif
 
+    _poll_uring_while_submission_queue_full();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
@@ -56,7 +94,7 @@ void AsyncIO::submit_request(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
-void AsyncIO::submit_request(
+void AsyncIO::_submit_request(
     std::span<const std::byte> buffer, file_offset_t offset, void *uring_data)
 {
     // Trap unintentional use of high bit offsets
@@ -64,6 +102,7 @@ void AsyncIO::submit_request(
     assert((offset & (DISK_PAGE_SIZE - 1)) == 0);
     assert(buffer.size() <= WRITE_BUFFER_SIZE);
 
+    _poll_uring_while_submission_queue_full();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
@@ -76,30 +115,50 @@ void AsyncIO::submit_request(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
-void AsyncIO::submit_request(timed_invocation_state *state, void *uring_data)
+void AsyncIO::_submit_request(timed_invocation_state *state, void *uring_data)
 {
+    _poll_uring_while_submission_queue_full();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
-    unsigned flags = 0;
-    if (state->timespec_is_absolute) {
-        flags |= IORING_TIMEOUT_ABS;
+    if (state->ts.tv_sec != 0 || state->ts.tv_nsec != 0) {
+        unsigned flags = 0;
+        if (state->timespec_is_absolute) {
+            flags |= IORING_TIMEOUT_ABS;
+        }
+        if (state->timespec_is_utc_clock) {
+            flags |= IORING_TIMEOUT_REALTIME;
+        }
+        io_uring_prep_timeout(sqe, &state->ts, unsigned(-1), flags);
     }
-    if (state->timespec_is_utc_clock) {
-        flags |= IORING_TIMEOUT_REALTIME;
+    else {
+        io_uring_prep_nop(sqe);
     }
-    io_uring_prep_timeout(sqe, &state->ts, unsigned(-1), flags);
 
     io_uring_sqe_set_data(sqe, uring_data);
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
-bool AsyncIO::poll_uring(bool blocking)
+void AsyncIO::_poll_uring_while_submission_queue_full()
 {
-    // TODO: handle resource temporarily unavailable error, resubmit the
-    // request
+    auto *ring = const_cast<io_uring *>(&uring_.get_ring());
+    // if completions is getting close to full, drain some to prevent
+    // completions getting dropped, which would break everything.
+    while (io_uring_cq_ready(ring) > (*ring->cq.kring_entries >> 1)) {
+        if (!_poll_uring(false)) {
+            break;
+        }
+    }
+    // block if no available sqe
+    while (io_uring_sq_space_left(ring) == 0) {
+        _poll_uring(true);
+    }
+}
+
+bool AsyncIO::_poll_uring(bool blocking)
+{
     struct io_uring_cqe *cqe = nullptr;
 
     if (blocking) {
@@ -121,13 +180,16 @@ bool AsyncIO::poll_uring(bool blocking)
     io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
     cqe = nullptr;
 
-    --records_.inflight;
     if (state->is_read()) {
         --records_.inflight_rd;
     }
     else if (state->is_write()) {
         --records_.inflight_wr;
     }
+    else {
+        --records_.inflight_tm;
+    }
+    auto h = detail::AsyncIO_per_thread_state().enter_completions();
     state->completed(std::move(res));
     return true;
 }

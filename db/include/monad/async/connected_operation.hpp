@@ -168,11 +168,7 @@ namespace detail
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
-                    auto r2 = this->initiate();
-                    if (!r2) {
-                        this->_receiver.set_value(
-                            this, std::move(r2).as_failure());
-                    }
+                    this->initiate();
                 }
                 else {
                     this->_receiver.set_value(this, std::move(r));
@@ -206,11 +202,7 @@ namespace detail
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
-                    auto r2 = this->initiate();
-                    if (!r2) {
-                        this->_receiver.set_value(
-                            this, std::move(r2).as_failure());
-                    }
+                    this->initiate();
                 }
                 else {
                     this->_receiver.set_value(

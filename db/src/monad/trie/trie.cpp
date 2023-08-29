@@ -300,8 +300,7 @@ void MerkleTrie::update_trie(
                 auto iostate =
                     io_->make_connected(std::move(sender), std::move(receiver));
                 assert(iostate->receiver().updates);
-                // TEMPORARY: Handle temporary i/o submission failure
-                MONAD_ASSERT(iostate->initiate());
+                iostate->initiate();
                 // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
                 // management until i/o completes
                 iostate.release();
@@ -540,7 +539,7 @@ MerkleTrie::async_write_node(merkle_node_t *node)
             where_to_serialize + remaining_bytes,
             size - remaining_bytes);
         sender->advance_buffer_append(size - remaining_bytes);
-        MONAD_ASSERT(to_initiate->initiate());
+        to_initiate->initiate();
         // shall be recycled by the i/o receiver
         to_initiate.release();
     }
@@ -564,7 +563,7 @@ MerkleTrie::flush_and_write_new_root_node(merkle_node_t *root)
     assert(tozero != nullptr);
     memset(tozero, 0, tozerobytes);
     auto to_initiate = replace_node_writer_();
-    MONAD_ASSERT(to_initiate->initiate());
+    to_initiate->initiate();
     // shall be recycled by the i/o receiver
     to_initiate.release();
     return ret;
