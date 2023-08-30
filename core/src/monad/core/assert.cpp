@@ -2,7 +2,9 @@
 
 #include <cstdlib>
 #include <iostream>
+#ifndef __clang__
 #include <stacktrace>
+#endif
 
 extern const char *__progname;
 
