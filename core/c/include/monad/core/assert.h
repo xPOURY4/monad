@@ -2,17 +2,8 @@
 
 #include <monad/core/likely.h>
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 void __attribute__((noreturn)) monad_assertion_failed(
     char const *expr, char const *function, char const *file, long line);
-
-#ifdef __cplusplus
-}
-#endif
 
 #define MONAD_ASSERT(expr)                                                     \
     if (MONAD_LIKELY(expr)) { /* likeliest */                                  \

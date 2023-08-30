@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
+include(CheckCXXSymbolExists)
+
 project(monad_core LANGUAGES C CXX ASM)
 
 option(MONAD_FUZZTEST OFF)
@@ -55,24 +57,25 @@ endfunction()
 
 add_library(
   monad_core STATIC
+  "c/include/monad/core/assert.h"
   "c/include/monad/core/bit_util.h"
+  "c/include/monad/core/likely.h"
   "c/include/monad/mem/huge_mem.h"
+  "c/src/monad/core/assert.c"
   "c/src/monad/mem/huge_mem.c"
   "include/monad/config.hpp"
   # core
-  "include/monad/core/assert.h"
   "include/monad/core/byte_string.hpp"
   "include/monad/core/cmemory.hpp"
   "include/monad/core/endian.hpp"
   "include/monad/core/hex_literal.hpp"
   "include/monad/core/keccak.h"
-  "include/monad/core/likely.h"
   "include/monad/core/math.hpp"
   "include/monad/core/nibble.h"
   "include/monad/core/offset.hpp"
   "include/monad/core/size_of.hpp"
   "include/monad/core/unaligned.hpp"
-  "src/monad/core/assert.c"
+  "src/monad/core/assert.cpp"
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
   # io
@@ -98,6 +101,10 @@ add_library(
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
+check_cxx_symbol_exists("_GLIBCXX_HAVE_STACKTRACE" "stacktrace" HAVE_STACKTRACE)
+if(HAVE_STACKTRACE)
+  target_link_libraries(monad_core PUBLIC stdc++_libbacktrace)
+endif()
 
 add_library(
   monad_core_disas SHARED
