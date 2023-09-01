@@ -150,6 +150,13 @@ static_assert(sender<write_single_buffer_sender>);
 \brief A Sender which completes after a delay. The delay can be measured by
 system clock or by monotonic clock. The delay can be absolute or relative to
 now.
+
+```
+Benchmarking timed_delay_sender with a non-zero timeout ...
+   Did 1.45344e+06 completions per second
+Benchmarking timed_delay_sender with a zero timeout ...
+   Did 4.76564e+06 completions per second
+```
 */
 class timed_delay_sender
 {
@@ -182,6 +189,8 @@ class timed_delay_sender
 
 public:
     using result_type = result<void>;
+
+    static constexpr operation_type my_operation_type = operation_type::timeout;
 
 public:
     //! Complete after the specified delay from now. WARNING: Uses a monotonic
@@ -248,5 +257,36 @@ public:
 static_assert(sizeof(timed_delay_sender) == 24);
 static_assert(alignof(timed_delay_sender) == 8);
 static_assert(sender<timed_delay_sender>);
+
+/*! \class threadsafe_sender
+\brief A Sender which completes on the kernel thread executing an `AsyncIO`
+instance, but which can be initiated thread safely from any other kernel
+thread.
+
+```
+Benchmarking threadsafe_sender ...
+   Did 1.5978e+06 completions per second
+```
+*/
+class threadsafe_sender
+{
+public:
+    using result_type = result<void>;
+
+    static constexpr operation_type my_operation_type =
+        operation_type::threadsafeop;
+
+public:
+    threadsafe_sender() = default;
+    void reset() {}
+    result<void> operator()(erased_connected_operation *io_state) noexcept
+    {
+        io_state->executor()->submit_threadsafe_invocation_request(io_state);
+        return success();
+    }
+};
+static_assert(sizeof(threadsafe_sender) == 1);
+static_assert(alignof(threadsafe_sender) == 1);
+static_assert(sender<threadsafe_sender>);
 
 MONAD_ASYNC_NAMESPACE_END

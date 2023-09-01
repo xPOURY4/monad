@@ -102,23 +102,21 @@ namespace detail
         Receiver _receiver;
 
         // Deduce what kind of connected operation we are
-        static constexpr erased_connected_operation::_operation_type_t
-            _operation_type = []() constexpr {
-                if constexpr (requires {
-                                  typename Sender::buffer_type::element_type;
-                              }) {
-                    constexpr bool is_const = std::is_const_v<
-                        typename Sender::buffer_type::element_type>;
-                    return is_const ? erased_connected_operation::
-                                          _operation_type_t::write
-                                    : erased_connected_operation::
-                                          _operation_type_t::read;
-                }
-                else {
-                    return erased_connected_operation::_operation_type_t::
-                        unknown;
-                }
-            }();
+        static constexpr operation_type _operation_type = []() constexpr {
+            if constexpr (requires { Sender::my_operation_type; }) {
+                return Sender::my_operation_type;
+            }
+            else if constexpr (requires {
+                                   typename Sender::buffer_type::element_type;
+                               }) {
+                constexpr bool is_const =
+                    std::is_const_v<typename Sender::buffer_type::element_type>;
+                return is_const ? operation_type::write : operation_type::read;
+            }
+            else {
+                return operation_type::unknown;
+            }
+        }();
 
         virtual initiation_result
         _do_possibly_deferred_initiate(bool never_defer) noexcept override
@@ -142,6 +140,7 @@ namespace detail
         }
 
     public:
+        connected_operation_storage() = default;
         connected_operation_storage(
             sender_type &&sender, receiver_type &&receiver)
             : _sender(static_cast<Sender &&>(sender))
@@ -204,18 +203,19 @@ namespace detail
 
         static constexpr bool is_unknown_operation_type() noexcept
         {
-            return _operation_type ==
-                   erased_connected_operation::_operation_type_t::unknown;
+            return _operation_type == operation_type::unknown;
         }
         static constexpr bool is_read() noexcept
         {
-            return _operation_type ==
-                   erased_connected_operation::_operation_type_t::read;
+            return _operation_type == operation_type::read;
         }
         static constexpr bool is_write() noexcept
         {
-            return _operation_type ==
-                   erased_connected_operation::_operation_type_t::write;
+            return _operation_type == operation_type::write;
+        }
+        static constexpr bool is_timeout() noexcept
+        {
+            return _operation_type == operation_type::timeout;
         }
 
         //! Initiates the operation, calling the Receiver with any failure,

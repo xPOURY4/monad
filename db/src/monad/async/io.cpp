@@ -3,11 +3,16 @@
 #include <cassert>
 
 #include <fcntl.h>
+#include <poll.h>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
 namespace detail
 {
+    // diseased dead beef in hex, last bit set so won't be a pointer
+    static void *const ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC =
+        (void *)(uintptr_t)0xd15ea5eddeadbeef;
+
     struct AsyncIO_per_thread_state_t::within_completions_holder
     {
         AsyncIO_per_thread_state_t *parent;
@@ -36,7 +41,34 @@ namespace detail
         static thread_local AsyncIO_per_thread_state_t v;
         return v;
     }
+}
 
+AsyncIO::AsyncIO(
+    std::pair<int, int> fds, monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
+    : fds_{fds.first, fds.second, 0, 0}
+    , uring_(ring_)
+    , rwbuf_(rwbuf)
+    , rd_pool_(monad::io::BufferPool(rwbuf, true))
+    , wr_pool_(monad::io::BufferPool(rwbuf, false))
+{
+    MONAD_ASSERT(fds_[WRITE] != -1);
+    MONAD_ASSERT(fds_[READ] != -1);
+
+    // register files
+    MONAD_ASSERT(!io_uring_register_files(
+        const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
+
+    // create and register the message type pipe for threadsafe communications
+    // read side is nonblocking, write side is blocking
+    MONAD_ASSERT(::pipe2(fds_ + 2, O_NONBLOCK | O_DIRECT | O_CLOEXEC) != -1);
+    MONAD_ASSERT(::fcntl(fds_[MSG_WRITE], F_SETFL, O_DIRECT | O_CLOEXEC) != -1);
+    auto *ring = const_cast<io_uring *>(&uring_.get_ring());
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+    MONAD_ASSERT(sqe);
+    io_uring_prep_poll_multishot(sqe, fds_[MSG_READ], POLLIN);
+    io_uring_sqe_set_data(
+        sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
+    MONAD_ASSERT(io_uring_submit(ring) >= 0);
 }
 
 AsyncIO::AsyncIO(
@@ -46,10 +78,23 @@ AsyncIO::AsyncIO(
           [&p]() -> std::pair<int, int> {
               int fds[2];
               // append only file descriptor
-              fds[WRITE] =
-                  ::open(p.c_str(), O_CREAT | O_WRONLY | O_DIRECT, 0600);
+              fds[WRITE] = ::open(
+                  p.c_str(), O_CREAT | O_WRONLY | O_DIRECT | O_CLOEXEC, 0600);
               // read only file descriptor
-              fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT);
+              fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
+              return {fds[0], fds[1]};
+          }(),
+          ring, rwbuf)
+{
+}
+
+AsyncIO::AsyncIO(
+    use_anonymous_inode_tag, monad::io::Ring &ring, monad::io::Buffers &rwbuf)
+    : AsyncIO(
+          []() -> std::pair<int, int> {
+              int fds[2];
+              fds[0] = make_temporary_inode();
+              fds[1] = dup(fds[0]);
               return {fds[0], fds[1]};
           }(),
           ring, rwbuf)
@@ -68,6 +113,8 @@ AsyncIO::~AsyncIO()
 
     ::close(fds_[READ]);
     ::close(fds_[WRITE]);
+    ::close(fds_[MSG_READ]);
+    ::close(fds_[MSG_WRITE]);
 }
 
 void AsyncIO::_submit_request(
@@ -143,6 +190,7 @@ void AsyncIO::_submit_request(timed_invocation_state *state, void *uring_data)
 
 void AsyncIO::_poll_uring_while_submission_queue_full()
 {
+    assert(this != nullptr);
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     // if completions is getting close to full, drain some to prevent
     // completions getting dropped, which would break everything.
@@ -160,25 +208,59 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
 bool AsyncIO::_poll_uring(bool blocking)
 {
     struct io_uring_cqe *cqe = nullptr;
+    auto inflight_ts = records_.inflight_ts.load(std::memory_order_acquire);
 
-    if (blocking) {
+    if (blocking && inflight_ts == 0) {
         MONAD_ASSERT(!io_uring_wait_cqe(
             const_cast<io_uring *>(&uring_.get_ring()), &cqe));
     }
     else {
         if (0 != io_uring_peek_cqe(
-                     const_cast<io_uring *>(&uring_.get_ring()), &cqe)) {
+                     const_cast<io_uring *>(&uring_.get_ring()), &cqe) &&
+            inflight_ts == 0) {
             return false;
         }
     }
 
-    void *data = io_uring_cqe_get_data(cqe);
+    void *data = (cqe != nullptr)
+                     ? io_uring_cqe_get_data(cqe)
+                     : detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC;
     MONAD_ASSERT(data);
-    auto *state = reinterpret_cast<erased_connected_operation *>(data);
-    result<size_t> res = (cqe->res < 0) ? result<size_t>(posix_code(-cqe->res))
-                                        : result<size_t>(cqe->res);
-    io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
-    cqe = nullptr;
+    erased_connected_operation *state = nullptr;
+    result<size_t> res(success(0));
+    if (data == detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC) {
+        // MSG_READ pipe has a message for us. It is simply the pointer to
+        // the connected operation state for us to complete.
+        MONAD_ASSERT(cqe == nullptr || cqe->res == POLLIN);
+        auto readed = ::read(
+            fds_[MSG_READ], &state, sizeof(erased_connected_operation *));
+        if (readed >= 0) {
+            MONAD_ASSERT(sizeof(erased_connected_operation *) == readed);
+        }
+        else {
+            if (EAGAIN == errno || EWOULDBLOCK == errno) {
+                // Spurious wakeup
+                if (cqe != nullptr) {
+                    io_uring_cqe_seen(
+                        const_cast<io_uring *>(&uring_.get_ring()), cqe);
+                    cqe = nullptr;
+                }
+                return true;
+            }
+            else {
+                MONAD_ASSERT(readed >= 0);
+            }
+        }
+    }
+    else {
+        state = reinterpret_cast<erased_connected_operation *>(data);
+        res = (cqe->res < 0) ? result<size_t>(posix_code(-cqe->res))
+                             : result<size_t>(cqe->res);
+    }
+    if (cqe != nullptr) {
+        io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
+        cqe = nullptr;
+    }
 
     if (state->is_read()) {
         --records_.inflight_rd;
@@ -186,12 +268,30 @@ bool AsyncIO::_poll_uring(bool blocking)
     else if (state->is_write()) {
         --records_.inflight_wr;
     }
-    else {
+    else if (state->is_timeout()) {
         --records_.inflight_tm;
+    }
+    else if (state->is_threadsafeop()) {
+        records_.inflight_ts.fetch_sub(1, std::memory_order_release);
     }
     auto h = detail::AsyncIO_per_thread_state().enter_completions();
     state->completed(std::move(res));
     return true;
+}
+
+void AsyncIO::submit_threadsafe_invocation_request(void *uring_data)
+{
+    // WARNING: This function is usually called from foreign kernel threads!
+    records_.inflight_ts.fetch_add(1, std::memory_order_release);
+    for (;;) {
+        auto written =
+            ::write(fds_[MSG_WRITE], &uring_data, sizeof(uring_data));
+        if (written == sizeof(uring_data)) {
+            break;
+        }
+        MONAD_ASSERT(written == -1);
+        MONAD_ASSERT(errno == EINTR);
+    }
 }
 
 MONAD_ASYNC_NAMESPACE_END

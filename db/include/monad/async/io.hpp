@@ -10,6 +10,7 @@
 
 #include <monad/mem/allocators.hpp>
 
+#include <atomic>
 #include <cassert>
 #include <concepts>
 #include <cstddef>
@@ -28,6 +29,7 @@ struct IORecord
     unsigned inflight_rd{0};
     unsigned inflight_wr{0};
     unsigned inflight_tm{0};
+    std::atomic<unsigned> inflight_ts{0};
     unsigned nreads{0}; // Reads done since last `flush()`
 };
 
@@ -38,10 +40,10 @@ public:
 
 private:
     friend class read_single_buffer_sender;
-    constexpr static unsigned READ = 0, WRITE = 1;
+    constexpr static unsigned READ = 0, WRITE = 1, MSG_READ = 2, MSG_WRITE = 3;
 
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
-    int fds_[2];
+    int fds_[4];
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
@@ -63,43 +65,20 @@ private:
 public:
     AsyncIO(
         std::pair<int, int> fds, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf)
-        : fds_{fds.first, fds.second}
-        , uring_(ring)
-        , rwbuf_(rwbuf)
-        , rd_pool_(monad::io::BufferPool(rwbuf, true))
-        , wr_pool_(monad::io::BufferPool(rwbuf, false))
-    {
-        MONAD_ASSERT(fds_[WRITE] != -1);
-        MONAD_ASSERT(fds_[READ] != -1);
-
-        // register files
-        MONAD_ASSERT(!io_uring_register_files(
-            const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
-    }
+        monad::io::Buffers &rwbuf);
     AsyncIO(
         const std::filesystem::path &p, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf);
     AsyncIO(
         use_anonymous_inode_tag, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf)
-        : AsyncIO(
-              []() -> std::pair<int, int> {
-                  int fds[2];
-                  fds[0] = make_temporary_inode();
-                  fds[1] = dup(fds[0]);
-                  return {fds[0], fds[1]};
-              }(),
-              ring, rwbuf)
-    {
-    }
-
+        monad::io::Buffers &rwbuf);
     ~AsyncIO();
 
     unsigned io_in_flight() const noexcept
     {
         return records_.inflight_rd + records_.inflight_wr +
-               records_.inflight_tm;
+               records_.inflight_tm +
+               records_.inflight_ts.load(std::memory_order_relaxed);
     }
 
     unsigned reads_in_flight() const noexcept
@@ -115,6 +94,11 @@ public:
     unsigned timers_in_flight() const noexcept
     {
         return records_.inflight_tm;
+    }
+
+    unsigned threadsafeops_in_flight() const noexcept
+    {
+        return records_.inflight_ts.load(std::memory_order_relaxed);
     }
 
     // Blocks until at least one completion is processed, returning number
@@ -192,6 +176,8 @@ public:
         _submit_request(info, uring_data);
         ++records_.inflight_tm;
     }
+
+    void submit_threadsafe_invocation_request(void *uring_data);
 
     /* This isn't the ideal place to put this, but only AsyncIO knows how to
     get i/o buffers into which to place connected i/o states.
@@ -322,7 +308,7 @@ public:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 56);
+static_assert(sizeof(AsyncIO) == 72);
 static_assert(alignof(AsyncIO) == 8);
 
 /*! \struct erased_connected_operation_deleter_io_receiver

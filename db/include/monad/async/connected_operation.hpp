@@ -254,6 +254,12 @@ class connected_operation final
 
 public:
     using _base::_base;
+
+    // This is an immovable in memory object
+    connected_operation(const connected_operation &) = delete;
+    connected_operation(connected_operation &&) = delete;
+    connected_operation &operator=(const connected_operation &) = delete;
+    connected_operation &operator=(connected_operation &&) = delete;
 };
 //! Default connect customisation point taking sender and receiver by value,
 //! requires receiver to be compatible with sender.

@@ -15,6 +15,15 @@ namespace detail
     struct AsyncIO_per_thread_state_t;
 };
 
+enum class operation_type : uint8_t
+{
+    unknown,
+    read,
+    write,
+    timeout,
+    threadsafeop
+};
+
 /* \class erased_connected_operation
 \brief A type erased abstract base class of a connected operation. Lets you
 work with connection operation states with a type you are unaware of.
@@ -34,13 +43,7 @@ public:
     };
 
 protected:
-    enum class _operation_type_t : uint8_t
-    {
-        unknown,
-        read,
-        write,
-        timeout
-    } _operation_type{_operation_type_t::unknown};
+    operation_type _operation_type{operation_type::unknown};
     bool _being_executed{false};
     AsyncIO *_io{nullptr};
     erased_connected_operation *_next{nullptr};
@@ -48,7 +51,7 @@ protected:
     constexpr erased_connected_operation() {}
 
     constexpr erased_connected_operation(
-        _operation_type_t operation_type, AsyncIO &io)
+        operation_type operation_type, AsyncIO &io)
         : _operation_type(operation_type)
         , _io(&io)
     {
@@ -64,19 +67,23 @@ public:
     }
     bool is_unknown_operation_type() const noexcept
     {
-        return _operation_type == _operation_type_t::unknown;
+        return _operation_type == operation_type::unknown;
     }
     bool is_read() const noexcept
     {
-        return _operation_type == _operation_type_t::read;
+        return _operation_type == operation_type::read;
     }
     bool is_write() const noexcept
     {
-        return _operation_type == _operation_type_t::write;
+        return _operation_type == operation_type::write;
     }
     bool is_timeout() const noexcept
     {
-        return _operation_type == _operation_type_t::timeout;
+        return _operation_type == operation_type::timeout;
+    }
+    bool is_threadsafeop() const noexcept
+    {
+        return _operation_type == operation_type::threadsafeop;
     }
     bool is_currently_being_executed() const noexcept
     {

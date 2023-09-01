@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "monad/async/io_senders.hpp"
+#include "monad/core/array.hpp"
 #include "monad/core/small_prng.hpp"
 
 #include <boost/fiber/fiber.hpp>
@@ -8,8 +9,10 @@
 #include <boost/outcome/coroutine_support.hpp>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <coroutine>
+#include <future>
 #include <optional>
 #include <span>
 #include <vector>
@@ -178,6 +181,151 @@ namespace
             "Instant",
             [] { return std::chrono::steady_clock::now(); },
             std::chrono::milliseconds(0));
+    }
+
+    TEST(AsyncIO, threadsafe_sender_receiver)
+    {
+        struct receiver_t
+        {
+            std::atomic<bool> done{false};
+            receiver_t() = default;
+            receiver_t(const receiver_t &) {}
+            void set_value(erased_connected_operation *, result<void> res)
+            {
+                ASSERT_TRUE(res);
+                done = true;
+            }
+        };
+        auto state = connect(*testio, threadsafe_sender{}, receiver_t{});
+        auto fut =
+            std::async(std::launch::async, [&state] { state.initiate(); });
+        while (!state.receiver().done) {
+            testio->poll_blocking(1);
+        }
+        fut.get();
+    }
+
+    TEST(AsyncIO, benchmark_non_io_sender_receiver)
+    {
+        static constexpr size_t COUNT = 1000;
+        static std::atomic<int> done{0};
+        static size_t count = 0;
+        struct reinitiating_receiver_t
+        {
+            void set_value(erased_connected_operation *state, result<void> res)
+            {
+                ASSERT_TRUE(res);
+                count++;
+                if (!done) {
+                    state->initiate();
+                }
+            }
+        };
+        struct nonreinitiating_receiver_t
+        {
+            void set_value(erased_connected_operation *, result<void> res)
+            {
+                ASSERT_TRUE(res);
+                count++;
+            }
+        };
+        auto benchmark = [](const char *desc, auto &&initiate) {
+            std::cout << "Benchmarking " << desc << " ..." << std::endl;
+            done = false;
+            count = 0;
+            auto begin = std::chrono::steady_clock::now(), end = begin;
+            initiate();
+            for (; end - begin < std::chrono::seconds(5);
+                 end = std::chrono::steady_clock::now()) {
+                testio->poll_blocking(256);
+            }
+            done = true;
+            std::cout << "   Waiting until done ..." << std::endl;
+            testio->wait_until_done();
+            end = std::chrono::steady_clock::now();
+            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
+                end - begin);
+            std::cout << "   Did " << (1000.0 * count / diff.count())
+                      << " completions per second" << std::endl;
+        };
+        auto thepast = std::chrono::steady_clock::now();
+        {
+            std::array<
+                connected_operation<
+                    timed_delay_sender,
+                    reinitiating_receiver_t>,
+                COUNT>
+                states = monad::make_array<
+                    connected_operation<
+                        timed_delay_sender,
+                        reinitiating_receiver_t>,
+                    COUNT>(
+                    std::piecewise_construct,
+                    *testio,
+                    timed_delay_sender(thepast),
+                    reinitiating_receiver_t{});
+            benchmark("timed_delay_sender with a non-zero timeout", [&] {
+                for (auto &i : states) {
+                    i.initiate();
+                }
+            });
+        }
+        {
+            std::array<
+                connected_operation<
+                    timed_delay_sender,
+                    reinitiating_receiver_t>,
+                COUNT>
+                states = monad::make_array<
+                    connected_operation<
+                        timed_delay_sender,
+                        reinitiating_receiver_t>,
+                    COUNT>(
+                    std::piecewise_construct,
+                    *testio,
+                    timed_delay_sender(std::chrono::seconds(0)),
+                    reinitiating_receiver_t{});
+            benchmark("timed_delay_sender with a zero timeout", [&] {
+                for (auto &i : states) {
+                    i.initiate();
+                }
+            });
+        }
+        {
+            std::array<
+                connected_operation<
+                    threadsafe_sender,
+                    nonreinitiating_receiver_t>,
+                COUNT>
+                states = monad::make_array<
+                    connected_operation<
+                        threadsafe_sender,
+                        nonreinitiating_receiver_t>,
+                    COUNT>(
+                    std::piecewise_construct,
+                    *testio,
+                    threadsafe_sender{},
+                    nonreinitiating_receiver_t{});
+            done = -2;
+            std::thread worker([&] {
+                done = -1;
+                while (done == -1) {
+                    std::this_thread::yield();
+                }
+                while (done == 0) {
+                    for (auto &i : states) {
+                        i.initiate();
+                    }
+                }
+                std::cout << "   threadsafe_sender initiating thread exits"
+                          << std::endl;
+            });
+            while (done == -2) {
+                std::this_thread::yield();
+            }
+            benchmark("threadsafe_sender", [&] {});
+            worker.join();
+        }
     }
 
     /* A receiver which just immediately asks the sender
