@@ -6,6 +6,7 @@ function(monad_add_test target)
 endfunction()
 
 monad_add_test(allocators_test "allocators.cpp")
+monad_add_test(array_test "array.cpp")
 monad_add_test(dynamic_allocator_test "dynamic_allocator.cpp")
 monad_add_test(encode_test "encode_test.cpp")
 monad_add_test(hugemem_test "huge_mem.cpp")

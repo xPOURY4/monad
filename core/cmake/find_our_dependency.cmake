@@ -1,7 +1,7 @@
-if(FIND_DEPENDENCY_INCLUDED)
+if(FIND_OUR_DEPENDENCY_INCLUDED)
   return()
 endif()
-set(FIND_DEPENDENCY_INCLUDED 1)
+set(FIND_OUR_DEPENDENCY_INCLUDED 1)
 
 # Because cmake has multiple ways of finding a dependency, this convenience
 # function tries several of them on your behalf. Args:
@@ -13,7 +13,7 @@ set(FIND_DEPENDENCY_INCLUDED 1)
 # diagnostics.
 
 find_package(PkgConfig REQUIRED)
-function(find_dependency name)
+function(find_our_dependency name)
   cmake_parse_arguments(FIND_DEPENDENCY "REQUIRED;NOQUIET" "IMPORTED_TARGET" "" ${ARGN})
   if(FIND_DEPENDENCY_NOQUIET)
     set(QUIET "")

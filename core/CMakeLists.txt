@@ -10,9 +10,9 @@ option(MONAD_FUZZTEST OFF)
 # deps
 # ##############################################################################
 
-include("cmake/find_dependency.cmake")
-find_dependency(absl REQUIRED)
-find_dependency(mimalloc REQUIRED)
+include("cmake/find_our_dependency.cmake")
+find_our_dependency(absl REQUIRED)
+find_our_dependency(mimalloc REQUIRED)
 
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
@@ -65,6 +65,7 @@ add_library(
   "c/src/monad/mem/huge_mem.c"
   "include/monad/config.hpp"
   # core
+  "include/monad/core/array.hpp"
   "include/monad/core/byte_string.hpp"
   "include/monad/core/cmemory.hpp"
   "include/monad/core/endian.hpp"
@@ -74,6 +75,7 @@ add_library(
   "include/monad/core/nibble.h"
   "include/monad/core/offset.hpp"
   "include/monad/core/size_of.hpp"
+  "include/monad/core/small_prng.hpp"
   "include/monad/core/unaligned.hpp"
   "src/monad/core/assert.cpp"
   "src/monad/core/keccak.c"
