@@ -8,7 +8,7 @@ enable_testing()
 ############
 add_subdirectory("monad-core")
 
-include("monad-core/cmake/find_dependency.cmake")
+include("monad-core/cmake/find_our_dependency.cmake")
 find_package(Boost 1.78 COMPONENTS "" REQUIRED)
 find_package(GTest)
 

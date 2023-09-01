@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "monad/async/io_senders.hpp"
-#include "monad/async/small_prng.hpp"
+#include "monad/core/small_prng.hpp"
 
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future.hpp>
@@ -22,11 +22,11 @@ namespace
     static const std::vector<std::byte> testfilecontents = [] {
         std::vector<std::byte> ret(TEST_FILE_SIZE);
         std::span<
-            small_prng::value_type,
-            TEST_FILE_SIZE / sizeof(small_prng::value_type)>
-            s((small_prng::value_type *)ret.data(),
-              TEST_FILE_SIZE / sizeof(small_prng::value_type));
-        small_prng rand;
+            monad::small_prng::value_type,
+            TEST_FILE_SIZE / sizeof(monad::small_prng::value_type)>
+            s((monad::small_prng::value_type *)ret.data(),
+              TEST_FILE_SIZE / sizeof(monad::small_prng::value_type));
+        monad::small_prng rand;
         for (auto &i : s) {
             i = rand();
         }
@@ -43,7 +43,7 @@ namespace
             ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
         return ret;
     }();
-    small_prng test_rand;
+    monad::small_prng test_rand;
 
     struct read_single_buffer_operation_states_base
     {

@@ -2,48 +2,21 @@
 
 FROM fedora:38
 
-RUN yum -y install \
-  dnf-plugins-core
+COPY . src
 
-RUN dnf config-manager --enable \
-  fedora-debuginfo \
-  fedora-modular-debuginfo \
-  updates-debuginfo
+RUN cd src && monad-core/scripts/fedora/enable_debug.sh
 
 RUN yum -y update
 
-RUN yum -y install \
-  clang \
-  cmake \
-  ninja-build
+RUN cd src && monad-core/scripts/fedora/install_tools.sh
 
-RUN yum -y install \
-  gmock \
-  gmock-debuginfo \
-  google-benchmark \
-  gtest \
-  gtest-debuginfo \
-  liburing \
-  liburing-debuginfo \
-  mimalloc \
-  mimalloc-debuginfo \
-  valgrind
+RUN cd src && monad-core/scripts/fedora/install_deps.sh
+
+RUN cd src && monad-core/scripts/fedora/install_devel.sh
 
 RUN yum -y install \
   boost-devel \
-  cli11-devel \
-  gmock-devel \
-  google-benchmark-devel \
-  gtest-devel \
-  liburing-devel \
-  mimalloc-devel \
-  valgrind-devel
-
-RUN yum -y install \
-  gdb \
-  python3-pytest
-
-COPY . src
+  cli11-devel
 
 ARG CC
 ARG CXX

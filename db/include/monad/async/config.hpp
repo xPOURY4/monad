@@ -30,15 +30,15 @@ struct use_anonymous_inode_tag
 static constexpr file_offset_t INVALID_OFFSET = file_offset_t(-1);
 
 //! The CPU page size and bits to assume
-static constexpr uint16_t CPU_PAGE_SIZE = 4096;
 static constexpr uint16_t CPU_PAGE_BITS = 12;
+static constexpr uint16_t CPU_PAGE_SIZE = (1U << CPU_PAGE_BITS);
 
 //! The storage i/o page size and bits to assume
-static constexpr uint16_t DISK_PAGE_SIZE = 512;
 static constexpr uint16_t DISK_PAGE_BITS = 9;
+static constexpr uint16_t DISK_PAGE_SIZE = (1U << DISK_PAGE_BITS);
 
 //! The DMA friendly page size and bits
-static constexpr uint16_t DMA_PAGE_SIZE = 64;
 static constexpr uint16_t DMA_PAGE_BITS = 6;
+static constexpr uint16_t DMA_PAGE_SIZE = (1U << DMA_PAGE_BITS);
 
 MONAD_ASYNC_NAMESPACE_END
