@@ -66,7 +66,9 @@ namespace
         unsigned _op_count{0};
 
     public:
-        explicit read_single_buffer_operation_states(size_t total)
+        template <class... Args>
+        explicit read_single_buffer_operation_states(
+            size_t total, Args &&...args)
             : _buffers(total)
         {
             _states.reserve(total);
@@ -76,7 +78,7 @@ namespace
                 _states.push_back(testio->make_connected(
                     read_single_buffer_sender(
                         offset, {_buffers[n].data(), DISK_PAGE_SIZE}),
-                    Receiver{this}));
+                    Receiver{this, std::forward<Args>(args)...}));
             }
         }
         ~read_single_buffer_operation_states()
@@ -521,6 +523,119 @@ namespace
         }
         fibers.clear();
         end = std::chrono::steady_clock::now();
+        auto diff =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+                  << " random single byte reads per second from file length "
+                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+    }
+
+    TEST(AsyncIO, external_thread_sender_receiver)
+    {
+        // Do NOT use this for i/o, as we reuse testio's io_uring state
+        static monad::io::Ring controller_executor_ring(1, 0);
+        static auto controller_executor = std::make_unique<AsyncIO>(
+            use_anonymous_inode_tag{}, controller_executor_ring, testrwbuf);
+        struct controller_notifying_io_receiver
+        {
+            struct controller_initiating_io_receiver
+            {
+                controller_notifying_io_receiver *parent{nullptr};
+                void set_value(erased_connected_operation *, result<void> res)
+                {
+                    ASSERT_TRUE(res);
+                    // This is running on the controller kernel thread.
+                    // We need to have the worker kernel thread reinitiate
+                    // the i/o
+                    parent->state3->initiate();
+                }
+                void reset() {}
+            };
+            struct worker_initiating_io_receiver
+            {
+                controller_notifying_io_receiver *parent{nullptr};
+                void set_value(erased_connected_operation *, result<void> res)
+                {
+                    ASSERT_TRUE(res);
+                    // This is running on the worker kernel thread, so we
+                    // are safe to reinitialise the i/o
+                    parent->do_reinitiate();
+                }
+                void reset() {}
+            };
+            read_single_buffer_operation_states_base *state1;
+            std::unique_ptr<connected_operation<
+                threadsafe_sender, controller_initiating_io_receiver>>
+                state2; // used to have worker thread invoke controlling thread
+            std::unique_ptr<connected_operation<
+                threadsafe_sender, worker_initiating_io_receiver>>
+                state3; // used to have controlling thread invoke worker thread
+            erased_connected_operation *original_rawstate;
+            std::span<const std::byte> original_buffer;
+
+            explicit controller_notifying_io_receiver(
+                read_single_buffer_operation_states_base *s)
+                : state1(s)
+                , state2(new connected_operation<
+                         threadsafe_sender, controller_initiating_io_receiver>(
+                      connect(
+                          *controller_executor, threadsafe_sender{},
+                          controller_initiating_io_receiver{})))
+                , state3(new connected_operation<
+                         threadsafe_sender, worker_initiating_io_receiver>(
+                      connect(
+                          *testio, threadsafe_sender{},
+                          worker_initiating_io_receiver{})))
+            {
+            }
+            void set_value(
+                erased_connected_operation *rawstate,
+                result<std::span<const std::byte>> buffer)
+            {
+                ASSERT_TRUE(buffer);
+                original_rawstate = rawstate;
+                original_buffer = buffer.assume_value();
+                // Tell the controller kernel thread that this i/o has completed
+                state2->receiver().parent = this;
+                state3->receiver().parent = this;
+                state2->initiate();
+            }
+            void reset()
+            {
+                state2->reset({}, {});
+                state3->reset({}, {});
+                original_rawstate = nullptr;
+                original_buffer = {};
+            }
+            void do_reinitiate()
+            {
+                state1->reinitiate(original_rawstate, original_buffer);
+            }
+        };
+        read_single_buffer_operation_states<controller_notifying_io_receiver>
+            states(MAX_CONCURRENCY);
+        static std::atomic<bool> done{false};
+        std::thread controller([] {
+            while (!done) {
+                controller_executor->poll_nonblocking();
+            }
+            controller_executor->wait_until_done();
+        });
+        auto begin = std::chrono::steady_clock::now(), end = begin;
+        states.initiate();
+        for (; end - begin < std::chrono::seconds(5);
+             end = std::chrono::steady_clock::now()) {
+            testio->poll_blocking(256);
+        }
+        done = true;
+        states.stop();
+        end = std::chrono::steady_clock::now();
+        controller.join();
+        while (controller_executor->io_in_flight() > 0 ||
+               testio->io_in_flight() > 0) {
+            controller_executor->poll_nonblocking();
+            testio->poll_nonblocking();
+        }
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
         std::cout << "Did " << (1000.0 * states.count() / diff.count())
