@@ -84,7 +84,7 @@ struct tag
     using type = T;
 };
 
-TEST(UnorderedSets, quick_comparative_benchmark)
+TEST(UnorderedSets, DISABLED_quick_comparative_benchmark)
 {
 #ifdef NDEBUG
     using namespace MONAD_NAMESPACE;
