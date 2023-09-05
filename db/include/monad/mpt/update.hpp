@@ -10,41 +10,19 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct Data
-{
-    byte_string_view val;
-    byte_string_view aux;
+using Data = byte_string_view;
 
-    explicit constexpr Data(byte_string_view v)
-        : val(v)
-    {
-    }
-    constexpr Data(byte_string_view v, byte_string_view a)
-        : val(v)
-        , aux(a)
-    {
-    }
-};
-
-static_assert(sizeof(Data) == 32);
-static_assert(alignof(Data) == 8);
-
-static_assert(sizeof(std::optional<Data>) == 40);
+static_assert(sizeof(std::optional<Data>) == 24);
 static_assert(alignof(std::optional<Data>) == 8);
 
 struct UpdateBase
 {
-    unsigned char const *key;
+    byte_string_view key;
     std::optional<Data> opt;
 };
 
-static_assert(sizeof(UpdateBase) == 48);
+static_assert(sizeof(UpdateBase) == 40);
 static_assert(alignof(UpdateBase) == 8);
-
-inline constexpr bool is_deletion(UpdateBase const &u) noexcept
-{
-    return !u.opt.has_value();
-}
 
 using UpdateMemberHook = boost::intrusive::slist_member_hook<
     boost::intrusive::link_mode<boost::intrusive::normal_link>>;
@@ -52,28 +30,33 @@ using UpdateMemberHook = boost::intrusive::slist_member_hook<
 struct Update : UpdateBase
 {
     UpdateMemberHook hook_;
+
+    constexpr bool is_deletion() noexcept
+    {
+        return !opt.has_value();
+    }
 };
 
-static_assert(sizeof(Update) == 56);
+static_assert(sizeof(Update) == 48);
 static_assert(alignof(Update) == 8);
 
 using UpdateList = boost::intrusive::slist<
     Update,
     boost::intrusive::member_hook<Update, UpdateMemberHook, &Update::hook_>,
-    boost::intrusive::constant_time_size<false>>;
+    boost::intrusive::constant_time_size<true>>;
 
-static_assert(sizeof(UpdateList) == 8);
+static_assert(sizeof(UpdateList) == 16);
 static_assert(alignof(UpdateList) == 8);
 
-template <class T>
-concept key_type = requires(T a) { a.data(); };
-template <key_type T>
-[[nodiscard]] inline Update
-make_update(T const &key, byte_string_view const &value)
+inline Update make_update(
+    monad::byte_string_view const &key, monad::byte_string_view const &value)
 {
-    return Update{
-        {key.data(), value.size() ? std::optional<Data>{value} : std::nullopt},
-        UpdateMemberHook{}};
+    return Update{{key, std::optional<Data>{value}}, UpdateMemberHook{}};
+}
+
+inline Update make_erase(monad::byte_string_view const &key)
+{
+    return Update{{key, std::nullopt}, UpdateMemberHook{}};
 }
 
 MONAD_MPT_NAMESPACE_END

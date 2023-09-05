@@ -28,24 +28,19 @@ target_link_libraries(monad_async PUBLIC monad_core)
 add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
-    "${PROJECT_SOURCE_DIR}/src/monad/mpt/update.cpp"
 
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/compact_encode.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/encode_node.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/node.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/node_helper.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/request.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/tnode.hpp"
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/trie.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/request.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/trie.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
+    "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
 
-    "${PROJECT_SOURCE_DIR}/src/monad/trie/node_helper.cpp"
-    "${PROJECT_SOURCE_DIR}/src/monad/trie/request.cpp"
-    "${PROJECT_SOURCE_DIR}/src/monad/trie/trie.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mpt/node.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
 
-    "${PROJECT_SOURCE_DIR}/include/monad/trie/config.hpp"
 )
 target_include_directories(monad_trie
     PUBLIC "${PROJECT_SOURCE_DIR}/include"
@@ -54,17 +49,16 @@ monad_compile_options(monad_trie)
 
 target_link_libraries(monad_trie PRIVATE Boost::boost)
 target_link_libraries(monad_trie PUBLIC monad_async)
+target_link_libraries(monad_trie PUBLIC monad_core)
 
-add_library(monad_trie_disas SHARED
-    "${PROJECT_SOURCE_DIR}/src/monad/mpt/node_disas.cpp"
-)
-target_include_directories(monad_trie_disas
-    PUBLIC "${PROJECT_SOURCE_DIR}/include"
-)
-monad_compile_options(monad_trie_disas)
-target_link_libraries(monad_trie_disas PUBLIC monad_trie)
+function(add_trie_test target)
+  add_executable(${target} ${ARGN})
+  monad_compile_options(${target})
+  target_link_libraries(${target} PUBLIC monad_trie GTest::gtest_main)
+  gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/)
+endfunction()
 
-add_subdirectory("merkle_test")
-
-add_subdirectory("test")
+add_subdirectory("src/monad/mpt/test")
+add_subdirectory("src/monad/async/test")
+add_subdirectory("perf_test")
 
