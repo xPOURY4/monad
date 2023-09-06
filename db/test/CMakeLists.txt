@@ -19,3 +19,4 @@ add_trie_test(
     "trie_fixtures.hpp"
     "single_trie.cpp"
 )
+add_trie_test(writeback_cache_test "writeback_cache.cpp")

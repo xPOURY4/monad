@@ -139,12 +139,115 @@ public:
         records_.nreads = 0;
     }
 
-    void submit_read_request(
-        std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
+    bool submit_read_request(
+        std::span<std::byte> buffer, file_offset_t offset,
+        erased_connected_operation *uring_data)
     {
+        erased_connected_operation::rbtree_node_traits::set_key(uring_data, 0);
+        auto less_than_or_equal =
+            [this](file_offset_t offset) -> erased_connected_operation * {
+            auto pred = [](const auto *a, const auto b) {
+                return erased_connected_operation::rbtree_node_traits::get_key(
+                           a) > b;
+            };
+            auto *p = _extant_write_operations::lower_bound(
+                &_extant_write_operations_header, offset, pred);
+            if (p == &_extant_write_operations_header) {
+                return nullptr;
+            }
+            assert(p->key <= offset);
+            return erased_connected_operation::rbtree_node_traits::
+                to_erased_connected_operation(p);
+        };
+        auto get_key = [](const erased_connected_operation *a) {
+            return erased_connected_operation::rbtree_node_traits::get_key(a);
+        };
+        auto next =
+            [this](
+                erased_connected_operation *a) -> erased_connected_operation * {
+            auto *p =
+                erased_connected_operation::rbtree_node_traits::to_node_ptr(a);
+            p = _extant_write_operations::prev_node(p);
+            if (p == &_extant_write_operations_header) {
+                return nullptr;
+            }
+            return erased_connected_operation::rbtree_node_traits::
+                to_erased_connected_operation(p);
+        };
+        auto *it1 = less_than_or_equal(offset);
+        auto *it2 = less_than_or_equal(offset + buffer.size() - 1);
+        if (it1 != nullptr || it2 != nullptr) {
+            auto fill_from_buffers = [&](size_t offsetincr,
+                                         erased_connected_operation *it1,
+                                         erased_connected_operation *it2) {
+                for (auto nextit = next(it1);;
+                     it1 = nextit, nextit = next(nextit)) {
+                    assert(it1->is_write());
+                    auto *writebuffer =
+                        (unsigned char *)it1 - WRITE_BUFFER_SIZE;
+                    const auto writeoffset = get_key(it1);
+                    const auto tofill =
+                        (nextit != nullptr)
+                            ? buffer.subspan(
+                                  offsetincr, get_key(nextit) - writeoffset)
+                            : buffer.subspan(offsetincr);
+                    /*printf(
+                        "   *** read of %zu from offset %llu lands within "
+                        "extant write of offset %llu. Do memcpy(%p, %p, "
+                        "%zu)\n",
+                        tofill.size(),
+                        offset + offsetincr,
+                        writeoffset,
+                        buffer.data() + offsetincr,
+                        writebuffer + (offset + offsetincr - writeoffset),
+                        tofill.size());*/
+                    memcpy(
+                        buffer.data() + offsetincr,
+                        writebuffer + (offset + offsetincr - writeoffset),
+                        tofill.size());
+                    offsetincr += tofill.size();
+                    if (it1 == it2) {
+                        break;
+                    }
+                }
+                return offsetincr;
+            };
+            if (it1 == nullptr && it2 != nullptr) {
+                // The tail of this read reads from extant write buffers
+                // We need to fill the tail from those buffers, but do
+                // an i/o for the front part. When the i/o completes, it
+                // needs to return the correctly fully filled buffer.
+                assert(it2->is_write());
+                it1 = erased_connected_operation::rbtree_node_traits::
+                    to_erased_connected_operation(
+                        _extant_write_operations::prev_node(
+                            _extant_write_operations::end_node(
+                                &_extant_write_operations_header)));
+                const auto writeoffset = get_key(it1);
+                auto bytesfilled =
+                    fill_from_buffers(writeoffset - offset, it1, it2);
+                bytesfilled -= writeoffset - offset;
+                erased_connected_operation::rbtree_node_traits::set_key(
+                    uring_data, bytesfilled);
+                buffer = {buffer.data(), writeoffset - offset};
+                /*printf(
+                    "   *** tail filled %lu bytes from extant writes "
+                    "starting from offset %llu, doing read of shortened "
+                    "buffer of %zu bytes.\n",
+                    bytesfilled,
+                    writeoffset,
+                    buffer.size());*/
+            }
+            else {
+                // This read spans one or more write buffers wholly
+                fill_from_buffers(0, it1, it2);
+                return true;
+            }
+        }
         _submit_request(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;
+        return false;
     }
 
     constexpr int get_rd_fd() noexcept
@@ -154,7 +257,7 @@ public:
 
     void submit_write_request(
         std::span<const std::byte> buffer, file_offset_t offset,
-        void *uring_data)
+        erased_connected_operation *uring_data)
     {
         _submit_request(buffer, offset, uring_data);
         ++records_.inflight_wr;
@@ -171,13 +274,14 @@ public:
         bool timespec_is_utc_clock{false};
     };
     void submit_timed_invocation_request(
-        timed_invocation_state *info, void *uring_data)
+        timed_invocation_state *info, erased_connected_operation *uring_data)
     {
         _submit_request(info, uring_data);
         ++records_.inflight_tm;
     }
 
-    void submit_threadsafe_invocation_request(void *uring_data);
+    void submit_threadsafe_invocation_request(
+        erased_connected_operation *uring_data);
 
     /* This isn't the ideal place to put this, but only AsyncIO knows how to
     get i/o buffers into which to place connected i/o states.
@@ -259,6 +363,10 @@ private:
             connected_type,
             registered_io_buffer_with_connected_operation_unique_ptr_deleter>(
             new (buffer->state) connected_type(connect()));
+        assert(
+            ret->sender().buffer().data() ==
+            nullptr); // Did you accidentally pass in a foreign buffer to use?
+                      // Can't do that, must use buffer returned.
         ret->sender().reset(
             ret->sender().offset(),
             {(buffer_value_type *)buffer, ret->sender().buffer().size()});
@@ -304,26 +412,77 @@ public:
                 *this, _, std::move(sender_args), std::move(receiver_args));
         });
     }
+
+    template <class Base, sender Sender, receiver Receiver>
+    void _notify_operation_initiation_success(
+        detail::connected_operation_storage<Base, Sender, Receiver> *state)
+    {
+        if constexpr (detail::connected_operation_storage<
+                          Base,
+                          Sender,
+                          Receiver>::is_write()) {
+            auto *p =
+                erased_connected_operation::rbtree_node_traits::to_node_ptr(
+                    state);
+            p->key = state->sender().offset();
+            assert(p->key == state->sender().offset());
+            _extant_write_operations::init(p);
+            auto pred = [](const auto *a, const auto *b) {
+                auto get_key = [](const auto *a) {
+                    return erased_connected_operation::rbtree_node_traits::
+                        get_key(a);
+                };
+                return get_key(a) > get_key(b);
+            };
+            _extant_write_operations::insert_equal_lower_bound(
+                &_extant_write_operations_header, p, pred);
+        }
+    }
+    template <class Base, sender Sender, receiver Receiver>
+    void _notify_operation_reset(
+        detail::connected_operation_storage<Base, Sender, Receiver> *state)
+    {
+        (void)state;
+    }
+    template <class Base, sender Sender, receiver Receiver, class T>
+    void _notify_operation_completed(
+        detail::connected_operation_storage<Base, Sender, Receiver> *state,
+        result<T> &res)
+    {
+        if constexpr (detail::connected_operation_storage<
+                          Base,
+                          Sender,
+                          Receiver>::is_write()) {
+            _extant_write_operations::erase(
+                &_extant_write_operations_header,
+                erased_connected_operation::rbtree_node_traits::to_node_ptr(
+                    state));
+        }
+        else if constexpr (
+            detail::connected_operation_storage<Base, Sender, Receiver>::
+                is_read() &&
+            !std::is_void_v<T>) {
+            if (res && res.assume_value() > 0) {
+                // If we filled the data from extant write buffers above, adjust
+                // bytes transferred to account for that.
+                res = success(
+                    res.assume_value() +
+                    erased_connected_operation::rbtree_node_traits::get_key(
+                        state));
+            }
+        }
+    }
+
+private:
+    using _extant_write_operations = ::boost::intrusive::rbtree_algorithms<
+        erased_connected_operation::rbtree_node_traits>;
+    erased_connected_operation::rbtree_node_traits::node
+        _extant_write_operations_header;
 };
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 72);
+static_assert(sizeof(AsyncIO) == 104);
 static_assert(alignof(AsyncIO) == 8);
-
-/*! \struct erased_connected_operation_deleter_io_receiver
-\brief A receiver which deallocates the `AsyncIO::connected_operation_type` i.e.
-returns the read or write registered buffer to the pool for later reuse.
-*/
-struct erased_connected_operation_deleter_io_receiver
-{
-    template <class T>
-    void set_value(erased_connected_operation *rawstate, result<T> res)
-    {
-        MONAD_ASSERT(res);
-        AsyncIO::erased_connected_operation_unique_ptr_type{rawstate};
-    }
-    void reset() {}
-};
 
 MONAD_ASYNC_NAMESPACE_END

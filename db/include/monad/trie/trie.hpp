@@ -47,9 +47,6 @@ private:
             result<std::span<const std::byte>> res)
         {
             MONAD_ASSERT(res);
-            rawstate->next() = parent->write_op_state_cache_;
-            parent->write_op_state_cache_ =
-                static_cast<node_writer_unique_ptr_type_::pointer>(rawstate);
             if (parent->current_process_updates_sender_ != nullptr) {
                 parent->current_process_updates_sender_
                     ->notify_write_operation_completed_(rawstate);
@@ -69,27 +66,12 @@ private:
     const int cache_levels_;
     const bool is_account_;
 
-    node_writer_unique_ptr_type_::pointer write_op_state_cache_{nullptr};
     process_updates_sender *current_process_updates_sender_{nullptr};
 
     node_writer_unique_ptr_type_
     replace_node_writer_(size_t bytes_yet_to_be_appended_to_existing = 0)
     {
         auto ret = std::move(node_writer_);
-        if (write_op_state_cache_ != nullptr) {
-            node_writer_ = node_writer_unique_ptr_type_(write_op_state_cache_);
-            write_op_state_cache_ =
-                static_cast<node_writer_unique_ptr_type_::pointer>(
-                    write_op_state_cache_->next());
-            node_writer_->next() = nullptr;
-            auto &sender = node_writer_->sender();
-            sender.reset(
-                ret->sender().offset() + ret->sender().written_buffer_bytes() +
-                    bytes_yet_to_be_appended_to_existing,
-                {sender.buffer().data(),
-                 MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE});
-            return ret;
-        }
         node_writer_ = io_->make_connected(
             MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
                 ret->sender().offset() + ret->sender().written_buffer_bytes() +
@@ -150,16 +132,7 @@ public:
     MerkleTrie(MerkleTrie &&) = delete;
     MerkleTrie &operator=(const MerkleTrie &) = delete;
     MerkleTrie &operator=(MerkleTrie &&) = delete;
-
-    ~MerkleTrie()
-    {
-        while (write_op_state_cache_ != nullptr) {
-            node_writer_unique_ptr_type_ p(write_op_state_cache_);
-            write_op_state_cache_ =
-                static_cast<node_writer_unique_ptr_type_::pointer>(
-                    write_op_state_cache_->next());
-        }
-    }
+    ~MerkleTrie() = default;
 
     ////////////////////////////////////////////////////////////////////
     // Update helper functions
@@ -429,7 +402,7 @@ public:
     ////////////////////////////////////////////////////////////////////
 };
 
-static_assert(sizeof(MerkleTrie) == 72);
+static_assert(sizeof(MerkleTrie) == 64);
 static_assert(alignof(MerkleTrie) == 8);
 
 MONAD_TRIE_NAMESPACE_END

@@ -51,6 +51,7 @@ AsyncIO::AsyncIO(
     , rd_pool_(monad::io::BufferPool(rwbuf, true))
     , wr_pool_(monad::io::BufferPool(rwbuf, false))
 {
+    _extant_write_operations::init_header(&_extant_write_operations_header);
     MONAD_ASSERT(fds_[WRITE] != -1);
     MONAD_ASSERT(fds_[READ] != -1);
 
@@ -200,7 +201,19 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
     }
     // block if no available sqe
     while (io_uring_sq_space_left(ring) == 0) {
-        _poll_uring(true);
+        // Sleep the thread if there is i/o in flight, as a completion
+        // will turn up at some point.
+        //
+        // Sometimes io_uring_sq_space_left can be zero at the same
+        // time as there is no i/o in flight, in this situation don't
+        // sleep waiting for completions which will never come.
+        _poll_uring(io_in_flight() > 0);
+        // Rarely io_uring_sq_space_left stays stuck at zero, almost
+        // as if the kernel thread went to sleep or disappeared. This
+        // function doesn't do anything if io_uring_sq_space_left is
+        // non zero, but if it remains zero then it uses a syscall to
+        // give io_uring a poke.
+        MONAD_ASSERT(io_uring_sqring_wait(ring) >= 0);
     }
 }
 
@@ -273,12 +286,17 @@ bool AsyncIO::_poll_uring(bool blocking)
     else if (state->is_threadsafeop()) {
         records_.inflight_ts.fetch_sub(1, std::memory_order_release);
     }
+    erased_connected_operation_unique_ptr_type h2;
+    if (state->lifetime_is_managed_internally()) {
+        h2 = erased_connected_operation_unique_ptr_type{state};
+    }
     auto h = detail::AsyncIO_per_thread_state().enter_completions();
     state->completed(std::move(res));
     return true;
 }
 
-void AsyncIO::submit_threadsafe_invocation_request(void *uring_data)
+void AsyncIO::submit_threadsafe_invocation_request(
+    erased_connected_operation *uring_data)
 {
     // WARNING: This function is usually called from foreign kernel threads!
     records_.inflight_ts.fetch_add(1, std::memory_order_release);

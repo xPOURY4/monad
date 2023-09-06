@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <deque>
 #include <filesystem>
 #include <iostream>
 
@@ -46,11 +47,29 @@ void __print_char_arr_in_hex(char *arr, int n)
     fprintf(stdout, "\n");
 }
 
+struct process_updates_receiver_t
+{
+    std::optional<merkle_node_t *> res;
+    void set_value(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+        result<merkle_node_t *> res_)
+    {
+        MONAD_ASSERT(res_);
+        res = std::move(res_).assume_value();
+    }
+};
+using process_updates_operation_state_ptr =
+    std::unique_ptr<decltype(MONAD_ASYNC_NAMESPACE::connect(
+        MerkleTrie::process_updates_sender(
+            std::declval<MerkleTrie *>(), std::declval<UpdateList &>(), 0),
+        process_updates_receiver_t{}))>;
+
 /*  Commit one batch of updates
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
 inline void batch_upsert_commit(
+    std::deque<process_updates_operation_state_ptr> &ops,
     std::ostream &csv_writer, uint64_t block_id, int64_t keccak_offset,
     file_offset_t offset, int64_t nkeys, unsigned char *const keccak_keys,
     unsigned char *const keccak_values, bool erase, MerkleTrie &trie)
@@ -72,23 +91,19 @@ inline void batch_upsert_commit(
 
     auto ts_before = std::chrono::steady_clock::now();
 
-    struct receiver_t
-    {
-        std::optional<merkle_node_t *> res;
-        void set_value(
-            MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-            result<merkle_node_t *> res_)
-        {
-            MONAD_ASSERT(res_);
-            res = std::move(res_).assume_value();
-        }
-    };
+    while (!ops.empty() && ops.front()->receiver().res) {
+        ops.pop_front();
+    }
     using MONAD_ASYNC_NAMESPACE::connect;
-    auto state = connect(
-        MerkleTrie::process_updates_sender(&trie, updates, block_id),
-        receiver_t{});
-    state.initiate();
-    while (!state.receiver().res) {
+    process_updates_operation_state_ptr state(
+        new process_updates_operation_state_ptr::element_type(connect(
+            MerkleTrie::process_updates_sender(&trie, updates, block_id),
+            process_updates_receiver_t{})));
+    state->initiate();
+    ops.push_back(std::move(state));
+    // TEMPORARY: MerkleTrie needs to yet be upgraded to cope with multiple
+    // senders running at one time.
+    while (!ops.back()->receiver().res) {
         trie.get_io().flush();
     }
 
@@ -184,7 +199,7 @@ int main(int argc, char *argv[])
         monad::io::Buffers rwbuf{
             ring,
             8192,
-            16,
+            64,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
@@ -197,8 +212,8 @@ int main(int argc, char *argv[])
         if (append) {
             auto root_off = index->get_history_root_off(vid);
             if (!root_off.has_value()) {
-                throw std::out_of_range(
-                    "not support history block lookup for out of range vid");
+                throw std::out_of_range("not support history block lookup "
+                                        "for out of range vid");
             }
             block_off = root_off.value() + MAX_DISK_NODE_SIZE;
             root = read_node(index->get_rw_fd(), root_off.value());
@@ -220,6 +235,7 @@ int main(int argc, char *argv[])
         __print_char_arr_in_hex((char *)root_data, 32);
 
         auto begin_test = std::chrono::steady_clock::now();
+        std::deque<process_updates_operation_state_ptr> ops;
         int64_t max_key = n_slices * SLICE_LEN + offset;
         /* start profiling upsert and commit */
         for (int iter = 0; iter < n_slices; ++iter) {
@@ -244,6 +260,7 @@ int main(int argc, char *argv[])
             }
 
             batch_upsert_commit(
+                ops,
                 csv_writer,
                 vid,
                 (iter % 100) * SLICE_LEN,
@@ -260,6 +277,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "> erase iter = %d\n", iter);
                 fflush(stdout);
                 batch_upsert_commit(
+                    ops,
                     csv_writer,
                     vid,
                     (iter % 100) * SLICE_LEN,
@@ -274,6 +292,7 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "> dup batch iter = %d\n", iter);
 
                 batch_upsert_commit(
+                    ops,
                     csv_writer,
                     vid,
                     (iter % 100) * SLICE_LEN,
@@ -285,6 +304,9 @@ int main(int argc, char *argv[])
                     trie);
                 ++vid;
             }
+        }
+        while (!ops.empty() && ops.front()->receiver().res) {
+            ops.pop_front();
         }
 
         auto end_test = std::chrono::steady_clock::now();

@@ -45,9 +45,12 @@ public:
     }
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
-        // TODO: Handle failures to submit, because one can temporarily
-        // fail to submit if the ring is full.
-        io_state->executor()->submit_read_request(_buffer, _offset, io_state);
+        if (io_state->executor()->submit_read_request(
+                _buffer, _offset, io_state)) {
+            // It completed early
+            return make_status_code(
+                sender_errc::initiation_immediately_completed, _buffer.size());
+        }
         return success();
     }
     result_type completed(
@@ -102,8 +105,6 @@ public:
     }
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
-        // TODO: Handle failures to submit, because one can temporarily
-        // fail to submit if the ring is full.
         _buffer = {_buffer.data(), _append};
         io_state->executor()->submit_write_request(_buffer, _offset, io_state);
         return success();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/sender_errc.hpp>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -24,7 +25,9 @@ namespace detail
         bool if_within_completions_add_to_pending_initiations(
             erased_connected_operation *op)
         {
-            op->next() = nullptr;
+            erased_connected_operation::rbtree_node_traits::set_parent(
+                op,
+                nullptr); // use parent to store pointer to next item
             if (!am_within_completions()) {
                 within_completions_reached_zero();
                 return false;
@@ -33,8 +36,9 @@ namespace detail
                 pending_initiations.first = pending_initiations.last = op;
                 return true;
             }
-            assert(pending_initiations.last->next() == nullptr);
-            pending_initiations.last->next() = op;
+            erased_connected_operation::rbtree_node_traits::set_parent(
+                pending_initiations.last, op); // use parent to store pointer to
+                                               // next item
             pending_initiations.last = op;
             return true;
         }
@@ -46,7 +50,8 @@ namespace detail
                 while (pending_initiations.first != nullptr) {
                     erased_connected_operation *op = pending_initiations.first;
                     pending_initiations.first =
-                        pending_initiations.first->next();
+                        erased_connected_operation::rbtree_node_traits::
+                            get_parent(pending_initiations.first);
                     if (pending_initiations.first == nullptr) {
                         pending_initiations.last = nullptr;
                     }
@@ -133,8 +138,20 @@ namespace detail
             auto r = _sender(this);
             if (!r) {
                 this->_being_executed = false;
-                completed(std::move(r));
-                return initiation_result::initiation_failed_told_receiver;
+                if (r.assume_error() == MONAD_ASYNC_NAMESPACE::sender_errc::
+                                            initiation_immediately_completed) {
+                    sender_errc_code sec(std::move(r).assume_error());
+                    size_t bytes_transferred = sec.value().value;
+                    completed(bytes_transferred);
+                    return initiation_result::initiation_immediately_completed;
+                }
+                else {
+                    completed(std::move(r));
+                    return initiation_result::initiation_failed_told_receiver;
+                }
+            }
+            if (this->_io != nullptr) {
+                this->_io->_notify_operation_initiation_success(this);
             }
             return initiation_result::initiation_success;
         }
@@ -148,8 +165,10 @@ namespace detail
         {
         }
         connected_operation_storage(
-            AsyncIO &io, sender_type &&sender, receiver_type &&receiver)
-            : erased_connected_operation(_operation_type, io)
+            AsyncIO &io, bool lifetime_managed_internally, sender_type &&sender,
+            receiver_type &&receiver)
+            : erased_connected_operation(
+                  _operation_type, io, lifetime_managed_internally)
             , _sender(static_cast<Sender &&>(sender))
             , _receiver(static_cast<Receiver &&>(receiver))
         {
@@ -165,10 +184,11 @@ namespace detail
         }
         template <class... SenderArgs, class... ReceiverArgs>
         connected_operation_storage(
-            AsyncIO &io, std::piecewise_construct_t,
-            std::tuple<SenderArgs...> sender_args,
+            AsyncIO &io, bool lifetime_managed_internally,
+            std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
-            : erased_connected_operation(_operation_type, io)
+            : erased_connected_operation(
+                  _operation_type, io, lifetime_managed_internally)
             , _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
             , _receiver(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
@@ -244,6 +264,9 @@ namespace detail
             std::apply(
                 [this](auto &&...args) { _receiver.reset(std::move(args)...); },
                 std::move(receiver_args));
+            if (this->_io != nullptr) {
+                this->_io->_notify_operation_reset(this);
+            }
         }
     };
 }

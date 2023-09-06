@@ -65,51 +65,6 @@ which will also call `reset()` on its sender and receiver.
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
-// helper custom status code for Sender `completed()`
-enum class sender_errc
-{
-    unknown,
-    operation_must_be_reinitiated //!< Don't invoke the receiver, instead
-                                  //!< reinitiate the operation
-};
-
-MONAD_ASYNC_NAMESPACE_END
-
-BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE_BEGIN
-
-template <>
-struct quick_status_code_from_enum<MONAD_ASYNC_NAMESPACE::sender_errc>
-    : quick_status_code_from_enum_defaults<MONAD_ASYNC_NAMESPACE::sender_errc>
-{
-    static constexpr const auto domain_name = "sender_errc";
-    // Unique UUID for the enum. PLEASE use
-    // https://www.random.org/cgi-bin/randbyte?nbytes=16&format=h
-    static constexpr const auto domain_uuid =
-        "{415d47f2-df54-d01a-7453-4a00326bfa99}";
-    static const std::initializer_list<mapping> &value_mappings()
-    {
-        static const std::initializer_list<mapping> v = {
-            {MONAD_ASYNC_NAMESPACE::sender_errc::operation_must_be_reinitiated,
-             "operation_must_be_reinitiated",
-             {}}, //
-
-        };
-        return v;
-    }
-};
-BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE_END
-
-MONAD_ASYNC_NAMESPACE_BEGIN
-
-// ADL discovered customisation point, opts into being able to directly use the
-// enum when comparing to status codes.
-constexpr inline BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::
-    quick_status_code_from_enum_code<sender_errc>
-    status_code(sender_errc c)
-{
-    return c;
-}
-
 namespace detail
 {
     template <
@@ -159,6 +114,9 @@ namespace detail
         virtual void completed(result<void> res) override final
         {
             this->_being_executed = false;
+            if (this->_io != nullptr) {
+                this->_io->_notify_operation_completed(this, res);
+            }
             if constexpr (requires(Sender x) {
                               x.completed(
                                   this, static_cast<result<void> &&>(res));
@@ -192,6 +150,9 @@ namespace detail
         virtual void completed(result<size_t> bytes_transferred) override final
         {
             this->_being_executed = false;
+            if (this->_io != nullptr) {
+                this->_io->_notify_operation_completed(this, bytes_transferred);
+            }
             if constexpr (requires(Sender x) {
                               x.completed(
                                   this,
@@ -278,7 +239,17 @@ inline connected_operation<Sender, Receiver>
 connect(AsyncIO &io, Sender &&sender, Receiver &&receiver)
 {
     return connected_operation<Sender, Receiver>(
-        io, static_cast<Sender &&>(sender), static_cast<Receiver &&>(receiver));
+        io,
+        [] {
+            if constexpr (requires { Receiver::lifetime_managed_internally; }) {
+                return Receiver::lifetime_managed_internally;
+            }
+            else {
+                return true;
+            }
+        }(),
+        static_cast<Sender &&>(sender),
+        static_cast<Receiver &&>(receiver));
 }
 //! Alternative connect customisation point taking piecewise construction args,
 //! requires receiver to be compatible with sender
@@ -310,7 +281,18 @@ inline connected_operation<Sender, Receiver> connect(
     std::tuple<ReceiverArgs...> &&receiver_args)
 {
     return connected_operation<Sender, Receiver>(
-        io, _, std::move(sender_args), std::move(receiver_args));
+        io,
+        [] {
+            if constexpr (requires { Receiver::lifetime_managed_internally; }) {
+                return Receiver::lifetime_managed_internally;
+            }
+            else {
+                return true;
+            }
+        }(),
+        _,
+        std::move(sender_args),
+        std::move(receiver_args));
 }
 
 MONAD_ASYNC_NAMESPACE_END

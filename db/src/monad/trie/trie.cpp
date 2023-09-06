@@ -187,12 +187,10 @@ struct update_receiver
     }
 
     void set_value(
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
         result<std::span<const std::byte>> _buffer)
     {
         assert(updates);
-        // Re-adopt ownership of operation state
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation_ptr state(rawstate);
         MONAD_ASSERT(_buffer);
         std::span<const std::byte> buffer = std::move(_buffer).assume_value();
         // construct the node from the read buffer
@@ -213,7 +211,6 @@ struct update_receiver
         // upward update parent until parent has more than one
         // valid subnodes
         trie->upward_update_data(parent_tnode);
-        // when state destructs, i/o buffer is released for reuse
     }
 };
 struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender

@@ -61,7 +61,6 @@ namespace
         using _io_state_type = AsyncIO::connected_operation_unique_ptr_type<
             read_single_buffer_sender, Receiver>;
         std::vector<_io_state_type> _states;
-        std::vector<std::array<std::byte, DISK_PAGE_SIZE>> _buffers;
         bool _test_is_done{false};
         unsigned _op_count{0};
 
@@ -69,7 +68,6 @@ namespace
         template <class... Args>
         explicit read_single_buffer_operation_states(
             size_t total, Args &&...args)
-            : _buffers(total)
         {
             _states.reserve(total);
             for (size_t n = 0; n < total; n++) {
@@ -77,7 +75,7 @@ namespace
                     test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
                 _states.push_back(testio->make_connected(
                     read_single_buffer_sender(
-                        offset, {_buffers[n].data(), DISK_PAGE_SIZE}),
+                        offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                     Receiver{this, std::forward<Args>(args)...}));
             }
         }
@@ -135,6 +133,11 @@ namespace
         auto check = [](const char *desc, auto &&get_now, auto timeout) {
             struct receiver_t
             {
+                enum : bool
+                {
+                    lifetime_managed_internally = false
+                };
+
                 bool done{false};
                 void set_value(erased_connected_operation *, result<void> res)
                 {
@@ -189,6 +192,11 @@ namespace
     {
         struct receiver_t
         {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
             std::atomic<bool> done{false};
             receiver_t() = default;
             receiver_t(const receiver_t &) {}
@@ -214,6 +222,11 @@ namespace
         static size_t count = 0;
         struct reinitiating_receiver_t
         {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
             void set_value(erased_connected_operation *state, result<void> res)
             {
                 ASSERT_TRUE(res);
@@ -225,6 +238,11 @@ namespace
         };
         struct nonreinitiating_receiver_t
         {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
             void set_value(erased_connected_operation *, result<void> res)
             {
                 ASSERT_TRUE(res);
@@ -264,6 +282,7 @@ namespace
                     COUNT>(
                     std::piecewise_construct,
                     *testio,
+                    false,
                     timed_delay_sender(thepast),
                     reinitiating_receiver_t{});
             benchmark("timed_delay_sender with a non-zero timeout", [&] {
@@ -285,6 +304,7 @@ namespace
                     COUNT>(
                     std::piecewise_construct,
                     *testio,
+                    false,
                     timed_delay_sender(std::chrono::seconds(0)),
                     reinitiating_receiver_t{});
             benchmark("timed_delay_sender with a zero timeout", [&] {
@@ -306,6 +326,7 @@ namespace
                     COUNT>(
                     std::piecewise_construct,
                     *testio,
+                    false,
                     threadsafe_sender{},
                     nonreinitiating_receiver_t{});
             done = -2;
@@ -321,11 +342,15 @@ namespace
                 }
                 std::cout << "   threadsafe_sender initiating thread exits"
                           << std::endl;
+                done = 2;
             });
             while (done == -2) {
                 std::this_thread::yield();
             }
             benchmark("threadsafe_sender", [&] {});
+            while (done == 1) {
+                testio->wait_until_done();
+            }
             worker.join();
         }
     }
@@ -336,6 +361,8 @@ namespace
     */
     struct completion_handler_io_receiver
     {
+        static constexpr bool lifetime_managed_internally = false;
+
         read_single_buffer_operation_states_base *state;
 
         explicit completion_handler_io_receiver(
@@ -380,6 +407,8 @@ namespace
      */
     struct cpp_suspend_resume_io_receiver
     {
+        static constexpr bool lifetime_managed_internally = false;
+
         using result_type = std::pair<
             erased_connected_operation *, result<std::span<const std::byte>>>;
         std::coroutine_handle<> _h;
@@ -470,6 +499,8 @@ namespace
      */
     struct fiber_suspend_resume_io_receiver
     {
+        static constexpr bool lifetime_managed_internally = false;
+
         using result_type = std::pair<
             erased_connected_operation *, result<std::span<const std::byte>>>;
         boost::fibers::promise<result_type> promise;
@@ -538,8 +569,18 @@ namespace
             use_anonymous_inode_tag{}, controller_executor_ring, testrwbuf);
         struct controller_notifying_io_receiver
         {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
             struct controller_initiating_io_receiver
             {
+                enum : bool
+                {
+                    lifetime_managed_internally = false
+                };
+
                 controller_notifying_io_receiver *parent{nullptr};
                 void set_value(erased_connected_operation *, result<void> res)
                 {
@@ -553,6 +594,11 @@ namespace
             };
             struct worker_initiating_io_receiver
             {
+                enum : bool
+                {
+                    lifetime_managed_internally = false
+                };
+
                 controller_notifying_io_receiver *parent{nullptr};
                 void set_value(erased_connected_operation *, result<void> res)
                 {
@@ -617,7 +663,7 @@ namespace
         static std::atomic<bool> done{false};
         std::thread controller([] {
             while (!done) {
-                controller_executor->poll_nonblocking();
+                controller_executor->poll_blocking();
             }
             controller_executor->wait_until_done();
         });
@@ -631,6 +677,7 @@ namespace
         states.stop();
         end = std::chrono::steady_clock::now();
         controller.join();
+        // Drain everything from both threads before exiting
         while (controller_executor->io_in_flight() > 0 ||
                testio->io_in_flight() > 0) {
             controller_executor->poll_nonblocking();
@@ -653,6 +700,11 @@ namespace
         ops.reserve(COUNT);
         struct receiver_t
         {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
             unsigned count;
             void set_value(erased_connected_operation *, result<void> res)
             {
