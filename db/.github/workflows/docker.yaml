@@ -2,14 +2,12 @@ name: Docker
 
 on:
   push:
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
     strategy:
       matrix:
-        CMAKE_BUILD_TYPE: [RelWithDebInfo]
+        CMAKE_BUILD_TYPE: [RelWithDebInfo, Debug]
         compiler: [{CXX: g++, CC: gcc}, {CXX: clang++, CC: clang}]
 
     runs-on: ubuntu-latest
