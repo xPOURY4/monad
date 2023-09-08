@@ -190,7 +190,6 @@ void AsyncIO::_submit_request(timed_invocation_state *state, void *uring_data)
 
 void AsyncIO::_poll_uring_while_submission_queue_full()
 {
-    assert(this != nullptr);
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     // if completions is getting close to full, drain some to prevent
     // completions getting dropped, which would break everything.
