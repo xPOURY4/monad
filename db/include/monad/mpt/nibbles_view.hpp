@@ -5,9 +5,42 @@
 #include <monad/mpt/config.hpp>
 
 #include <cstdint>
+#include <cstdlib>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
+struct Nibbles
+{
+    bool const si{false};
+    uint8_t const ei{0};
+    unsigned char *const data;
+
+    Nibbles(unsigned const si_, unsigned const ei_)
+        : si((si_ == ei_) ? false : (si_ & 1))
+        , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
+        , data((si_ == ei_) ? nullptr : ([&] {
+            MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
+            auto *ret = malloc((ei + 1) / 2);
+            if (ret == nullptr) {
+                throw std::bad_alloc();
+            }
+            return reinterpret_cast<unsigned char *>(ret);
+        }()))
+    {
+    }
+
+    constexpr unsigned size() const
+    {
+        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
+    }
+
+    ~Nibbles()
+    {
+        if (data) {
+            free(data);
+        }
+    }
+};
 struct NibblesView
 {
     unsigned char const *const data{nullptr};
@@ -16,21 +49,24 @@ struct NibblesView
 
     constexpr unsigned size() const
     {
-        if ((uint8_t)si == ei) {
-            return 0;
-        }
-        return (ei + 1) / 2;
+        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
     }
 
     constexpr NibblesView() = default;
 
     constexpr explicit NibblesView(
-        unsigned si_, unsigned ei_, unsigned char const *data_)
+        unsigned const si_, unsigned const ei_,
+        unsigned char const *const data_)
         : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
-        , si((si_ == ei_) ? false : si_ & 1)
+        , si((si_ == ei_) ? false : (si_ & 1))
         , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
     {
-        MONAD_DEBUG_ASSERT(si_ <= ei_);
+        MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
+    }
+
+    constexpr NibblesView(Nibbles &n)
+        : NibblesView{n.si, n.ei, n.data}
+    {
     }
 
     constexpr bool operator==(NibblesView const &other) const
@@ -56,5 +92,22 @@ struct NibblesView
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
+
+inline Nibbles
+concat(NibblesView const &prefix, unsigned char nibble, NibblesView &suffix)
+{
+    // calculate bytes
+    unsigned ei = prefix.ei - prefix.si + 1 + suffix.ei - suffix.si;
+    Nibbles res{0, ei};
+    unsigned j = 0;
+    for (unsigned i = prefix.si; i < prefix.ei; ++i, ++j) {
+        set_nibble(res.data, j, get_nibble(prefix.data, i));
+    }
+    set_nibble(res.data, j++, nibble);
+    for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
+        set_nibble(res.data, j, get_nibble(suffix.data, i));
+    }
+    return res;
+}
 
 MONAD_MPT_NAMESPACE_END

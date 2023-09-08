@@ -14,4 +14,30 @@ class Node;
 
 node_ptr upsert(Compute &comp, Node *const old, UpdateList &&updates);
 
+inline Node *find(Node *node, byte_string_view key)
+{
+    unsigned pi = 0, node_pi = node->path_si;
+
+    while (pi < 2 * key.size()) {
+        unsigned char nibble = get_nibble(key.data(), pi);
+        if (node->path_ei == node_pi) {
+            if (!(node->mask & (1u << nibble))) {
+                return nullptr;
+            }
+            // go to next node's matching branch
+            node = node->next(nibble);
+            node_pi = node->path_si;
+            ++pi;
+            continue;
+        }
+        if (nibble != get_nibble(node->path_data(), node_pi)) {
+            return nullptr;
+        }
+        // nibble is matched
+        ++pi;
+        ++node_pi;
+    }
+    return node;
+}
+
 MONAD_MPT_NAMESPACE_END

@@ -17,11 +17,12 @@ static_assert(alignof(std::optional<Data>) == 8);
 
 struct UpdateBase
 {
-    byte_string_view key;
-    std::optional<Data> opt;
+    byte_string_view key{};
+    std::optional<Data> opt{std::nullopt};
+    bool incarnation{false};
 };
 
-static_assert(sizeof(UpdateBase) == 40);
+static_assert(sizeof(UpdateBase) == 48);
 static_assert(alignof(UpdateBase) == 8);
 
 using UpdateMemberHook = boost::intrusive::slist_member_hook<
@@ -31,13 +32,13 @@ struct Update : UpdateBase
 {
     UpdateMemberHook hook_;
 
-    constexpr bool is_deletion() noexcept
+    constexpr bool is_deletion() const noexcept
     {
         return !opt.has_value();
     }
 };
 
-static_assert(sizeof(Update) == 48);
+static_assert(sizeof(Update) == 56);
 static_assert(alignof(Update) == 8);
 
 using UpdateList = boost::intrusive::slist<
@@ -49,9 +50,11 @@ static_assert(sizeof(UpdateList) == 16);
 static_assert(alignof(UpdateList) == 8);
 
 inline Update make_update(
-    monad::byte_string_view const &key, monad::byte_string_view const &value)
+    monad::byte_string_view const &key, monad::byte_string_view const &value,
+    bool incarnation = false)
 {
-    return Update{{key, std::optional<Data>{value}}, UpdateMemberHook{}};
+    return Update{
+        {key, std::optional<Data>{value}, incarnation}, UpdateMemberHook{}};
 }
 
 inline Update make_erase(monad::byte_string_view const &key)

@@ -22,14 +22,23 @@ class Node;
 // asynchronously, should allocate an array of ChildData or an array of
 // byte_string on heap instead of in current stack frame, which will be
 // destructed when async
+#define INVALID_BRANCH 255
+
 struct ChildData
 {
     unsigned char data[32];
+    uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
-    char pad[7];
+    char pad[6];
 };
 static_assert(sizeof(ChildData) == 40);
 static_assert(alignof(ChildData) == 1);
+
+inline void set_child_data(ChildData &dest, byte_string_view src)
+{
+    std::memcpy(dest.data, src.data(), src.size());
+    dest.len = src.size();
+}
 
 /* In-memory trie node struct (TODO: on-disk)
 Ethereum spec:
@@ -53,7 +62,7 @@ public:
     uint8_t hash_len{0};
     bool path_si{false};
     uint8_t path_ei{0};
-    char pad[2];
+    char pad[2]; // TODO: remove padding
     unsigned char data[0];
     // layout:
     // next[n], (fnext[n]), data_off[n], path, leaf_data, hash_data,
@@ -194,10 +203,10 @@ public:
     {
         return NibblesView{path_si, path_ei, path_data()};
     }
-    void set_path(NibblesView relpath)
+    void set_path(NibblesView const &relpath)
     {
-        // MONAD_DEBUG_ASSERT(relpath.size());
-        // MONAD_DEBUG_ASSERT((uint8_t)relpath.si != relpath.ei);
+        // TODO: a possible case isn't handled is that when si and ei are all
+        // odd, should shift leaf one nibble
         path_si = relpath.si;
         path_ei = relpath.ei;
         if (relpath.size()) {
@@ -229,6 +238,10 @@ public:
     }
 
     //! hash
+    constexpr bool has_hash() noexcept
+    {
+        return n() > 1 && (has_relpath() || leaf_len);
+    }
     constexpr unsigned char *hash_data() noexcept
     {
         return leaf_data() + leaf_len;
@@ -304,16 +317,17 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
 
 struct Compute;
 //! create leaf node without children, hash_len = 0
-node_ptr create_leaf(byte_string_view data, NibblesView &relpath);
+node_ptr create_leaf(byte_string_view const data, NibblesView const &relpath);
 
 //! create node: either branch/extension, with or without leaf
 node_ptr create_node(
-    Compute &comp, uint16_t const mask, std::span<ChildData> children,
-    std::span<node_ptr> nexts, NibblesView &relpath,
-    byte_string_view leaf_data = {});
+    Compute &comp, uint16_t const orig_mask, uint16_t const mask,
+    std::span<ChildData> hashes, std::span<node_ptr> nexts,
+    NibblesView const &relpath, byte_string_view const leaf_data = {});
 
-//! create new leaf from old node with updated relpath and leaf data
-node_ptr create_node_from_prev(
-    Node *old, NibblesView &relpath, byte_string_view leaf_data = {});
+//! create new leaf from old node with shorter relpath and new leaf data
+node_ptr update_node_shorter_path(
+    Node *old, NibblesView const &relpath,
+    byte_string_view const leaf_data = {});
 
 MONAD_MPT_NAMESPACE_END

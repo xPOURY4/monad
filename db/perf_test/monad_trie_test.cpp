@@ -41,6 +41,21 @@ void __print_char_arr_in_hex(char *arr, int n)
     fprintf(stdout, "\n");
 }
 
+// helper traversal count
+inline unsigned count_leaves(Node *const root, unsigned n = 0)
+{
+    if (!root) {
+        return 0;
+    }
+    if (!bitmask_count(root->mask)) {
+        return 1;
+    }
+    for (unsigned j = 0; j < bitmask_count(root->mask); ++j) {
+        n += count_leaves(root->next_j(j));
+    }
+    return n;
+}
+
 /*  Commit one batch of updates
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
@@ -94,7 +109,16 @@ inline node_ptr batch_upsert_commit(
                    << ((double)nkeys / tm_ram) << std::endl;
     }
 
-    // fprintf(stdout, "num of leaves %u\n", count_leaves(root_container.next));
+    fprintf(stdout, "num of leaves %u\n", count_leaves(new_node.get()));
+
+    // TEMPOROARY for leaf existence verification
+    if (!erase) {
+        for (uint64_t i = keccak_offset; i < keccak_offset + nkeys; ++i) {
+            assert(
+                find(new_node.get(), keccak_keys[i])->leaf_view() ==
+                keccak_values[i]);
+        }
+    }
     return new_node;
 }
 
@@ -197,37 +221,37 @@ int main(int argc, char *argv[])
                 std::move(state_root),
                 comp);
 
-            // if (erase && iter % 2) {
-            //     fprintf(stdout, "> erase iter = %d\n", iter);
-            //     fflush(stdout);
-            //     state_root = batch_upsert_commit(
-            //         csv_writer,
-            //         vid,
-            //         (iter % 100) * SLICE_LEN,
-            //         offset,
-            //         SLICE_LEN,
-            //         keccak_keys.get(),
-            //         keccak_values.get(),
-            //         true,
-            //         state_root,
-            //         comp);
-            //     ++vid;
+            if (erase && (iter & 1) != 0) {
+                fprintf(stdout, "> erase iter = %d\n", iter);
+                fflush(stdout);
+                state_root = batch_upsert_commit(
+                    csv_writer,
+                    vid,
+                    (iter % 100) * SLICE_LEN,
+                    offset,
+                    SLICE_LEN,
+                    keccak_keys,
+                    keccak_values,
+                    true,
+                    std::move(state_root),
+                    comp);
+                ++vid;
 
-            //     fprintf(stdout, "> dup batch iter = %d\n", iter);
+                fprintf(stdout, "> dup batch iter = %d\n", iter);
 
-            //     state_root = batch_upsert_commit(
-            //         csv_writer,
-            //         vid,
-            //         (iter % 100) * SLICE_LEN,
-            //         offset,
-            //         SLICE_LEN,
-            //         keccak_keys.get(),
-            //         keccak_values.get(),
-            //         false,
-            //         state_root,
-            //         comp);
-            //     ++vid;
-            // }
+                state_root = batch_upsert_commit(
+                    csv_writer,
+                    vid,
+                    (iter % 100) * SLICE_LEN,
+                    offset,
+                    SLICE_LEN,
+                    keccak_keys,
+                    keccak_values,
+                    false,
+                    std::move(state_root),
+                    comp);
+                ++vid;
+            }
 
             ++vid;
         }

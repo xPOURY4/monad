@@ -30,12 +30,24 @@ struct Requests
         return std::move(sublists[i]);
     }
 
-    constexpr unsigned get_first_branch()
+    constexpr unsigned get_first_branch() const
     {
         return std::countr_zero(mask);
     }
 
-    //! return the number of children it splits into
+    constexpr UpdateList &&first_and_only_list() &&
+    {
+        MONAD_DEBUG_ASSERT(bitmask_count(mask) == 1);
+        return std::move(sublists[get_first_branch()]);
+    }
+
+    constexpr unsigned const char *get_first_path() const
+    {
+        return sublists[get_first_branch()].front().key.data();
+    }
+
+    //! return the number of sublists it splits into, equals #distinct_nibbles
+    //! at prefix index i.
     //! if single update, pi != key.size() * 2, put to one of sublists, n = 1
     //! if single update, pi == key.size() * 2, set opt_leaf, n = 0
     //! if multiple updates, pi = one of key size, set opt_leaf, split the rest

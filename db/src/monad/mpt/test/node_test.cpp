@@ -19,6 +19,11 @@ struct DummyCompute final : Compute
         return len >= 32 ? 32 : len;
     }
 
+    virtual unsigned compute_branch(unsigned char *, Node *) override
+    {
+        return 0;
+    }
+
     virtual unsigned
     compute(unsigned char *buffer, Node *, unsigned = -1) override
     {
@@ -50,9 +55,12 @@ TEST(NodeTest, leaf_single_branch)
     ChildData hashes[1];
     hashes[0].len = 1;
     hashes[0].data[0] = 0xa;
+    hashes[0].branch = 0xc;
     node_ptr nexts[1] = {std::move(child)};
     NibblesView relpath2{1, 10, path.data()};
-    node_ptr node = create_node(comp, 1u << 0xc, hashes, nexts, relpath2, data);
+    uint16_t const mask = 1u << 0xc;
+    node_ptr node =
+        create_node(comp, mask, mask, hashes, nexts, relpath2, data);
 
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
@@ -71,10 +79,13 @@ TEST(NodeTest, leaf_multiple_branches)
     hash.len = 1;
     hash.data[0] = 0xa;
     ChildData hashes[2] = {hash, hash};
+    hashes[0].branch = 0xa;
+    hashes[1].branch = 0xc;
     node_ptr nexts[2] = {std::move(child1), std::move(child2)};
     NibblesView relpath2{1, 10, path.data()};
+    uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node =
-        create_node(comp, 1u << 0xc | 1u << 0xa, hashes, nexts, relpath2, data);
+        create_node(comp, mask, mask, hashes, nexts, relpath2, data);
 
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
@@ -93,10 +104,12 @@ TEST(NodeTest, branch_node)
     hash.len = 1;
     hash.data[0] = 0xa;
     ChildData hashes[2] = {hash, hash};
+    hashes[0].branch = 0xa;
+    hashes[1].branch = 0xc;
     node_ptr nexts[2] = {std::move(child1), std::move(child2)};
     NibblesView relpath2{1, 1, path.data()}; // relpath2 is empty
-    node_ptr node =
-        create_node(comp, 1u << 0xc | 1u << 0xa, hashes, nexts, relpath2);
+    uint16_t const mask = (1u << 0xa) | (1u << 0xc);
+    node_ptr node = create_node(comp, mask, mask, hashes, nexts, relpath2);
 
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->hash_len, 0);
@@ -115,10 +128,12 @@ TEST(NodeTest, extension_node)
     hash.len = 1;
     hash.data[0] = 0xa;
     ChildData hashes[2] = {hash, hash};
+    hashes[0].branch = 0xa;
+    hashes[1].branch = 0xc;
     node_ptr nexts[2] = {std::move(child1), std::move(child2)};
     NibblesView relpath2{1, 10, path.data()};
-    node_ptr node =
-        create_node(comp, 1u << 0xc | 1u << 0xa, hashes, nexts, relpath2);
+    uint16_t const mask = (1u << 0xa) | (1u << 0xc);
+    node_ptr node = create_node(comp, mask, mask, hashes, nexts, relpath2);
 
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
