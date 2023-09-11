@@ -14,7 +14,7 @@ MONAD_MPT_NAMESPACE_BEGIN
 */
 node_ptr _dispatch_updates(
     Compute &comp, Node *const old, Requests &requests, unsigned pi,
-    NibblesView &relpath);
+    NibblesView const relpath);
 
 node_ptr _mismatch_handler(
     Compute &comp, Node *const old, Requests &requests, unsigned const old_psi,
@@ -23,7 +23,8 @@ node_ptr _mismatch_handler(
 node_ptr _create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi = 0);
 
 node_ptr _create_new_trie_from_requests(
-    Compute &comp, Requests &requests, NibblesView &relpath, unsigned const pi);
+    Compute &comp, Requests &requests, NibblesView const relpath,
+    unsigned const pi);
 
 node_ptr _upsert(
     Compute &comp, Node *const old, UpdateList &&updates, unsigned pi = 0,
@@ -39,7 +40,7 @@ node_ptr upsert(Compute &comp, Node *const old, UpdateList &&updates)
 
 //! get leaf data from new update and old leaf, whose default is {}
 byte_string_view
-_get_leaf_data(std::optional<Update> opt_leaf, byte_string_view old_leaf)
+_get_leaf_data(std::optional<Update> opt_leaf, byte_string_view const old_leaf)
 {
     if (opt_leaf.has_value()) {
         MONAD_DEBUG_ASSERT(opt_leaf.value().opt.has_value());
@@ -49,7 +50,8 @@ _get_leaf_data(std::optional<Update> opt_leaf, byte_string_view old_leaf)
 }
 
 //! update leaf data of old, old can have branches
-node_ptr _update_leaf_data(Node *const old, NibblesView &relpath, Update &u)
+node_ptr
+_update_leaf_data(Node *const old, NibblesView const relpath, Update const &u)
 {
     if (u.is_deletion()) {
         return nullptr;
@@ -59,8 +61,8 @@ node_ptr _update_leaf_data(Node *const old, NibblesView &relpath, Update &u)
         return create_leaf(u.opt.value().data(), relpath);
     }
     // keep old's child if any
-    byte_string_view leaf_data = _get_leaf_data(u, old->leaf_view());
-    return update_node_shorter_path(old, relpath, leaf_data);
+    return update_node_shorter_path(
+        old, relpath, _get_leaf_data(u, old->leaf_view()));
 }
 
 node_ptr _upsert(
@@ -81,16 +83,15 @@ node_ptr _upsert(
         if (old_pi == old->path_ei) {
             return _dispatch_updates(comp, old, requests, pi, relpath);
         }
-        unsigned char old_nibble = get_nibble(old->path_data(), old_pi);
-        if (n == 1 && requests.get_first_branch() == old_nibble) {
+        if (auto old_nibble = get_nibble(old->path_data(), old_pi);
+            n == 1 && requests.get_first_branch() == old_nibble) {
             updates = std::move(requests)[old_nibble];
             ++pi;
             ++old_pi;
+            continue;
         }
-        else {
-            // meet a mismatch or split, not till the end of old path
-            return _mismatch_handler(comp, old, requests, old_psi, old_pi, pi);
-        }
+        // meet a mismatch or split, not till the end of old path
+        return _mismatch_handler(comp, old, requests, old_psi, old_pi, pi);
     }
 }
 
@@ -101,27 +102,26 @@ node_ptr _create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
     if (updates.size() == 1) {
         Update &u = updates.front();
         MONAD_DEBUG_ASSERT(u.incarnation == false && u.opt.has_value());
-        NibblesView relpath{pi, (uint8_t)(2 * u.key.size()), u.key.data()};
-        return create_leaf(u.opt.value(), relpath);
+        return create_leaf(
+            u.opt.value(),
+            NibblesView{pi, (uint8_t)(2 * u.key.size()), u.key.data()});
     }
     Requests requests;
     uint8_t const psi = pi;
-    while (true) {
-        unsigned n = requests.split_into_sublists(std::move(updates), pi);
-        if (n > 1 || requests.opt_leaf.has_value()) {
-            break;
-        }
+    while (requests.split_into_sublists(std::move(updates), pi) == 1 &&
+           !requests.opt_leaf) {
         updates = std::move(requests).first_and_only_list();
         ++pi;
     }
-    NibblesView relpath{psi, pi, requests.get_first_path()};
-    return _create_new_trie_from_requests(comp, requests, relpath, pi);
+    return _create_new_trie_from_requests(
+        comp, requests, NibblesView{psi, pi, requests.get_first_path()}, pi);
 }
 
 node_ptr _create_new_trie_from_requests(
-    Compute &comp, Requests &requests, NibblesView &relpath, unsigned const pi)
+    Compute &comp, Requests &requests, NibblesView const relpath,
+    unsigned const pi)
 {
-    unsigned n = bitmask_count(requests.mask);
+    unsigned const n = bitmask_count(requests.mask);
     uint16_t const mask = requests.mask;
     MONAD_DEBUG_ASSERT(n > 0);
     ChildData hashes[n];
@@ -129,17 +129,20 @@ node_ptr _create_new_trie_from_requests(
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             nexts[j] = _create_new_trie(comp, std::move(requests)[i], pi + 1);
-            // special case: n == 1, comp.compute() with relpath prefix
-            hashes[j].len = comp.compute(
-                hashes[j].data, nexts[j].get(), (n == 1) ? i : (unsigned)-1);
+            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
             hashes[j].branch = i;
             ++j;
         }
     }
     // compute hash length
-    byte_string_view leaf_data = _get_leaf_data(requests.opt_leaf, {});
     return create_node(
-        comp, mask, mask, {hashes, n}, {nexts, n}, relpath, leaf_data);
+        comp,
+        mask,
+        mask,
+        {hashes, n},
+        {nexts, n},
+        relpath,
+        _get_leaf_data(requests.opt_leaf, {}));
 }
 
 //! dispatch updates at the end of old node's path
@@ -147,11 +150,11 @@ node_ptr _create_new_trie_from_requests(
 //! return a new node
 node_ptr _dispatch_updates(
     Compute &comp, Node *const old, Requests &requests, unsigned pi,
-    NibblesView &relpath)
+    NibblesView const relpath)
 {
     uint16_t mask = old->mask | requests.mask;
     uint16_t const orig = mask;
-    unsigned n = bitmask_count(mask);
+    unsigned const n = bitmask_count(mask);
 
     auto const &opt_leaf = requests.opt_leaf;
     if (opt_leaf.has_value() && opt_leaf.value().incarnation) {
@@ -176,11 +179,7 @@ node_ptr _dispatch_updates(
                 mask &= ~bit;
             }
             else {
-                // special case: n == 1, comp.compute() with relpath prefix
-                hashes[j].len = comp.compute(
-                    hashes[j].data,
-                    nexts[j].get(),
-                    (n == 1) ? i : (unsigned)-1);
+                hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
                 hashes[j].branch = i;
             }
             ++j;
@@ -195,9 +194,14 @@ node_ptr _dispatch_updates(
         }
     }
     // no incarnation and no erase at this point
-    byte_string_view leaf_data = _get_leaf_data(opt_leaf, old->leaf_view());
     return create_node(
-        comp, orig, mask, {hashes, n}, {nexts, n}, relpath, leaf_data);
+        comp,
+        orig,
+        mask,
+        {hashes, n},
+        {nexts, n},
+        relpath,
+        _get_leaf_data(opt_leaf, old->leaf_view()));
 }
 
 //! split old at old_pi, updates at pi
@@ -212,7 +216,7 @@ node_ptr _mismatch_handler(
     unsigned char const old_nibble = get_nibble(old->path_data(), old_pi);
     uint16_t mask = 1u << old_nibble | requests.mask;
     uint16_t const orig = mask;
-    unsigned n = bitmask_count(mask);
+    unsigned const n = bitmask_count(mask);
     MONAD_DEBUG_ASSERT(n > 1);
     ChildData hashes[n];
     node_ptr nexts[n];
@@ -237,18 +241,26 @@ node_ptr _mismatch_handler(
             NibblesView relpath{old_pi + 1, old->path_ei, old->path_data()};
             nexts[j] = update_node_shorter_path(old, relpath, old->leaf_view());
             hashes[j].branch = i;
-            if (!nexts[j]->hash_len) { // avoid dup compute branch hash
+            if (nexts[j]->n() && !nexts[j]->hash_len) {
+                // the newly created node doesn't have relpath, to avoid dup
+                // compute branch hash, we copy old node's branch hash here
+                assert(old->n());
                 set_child_data(hashes[j], old->hash_view());
             }
-            else {
+            else { // the newly created node maybe ext or leaf
                 hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
             }
             ++j;
         }
     }
     // trim suffix
-    NibblesView relpath{old_psi, old_pi, old->path_data()};
-    return create_node(comp, orig, mask, {hashes, n}, {nexts, n}, relpath);
+    return create_node(
+        comp,
+        orig,
+        mask,
+        {hashes, n},
+        {nexts, n},
+        NibblesView{old_psi, old_pi, old->path_data()});
 }
 
 MONAD_MPT_NAMESPACE_END

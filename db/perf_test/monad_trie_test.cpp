@@ -92,8 +92,11 @@ inline node_ptr batch_upsert_commit(
                  .count() /
              1000000000.0;
 
-    // fprintf(stdout, "root->data : ");
-    // __print_char_arr_in_hex((char *), 32);
+    unsigned char root_hash[32];
+    comp.compute(root_hash, new_node.get());
+    fprintf(stdout, "root->data : ");
+    __print_char_arr_in_hex((char *)root_hash, 32);
+
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in "
@@ -109,16 +112,18 @@ inline node_ptr batch_upsert_commit(
                    << ((double)nkeys / tm_ram) << std::endl;
     }
 
-    fprintf(stdout, "num of leaves %u\n", count_leaves(new_node.get()));
-
     // TEMPOROARY for leaf existence verification
-    if (!erase) {
-        for (uint64_t i = keccak_offset; i < keccak_offset + nkeys; ++i) {
-            assert(
-                find(new_node.get(), keccak_keys[i])->leaf_view() ==
-                keccak_values[i]);
-        }
-    }
+    // ts_before = std::chrono::steady_clock::now();
+    // fprintf(stdout, "num of leaves %u\n", count_leaves(new_node.get()));
+    // ts_after = std::chrono::steady_clock::now();
+    // fprintf(
+    //     stdout,
+    //     "count leaves traversal time: %.4f s\n",
+    //     std::chrono::duration_cast<std::chrono::nanoseconds>(
+    //         ts_after - ts_before)
+    //             .count() /
+    //         1000000000.0);
+
     return new_node;
 }
 
@@ -183,7 +188,7 @@ int main(int argc, char *argv[])
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
         node_ptr state_root{};
-        EmptyCompute comp{};
+        MerkleCompute comp{};
 
         auto begin_test = std::chrono::steady_clock::now();
         uint64_t max_key = n_slices * SLICE_LEN + offset;

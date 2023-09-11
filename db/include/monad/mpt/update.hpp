@@ -50,14 +50,14 @@ static_assert(sizeof(UpdateList) == 16);
 static_assert(alignof(UpdateList) == 8);
 
 inline Update make_update(
-    monad::byte_string_view const &key, monad::byte_string_view const &value,
+    monad::byte_string_view const key, monad::byte_string_view const value,
     bool incarnation = false)
 {
     return Update{
         {key, std::optional<Data>{value}, incarnation}, UpdateMemberHook{}};
 }
 
-inline Update make_erase(monad::byte_string_view const &key)
+inline Update make_erase(monad::byte_string_view const key)
 {
     return Update{{key, std::nullopt}, UpdateMemberHook{}};
 }

@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -20,10 +21,12 @@ struct Nibbles
         , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
         , data((si_ == ei_) ? nullptr : ([&] {
             MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
-            auto *ret = malloc((ei + 1) / 2);
+            unsigned const alloc_size = (ei + 1) / 2;
+            auto *ret = std::malloc(alloc_size);
             if (ret == nullptr) {
                 throw std::bad_alloc();
             }
+            std::memset(ret, 0, alloc_size);
             return reinterpret_cast<unsigned char *>(ret);
         }()))
     {
@@ -64,7 +67,7 @@ struct NibblesView
         MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
     }
 
-    constexpr NibblesView(Nibbles &n)
+    constexpr NibblesView(Nibbles const &n)
         : NibblesView{n.si, n.ei, n.data}
     {
     }
@@ -93,8 +96,9 @@ struct NibblesView
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
 
-inline Nibbles
-concat(NibblesView const &prefix, unsigned char nibble, NibblesView &suffix)
+inline Nibbles concat3(
+    NibblesView const prefix, unsigned char const nibble,
+    NibblesView const suffix)
 {
     // calculate bytes
     unsigned ei = prefix.ei - prefix.si + 1 + suffix.ei - suffix.si;
@@ -103,6 +107,18 @@ concat(NibblesView const &prefix, unsigned char nibble, NibblesView &suffix)
     for (unsigned i = prefix.si; i < prefix.ei; ++i, ++j) {
         set_nibble(res.data, j, get_nibble(prefix.data, i));
     }
+    set_nibble(res.data, j++, nibble);
+    for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
+        set_nibble(res.data, j, get_nibble(suffix.data, i));
+    }
+    return res;
+}
+
+inline Nibbles concat2(unsigned char const nibble, NibblesView const suffix)
+{
+    unsigned ei = suffix.ei - suffix.si + 1;
+    Nibbles res{0, ei};
+    unsigned j = 0;
     set_nibble(res.data, j++, nibble);
     for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
         set_nibble(res.data, j, get_nibble(suffix.data, i));

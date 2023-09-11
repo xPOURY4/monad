@@ -10,7 +10,8 @@ using namespace monad::literals;
 struct DummyCompute final : Compute
 {
     // hash length = 1
-    virtual unsigned compute_len(std::span<ChildData> hashes) override
+    virtual unsigned compute_len(
+        std::span<ChildData> const hashes, std::span<node_ptr> const) override
     {
         unsigned len = 0;
         for (unsigned i = 0; i < hashes.size(); ++i) {
@@ -24,8 +25,7 @@ struct DummyCompute final : Compute
         return 0;
     }
 
-    virtual unsigned
-    compute(unsigned char *buffer, Node *, unsigned = -1) override
+    virtual unsigned compute(unsigned char *buffer, Node *) override
     {
         buffer[0] = 0xa;
         return 1;
@@ -64,8 +64,8 @@ TEST(NodeTest, leaf_single_branch)
 
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
-    EXPECT_EQ(node->hash_len, 0);
-    EXPECT_EQ(node->node_mem_size(), 28);
+    EXPECT_EQ(node->hash_len, 1);
+    EXPECT_EQ(node->node_mem_size(), 29);
 }
 
 TEST(NodeTest, leaf_multiple_branches)

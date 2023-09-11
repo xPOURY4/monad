@@ -6,7 +6,7 @@
 using namespace monad::mpt;
 using namespace monad::literals;
 
-TEST(NibblesViewTest, nibbles)
+TEST(NibblesViewTest, nibbles_view)
 {
     auto path =
         0x1234567812345678123456781234567812345678123456781234567812345678_hex;
@@ -24,3 +24,21 @@ TEST(NibblesViewTest, nibbles)
     EXPECT_EQ(d.si, true);
     EXPECT_EQ(d.ei, 4);
 }
+
+TEST(NibblesTest, concat_nibbles)
+{
+    auto path =
+        0x1234567812345678123456781234567812345678123456781234567812345678_hex;
+
+    Nibbles a =
+        concat2(get_nibble(path.data(), 0), NibblesView{1, 12, path.data()});
+    EXPECT_EQ(a, (NibblesView{0, 12, path.data()}));
+
+    Nibbles b = concat3(
+        NibblesView{12, 16, path.data()},
+        get_nibble(path.data(), 16),
+        NibblesView{17, 20, path.data()});
+    EXPECT_EQ(b, (NibblesView{12, 20, path.data()}));
+}
+
+TEST(NibblesTest, concat) {}

@@ -185,6 +185,15 @@ public:
             return reinterpret_cast<data_off_t *>(child_off_data())[j - 1];
         }
     }
+    constexpr unsigned child_data_len_j(unsigned const j)
+    {
+        return child_off_j(j + 1) - child_off_j(j);
+    }
+
+    constexpr unsigned child_data_len(unsigned const i)
+    {
+        return child_data_len_j(to_j(i));
+    }
 
     //! path
     constexpr unsigned char *path_data() noexcept
@@ -203,7 +212,7 @@ public:
     {
         return NibblesView{path_si, path_ei, path_data()};
     }
-    void set_path(NibblesView const &relpath)
+    void set_path(NibblesView const relpath)
     {
         // TODO: a possible case isn't handled is that when si and ei are all
         // odd, should shift leaf one nibble
@@ -238,9 +247,9 @@ public:
     }
 
     //! hash
-    constexpr bool has_hash() noexcept
+    constexpr bool has_hash() const noexcept
     {
-        return n() > 1 && (has_relpath() || leaf_len);
+        return hash_len;
     }
     constexpr unsigned char *hash_data() noexcept
     {
@@ -265,7 +274,7 @@ public:
         MONAD_DEBUG_ASSERT(j < n());
         return byte_string_view{
             child_data() + child_off_j(j),
-            static_cast<size_t>(child_off_j(j + 1) - child_off_j(j))};
+            static_cast<size_t>(child_data_len_j(j))};
     }
     constexpr unsigned char *child_data_j(unsigned const j) noexcept
     {
@@ -317,17 +326,17 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
 
 struct Compute;
 //! create leaf node without children, hash_len = 0
-node_ptr create_leaf(byte_string_view const data, NibblesView const &relpath);
+node_ptr create_leaf(byte_string_view const data, NibblesView const relpath);
 
 //! create node: either branch/extension, with or without leaf
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const &relpath, byte_string_view const leaf_data = {});
+    NibblesView const relpath, byte_string_view const leaf_data = {});
 
 //! create new leaf from old node with shorter relpath and new leaf data
 node_ptr update_node_shorter_path(
-    Node *old, NibblesView const &relpath,
+    Node *old, NibblesView const relpath,
     byte_string_view const leaf_data = {});
 
 MONAD_MPT_NAMESPACE_END

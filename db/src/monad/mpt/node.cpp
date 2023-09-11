@@ -7,7 +7,7 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 //! create leaf node without children, hash_len = 0
-node_ptr create_leaf(byte_string_view const data, NibblesView const &relpath)
+node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
 {
     unsigned const bytes = sizeof(Node) + relpath.size() + data.size();
     node_ptr node = Node::make_node(bytes);
@@ -21,29 +21,29 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const &relpath)
     return node;
 }
 
-//! Note: there's a potential superfluous extension hash computation when node
-//! coaleases upon multiple erases, because we compute node hash when relpath is
-//! not yet the final form. There's no good way to avoid this unless we delay
-//! all the compute() after all child branches finish creating nodes and return
-//! in the recursion
-inline node_ptr update_node_longer_path(
-    ChildData &hash, node_ptr prev, NibblesView const &prefix)
+//! Note: there's a potential superfluous extension hash recomputation when node
+//! coaleases upon erases, because we compute node hash when relpath is not yet
+//! the final form. There's not yet a good way to avoid this unless we delay all
+//! the compute() after all child branches finish creating nodes and return in
+//! the recursion
+inline node_ptr create_coalesced_node_with_prefix(
+    ChildData &hash, node_ptr prev, NibblesView const prefix)
 {
-    // prev can be a leaf
-    // TODO: define concat
-    unsigned const nibble = hash.branch;
-    NibblesView suffix = prev->path_nibble_view();
-    Nibbles relpath = concat(prefix, nibble, suffix);
+    // Note that prev may be a leaf
+    Nibbles relpath = concat3(prefix, hash.branch, prev->path_nibble_view());
+    // To get hash: no need to recompute because node and prev have the same
+    // children, hash is either in prev->hash_data() if any or in `hash`
     unsigned hash_len = 0;
     unsigned char *hash_data = nullptr;
     if (prev->has_hash()) {
         hash_len = prev->hash_len;
         hash_data = prev->hash_data();
     }
-    else if (prev->n() > 1) {
+    else if (prev->n()) {
         hash_len = hash.len;
         hash_data = hash.data;
     }
+    // create node
     unsigned size = prev->node_mem_size() + relpath.size() -
                     prev->path_bytes() + (prev->hash_len ? 0 : hash_len);
     node_ptr node = Node::make_node(size);
@@ -52,6 +52,8 @@ inline node_ptr update_node_longer_path(
         (void *)node.get(),
         (void *)prev.get(),
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
+    node->hash_len = hash_len;
+
     for (unsigned j = 0; j < prev->n(); ++j) {
         prev->next_j(j) = nullptr;
     }
@@ -59,7 +61,7 @@ inline node_ptr update_node_longer_path(
     if (prev->leaf_len) {
         node->set_leaf(prev->leaf_view());
     }
-    if (hash_data) {
+    if (hash_len) {
         std::memcpy(node->hash_data(), hash_data, hash_len);
     }
     std::memcpy(
@@ -71,7 +73,7 @@ inline node_ptr update_node_longer_path(
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const &relpath, byte_string_view const leaf_data)
+    NibblesView const relpath, byte_string_view const leaf_data)
 {
     // handle non child and single child cases
     unsigned const n = bitmask_count(mask);
@@ -83,13 +85,16 @@ node_ptr create_node(
     }
     else if (n == 1 && !leaf_data.size()) {
         unsigned j = bitmask_index(orig_mask, std::countr_zero(mask));
-        return update_node_longer_path(hashes[j], std::move(nexts[j]), relpath);
+        return create_coalesced_node_with_prefix(
+            hashes[j], std::move(nexts[j]), relpath);
     }
-    MONAD_DEBUG_ASSERT(n);
-    uint8_t leaf_len = leaf_data.size(), hash_len = 0;
-    if (n > 1 && (leaf_len || relpath.size())) {
-        hash_len = comp.compute_len(hashes);
-    }
+    MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.size()));
+    // any node with child will have hash data
+    uint8_t const leaf_len = leaf_data.size(),
+                  hash_len =
+                      ((relpath.size() || leaf_data.size())
+                           ? comp.compute_len(hashes, nexts)
+                           : 0);
     unsigned bytes = sizeof(Node) + leaf_len + hash_len + n * sizeof(Node *) +
                      relpath.size() + n * sizeof(Node::data_off_t);
     Node::data_off_t offsets[n];
@@ -102,8 +107,7 @@ node_ptr create_node(
         }
     }
     bytes += data_len;
-
-    node_ptr node = Node::make_node(bytes);
+    node_ptr node = Node::make_node(bytes); // zero initialized
     node->set_params(mask, leaf_len, hash_len);
     std::memcpy(node->child_off_data(), offsets, n * sizeof(Node::data_off_t));
     // order is enforced, must set path first
@@ -123,6 +127,7 @@ node_ptr create_node(
     // compute branch() here can avoid duplicate compute for branch hash
     // once node is created, no field inside node should be changed
     if (node->hash_len) {
+        // special case, node has one single branch
         comp.compute_branch(node->hash_data(), node.get());
     }
     return node;
@@ -132,10 +137,10 @@ node_ptr create_node(
 //! previous. One corner case being that new relpath is empty, old's hash data
 //! need to be removed when creating new node.
 node_ptr update_node_shorter_path(
-    Node *old, NibblesView const &relpath, byte_string_view const leaf_data)
+    Node *old, NibblesView const relpath, byte_string_view const leaf_data)
 {
     MONAD_DEBUG_ASSERT(relpath.ei <= old->path_ei);
-    unsigned hash_len = relpath.size() ? 0 : old->hash_len;
+    unsigned hash_len = relpath.size() ? old->hash_len : 0;
     unsigned bytes = old->node_mem_size() + leaf_data.size() - old->leaf_len +
                      relpath.size() - old->path_bytes() + hash_len -
                      old->hash_len;
@@ -147,7 +152,7 @@ node_ptr update_node_shorter_path(
         ((uintptr_t)old->path_data() - (uintptr_t)old));
     node->hash_len = hash_len;
     // order is enforced, must set path first
-    node->set_path(relpath);
+    node->set_path(relpath); // overwrite old path
     if (leaf_data.size()) {
         node->set_leaf(leaf_data);
     }
@@ -162,8 +167,7 @@ node_ptr update_node_shorter_path(
             old->next_j(j) = nullptr;
         }
     }
-    MONAD_DEBUG_ASSERT(
-        old->mask == node->mask && old->leaf_view() == node->leaf_view());
+    MONAD_DEBUG_ASSERT(old->mask == node->mask);
     MONAD_DEBUG_ASSERT(node->path_nibble_view() == relpath);
     return node;
 }
