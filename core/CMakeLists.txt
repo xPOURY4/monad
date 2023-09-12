@@ -4,6 +4,7 @@ include(CheckCXXSymbolExists)
 
 project(monad_core LANGUAGES C CXX ASM)
 
+option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MONAD_FUZZTEST OFF)
 
 # ##############################################################################

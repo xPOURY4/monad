@@ -334,7 +334,7 @@ namespace allocators
     {
         // The clang 16 on CI is just plain broken here. clang 14 on my machine
         // is not broken.
-#if defined(__clang__) && __clang_major__ == 16
+#if defined(__clang__) && (__clang_major__ >= 16 && __clang_major__ <= 18)
         template <class T>
         constexpr bool is_array_v = true;
 #else
