@@ -10,8 +10,8 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 struct Compute;
-struct Node;
+class Node;
 
-Node *upsert(Compute &comp, Node *const old, UpdateList &&updates);
+node_ptr upsert(Compute &comp, Node *const old, UpdateList &&updates);
 
 MONAD_MPT_NAMESPACE_END

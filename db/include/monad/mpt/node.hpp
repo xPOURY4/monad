@@ -2,6 +2,7 @@
 
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
+#include <monad/mem/allocators.hpp>
 
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
@@ -10,10 +11,11 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <type_traits>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct Node;
+class Node;
 
 // ChildData is used to temporarily hold children data in update recursion.
 // TODO: children data are part of the state when doing update
@@ -37,8 +39,13 @@ Node is a pure leaf node if leaf_len != 0, mask = 0
 Generic Trie:
 a node in generic trie can be an ext and a branch at the same time
 */
-struct Node
+class Node
 {
+    struct _prevent_public_construction_tag
+    {
+    };
+
+public:
     using data_off_t = uint16_t;
     // file_offset_t leaf_off;
     uint16_t mask{0};
@@ -51,6 +58,58 @@ struct Node
     // layout:
     // next[n], (fnext[n]), data_off[n], path, leaf_data, hash_data,
     // data_arr[total_length]
+
+    using type_allocator = std::allocator<Node>;
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    // upper bound = (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32)
+    // assumming 8-byte in-memory and on-disk offset for now
+    // 110: max leaf data length
+    // 32: max relpath length
+    // 32: max branch hash length stored inline
+    using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
+        8, (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32), 36, 8>;
+#else
+    using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
+#endif
+
+    using allocator_pair_type = allocators::detail::type_raw_alloc_pair<
+        type_allocator, raw_bytes_allocator>;
+    static allocator_pair_type pool()
+    {
+        static type_allocator a;
+        static raw_bytes_allocator b;
+        return {a, b};
+    }
+    static inline size_t get_allocated_count(unsigned n)
+    {
+        size_t res = ((n - raw_bytes_allocator::allocation_lower_bound) /
+                          raw_bytes_allocator::allocation_divisor +
+                      1) *
+                         raw_bytes_allocator::allocation_divisor +
+                     raw_bytes_allocator::allocation_lower_bound;
+        MONAD_DEBUG_ASSERT(res >= n);
+        return res;
+    }
+    static inline size_t get_deallocate_count(Node *p)
+    {
+        return get_allocated_count(p->node_mem_size());
+    }
+    using unique_ptr_type = std::unique_ptr<
+        Node, allocators::unique_ptr_aliasing_allocator_deleter<
+                  type_allocator, raw_bytes_allocator, &Node::pool,
+                  &Node::get_deallocate_count>>;
+    constexpr Node(_prevent_public_construction_tag) {}
+    Node(const Node &) = delete;
+    Node(Node &&) = default;
+    inline ~Node();
+    static inline unique_ptr_type make_node(unsigned size);
+
+    void set_params(uint16_t mask_, uint8_t leaf_len_, uint8_t hash_len_)
+    {
+        mask = mask_;
+        leaf_len = leaf_len_;
+        hash_len = hash_len_;
+    }
 
     constexpr unsigned to_j(uint16_t i) const noexcept
     {
@@ -79,6 +138,23 @@ struct Node
     {
         MONAD_DEBUG_ASSERT(i < 16);
         return next_j(to_j(i));
+    }
+
+    unique_ptr_type next_j_ptr(unsigned const j) noexcept
+    {
+        Node *p = next_j(j);
+        next_j(j) = nullptr;
+        return unique_ptr_type{p};
+    }
+
+    unique_ptr_type next_ptr(unsigned const i) noexcept
+    {
+        return next_j_ptr(to_j(i));
+    }
+
+    void set_next_j(unsigned const j, unique_ptr_type ptr) noexcept
+    {
+        next_j(j) = ptr.release();
     }
 
     //! data_offset array
@@ -206,31 +282,38 @@ struct Node
 
 static_assert(sizeof(Node) == 8);
 static_assert(alignof(Node) == 2);
+using node_ptr = Node::unique_ptr_type;
+
+inline Node::~Node()
+{
+    for (uint8_t j = 0; j < n(); ++j) {
+        next_j_ptr(j).reset();
+    }
+}
+
+inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
+{
+    return allocators::allocate_aliasing_unique<
+        type_allocator,
+        raw_bytes_allocator,
+        &Node::pool,
+        &Node::get_deallocate_count>(
+        Node::get_allocated_count(storagebytes),
+        _prevent_public_construction_tag{});
+}
 
 struct Compute;
-
 //! create leaf node without children, hash_len = 0
-Node *create_leaf(byte_string_view data, NibblesView &relpath);
+node_ptr create_leaf(byte_string_view data, NibblesView &relpath);
 
 //! create node: either branch/extension, with or without leaf
-Node *create_node(
+node_ptr create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
-    std::span<Node *> nexts, NibblesView &relpath,
+    std::span<node_ptr> nexts, NibblesView &relpath,
     byte_string_view leaf_data = {});
 
 //! create new leaf from old node with updated relpath and leaf data
-Node *create_node_from_prev(
+node_ptr create_node_from_prev(
     Node *old, NibblesView &relpath, byte_string_view leaf_data = {});
-
-inline void free_trie(Node *node)
-{
-    if (!node) {
-        return;
-    }
-    for (unsigned j = 0; j < bitmask_count(node->mask); ++j) {
-        free_trie(node->next_j(j));
-    }
-    free(node);
-}
 
 MONAD_MPT_NAMESPACE_END

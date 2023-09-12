@@ -26,9 +26,9 @@ struct NibblesView
 
     constexpr explicit NibblesView(
         unsigned si_, unsigned ei_, unsigned char const *data_)
-        : data((si_ == ei_ ? nullptr : data_ + si_ / 2))
-        , si((si_ == ei_ ? false : si_ & 1))
-        , ei((si_ == ei_ ? 0 : ei_ - si_ + si))
+        : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
+        , si((si_ == ei_) ? false : si_ & 1)
+        , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
     {
         MONAD_DEBUG_ASSERT(si_ <= ei_);
     }

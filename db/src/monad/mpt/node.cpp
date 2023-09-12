@@ -7,11 +7,10 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 //! create leaf node without children, hash_len = 0
-Node *create_leaf(byte_string_view data, NibblesView &relpath)
+node_ptr create_leaf(byte_string_view data, NibblesView &relpath)
 {
     unsigned const bytes = sizeof(Node) + relpath.size() + data.size();
-    void *mem = malloc(bytes);
-    Node *node = new (mem) Node{};
+    node_ptr node = Node::make_node(bytes);
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->data);
     if (relpath.size()) {
@@ -23,9 +22,9 @@ Node *create_leaf(byte_string_view data, NibblesView &relpath)
 }
 
 //! create node can either be a branch or extension or leaf with children
-Node *create_node(
+node_ptr create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> hashes,
-    std::span<Node *> nexts, NibblesView &relpath, byte_string_view leaf_data)
+    std::span<node_ptr> nexts, NibblesView &relpath, byte_string_view leaf_data)
 {
     unsigned const n = bitmask_count(mask);
     MONAD_DEBUG_ASSERT(n);
@@ -43,11 +42,8 @@ Node *create_node(
     }
     bytes += data_len;
 
-    void *mem = malloc(bytes);
-    Node *node = new (mem)
-        Node{.mask = mask, .leaf_len = leaf_len, .hash_len = hash_len};
-    // set next
-    std::memcpy(node->next_data(), nexts.data(), n * sizeof(Node *));
+    node_ptr node = Node::make_node(bytes);
+    node->set_params(mask, leaf_len, hash_len);
     std::memcpy(node->child_off_data(), offsets, n * sizeof(Node::data_off_t));
     // order is enforced, must set path first
     if (relpath.size()) {
@@ -59,20 +55,23 @@ Node *create_node(
     // set data
     for (unsigned j = 0; j < hashes.size(); ++j) {
         node->set_child_data_j(j, {hashes[j].data, hashes[j].len});
+        node->set_next_j(j, std::move(nexts[j]));
     }
 
     return node;
 }
 
-Node *create_node_from_prev(
+node_ptr create_node_from_prev(
     Node *old, NibblesView &relpath, byte_string_view leaf_data)
 {
     unsigned bytes = old->node_mem_size() + (leaf_data.size() - old->leaf_len) +
                      (relpath.size() - old->path_bytes());
-    void *mem = malloc(bytes);
+    node_ptr node = Node::make_node(bytes);
     // copy Node, nexts and data_off array
-    std::memcpy(mem, old, ((uintptr_t)old->path_data() - (uintptr_t)old));
-    Node *node = reinterpret_cast<Node *>(mem);
+    std::memcpy(
+        (void *)node.get(),
+        old,
+        ((uintptr_t)old->path_data() - (uintptr_t)old));
     // order is enforced, must set path first
     node->set_path(relpath);
     if (leaf_data.size()) {

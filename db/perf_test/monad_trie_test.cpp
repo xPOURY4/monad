@@ -45,12 +45,12 @@ void __print_char_arr_in_hex(char *arr, int n)
     offset: key offset, insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
-inline Node *batch_upsert_commit(
+inline node_ptr batch_upsert_commit(
     std::ostream &csv_writer, uint64_t block_id, uint64_t keccak_offset,
     uint64_t offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    Node *prev_state_root, Compute &comp)
+    node_ptr prev_state_root, Compute &comp)
 {
     // TODO: find state_root using find(root, block_id);
     (void)block_id;
@@ -68,7 +68,8 @@ inline Node *batch_upsert_commit(
     }
     auto ts_before = std::chrono::steady_clock::now();
 
-    Node *new_node = upsert(comp, prev_state_root, std::move(update_ls));
+    node_ptr new_node =
+        upsert(comp, prev_state_root.get(), std::move(update_ls));
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -157,7 +158,7 @@ int main(int argc, char *argv[])
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
-        Node *state_root = nullptr;
+        node_ptr state_root{};
         EmptyCompute comp{};
 
         auto begin_test = std::chrono::steady_clock::now();
@@ -193,7 +194,7 @@ int main(int argc, char *argv[])
                 keccak_keys,
                 keccak_values,
                 false,
-                state_root,
+                std::move(state_root),
                 comp);
 
             // if (erase && iter % 2) {
@@ -240,8 +241,6 @@ int main(int argc, char *argv[])
         if (csv_writer) {
             csv_writer << "\n\"Total test time:\"," << test_secs << std::endl;
         }
-
-        free_trie(state_root);
     }
     catch (const CLI::CallForHelp &e) {
         std::cout << cli.help() << std::flush;

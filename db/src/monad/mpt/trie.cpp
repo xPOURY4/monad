@@ -13,26 +13,25 @@ MONAD_MPT_NAMESPACE_BEGIN
  `old_pi` is nibble index of relpath in previous node - old.
  `*psi` is the starting nibble index in current function frame
 */
-Node *_dispatch_updates(
+node_ptr _dispatch_updates(
     Compute &comp, Node *const old, Requests &requests, unsigned pi,
     NibblesView &relpath);
 
-Node *_mismatch_handler(
+node_ptr _mismatch_handler(
     Compute &comp, Node *const old, Requests &requests, unsigned const old_psi,
     unsigned const old_pi, unsigned const pi);
 
-Node *_create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi = 0);
+node_ptr _create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi = 0);
 
-Node *_upsert(
+node_ptr _upsert(
     Compute &comp, Node *const old, UpdateList &&updates, unsigned pi = 0,
     unsigned old_pi = 0);
 
-Node *upsert(Compute &comp, Node *const old, UpdateList &&updates)
+node_ptr upsert(Compute &comp, Node *const old, UpdateList &&updates)
 {
-    Node *node =
+    node_ptr node =
         (old ? _upsert(comp, old, std::move(updates))
              : _create_new_trie(comp, std::move(updates)));
-    free_trie(old);
     return node;
 }
 
@@ -47,14 +46,14 @@ _get_leaf_data(std::optional<Update> opt_leaf, byte_string_view old_leaf)
 }
 
 //! update leaf data of old, old can have branches
-Node *_update_leaf_data(Node *const old, NibblesView relpath, Update &update)
+node_ptr _update_leaf_data(Node *const old, NibblesView relpath, Update &update)
 {
     byte_string_view leaf_data = _get_leaf_data(update, old->leaf_view());
     // create node with new leaf data
     return create_node_from_prev(old, relpath, leaf_data);
 }
 
-Node *_upsert(
+node_ptr _upsert(
     Compute &comp, Node *const old, UpdateList &&updates, unsigned pi,
     unsigned old_pi)
 {
@@ -87,7 +86,7 @@ Node *_upsert(
     }
 }
 
-Node *_create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
+node_ptr _create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
 {
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
@@ -107,7 +106,7 @@ Node *_create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
         ++pi;
     }
     ChildData hashes[n];
-    Node *nexts[n];
+    node_ptr nexts[n];
     unsigned char const *first_path =
         requests[requests.get_first_branch()].front().key.data();
     for (unsigned i = 0, j = 0, bit = 1; i < 16; ++i, bit <<= 1) {
@@ -115,7 +114,7 @@ Node *_create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
             nexts[j] = _create_new_trie(comp, std::move(requests)[i], pi + 1);
             // special case: n == 1, comp.compute() with relpath prefix
             hashes[j].len = comp.compute(
-                hashes[j].data, nexts[j], (n == 1 ? i : (unsigned)-1));
+                hashes[j].data, nexts[j].get(), (n == 1) ? i : (unsigned)-1);
             ++j;
         }
     }
@@ -123,18 +122,13 @@ Node *_create_new_trie(Compute &comp, UpdateList &&updates, unsigned pi)
     NibblesView relpath{psi, pi, first_path};
     byte_string_view leaf_data = _get_leaf_data(requests.opt_leaf, {});
     return create_node(
-        comp,
-        requests.mask,
-        std::span<ChildData>(hashes, n),
-        std::span<Node *>(nexts, n),
-        relpath,
-        leaf_data);
+        comp, requests.mask, {hashes, n}, {nexts, n}, relpath, leaf_data);
 }
 
 //! dispatch updates at the end of old node's path
 //! old node can have leaf data, there might be update to that leaf
 //! return a new node
-Node *_dispatch_updates(
+node_ptr _dispatch_updates(
     Compute &comp, Node *const old, Requests &requests, unsigned pi,
     NibblesView &relpath)
 {
@@ -142,7 +136,7 @@ Node *_dispatch_updates(
     unsigned n = bitmask_count(mask);
 
     ChildData hashes[n];
-    Node *nexts[n];
+    node_ptr nexts[n];
     for (unsigned i = 0, j = 0, bit = 1; i < 16; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             if (bit & old->mask) {
@@ -156,32 +150,25 @@ Node *_dispatch_updates(
             }
             // special case: n == 1, comp.compute() with relpath prefix
             hashes[j].len = comp.compute(
-                hashes[j].data, nexts[j], (n == 1 ? i : (unsigned)-1));
+                hashes[j].data, nexts[j].get(), (n == 1) ? i : (unsigned)-1);
             ++j;
         }
         else if (bit & old->mask) {
-            nexts[j] = old->next(i);
+            nexts[j] = old->next_ptr(i);
             auto const data = old->child_data_view(i);
             memcpy(&hashes[j].data, data.data(), data.size());
             hashes[j].len = data.size();
-            old->next(i) = nullptr;
             ++j;
         }
     }
     byte_string_view leaf_data =
         _get_leaf_data(requests.opt_leaf, old->leaf_view());
-    return create_node(
-        comp,
-        mask,
-        std::span<ChildData>(hashes, n),
-        std::span<Node *>(nexts, n),
-        relpath,
-        leaf_data);
+    return create_node(comp, mask, {hashes, n}, {nexts, n}, relpath, leaf_data);
 }
 
 //! split old at old_pi, updates at pi
 //! requests can have 1 or more sublists
-Node *_mismatch_handler(
+node_ptr _mismatch_handler(
     Compute &comp, Node *const old, Requests &requests, unsigned const old_psi,
     unsigned const old_pi, unsigned const pi)
 {
@@ -191,7 +178,7 @@ Node *_mismatch_handler(
     unsigned n = bitmask_count(mask);
     MONAD_DEBUG_ASSERT(n > 1);
     ChildData hashes[n];
-    Node *nexts[n];
+    node_ptr nexts[n];
     for (unsigned i = 0, j = 0, bit = 1; i < 16; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             if (i == old_nibble) {
@@ -202,14 +189,14 @@ Node *_mismatch_handler(
                 nexts[j] =
                     _create_new_trie(comp, std::move(requests)[i], pi + 1);
             }
-            hashes[j].len = comp.compute(hashes[j].data, nexts[j]);
+            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
             ++j;
         }
         else if (i == old_nibble) {
             // nexts[j] is a path-shortened old node, trim prefix
             NibblesView relpath{old_pi, old->path_ei, old->path_data()};
             nexts[j] = create_node_from_prev(old, relpath, old->leaf_view());
-            hashes[j].len = comp.compute(hashes[j].data, nexts[j]);
+            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
             ++j;
         }
     }
@@ -218,8 +205,8 @@ Node *_mismatch_handler(
     return create_node( // no leaf
         comp,
         mask,
-        std::span<ChildData>(hashes, n),
-        std::span<Node *>(nexts, n),
+        {hashes, n},
+        {nexts, n},
         relpath);
 }
 

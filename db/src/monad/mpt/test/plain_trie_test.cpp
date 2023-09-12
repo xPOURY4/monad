@@ -10,7 +10,7 @@
 using namespace monad::mpt;
 using namespace monad::literals;
 
-Node *
+node_ptr
 upsert_vector(Compute &comp, Node *const old, std::vector<Update> update_vec)
 {
     UpdateList update_ls;
@@ -33,7 +33,7 @@ TEST(TrieUpsert, var_length)
         {0x111b1111bbbbbbbb_hex, 0xbe_hex}, // 7
     };
     EmptyCompute comp;
-    Node *root;
+    node_ptr root;
 
     // insert kv 0,1,2,3
     root = upsert_vector(
@@ -78,7 +78,7 @@ TEST(TrieUpsert, var_length)
     // insert kv 4,5
     root = upsert_vector(
         comp,
-        root,
+        root.get(),
         {make_update(kv[4].first, kv[4].second),
          make_update(kv[5].first, kv[5].second)});
     EXPECT_EQ(root->mask, 0b11);
@@ -95,7 +95,7 @@ TEST(TrieUpsert, var_length)
     // insert kv 6,7
     root = upsert_vector(
         comp,
-        root,
+        root.get(),
         {make_update(kv[6].first, kv[6].second),
          make_update(kv[7].first, kv[7].second)});
     node1 = root->next(1);
@@ -109,8 +109,6 @@ TEST(TrieUpsert, var_length)
     EXPECT_EQ(
         node111b->next(0xb)->path_nibble_view(),
         (NibblesView{9, 16, kv[7].first.data()}));
-
-    free_trie(root);
 }
 
 TEST(TrieUpsert, mismatch)
@@ -124,7 +122,7 @@ TEST(TrieUpsert, mismatch)
     };
 
     EmptyCompute comp;
-    Node *root;
+    node_ptr root;
 
     /* insert 12345678, 12346678, 12445678
             12
@@ -156,7 +154,7 @@ TEST(TrieUpsert, mismatch)
     */
     root = upsert_vector(
         comp,
-        root,
+        root.get(),
         {make_update(kv[3].first, kv[3].second),
          make_update(kv[4].first, kv[4].second)});
     EXPECT_EQ(root->mask, 0b11000);
@@ -174,6 +172,4 @@ TEST(TrieUpsert, mismatch)
     EXPECT_EQ(node34->next(5)->leaf_view(), kv[0].second);
     EXPECT_EQ(node34->next(6)->leaf_view(), kv[1].second);
     EXPECT_EQ(node34->next(7)->leaf_view(), kv[3].second);
-
-    free_trie(root);
 }
