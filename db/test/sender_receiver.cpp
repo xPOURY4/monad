@@ -348,6 +348,9 @@ namespace
                 std::this_thread::yield();
             }
             benchmark("threadsafe_sender", [&] {});
+            std::cout << "   threadsafe_sender processing events until sending "
+                         "thread exits"
+                      << std::endl;
             while (done == 1) {
                 testio->wait_until_done();
             }

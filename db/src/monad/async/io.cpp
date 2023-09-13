@@ -220,16 +220,14 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
 bool AsyncIO::_poll_uring(bool blocking)
 {
     struct io_uring_cqe *cqe = nullptr;
+    auto *const ring = const_cast<io_uring *>(&uring_.get_ring());
     auto inflight_ts = records_.inflight_ts.load(std::memory_order_acquire);
 
     if (blocking && inflight_ts == 0) {
-        MONAD_ASSERT(!io_uring_wait_cqe(
-            const_cast<io_uring *>(&uring_.get_ring()), &cqe));
+        MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
     }
     else {
-        if (0 != io_uring_peek_cqe(
-                     const_cast<io_uring *>(&uring_.get_ring()), &cqe) &&
-            inflight_ts == 0) {
+        if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
             return false;
         }
     }
@@ -244,6 +242,15 @@ bool AsyncIO::_poll_uring(bool blocking)
         // MSG_READ pipe has a message for us. It is simply the pointer to
         // the connected operation state for us to complete.
         MONAD_ASSERT(cqe == nullptr || cqe->res == POLLIN);
+        if (cqe != nullptr && !(cqe->flags & IORING_CQE_F_MORE)) {
+            // Rearm the poll
+            struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+            MONAD_ASSERT(sqe);
+            io_uring_prep_poll_multishot(sqe, fds_[MSG_READ], POLLIN);
+            io_uring_sqe_set_data(
+                sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
+            MONAD_ASSERT(io_uring_submit(ring) >= 0);
+        }
         auto readed = ::read(
             fds_[MSG_READ], &state, sizeof(erased_connected_operation *));
         if (readed >= 0) {
@@ -253,8 +260,7 @@ bool AsyncIO::_poll_uring(bool blocking)
             if (EAGAIN == errno || EWOULDBLOCK == errno) {
                 // Spurious wakeup
                 if (cqe != nullptr) {
-                    io_uring_cqe_seen(
-                        const_cast<io_uring *>(&uring_.get_ring()), cqe);
+                    io_uring_cqe_seen(ring, cqe);
                     cqe = nullptr;
                 }
                 return true;
@@ -270,7 +276,7 @@ bool AsyncIO::_poll_uring(bool blocking)
                              : result<size_t>(cqe->res);
     }
     if (cqe != nullptr) {
-        io_uring_cqe_seen(const_cast<io_uring *>(&uring_.get_ring()), cqe);
+        io_uring_cqe_seen(ring, cqe);
         cqe = nullptr;
     }
 
