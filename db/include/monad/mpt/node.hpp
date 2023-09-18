@@ -20,7 +20,7 @@ class Node;
 // ChildData is used to temporarily hold children data in update recursion.
 // TODO: children data are part of the state when doing update
 // asynchronously, should allocate an array of ChildData or an array of
-// byte_string on heap instead of in current stack frame, which will be
+// byte_string on heap instead of on current stack frame, which will be
 // destructed when async
 #define INVALID_BRANCH 255
 
@@ -58,11 +58,12 @@ public:
     using data_off_t = uint16_t;
     // file_offset_t leaf_off;
     uint16_t mask{0};
+    bool is_leaf;
     uint8_t leaf_len{0};
     uint8_t hash_len{0};
     bool path_si{false};
     uint8_t path_ei{0};
-    char pad[2]; // TODO: remove padding
+    char pad[1];
     unsigned char data[0];
     // layout:
     // next[n], (fnext[n]), data_off[n], path, leaf_data, hash_data,
@@ -113,9 +114,12 @@ public:
     inline ~Node();
     static inline unique_ptr_type make_node(unsigned size);
 
-    void set_params(uint16_t mask_, uint8_t leaf_len_, uint8_t hash_len_)
+    void set_params(
+        uint16_t const mask_, bool const is_leaf_, uint8_t const leaf_len_,
+        uint8_t const hash_len_)
     {
         mask = mask_;
+        is_leaf = is_leaf_;
         leaf_len = leaf_len_;
         hash_len = hash_len_;
     }
@@ -239,11 +243,20 @@ public:
     void set_leaf(byte_string_view data) noexcept
     {
         MONAD_DEBUG_ASSERT(leaf_len == data.size());
-        std::memcpy(leaf_data(), data.data(), data.size());
+        if (data.size()) {
+            std::memcpy(leaf_data(), data.data(), data.size());
+        }
     }
     constexpr byte_string_view leaf_view() const noexcept
     {
         return {leaf_data(), leaf_len};
+    }
+    constexpr std::optional<byte_string_view> opt_leaf() const noexcept
+    {
+        if (is_leaf) {
+            return leaf_view();
+        }
+        return std::nullopt;
     }
 
     //! hash
@@ -332,11 +345,12 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath);
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const relpath, byte_string_view const leaf_data = {});
+    NibblesView const relpath,
+    std::optional<byte_string_view> const leaf_data = std::nullopt);
 
 //! create new leaf from old node with shorter relpath and new leaf data
 node_ptr update_node_shorter_path(
     Node *old, NibblesView const relpath,
-    byte_string_view const leaf_data = {});
+    std::optional<byte_string_view> const leaf_data = std::nullopt);
 
 MONAD_MPT_NAMESPACE_END

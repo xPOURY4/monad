@@ -19,10 +19,11 @@ struct UpdateBase
 {
     byte_string_view key{};
     std::optional<Data> opt{std::nullopt};
+    void *next{nullptr};
     bool incarnation{false};
 };
 
-static_assert(sizeof(UpdateBase) == 48);
+static_assert(sizeof(UpdateBase) == 56);
 static_assert(alignof(UpdateBase) == 8);
 
 using UpdateMemberHook = boost::intrusive::slist_member_hook<
@@ -34,11 +35,11 @@ struct Update : UpdateBase
 
     constexpr bool is_deletion() const noexcept
     {
-        return !opt.has_value();
+        return !opt.has_value() && !next;
     }
 };
 
-static_assert(sizeof(Update) == 56);
+static_assert(sizeof(Update) == 64);
 static_assert(alignof(Update) == 8);
 
 using UpdateList = boost::intrusive::slist<
@@ -49,12 +50,24 @@ using UpdateList = boost::intrusive::slist<
 static_assert(sizeof(UpdateList) == 16);
 static_assert(alignof(UpdateList) == 8);
 
+// An update can mean
+// 1. underlying trie updates: when opt is empty, next is set
+// 2. curr trie leaf update: when opt contains a value, next = nullptr
+// 3. leaf erase: when opt is empty, next = nullptr
 inline Update make_update(
     monad::byte_string_view const key, monad::byte_string_view const value,
-    bool incarnation = false)
+    bool incarnation = false, UpdateList *next = nullptr)
 {
     return Update{
-        {key, std::optional<Data>{value}, incarnation}, UpdateMemberHook{}};
+        {key, std::optional<Data>{value}, (void *)next, incarnation},
+        UpdateMemberHook{}};
+}
+
+inline Update make_update(monad::byte_string_view const key, UpdateList *next)
+{
+    return Update{
+        {key, std::nullopt, (void *)next, /*incarnation*/ false},
+        UpdateMemberHook{}};
 }
 
 inline Update make_erase(monad::byte_string_view const key)

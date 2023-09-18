@@ -446,3 +446,141 @@ TEST_F(InMemoryTrie, upsert_diff_key_length)
         root_hash(),
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
 }
+
+TEST_F(InMemoryTrie, upsert_diff_key_length_nested)
+{
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
+         0x0a0b_hex},
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbcc_hex,
+         0x1234_hex}};
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
+         0xbeef_hex},
+        {0xabcdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_hex,
+         0xdeadbeef_hex},
+        {0xabcdeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_hex,
+         0xcafe_hex}};
+
+    Update a = make_update(storage_kv[0].first, storage_kv[0].second);
+    UpdateList storage;
+    storage.push_front(a);
+    root = upsert_vector(
+        comp,
+        nullptr,
+        {make_update(kv[0].first, kv[0].second, false, &storage),
+         make_update(kv[1].first, kv[1].second)});
+    EXPECT_EQ(
+        root_hash(),
+        0xd02534184b896dd4cb37fb34f176cafb508aa2ebc19a773c332514ca8c65ca10_hex);
+
+    // update first trie mid leaf data
+    auto acc1 = kv[0].first, new_val = 0x1234_hex;
+    root = upsert_vector(comp, root.get(), {make_update(acc1, new_val)});
+    EXPECT_EQ(
+        root_hash(),
+        0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
+
+    // update storages
+    Update b = make_update(storage_kv[1].first, storage_kv[1].second);
+    storage.clear();
+    storage.push_front(b);
+    root =
+        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0xc2f4c0bf52f5b277252ecfe9df3c38b44d1787b3f89febde1d29406eb06e8f93_hex);
+
+    // update storage again
+    Update c = make_update(storage_kv[2].first, storage_kv[2].second);
+    storage.clear();
+    storage.push_front(c);
+    root =
+        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+
+    // erase some storage
+    storage.clear();
+    Update erase_b = make_erase(storage_kv[1].first),
+           erase_c = make_erase(storage_kv[2].first);
+    storage.push_front(erase_b);
+    storage.push_front(erase_c);
+    root =
+        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
+
+    // incarnation
+    storage.clear();
+    storage.push_front(c);
+    root = upsert_vector(
+        comp, root.get(), {make_update(kv[0].first, new_val, true, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0x2667b2bcc7c6a9afcd5a621be863fc06bf76022450e7e2e11ef792d63c7a689c_hex);
+
+    // insert storages to the second account
+    storage.clear();
+    storage.push_front(a);
+    storage.push_front(b);
+    storage.push_front(c);
+    root =
+        upsert_vector(comp, root.get(), {make_update(kv[1].first, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0x7954fcaa023fb356d6c626119220461c7859b93abd6ea71eac342d8407d7051e_hex);
+
+    // erase all storages of kv[0].
+    storage.clear();
+    storage.push_front(erase_c);
+    root =
+        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    EXPECT_EQ(
+        root_hash(),
+        0x055a9738d15fb121afe470905ca2254da172da7a188d8caa690f279c10422380_hex);
+
+    // erase whole first account (kv[0])
+    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
+    EXPECT_EQ(
+        root_hash(),
+        0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
+}
+
+TEST_F(InMemoryTrie, update_nested_with_blockno)
+{
+    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
+         0x1234_hex},
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbcc_hex,
+         0x1234_hex}};
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> storage_kv{
+        {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
+         0xbeef_hex},
+        {0xabcdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_hex,
+         0xdeadbeef_hex},
+        {0xabcdeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_hex,
+         0xcafe_hex}};
+
+    Update a = make_update(storage_kv[0].first, storage_kv[0].second),
+           b = make_update(storage_kv[1].first, storage_kv[1].second),
+           c = make_update(storage_kv[2].first, storage_kv[2].second);
+    UpdateList storage;
+    storage.push_front(a);
+    storage.push_front(b);
+    storage.push_front(c);
+    UpdateList state_changes;
+    Update s1 = make_update(kv[0].first, kv[0].second, false, &storage),
+           s2 = make_update(kv[1].first, kv[1].second);
+    state_changes.push_front(s1);
+    state_changes.push_front(s2);
+    auto blockno = 0x00000001_hex;
+    root = upsert_vector(
+        comp, nullptr, {make_update(blockno, {}, false, &state_changes)});
+    Node *state_root = find(root.get(), blockno);
+    EXPECT_EQ(
+        state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+}

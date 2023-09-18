@@ -2,6 +2,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
 
+#include <optional>
 #include <span>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -16,7 +17,7 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
     if (relpath.size()) {
         node->set_path(relpath);
     }
-    node->leaf_len = data.size();
+    node->set_params(0, true, data.size(), 0);
     node->set_leaf(data);
     return node;
 }
@@ -53,14 +54,13 @@ inline node_ptr create_coalesced_node_with_prefix(
         (void *)prev.get(),
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
     node->hash_len = hash_len;
+    node->is_leaf = prev->is_leaf;
 
     for (unsigned j = 0; j < prev->n(); ++j) {
         prev->next_j(j) = nullptr;
     }
     node->set_path(relpath);
-    if (prev->leaf_len) {
-        node->set_leaf(prev->leaf_view());
-    }
+    node->set_leaf(prev->leaf_view());
     if (hash_len) {
         std::memcpy(node->hash_data(), hash_data, hash_len);
     }
@@ -73,26 +73,27 @@ inline node_ptr create_coalesced_node_with_prefix(
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const relpath, byte_string_view const leaf_data)
+    NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
 {
     // handle non child and single child cases
     unsigned const n = bitmask_count(mask);
     if (n == 0) {
-        if (leaf_data.size()) {
-            return create_leaf(leaf_data, relpath);
+        if (leaf_data.has_value()) {
+            return create_leaf(leaf_data.value(), relpath);
         }
         return {};
     }
-    else if (n == 1 && !leaf_data.size()) {
+    else if (n == 1 && !leaf_data.has_value()) {
         unsigned j = bitmask_index(orig_mask, std::countr_zero(mask));
         return create_coalesced_node_with_prefix(
             hashes[j], std::move(nexts[j]), relpath);
     }
-    MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.size()));
+    MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.has_value()));
     // any node with child will have hash data
-    uint8_t const leaf_len = leaf_data.size(),
+    bool const is_leaf = leaf_data.has_value();
+    uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
                   hash_len =
-                      ((relpath.size() || leaf_data.size())
+                      ((relpath.size() || is_leaf)
                            ? comp.compute_len(hashes, nexts)
                            : 0);
     unsigned bytes = sizeof(Node) + leaf_len + hash_len + n * sizeof(Node *) +
@@ -108,14 +109,14 @@ node_ptr create_node(
     }
     bytes += data_len;
     node_ptr node = Node::make_node(bytes); // zero initialized
-    node->set_params(mask, leaf_len, hash_len);
+    node->set_params(mask, is_leaf, leaf_len, hash_len);
     std::memcpy(node->child_off_data(), offsets, n * sizeof(Node::data_off_t));
     // order is enforced, must set path first
     if (relpath.size()) {
         node->set_path(relpath);
     }
-    if (leaf_len) {
-        node->set_leaf(leaf_data);
+    if (is_leaf) {
+        node->set_leaf(leaf_data.value());
     }
     // set next and data
     for (unsigned i = 0, j = 0; i < hashes.size(); ++i) {
@@ -137,11 +138,15 @@ node_ptr create_node(
 //! previous. One corner case being that new relpath is empty, old's hash data
 //! need to be removed when creating new node.
 node_ptr update_node_shorter_path(
-    Node *old, NibblesView const relpath, byte_string_view const leaf_data)
+    Node *old, NibblesView const relpath,
+    std::optional<byte_string_view> const leaf_data)
 {
     MONAD_DEBUG_ASSERT(relpath.ei <= old->path_ei);
-    unsigned hash_len = relpath.size() ? old->hash_len : 0;
-    unsigned bytes = old->node_mem_size() + leaf_data.size() - old->leaf_len +
+    bool const is_leaf = leaf_data.has_value();
+    unsigned hash_len = relpath.size() ? old->hash_len : 0,
+             leaf_len = leaf_data.has_value() ? leaf_data.value().size() : 0;
+
+    unsigned bytes = old->node_mem_size() + leaf_len - old->leaf_len +
                      relpath.size() - old->path_bytes() + hash_len -
                      old->hash_len;
     node_ptr node = Node::make_node(bytes);
@@ -151,10 +156,11 @@ node_ptr update_node_shorter_path(
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
     node->hash_len = hash_len;
+    node->is_leaf = is_leaf;
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
-    if (leaf_data.size()) {
-        node->set_leaf(leaf_data);
+    if (is_leaf) {
+        node->set_leaf(leaf_data.value());
     }
     if (hash_len) {
         std::memcpy(node->hash_data(), old->hash_data(), hash_len);

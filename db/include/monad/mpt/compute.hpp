@@ -153,7 +153,7 @@ struct MerkleCompute final : Compute
     virtual unsigned
     compute(unsigned char *const buffer, Node *const node) override
     {
-        if (node->leaf_len) {
+        if (node->is_leaf) {
             return _encode_two_pieces(
                 buffer,
                 node->path_nibble_view(),
@@ -219,12 +219,12 @@ private:
         return state.len = _encode_two_pieces(
                    state.buffer,
                    concat2(hash.branch, node->path_nibble_view()),
-                   node->leaf_len
-                       ? _compute_leaf_data(node)
-                       : (node->has_hash()
-                              ? node->hash_view()
-                              : byte_string_view{hash.data, hash.len}),
-                   node->leaf_len > 0);
+                   (node->is_leaf
+                        ? _compute_leaf_data(node)
+                        : (node->has_hash()
+                               ? node->hash_view()
+                               : byte_string_view{hash.data, hash.len})),
+                   node->is_leaf);
     }
 };
 
