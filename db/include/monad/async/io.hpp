@@ -116,6 +116,9 @@ public:
         return records_.inflight_ts.load(std::memory_order_relaxed);
     }
 
+    // Useful for taking a copy of anonymous inode files used by the unit tests
+    void dump_fd_to(int which, const std::filesystem::path &path);
+
     // Blocks until at least one completion is processed, returning number
     // of completions processed.
     size_t poll_blocking(size_t count = 1)

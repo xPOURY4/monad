@@ -328,6 +328,21 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
     return !ts.empty() && !ts.am_within_completions();
 }
 
+void AsyncIO::dump_fd_to(int which, const std::filesystem::path &path)
+{
+    int fd = ::creat(path.c_str(), 0600);
+    if (fd == -1) {
+        throw std::system_error(std::error_code(errno, std::system_category()));
+    }
+    off64_t off_in = 0, off_out = 0;
+    auto copied =
+        copy_file_range(fds_[which], &off_in, fd, &off_out, size_t(-1), 0);
+    if (copied == -1) {
+        throw std::system_error(std::error_code(errno, std::system_category()));
+    }
+    ::close(fd);
+}
+
 void AsyncIO::submit_threadsafe_invocation_request(
     erased_connected_operation *uring_data)
 {
