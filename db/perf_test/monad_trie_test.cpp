@@ -1,11 +1,13 @@
 #include <CLI/CLI.hpp>
 #include <cassert>
+#include <sys/mman.h>
 #include <sys/syscall.h> // for SYS_gettid
 #include <unistd.h> // for syscall()
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
-
+#include <monad/core/small_prng.hpp>
+ 
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
@@ -163,6 +165,7 @@ int main(int argc, char *argv[])
     uint64_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
+    bool empty_cpu_caches = false;
     CLI::App cli{"monad_merge_trie_test"};
     try {
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
@@ -174,6 +177,10 @@ int main(int argc, char *argv[])
         cli.add_option("-n", n_slices, "n batch updates");
         cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
         cli.add_flag("--erase", erase, "test erase");
+        cli.add_flag(
+            "--empty-cpu-caches",
+            empty_cpu_caches,
+            "empty cpu caches between updates");
         cli.parse(argc, argv);
 
         std::ofstream csv_writer;
@@ -182,6 +189,53 @@ int main(int argc, char *argv[])
             csv_writer.exceptions(std::ios::failbit | std::ios::badbit);
             csv_writer << "\"Keys written\",\"Per second\"\n";
         }
+
+        /* This does a good job of emptying the CPU's data caches and
+        data TLB. It does not empty instruction caches nor instruction TLB,
+        including the branch prediction history.
+        */
+        struct cpu_cache_emptier_t
+        {
+            enum : size_t
+            {
+                TLB_ENTRIES = 4096
+            };
+            std::vector<std::byte *> pages;
+            ::monad::small_prng rand;
+            explicit cpu_cache_emptier_t(bool enable)
+            {
+                if (enable) {
+                    pages.resize(TLB_ENTRIES);
+                    for (size_t n = 0; n < TLB_ENTRIES; n++) {
+                        pages[n] = (std::byte *)::mmap(
+                            0,
+                            4096,
+                            PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE,
+                            -1,
+                            0);
+                        *pages[n] = std::byte(1);
+                    }
+                }
+            }
+            ~cpu_cache_emptier_t()
+            {
+                for (auto *p : pages) {
+                    ::munmap(p, 4096);
+                }
+            }
+            void operator()()
+            {
+                for (size_t n = 0; n < pages.size() * 4; n++) {
+                    auto const v = rand();
+                    auto const idx1 = (v & 0xffff) & (TLB_ENTRIES - 1);
+                    auto const idx2 = ((v >> 16) & 0xffff) & (TLB_ENTRIES - 1);
+                    if (idx1 != idx2) {
+                        memcpy(pages[idx1], pages[idx2], 4096);
+                    }
+                }
+            }
+        } cpu_cache_emptier{empty_cpu_caches};
 
         uint64_t keccak_cap = 100 * SLICE_LEN;
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
@@ -214,6 +268,7 @@ int main(int argc, char *argv[])
                 begin_test += end_prepare_keccak - begin_prepare_keccak;
             }
 
+            cpu_cache_emptier();
             state_root = batch_upsert_commit(
                 csv_writer,
                 vid,
