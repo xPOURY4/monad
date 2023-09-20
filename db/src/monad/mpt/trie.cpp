@@ -87,7 +87,7 @@ node_ptr _upsert(
         }
         unsigned const n = requests.split_into_sublists(std::move(updates), pi);
         MONAD_DEBUG_ASSERT(n);
-        if (old_pi == old->path_ei) {
+        if (old_pi == old->path_nibble_index_end) {
             return _dispatch_updates(comp, old, requests, pi, relpath);
         }
         if (auto old_nibble = get_nibble(old->path_data(), old_pi);
@@ -185,7 +185,7 @@ node_ptr _dispatch_updates(
                           old->next(i),
                           std::move(requests)[i],
                           pi + 1,
-                          old->next(i)->path_si)
+                          old->next(i)->path_nibble_index_start)
                     : _create_new_trie(comp, std::move(requests)[i], pi + 1);
             if (!nexts[j]) {
                 mask &= ~bit;
@@ -245,7 +245,8 @@ node_ptr _mismatch_handler(
         }
         else if (i == old_nibble) {
             // nexts[j] is a path-shortened old node, trim prefix
-            NibblesView relpath{old_pi + 1, old->path_ei, old->path_data()};
+            NibblesView relpath{
+                old_pi + 1, old->path_nibble_index_end, old->path_data()};
             nexts[j] = update_node_shorter_path(old, relpath, old->opt_leaf());
             hashes[j].branch = i;
             if (nexts[j]->n() && !nexts[j]->hash_len) {

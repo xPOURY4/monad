@@ -141,7 +141,7 @@ node_ptr update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data)
 {
-    MONAD_DEBUG_ASSERT(relpath.ei <= old->path_ei);
+    MONAD_DEBUG_ASSERT(relpath.ei <= old->path_nibble_index_end);
     bool const is_leaf = leaf_data.has_value();
     unsigned hash_len = relpath.size() ? old->hash_len : 0,
              leaf_len = leaf_data.has_value() ? leaf_data.value().size() : 0;

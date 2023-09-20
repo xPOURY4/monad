@@ -17,13 +17,11 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 class Node;
 
-// ChildData is used to temporarily hold children data in update recursion.
-// TODO: children data are part of the state when doing update
+// ChildData is for temporarily holding a child's data in the update recursion.
+// TODO for async: children data are part of the state when doing update
 // asynchronously, should allocate an array of ChildData or an array of
 // byte_string on heap instead of on current stack frame, which will be
 // destructed when async
-#define INVALID_BRANCH 255
-
 struct ChildData
 {
     unsigned char data[32];
@@ -40,13 +38,32 @@ inline void set_child_data(ChildData &dest, byte_string_view src)
     dest.len = src.size();
 }
 
-/* In-memory trie node struct (TODO: on-disk)
-Ethereum spec:
-Node is extension if relpath len > 0 and no leaf data
-Node is branch if mask > 0, relpath len == 0, branch can have leaf value
-Node is a pure leaf node if leaf_len != 0, mask = 0
-Generic Trie:
-a node in generic trie can be an ext and a branch at the same time
+/* A note on generic trie
+
+In Ethereum merkle patricia trie:
+- Node is a extension if relpath len > 0, it only has one child, a branch node
+- Node is a branch if mask > 0 && relpath len == 0, branch can have leaf value
+- Node is a leaf node if it has no child
+
+In generic trie, a node can have dual identity of ext and branch node, and
+branch node can have vt (value) and be a leaf node at the same time. Branch node
+with leaf data can have 1 child or more.
+- A node with non-empty relpath is either an ext node or a leaf node
+- A leaf node has is_leaf = true, however not necessarily leaf_len > 0
+- A branch node with leaf can mean it's the end of an internal trie, making
+itself also the root of the trie underneath, for example a leaf of an
+account trie, where the account has an underlying storage trie. It can also
+simply mean it's a branch node inside an internal trie, for example a branch
+node with value in a receipt trie (var key length). Such branch node with leaf
+will cache an intemediate hash inline.
+
+Similar like a merkle patricia trie, each node's data is computed from its child
+nodes data. Triedb is divided into different sections, indexed by unique
+prefixes (i.e. sections for accounts, storages, receipts, etc.), node data is
+defined differently in each section, and we leave the actual computation to the
+`class Compute` to handle it.
+We store node data to its parent's storage to avoid an extra read of child node
+to retrieve child data.
 */
 class Node
 {
@@ -56,26 +73,51 @@ class Node
 
 public:
     using data_off_t = uint16_t;
-    // file_offset_t leaf_off;
+
+    /* 16-bit mask for children */
     uint16_t mask{0};
+    /* is a leaf node, leaf_len is not necessarily positive */
     bool is_leaf;
+    /* size (in byte) of user-passed leaf data */
     uint8_t leaf_len{0};
+    /* size (in byte) of intermediate cache for branch hash */
     uint8_t hash_len{0};
-    bool path_si{false};
-    uint8_t path_ei{0};
+    bool path_nibble_index_start{false};
+    uint8_t path_nibble_index_end{0};
     char pad[1];
     unsigned char data[0];
-    // layout:
-    // next[n], (fnext[n]), data_off[n], path, leaf_data, hash_data,
-    // data_arr[total_length]
+    /* Data layout that exceeds node struct size is organized as below:
+    * `n` is the number of children the node has and equals bitmask_count(mask)
+    * `next` array: size-n array for children's mem pointers
+    * `fnext` array: size-n array for children's on-disk offsets [TODO]
+    * `data_offset` array: size-n array each stores a specific child data's
+    starting offset
+    * `path`: a few bytes for relative path, size depends on
+    path_nibble_index_start, path_nibble_index_end
+    * `leaf_data`: user-passed leaf data of leaf_len bytes
+    * `hash_data`: intermediate hash cached for a implicit branch node, which
+    exists in leaf nodes that have child (TODO: in the current version,
+    extension node also has it, but will remove for this case).
+    * `data_arr`: concatenated data bytes for all children
+    */
+
+    // TODO:
+    // 1. get rid of data_off_arr, and store child data bytes as rlp encoded
+    // bytes
+    // 2. children data_arr can be stored out of line or we reuse nodes instead
+    // of allocating new ones when node size remains the same, as most of the
+    // time only one child out of multiple is updated, and other children's data
+    // remains unchanged, storing inline requires copying them all, storing data
+    // out of line allows us to transfer ownership of data array from old node
+    // to new one, also help to keep allocated size as small as possible.
 
     using type_allocator = std::allocator<Node>;
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     // upper bound = (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32)
-    // assumming 8-byte in-memory and on-disk offset for now
-    // 110: max leaf data length
-    // 32: max relpath length
-    // 32: max branch hash length stored inline
+    // assuming 8-byte mem pointers and on-disk offsets for now
+    // 110: max leaf data bytes
+    // 32: max relpath bytes
+    // 32: max intermediate branch hash bytes stored inline
     using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
         8, (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32), 36, 8>;
 #else
@@ -92,6 +134,8 @@ public:
     }
     static inline size_t get_allocated_count(unsigned n)
     {
+        // node size requested to allocate, n, not always equals a boost pool
+        // size, here rounds n up => lower_bound + k * divisor */
         size_t res = ((n - raw_bytes_allocator::allocation_lower_bound) /
                           raw_bytes_allocator::allocation_divisor +
                       1) *
@@ -126,6 +170,8 @@ public:
 
     constexpr unsigned to_j(uint16_t i) const noexcept
     {
+        // convert the enabled i'th bit in a 16-bit mask into its corresponding
+        // index location - j
         MONAD_DEBUG_ASSERT(mask & 1u << i);
         return bitmask_index(mask, i);
     }
@@ -210,25 +256,27 @@ public:
     }
     constexpr unsigned path_bytes() const noexcept
     {
-        return (path_ei + 1) / 2;
+        return (path_nibble_index_end + 1) / 2;
     }
     constexpr NibblesView path_nibble_view() const noexcept
     {
-        return NibblesView{path_si, path_ei, path_data()};
+        return NibblesView{
+            path_nibble_index_start, path_nibble_index_end, path_data()};
     }
     void set_path(NibblesView const relpath)
     {
         // TODO: a possible case isn't handled is that when si and ei are all
-        // odd, should shift leaf one nibble
-        path_si = relpath.si;
-        path_ei = relpath.ei;
+        // odd, should shift leaf one nibble, however this introduces more
+        // memcpy. Might be worth doing in the serialization step.
+        path_nibble_index_start = relpath.si;
+        path_nibble_index_end = relpath.ei;
         if (relpath.size()) {
             std::memcpy(path_data(), relpath.data, relpath.size());
         }
     }
     constexpr bool has_relpath() const noexcept
     {
-        return path_ei > 0;
+        return path_nibble_index_end > 0;
     }
 
     //! leaf
@@ -348,7 +396,8 @@ node_ptr create_node(
     NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
 
-//! create new leaf from old node with shorter relpath and new leaf data
+//! create a new node from a old node with possibly shorter relpath and an
+//! optional new leaf data
 node_ptr update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);

@@ -9,6 +9,8 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 using file_offset_t = MONAD_ASYNC_NAMESPACE::file_offset_t;
 
+static const uint8_t INVALID_BRANCH = 255;
+
 static const byte_string empty_trie_hash = [] {
     using namespace ::monad::literals;
     return 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex;
