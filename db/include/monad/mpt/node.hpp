@@ -96,8 +96,7 @@ public:
     path_nibble_index_start, path_nibble_index_end
     * `leaf_data`: user-passed leaf data of leaf_len bytes
     * `hash_data`: intermediate hash cached for a implicit branch node, which
-    exists in leaf nodes that have child (TODO: in the current version,
-    extension node also has it, but will remove for this case).
+    exists in leaf nodes that have child.
     * `data_arr`: concatenated data bytes for all children
     */
 

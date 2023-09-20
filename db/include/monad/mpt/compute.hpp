@@ -56,6 +56,7 @@ struct MerkleCompute final : Compute
         std::span<node_ptr> const nexts) override
     {
         if (hashes.size() == 1) {
+            // special case, the node to be created has only one branch
             return _compute_hash_with_extra_nibble_to_state(
                 nexts[0].get(), hashes[0]);
         }
@@ -68,7 +69,7 @@ struct MerkleCompute final : Compute
             if (hashes[j].branch == i) {
                 result =
                     (hashes[j].len < 32)
-                        ? [&]() {
+                        ? [&] {
                               memcpy(
                                   result.data(), hashes[j].data, hashes[j].len);
                               return result.subspan(hashes[j].len);
@@ -161,10 +162,13 @@ struct MerkleCompute final : Compute
                 true);
         }
         MONAD_DEBUG_ASSERT(node->n() > 1);
-        return (node->has_relpath())
-                   ? _encode_two_pieces(
-                         buffer, node->path_nibble_view(), node->hash_view())
-                   : compute_branch(buffer, node);
+        if (node->has_relpath()) {
+            unsigned char hash[32];
+            unsigned len = compute_branch(hash, node);
+            return _encode_two_pieces(
+                buffer, node->path_nibble_view(), {hash, len});
+        }
+        return compute_branch(buffer, node);
     }
 
 private:
@@ -196,11 +200,10 @@ private:
         MONAD_DEBUG_ASSERT(first_len + second_len <= 160);
         unsigned char rlp_string[160];
         auto result = rlp::encode_string(rlp_string, first);
-        result =
-            need_encode_second ? rlp::encode_string(result, second) : [&]() {
-                memcpy(result.data(), second.data(), second.size());
-                return result.subspan(second.size());
-            }();
+        result = need_encode_second ? rlp::encode_string(result, second) : [&] {
+            memcpy(result.data(), second.data(), second.size());
+            return result.subspan(second.size());
+        }();
         MONAD_DEBUG_ASSERT(
             (unsigned long)(result.data() - rlp_string) ==
             first_len + second_len);
@@ -213,16 +216,23 @@ private:
         return to_node_reference({rlp, rlp_len}, dest);
     }
 
-    unsigned _compute_hash_with_extra_nibble_to_state(
-        Node const *const node, ChildData &hash)
+    unsigned
+    _compute_hash_with_extra_nibble_to_state(Node *const node, ChildData &hash)
     {
+        state.len = 0;
+
         return state.len = _encode_two_pieces(
                    state.buffer,
                    concat2(hash.branch, node->path_nibble_view()),
                    (node->is_leaf
                         ? _compute_leaf_data(node)
-                        : (node->has_hash()
-                               ? node->hash_view()
+                        : (node->has_relpath()
+                               ? ([&] -> byte_string {
+                                     unsigned char branch_hash[32];
+                                     return {
+                                         branch_hash,
+                                         compute_branch(branch_hash, node)};
+                                 }())
                                : byte_string_view{hash.data, hash.len})),
                    node->is_leaf);
     }

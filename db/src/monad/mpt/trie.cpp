@@ -249,15 +249,7 @@ node_ptr _mismatch_handler(
                 old_pi + 1, old->path_nibble_index_end, old->path_data()};
             nexts[j] = update_node_shorter_path(old, relpath, old->opt_leaf());
             hashes[j].branch = i;
-            if (nexts[j]->n() && !nexts[j]->hash_len) {
-                // the newly created node doesn't have relpath, to avoid dup
-                // compute branch hash, we copy old node's branch hash here
-                assert(old->n());
-                set_child_data(hashes[j], old->hash_view());
-            }
-            else { // the newly created node maybe ext or leaf
-                hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
-            }
+            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
             ++j;
         }
     }

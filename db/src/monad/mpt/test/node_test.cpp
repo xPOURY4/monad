@@ -137,6 +137,6 @@ TEST(NodeTest, extension_node)
 
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
-    EXPECT_EQ(node->hash_len, 2);
-    EXPECT_EQ(node->node_mem_size(), 37);
+    EXPECT_EQ(node->hash_len, 0);
+    EXPECT_EQ(node->node_mem_size(), 35);
 }

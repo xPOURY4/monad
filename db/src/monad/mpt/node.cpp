@@ -32,40 +32,23 @@ inline node_ptr create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     Nibbles relpath = concat3(prefix, hash.branch, prev->path_nibble_view());
-    // To get hash: no need to recompute because node and prev have the same
-    // children, hash is either in prev->hash_data() if any or in `hash`
-    unsigned hash_len = 0;
-    unsigned char *hash_data = nullptr;
-    if (prev->has_hash()) {
-        hash_len = prev->hash_len;
-        hash_data = prev->hash_data();
-    }
-    else if (prev->n()) {
-        hash_len = hash.len;
-        hash_data = hash.data;
-    }
-    // create node
-    unsigned size = prev->node_mem_size() + relpath.size() -
-                    prev->path_bytes() + (prev->hash_len ? 0 : hash_len);
+    unsigned size = prev->node_mem_size() + relpath.size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, nexts, data_off
     std::memcpy(
         (void *)node.get(),
         (void *)prev.get(),
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
-    node->hash_len = hash_len;
-    node->is_leaf = prev->is_leaf;
-
     for (unsigned j = 0; j < prev->n(); ++j) {
         prev->next_j(j) = nullptr;
     }
     node->set_path(relpath);
     node->set_leaf(prev->leaf_view());
-    if (hash_len) {
-        std::memcpy(node->hash_data(), hash_data, hash_len);
-    }
+    // hash and data arr
     std::memcpy(
-        node->child_data(), prev->child_data(), prev->child_off_j(prev->n()));
+        node->hash_data(),
+        prev->hash_data(),
+        node->hash_len + node->child_off_j(node->n()));
     return node;
 }
 
@@ -92,10 +75,7 @@ node_ptr create_node(
     // any node with child will have hash data
     bool const is_leaf = leaf_data.has_value();
     uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
-                  hash_len =
-                      ((relpath.size() || is_leaf)
-                           ? comp.compute_len(hashes, nexts)
-                           : 0);
+                  hash_len = is_leaf ? comp.compute_len(hashes, nexts) : 0;
     unsigned bytes = sizeof(Node) + leaf_len + hash_len + n * sizeof(Node *) +
                      relpath.size() + n * sizeof(Node::data_off_t);
     Node::data_off_t offsets[n];
@@ -125,53 +105,44 @@ node_ptr create_node(
             node->set_child_data_j(j++, {hashes[i].data, hashes[i].len});
         }
     }
-    // compute branch() here can avoid duplicate compute for branch hash
-    // once node is created, no field inside node should be changed
     if (node->hash_len) {
-        // special case, node has one single branch
         comp.compute_branch(node->hash_data(), node.get());
     }
     return node;
 }
 
-//! Copy old with new relpath and new leaf, new relpath might be shorter than
-//! previous. One corner case being that new relpath is empty, old's hash data
-//! need to be removed when creating new node.
+//! Copy old with new relpath and new leaf, new relpath might be shortened
 node_ptr update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data)
 {
     MONAD_DEBUG_ASSERT(relpath.ei <= old->path_nibble_index_end);
     bool const is_leaf = leaf_data.has_value();
-    unsigned hash_len = relpath.size() ? old->hash_len : 0,
-             leaf_len = leaf_data.has_value() ? leaf_data.value().size() : 0;
+    unsigned const leaf_len =
+        leaf_data.has_value() ? leaf_data.value().size() : 0;
 
     unsigned bytes = old->node_mem_size() + leaf_len - old->leaf_len +
-                     relpath.size() - old->path_bytes() + hash_len -
-                     old->hash_len;
+                     relpath.size() - old->path_bytes();
     node_ptr node = Node::make_node(bytes);
     // copy Node, nexts and data_off array
     std::memcpy(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->hash_len = hash_len;
     node->is_leaf = is_leaf;
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
     if (is_leaf) {
         node->set_leaf(leaf_data.value());
     }
-    if (hash_len) {
-        std::memcpy(node->hash_data(), old->hash_data(), hash_len);
-    }
-    if (old->n()) {
-        std::memcpy(
-            node->child_data(), old->child_data(), old->child_off_j(old->n()));
-        // clear old nexts
-        for (unsigned j = 0; j < old->n(); ++j) {
-            old->next_j(j) = nullptr;
-        }
+    // copy hash and child data arr
+    std::memcpy(
+        node->hash_data(),
+        old->hash_data(),
+        node->hash_len + old->child_off_j(old->n()));
+    // clear old nexts
+    for (unsigned j = 0; j < old->n(); ++j) {
+        old->next_j(j) = nullptr;
     }
     MONAD_DEBUG_ASSERT(old->mask == node->mask);
     MONAD_DEBUG_ASSERT(node->path_nibble_view() == relpath);
