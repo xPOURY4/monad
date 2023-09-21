@@ -16,7 +16,7 @@ node_ptr upsert(Compute &comp, Node *const old, UpdateList &&updates);
 
 inline Node *find(Node *node, byte_string_view key)
 {
-    unsigned pi = 0, node_pi = node->path_nibble_index_start;
+    unsigned pi = 0, node_pi = node->bitpacked.path_nibble_index_start;
 
     while (pi < 2 * key.size()) {
         unsigned char nibble = get_nibble(key.data(), pi);
@@ -26,7 +26,7 @@ inline Node *find(Node *node, byte_string_view key)
             }
             // go to next node's matching branch
             node = node->next(nibble);
-            node_pi = node->path_nibble_index_start;
+            node_pi = node->bitpacked.path_nibble_index_start;
             ++pi;
             continue;
         }

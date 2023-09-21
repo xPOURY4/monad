@@ -154,7 +154,7 @@ struct MerkleCompute final : Compute
     virtual unsigned
     compute(unsigned char *const buffer, Node *const node) override
     {
-        if (node->is_leaf) {
+        if (node->bitpacked.is_leaf) {
             return _encode_two_pieces(
                 buffer,
                 node->path_nibble_view(),
@@ -224,7 +224,7 @@ private:
         return state.len = _encode_two_pieces(
                    state.buffer,
                    concat2(hash.branch, node->path_nibble_view()),
-                   (node->is_leaf
+                   (node->bitpacked.is_leaf
                         ? _compute_leaf_data(node)
                         : (node->has_relpath()
                                ? ([&] -> byte_string {
@@ -234,7 +234,7 @@ private:
                                          compute_branch(branch_hash, node)};
                                  }())
                                : byte_string_view{hash.data, hash.len})),
-                   node->is_leaf);
+                   node->bitpacked.is_leaf);
     }
 };
 

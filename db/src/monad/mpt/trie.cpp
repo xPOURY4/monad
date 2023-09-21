@@ -187,7 +187,7 @@ node_ptr _dispatch_updates(
                               next_.get(),
                               std::move(requests)[i],
                               pi + 1,
-                              next_->path_nibble_index_start);
+                              next_->bitpacked.path_nibble_index_start);
                           return res;
                       }()
                     : _create_new_trie(comp, std::move(requests)[i], pi + 1);
@@ -231,6 +231,7 @@ node_ptr _mismatch_handler(
     MONAD_DEBUG_ASSERT(n > 1);
     ChildData hashes[n];
     node_ptr nexts[n];
+    // file_offset_t fnexts[n];
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             nexts[j] =
@@ -254,6 +255,7 @@ node_ptr _mismatch_handler(
             nexts[j] = update_node_shorter_path(old, relpath, old->opt_leaf());
             hashes[j].branch = i;
             hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
+            // fnexts[j] = async_write_node(nexts[j]);
             ++j;
         }
     }
@@ -264,6 +266,7 @@ node_ptr _mismatch_handler(
         mask,
         {hashes, n},
         {nexts, n},
+        // {fnexts, n},
         NibblesView{old_psi, old_pi, old->path_data()});
 }
 

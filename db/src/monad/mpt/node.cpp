@@ -19,6 +19,7 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
     }
     node->set_params(0, true, data.size(), 0);
     node->set_leaf(data);
+    node->disk_size = node->node_disk_size();
     return node;
 }
 
@@ -49,6 +50,7 @@ inline node_ptr create_coalesced_node_with_prefix(
         node->hash_data(),
         prev->hash_data(),
         node->hash_len + node->child_off_j(node->n()));
+    node->disk_size = node->node_disk_size();
     return node;
 }
 
@@ -76,8 +78,10 @@ node_ptr create_node(
     bool const is_leaf = leaf_data.has_value();
     uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
                   hash_len = is_leaf ? comp.compute_len(hashes, nexts) : 0;
-    unsigned bytes = sizeof(Node) + leaf_len + hash_len + n * sizeof(Node *) +
-                     relpath.size() + n * sizeof(Node::data_off_t);
+    unsigned bytes = sizeof(Node) + leaf_len + hash_len +
+                     n * (sizeof(Node *) + sizeof(Node::data_off_t) +
+                          sizeof(file_offset_t)) +
+                     relpath.size();
     Node::data_off_t offsets[n];
     unsigned data_len = 0;
     for (unsigned i = 0, j = 0; i < hashes.size(); ++i) {
@@ -108,6 +112,7 @@ node_ptr create_node(
     if (node->hash_len) {
         comp.compute_branch(node->hash_data(), node.get());
     }
+    node->disk_size = node->node_disk_size();
     return node;
 }
 
@@ -129,7 +134,7 @@ node_ptr update_node_shorter_path(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->is_leaf = is_leaf;
+    node->bitpacked.is_leaf = is_leaf;
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
     if (is_leaf) {
@@ -146,6 +151,7 @@ node_ptr update_node_shorter_path(
     }
     MONAD_DEBUG_ASSERT(old->mask == node->mask);
     MONAD_DEBUG_ASSERT(node->path_nibble_view() == relpath);
+    node->disk_size = node->node_disk_size();
     return node;
 }
 

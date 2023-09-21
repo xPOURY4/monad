@@ -2,6 +2,7 @@
 
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
+#include <monad/core/unaligned.hpp>
 #include <monad/mem/allocators.hpp>
 
 #include <monad/mpt/nibbles_view.hpp>
@@ -76,20 +77,31 @@ public:
 
     /* 16-bit mask for children */
     uint16_t mask{0};
-    /* is a leaf node, leaf_len is not necessarily positive */
-    bool is_leaf;
+
+    struct bitpacked_storage_t
+    {
+        /* is a leaf node, leaf_len is not necessarily positive */
+        bool is_leaf : 1 {false};
+        bool path_nibble_index_start : 1 {false};
+    } bitpacked{0};
+    static_assert(sizeof(bitpacked) == 1);
+    static_assert(
+        std::endian::native == std::endian::little,
+        "C bitfields stored to disk have the endian of their machine, big "
+        "endian would need a bit swapping loader implementation");
+
     /* size (in byte) of user-passed leaf data */
     uint8_t leaf_len{0};
     /* size (in byte) of intermediate cache for branch hash */
     uint8_t hash_len{0};
-    bool path_nibble_index_start{false};
     uint8_t path_nibble_index_end{0};
-    char pad[1];
+    /* node on disk size */
+    uint16_t disk_size{0}; // in bytes, mas possible ~1000
+
     unsigned char data[0];
     /* Data layout that exceeds node struct size is organized as below:
     * `n` is the number of children the node has and equals bitmask_count(mask)
     * `next` array: size-n array for children's mem pointers
-    * `fnext` array: size-n array for children's on-disk offsets [TODO]
     * `data_offset` array: size-n array each stores a specific child data's
     starting offset
     * `path`: a few bytes for relative path, size depends on
@@ -98,6 +110,7 @@ public:
     * `hash_data`: intermediate hash cached for a implicit branch node, which
     exists in leaf nodes that have child.
     * `data_arr`: concatenated data bytes for all children
+    * `fnext` array: size-n array for children's on-disk offsets [TODO]
     */
 
     // TODO:
@@ -171,7 +184,7 @@ public:
         uint8_t const hash_len_)
     {
         mask = mask_;
-        is_leaf = is_leaf_;
+        bitpacked.is_leaf = is_leaf_;
         leaf_len = leaf_len_;
         hash_len = hash_len_;
     }
@@ -269,14 +282,16 @@ public:
     constexpr NibblesView path_nibble_view() const noexcept
     {
         return NibblesView{
-            path_nibble_index_start, path_nibble_index_end, path_data()};
+            bitpacked.path_nibble_index_start,
+            path_nibble_index_end,
+            path_data()};
     }
     void set_path(NibblesView const relpath)
     {
         // TODO: a possible case isn't handled is that when si and ei are all
         // odd, should shift leaf one nibble, however this introduces more
         // memcpy. Might be worth doing in the serialization step.
-        path_nibble_index_start = relpath.si;
+        bitpacked.path_nibble_index_start = relpath.si;
         path_nibble_index_end = relpath.ei;
         if (relpath.size()) {
             std::memcpy(path_data(), relpath.data, relpath.size());
@@ -309,7 +324,7 @@ public:
     }
     constexpr std::optional<byte_string_view> opt_leaf() const noexcept
     {
-        if (is_leaf) {
+        if (bitpacked.is_leaf) {
             return leaf_view();
         }
         return std::nullopt;
@@ -364,10 +379,44 @@ public:
         std::memcpy(child_data_j(j), data.data(), data.size());
     }
 
+    constexpr unsigned char *fnext_data() noexcept
+    {
+        return child_data() + child_off_j(n());
+    }
+
+    constexpr file_offset_t fnext_j(unsigned const j) noexcept
+    {
+        return unaligned_load<file_offset_t>(
+            fnext_data() + j * sizeof(file_offset_t));
+    }
+
+    constexpr file_offset_t fnext(unsigned const i) noexcept
+    {
+        return fnext_j(to_j(i));
+    }
+
+    void set_fnext_j(unsigned const j, file_offset_t const off) noexcept
+    {
+        memcpy(
+            fnext_data() + j * sizeof(file_offset_t),
+            &off,
+            sizeof(file_offset_t));
+    }
+    void set_fnext(unsigned const i, file_offset_t const off) noexcept
+    {
+        set_fnext_j(to_j(i), off);
+    }
+
     //! node size in memory
     constexpr unsigned node_mem_size() noexcept
     {
-        return (child_data() - (unsigned char *)this) + child_off_j(n());
+        return fnext_data() + sizeof(file_offset_t) * n() -
+               (unsigned char *)this;
+    }
+
+    constexpr uint16_t node_disk_size() noexcept
+    {
+        return static_cast<uint16_t>(fnext_data() - (unsigned char *)this);
     }
 };
 
@@ -409,5 +458,34 @@ node_ptr create_node(
 node_ptr update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
+
+// de/serlaization
+
+// store a bit in parent indicating num pages to read from disk
+inline unsigned
+serilaize_node_to_buffer(unsigned char *const write_pos, Node *const node)
+{
+    // copy node's fnexts array to the location of nexts array in front
+    memcpy(write_pos, node, node->disk_size);
+    // swap fnext into where next array is
+    memcpy(
+        write_pos + sizeof(Node),
+        node->next_data(),
+        node->n() * sizeof(file_offset_t));
+    return node->disk_size;
+}
+
+inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
+{
+    uint16_t const mask = unaligned_load<uint16_t>(read_pos);
+    unsigned const n = bitmask_count(mask);
+    uint16_t const disk_size = unaligned_load<uint16_t>(read_pos + 6),
+                   alloc_size = disk_size + n * sizeof(file_offset_t);
+
+    node_ptr node = Node::make_node(alloc_size);
+    memcpy(node.get(), read_pos, disk_size);
+
+    return node;
+}
 
 MONAD_MPT_NAMESPACE_END
