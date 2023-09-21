@@ -167,7 +167,7 @@ public:
     }
     static inline size_t get_deallocate_count(Node *p)
     {
-        return get_allocated_count(p->node_mem_size());
+        return get_allocated_count(p->get_mem_size());
     }
     using unique_ptr_type = std::unique_ptr<
         Node, allocators::unique_ptr_aliasing_allocator_deleter<
@@ -408,13 +408,13 @@ public:
     }
 
     //! node size in memory
-    constexpr unsigned node_mem_size() noexcept
+    constexpr unsigned get_mem_size() noexcept
     {
         return fnext_data() + sizeof(file_offset_t) * n() -
                (unsigned char *)this;
     }
 
-    constexpr uint16_t node_disk_size() noexcept
+    constexpr uint16_t get_disk_size() noexcept
     {
         return static_cast<uint16_t>(fnext_data() - (unsigned char *)this);
     }
@@ -450,7 +450,7 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath);
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const relpath,
+    std::span<file_offset_t> fnexts, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
 
 //! create a new node from a old node with possibly shorter relpath and an
@@ -463,7 +463,7 @@ node_ptr update_node_shorter_path(
 
 // store a bit in parent indicating num pages to read from disk
 inline unsigned
-serilaize_node_to_buffer(unsigned char *const write_pos, Node *const node)
+serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
 {
     // copy node's fnexts array to the location of nexts array in front
     memcpy(write_pos, node, node->disk_size);

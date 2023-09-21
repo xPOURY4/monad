@@ -67,7 +67,8 @@ inline node_ptr batch_upsert_commit(
     uint64_t offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_state_root, Compute &comp)
+    node_ptr prev_state_root, Compute &comp, MONAD_ASYNC_NAMESPACE::AsyncIO &io,
+    node_writer_unique_ptr_type &node_writer)
 {
     // TODO: find state_root using find(root, block_id);
     (void)block_id;
@@ -85,8 +86,8 @@ inline node_ptr batch_upsert_commit(
     }
     auto ts_before = std::chrono::steady_clock::now();
 
-    node_ptr new_node =
-        upsert(comp, prev_state_root.get(), std::move(update_ls));
+    node_ptr new_node = upsert(
+        comp, io, node_writer, prev_state_root.get(), std::move(update_ls));
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -241,6 +242,28 @@ int main(int argc, char *argv[])
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
+        // init uring
+        monad::io::Ring ring(128, sq_thread_cpu);
+
+        // init buffer: default buffer size
+        // TODO: pass in a preallocated memory
+        monad::io::Buffers rwbuf{
+            ring,
+            8192,
+            64,
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+
+        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{dbname_path, ring, rwbuf};
+
+        file_offset_t root_off = 0;
+        auto node_writer = io.make_connected(
+            MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
+                round_up_align<DISK_PAGE_BITS>(root_off),
+                {(const std::byte *)nullptr,
+                 MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
+            write_operation_io_receiver{});
+
         node_ptr state_root{};
         MerkleCompute comp{};
 
@@ -279,7 +302,9 @@ int main(int argc, char *argv[])
                 keccak_values,
                 false,
                 std::move(state_root),
-                comp);
+                comp,
+                io,
+                node_writer);
 
             if (erase && (iter & 1) != 0) {
                 fprintf(stdout, "> erase iter = %d\n", iter);
@@ -294,7 +319,9 @@ int main(int argc, char *argv[])
                     keccak_values,
                     true,
                     std::move(state_root),
-                    comp);
+                    comp,
+                    io,
+                    node_writer);
                 ++vid;
 
                 fprintf(stdout, "> dup batch iter = %d\n", iter);
@@ -309,7 +336,9 @@ int main(int argc, char *argv[])
                     keccak_values,
                     false,
                     std::move(state_root),
-                    comp);
+                    comp,
+                    io,
+                    node_writer);
                 ++vid;
             }
 

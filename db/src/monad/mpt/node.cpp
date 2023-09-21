@@ -19,7 +19,7 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
     }
     node->set_params(0, true, data.size(), 0);
     node->set_leaf(data);
-    node->disk_size = node->node_disk_size();
+    node->disk_size = node->get_disk_size();
     return node;
 }
 
@@ -33,7 +33,7 @@ inline node_ptr create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     Nibbles relpath = concat3(prefix, hash.branch, prev->path_nibble_view());
-    unsigned size = prev->node_mem_size() + relpath.size() - prev->path_bytes();
+    unsigned size = prev->get_mem_size() + relpath.size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, nexts, data_off
     std::memcpy(
@@ -50,7 +50,7 @@ inline node_ptr create_coalesced_node_with_prefix(
         node->hash_data(),
         prev->hash_data(),
         node->hash_len + node->child_off_j(node->n()));
-    node->disk_size = node->node_disk_size();
+    node->disk_size = node->get_disk_size();
     return node;
 }
 
@@ -58,7 +58,8 @@ inline node_ptr create_coalesced_node_with_prefix(
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
+    std::span<file_offset_t> fnexts, NibblesView const relpath,
+    std::optional<byte_string_view> const leaf_data)
 {
     // handle non child and single child cases
     unsigned const n = bitmask_count(mask);
@@ -109,10 +110,12 @@ node_ptr create_node(
             node->set_child_data_j(j++, {hashes[i].data, hashes[i].len});
         }
     }
+    // set fnext
+    memcpy(node->fnext_data(), fnexts.data(), sizeof(file_offset_t) * n);
     if (node->hash_len) {
         comp.compute_branch(node->hash_data(), node.get());
     }
-    node->disk_size = node->node_disk_size();
+    node->disk_size = node->get_disk_size();
     return node;
 }
 
@@ -126,7 +129,7 @@ node_ptr update_node_shorter_path(
     unsigned const leaf_len =
         leaf_data.has_value() ? leaf_data.value().size() : 0;
 
-    unsigned bytes = old->node_mem_size() + leaf_len - old->leaf_len +
+    unsigned bytes = old->get_mem_size() + leaf_len - old->leaf_len +
                      relpath.size() - old->path_bytes();
     node_ptr node = Node::make_node(bytes);
     // copy Node, nexts and data_off array
@@ -151,7 +154,7 @@ node_ptr update_node_shorter_path(
     }
     MONAD_DEBUG_ASSERT(old->mask == node->mask);
     MONAD_DEBUG_ASSERT(node->path_nibble_view() == relpath);
-    node->disk_size = node->node_disk_size();
+    node->disk_size = node->get_disk_size();
     return node;
 }
 
