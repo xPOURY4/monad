@@ -42,7 +42,6 @@ private:
     friend class read_single_buffer_sender;
     static constexpr unsigned READ = 0, WRITE = 1, MSG_READ = 2, MSG_WRITE = 3;
 
-    // TODO: using user_data_t = variant<update_data_t, write_data_t>
     pid_t const owning_tid_;
     int fds_[4];
     monad::io::Ring &uring_;

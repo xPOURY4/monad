@@ -10,12 +10,11 @@ using namespace monad::literals;
 struct DummyCompute final : Compute
 {
     // hash length = 1
-    virtual unsigned compute_len(
-        std::span<ChildData> const hashes, std::span<node_ptr> const) override
+    virtual unsigned compute_len(std::span<ChildData> const children) override
     {
         unsigned len = 0;
-        for (unsigned i = 0; i < hashes.size(); ++i) {
-            len += hashes[i].len;
+        for (unsigned i = 0; i < children.size(); ++i) {
+            len += children[i].len;
         }
         return len >= 32 ? 32 : len;
     }

@@ -29,10 +29,10 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
 //! the compute() after all child branches finish creating nodes and return in
 //! the recursion
 inline node_ptr create_coalesced_node_with_prefix(
-    ChildData &hash, node_ptr prev, NibblesView const prefix)
+    uint8_t const branch, node_ptr prev, NibblesView const prefix)
 {
     // Note that prev may be a leaf
-    Nibbles relpath = concat3(prefix, hash.branch, prev->path_nibble_view());
+    Nibbles relpath = concat3(prefix, branch, prev->path_nibble_view());
     unsigned size = prev->get_mem_size() + relpath.size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, nexts, data_off
@@ -57,12 +57,12 @@ inline node_ptr create_coalesced_node_with_prefix(
 //! create node can either be a branch or extension or leaf with children
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
-    std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    std::span<file_offset_t> fnexts, NibblesView const relpath,
+    std::span<ChildData> children, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data)
 {
     // handle non child and single child cases
     unsigned const n = bitmask_count(mask);
+    assert(n > 1);
     if (n == 0) {
         if (leaf_data.has_value()) {
             return create_leaf(leaf_data.value(), relpath);
@@ -72,23 +72,22 @@ node_ptr create_node(
     else if (n == 1 && !leaf_data.has_value()) {
         unsigned j = bitmask_index(orig_mask, std::countr_zero(mask));
         return create_coalesced_node_with_prefix(
-            hashes[j], std::move(nexts[j]), relpath);
+            children[j].branch, node_ptr{children[j].ptr}, relpath);
     }
     MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.has_value()));
     // any node with child will have hash data
     bool const is_leaf = leaf_data.has_value();
     uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
-                  hash_len = is_leaf ? comp.compute_len(hashes, nexts) : 0;
+                  hash_len = is_leaf ? comp.compute_len(children) : 0;
     unsigned bytes = sizeof(Node) + leaf_len + hash_len +
                      n * (sizeof(Node *) + sizeof(Node::data_off_t) +
                           sizeof(file_offset_t)) +
                      relpath.size();
     Node::data_off_t offsets[n];
     unsigned data_len = 0;
-    for (unsigned i = 0, j = 0; i < hashes.size(); ++i) {
-        if (nexts[i]) {
-            MONAD_DEBUG_ASSERT(hashes[i].branch != INVALID_BRANCH);
-            data_len += hashes[i].len;
+    for (unsigned j = 0; auto child : children) {
+        if (child.branch != INVALID_BRANCH) {
+            data_len += child.len;
             offsets[j++] = data_len;
         }
     }
@@ -104,14 +103,13 @@ node_ptr create_node(
         node->set_leaf(leaf_data.value());
     }
     // set next and data
-    for (unsigned i = 0, j = 0; i < hashes.size(); ++i) {
-        if (nexts[i]) {
-            node->set_next_j(j, std::move(nexts[i]));
-            node->set_child_data_j(j++, {hashes[i].data, hashes[i].len});
+    for (unsigned j = 0; auto child : children) {
+        if (child.branch != INVALID_BRANCH) {
+            node->next_j(j) = child.ptr;
+            node->set_fnext_j(j, child.offset);
+            node->set_child_data_j(j++, {child.data, child.len});
         }
     }
-    // set fnext
-    memcpy(node->fnext_data(), fnexts.data(), sizeof(file_offset_t) * n);
     if (node->hash_len) {
         comp.compute_branch(node->hash_data(), node.get());
     }
@@ -137,7 +135,7 @@ node_ptr update_node_shorter_path(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->bitpacked.is_leaf = is_leaf;
+    assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
     if (is_leaf) {

@@ -18,20 +18,22 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 class Node;
 
-// ChildData is for temporarily holding a child's data in the update recursion.
+// ChildData is for temporarily holding a child's info, including child ptr,
+// file offset and hash data, in the update recursion.
 // TODO for async: children data are part of the state when doing update
 // asynchronously, should allocate an array of ChildData or an array of
 // byte_string on heap instead of on current stack frame, which will be
 // destructed when async
 struct ChildData
 {
-    unsigned char data[32];
+    Node *ptr;
+    file_offset_t offset;
     uint8_t branch{INVALID_BRANCH};
+    unsigned char data[32];
     uint8_t len{0};
-    char pad[6];
 };
-static_assert(sizeof(ChildData) == 40);
-static_assert(alignof(ChildData) == 1);
+static_assert(sizeof(ChildData) == 56);
+static_assert(alignof(ChildData) == 8);
 
 inline void set_child_data(ChildData &dest, byte_string_view src)
 {
@@ -311,6 +313,10 @@ public:
     {
         return path_data() + path_bytes();
     }
+    constexpr bool is_leaf() const noexcept
+    {
+        return bitpacked.is_leaf;
+    }
     void set_leaf(byte_string_view data) noexcept
     {
         MONAD_DEBUG_ASSERT(leaf_len == data.size());
@@ -324,7 +330,7 @@ public:
     }
     constexpr std::optional<byte_string_view> opt_leaf() const noexcept
     {
-        if (bitpacked.is_leaf) {
+        if (is_leaf()) {
             return leaf_view();
         }
         return std::nullopt;
@@ -449,8 +455,7 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath);
 //! create node: either branch/extension, with or without leaf
 node_ptr create_node(
     Compute &comp, uint16_t const orig_mask, uint16_t const mask,
-    std::span<ChildData> hashes, std::span<node_ptr> nexts,
-    std::span<file_offset_t> fnexts, NibblesView const relpath,
+    std::span<ChildData> children, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
 
 //! create a new node from a old node with possibly shorter relpath and an

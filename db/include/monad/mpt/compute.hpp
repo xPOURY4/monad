@@ -16,9 +16,9 @@ MONAD_MPT_NAMESPACE_BEGIN
 struct Compute
 {
     virtual ~Compute(){};
-    //! compute length of hash from a span of child data and child node pointers
-    virtual unsigned compute_len(
-        std::span<ChildData> const hashes, std::span<node_ptr> const nexts) = 0;
+    //! compute length of hash from a span of child data, which include the node
+    //! pointer, file offset and calculated hash
+    virtual unsigned compute_len(std::span<ChildData> const children) = 0;
     //! compute hash_data inside node if hash_len > 0, which is the hash of all
     //! node's branches, return hash data length
     virtual unsigned
@@ -32,8 +32,7 @@ struct Compute
 
 struct EmptyCompute final : Compute
 {
-    virtual unsigned
-    compute_len(std::span<ChildData> const, std::span<node_ptr> const) override
+    virtual unsigned compute_len(std::span<ChildData> const) override
     {
         return 0;
     }
@@ -51,36 +50,34 @@ struct EmptyCompute final : Compute
 
 struct MerkleCompute final : Compute
 {
-    virtual unsigned compute_len(
-        std::span<ChildData> const hashes,
-        std::span<node_ptr> const nexts) override
+    // compute the actual data to the internal state
+    virtual unsigned compute_len(std::span<ChildData> const children) override
     {
-        if (hashes.size() == 1) {
+        if (children.size() == 1) {
             // special case, the node to be created has only one branch
-            return _compute_hash_with_extra_nibble_to_state(
-                nexts[0].get(), hashes[0]);
+            return _compute_hash_with_extra_nibble_to_state(children[0]);
         }
 
         unsigned char branch_str_rlp[544];
         std::span<unsigned char> result = branch_str_rlp;
         // more than 1 child branch
         unsigned i = 0;
-        for (unsigned j = 0; j < hashes.size(); ++i) {
-            if (hashes[j].branch == i) {
+        for (unsigned j = 0; j < children.size(); ++i) {
+            if (children[j].branch == i) {
                 result =
-                    (hashes[j].len < 32)
+                    (children[j].len < 32)
                         ? [&] {
                               memcpy(
-                                  result.data(), hashes[j].data, hashes[j].len);
-                              return result.subspan(hashes[j].len);
+                                  result.data(), children[j].data, children[j].len);
+                              return result.subspan(children[j].len);
                           }()
-                        : rlp::encode_string(result, {hashes[j].data, hashes[j].len});
+                        : rlp::encode_string(result, {children[j].data, children[j].len});
                 ++j;
             }
             else {
                 result[0] = RLP_EMPTY_STRING;
                 result = result.subspan(1);
-                if (hashes[j].branch == INVALID_BRANCH) {
+                if (children[j].branch == INVALID_BRANCH) {
                     ++j;
                 }
             }
@@ -154,7 +151,7 @@ struct MerkleCompute final : Compute
     virtual unsigned
     compute(unsigned char *const buffer, Node *const node) override
     {
-        if (node->bitpacked.is_leaf) {
+        if (node->is_leaf()) {
             return _encode_two_pieces(
                 buffer,
                 node->path_nibble_view(),
@@ -216,15 +213,15 @@ private:
         return to_node_reference({rlp, rlp_len}, dest);
     }
 
-    unsigned
-    _compute_hash_with_extra_nibble_to_state(Node *const node, ChildData &hash)
+    unsigned _compute_hash_with_extra_nibble_to_state(ChildData &single_child)
     {
         state.len = 0;
+        Node *const node = single_child.ptr;
 
         return state.len = _encode_two_pieces(
                    state.buffer,
-                   concat2(hash.branch, node->path_nibble_view()),
-                   (node->bitpacked.is_leaf
+                   concat2(single_child.branch, node->path_nibble_view()),
+                   (node->is_leaf()
                         ? _compute_leaf_data(node)
                         : (node->has_relpath()
                                ? ([&] -> byte_string {
@@ -233,8 +230,8 @@ private:
                                          branch_hash,
                                          compute_branch(branch_hash, node)};
                                  }())
-                               : byte_string_view{hash.data, hash.len})),
-                   node->bitpacked.is_leaf);
+                               : byte_string_view{single_child.data, single_child.len})),
+                   node->is_leaf());
     }
 };
 

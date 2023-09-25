@@ -160,6 +160,16 @@ node_ptr _create_new_trie(
         _get_leaf_data(requests.opt_leaf));
 }
 
+void write_node_and_compute_hash(
+    ChildData &dest, Compute &comp, AsyncIO &io,
+    node_writer_unique_ptr_type &node_writer, Node *const node, uint8_t const i)
+{
+    dest.ptr = node;
+    dest.offset = async_write_node(io, node_writer, node).offset_written_to;
+    dest.branch = i;
+    dest.len = comp.compute(dest.data, node);
+};
+
 node_ptr _create_new_trie_from_requests(
     Compute &comp, AsyncIO &io, node_writer_unique_ptr_type &node_writer,
     Requests &requests, NibblesView const relpath, unsigned const pi,
@@ -168,29 +178,18 @@ node_ptr _create_new_trie_from_requests(
     unsigned const n = bitmask_count(requests.mask);
     uint16_t const mask = requests.mask;
     MONAD_DEBUG_ASSERT(n > 0);
-    ChildData hashes[n];
-    node_ptr nexts[n];
-    file_offset_t fnexts[n];
+    ChildData children[n];
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
-            nexts[j] = _create_new_trie(
-                comp, io, node_writer, std::move(requests)[i], pi + 1);
-            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
-            hashes[j].branch = i;
-            fnexts[j] = async_write_node(io, node_writer, nexts[j].get())
-                            .offset_written_to;
-            ++j;
+            auto const node =
+                _create_new_trie(
+                    comp, io, node_writer, std::move(requests)[i], pi + 1)
+                    .release();
+            write_node_and_compute_hash(
+                children[j++], comp, io, node_writer, node, i);
         }
     }
-    return create_node(
-        comp,
-        mask,
-        mask,
-        {hashes, n},
-        {nexts, n},
-        {fnexts, n},
-        relpath,
-        opt_leaf_data);
+    return create_node(comp, mask, mask, {children, n}, relpath, opt_leaf_data);
 }
 
 //! dispatch updates at the end of old node's path
@@ -217,12 +216,10 @@ node_ptr _dispatch_updates(
             pi,
             _get_leaf_data(opt_leaf));
     }
-    ChildData hashes[n];
-    node_ptr nexts[n];
-    file_offset_t fnexts[n];
+    ChildData children[n];
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
-            nexts[j] =
+            auto const node =
                 (bit & old->mask)
                     ? [&] {
                           node_ptr next_ = old->next_ptr(i);
@@ -233,42 +230,33 @@ node_ptr _dispatch_updates(
                               next_.get(),
                               std::move(requests)[i],
                               pi + 1,
-                              next_->bitpacked.path_nibble_index_start);
+                              next_->bitpacked.path_nibble_index_start).release();
                           return res;
                       }()
-                    : _create_new_trie(comp, io, node_writer, std::move(requests)[i], pi + 1);
-            if (!nexts[j]) {
-                mask &= ~bit;
+                    : _create_new_trie(comp, io, node_writer, std::move(requests)[i], pi + 1).release();
+            if (node) {
+                write_node_and_compute_hash(
+                    children[j], comp, io, node_writer, node, i);
             }
             else {
-                hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
-                hashes[j].branch = i;
-                fnexts[j] = async_write_node(io, node_writer, nexts[j].get())
-                                .offset_written_to;
+                mask &= ~bit;
             }
             ++j;
         }
         else if (bit & old->mask) {
-            nexts[j] = old->next_ptr(i);
+            children[j].ptr = old->next(i);
+            old->next(i) = nullptr;
             auto const data = old->child_data_view(i);
-            memcpy(&hashes[j].data, data.data(), data.size());
-            hashes[j].len = data.size();
-            hashes[j].branch = i;
-            fnexts[j] = old->fnext(i);
+            memcpy(&children[j].data, data.data(), data.size());
+            children[j].len = data.size();
+            children[j].branch = i;
+            children[j].offset = old->fnext(i);
             ++j;
         }
     }
     // no incarnation and no erase at this point
     auto const opt_leaf_data = _get_leaf_data(opt_leaf, old->opt_leaf());
-    return create_node(
-        comp,
-        orig,
-        mask,
-        {hashes, n},
-        {nexts, n},
-        {fnexts, n},
-        relpath,
-        opt_leaf_data);
+    return create_node(comp, orig, mask, {children, n}, relpath, opt_leaf_data);
 }
 
 //! split old at old_pi, updates at pi
@@ -286,33 +274,29 @@ node_ptr _mismatch_handler(
     uint16_t const orig = mask;
     unsigned const n = bitmask_count(mask);
     MONAD_DEBUG_ASSERT(n > 1);
-    ChildData hashes[n];
-    node_ptr nexts[n];
-    file_offset_t fnexts[n];
+    ChildData children[n];
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
-            nexts[j] = i == old_nibble ? _upsert(
-                                             comp,
-                                             io,
-                                             node_writer,
-                                             old,
-                                             std::move(requests)[i],
-                                             pi + 1,
-                                             old_pi + 1)
-                                       : _create_new_trie(
-                                             comp,
-                                             io,
-                                             node_writer,
-                                             std::move(requests)[i],
-                                             pi + 1);
-            if (!nexts[j]) {
-                mask &= ~bit;
+            auto const node =
+                (i == old_nibble)
+                    ? _upsert(
+                          comp,
+                          io,
+                          node_writer,
+                          old,
+                          std::move(requests)[i],
+                          pi + 1,
+                          old_pi + 1)
+                          .release()
+                    : _create_new_trie(
+                          comp, io, node_writer, std::move(requests)[i], pi + 1)
+                          .release();
+            if (node) {
+                write_node_and_compute_hash(
+                    children[j], comp, io, node_writer, node, i);
             }
             else {
-                hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
-                hashes[j].branch = i;
-                fnexts[j] = async_write_node(io, node_writer, nexts[j].get())
-                                .offset_written_to;
+                mask &= ~bit;
             }
             ++j;
         }
@@ -320,12 +304,14 @@ node_ptr _mismatch_handler(
             // nexts[j] is a path-shortened old node, trim prefix
             NibblesView relpath{
                 old_pi + 1, old->path_nibble_index_end, old->path_data()};
-            nexts[j] = update_node_shorter_path(old, relpath, old->opt_leaf());
-            hashes[j].branch = i;
-            hashes[j].len = comp.compute(hashes[j].data, nexts[j].get());
-            fnexts[j] = async_write_node(io, node_writer, nexts[j].get())
-                            .offset_written_to;
-            ++j;
+            write_node_and_compute_hash(
+                children[j++],
+                comp,
+                io,
+                node_writer,
+                update_node_shorter_path(old, relpath, old->opt_leaf())
+                    .release(),
+                i);
         }
     }
     // trim suffix
@@ -333,9 +319,7 @@ node_ptr _mismatch_handler(
         comp,
         orig,
         mask,
-        {hashes, n},
-        {nexts, n},
-        {fnexts, n},
+        {children, n},
         NibblesView{old_psi, old_pi, old->path_data()});
 }
 
