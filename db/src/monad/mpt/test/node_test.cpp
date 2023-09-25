@@ -37,105 +37,111 @@ auto const path = 0xabcdabcdabcdabcd_hex;
 TEST(NodeTest, leaf)
 {
     NibblesView relpath{1, 10, path.data()};
-    node_ptr node = create_leaf(data, relpath);
+    Node *node = create_leaf(data, relpath);
 
     EXPECT_EQ(node->mask, 0);
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath);
     EXPECT_EQ(node->get_mem_size(), 17);
+    EXPECT_EQ(node->get_disk_size(), 17);
 }
 
 TEST(NodeTest, leaf_single_branch)
 {
     DummyCompute comp{};
     NibblesView relpath{12, 16, path.data()};
-    node_ptr child = create_leaf(data, relpath);
+    Node *child = create_leaf(data, relpath);
 
-    ChildData hashes[1];
-    hashes[0].len = 1;
-    hashes[0].data[0] = 0xa;
-    hashes[0].branch = 0xc;
-    node_ptr nexts[1] = {std::move(child)};
+    ChildData children[1];
+    children[0].len = 1;
+    children[0].data[0] = 0xa;
+    children[0].branch = 0xc;
+    children[0].ptr = child;
     NibblesView relpath2{1, 10, path.data()};
     uint16_t const mask = 1u << 0xc;
-    node_ptr node =
-        create_node(comp, mask, mask, hashes, nexts, relpath2, data);
+    Node *node = create_node(comp, mask, children, relpath2, data);
 
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 1);
     EXPECT_EQ(node->get_mem_size(), 37);
+    EXPECT_EQ(node->get_disk_size(), 29);
 }
 
 TEST(NodeTest, leaf_multiple_branches)
 {
     DummyCompute comp{};
     NibblesView relpath{12, 16, path.data()};
-    node_ptr child1 = create_leaf(data, relpath);
-    node_ptr child2 = create_leaf(data, relpath);
+    Node *child1 = create_leaf(data, relpath);
+    Node *child2 = create_leaf(data, relpath);
 
-    ChildData hash;
-    hash.len = 1;
-    hash.data[0] = 0xa;
-    ChildData hashes[2] = {hash, hash};
-    hashes[0].branch = 0xa;
-    hashes[1].branch = 0xc;
-    node_ptr nexts[2] = {std::move(child1), std::move(child2)};
+    ChildData child;
+    child.len = 1;
+    child.data[0] = 0xa;
+    ChildData children[2] = {child, child};
+    children[0].branch = 0xa;
+    children[1].branch = 0xc;
+    children[0].ptr = child1;
+    children[1].ptr = child2;
     NibblesView relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node =
-        create_node(comp, mask, mask, hashes, nexts, relpath2, data);
+    Node *node = create_node(comp, mask, children, relpath2, data);
 
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 2);
     EXPECT_EQ(node->get_mem_size(), 57);
+    EXPECT_EQ(node->get_disk_size(), 41);
 }
 
 TEST(NodeTest, branch_node)
 {
     DummyCompute comp{};
     NibblesView relpath{12, 16, path.data()};
-    node_ptr child1 = create_leaf(data, relpath);
-    node_ptr child2 = create_leaf(data, relpath);
+    Node *child1 = create_leaf(data, relpath);
+    Node *child2 = create_leaf(data, relpath);
 
-    ChildData hash;
-    hash.len = 1;
-    hash.data[0] = 0xa;
-    ChildData hashes[2] = {hash, hash};
-    hashes[0].branch = 0xa;
-    hashes[1].branch = 0xc;
-    node_ptr nexts[2] = {std::move(child1), std::move(child2)};
+    ChildData child;
+    child.len = 1;
+    child.data[0] = 0xa;
+    ChildData children[2] = {child, child};
+    children[0].branch = 0xa;
+    children[1].branch = 0xc;
+    children[0].ptr = child1;
+    children[1].ptr = child2;
     NibblesView relpath2{1, 1, path.data()}; // relpath2 is empty
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node = create_node(comp, mask, mask, hashes, nexts, relpath2);
+    Node *node = create_node(comp, mask, children, relpath2);
 
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->hash_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->get_mem_size(), 46);
+    EXPECT_EQ(node->get_disk_size(), 30);
 }
 
 TEST(NodeTest, extension_node)
 {
     DummyCompute comp{};
     NibblesView relpath{12, 16, path.data()};
-    node_ptr child1 = create_leaf(data, relpath);
-    node_ptr child2 = create_leaf(data, relpath);
+    Node *child1 = create_leaf(data, relpath);
+    Node *child2 = create_leaf(data, relpath);
 
-    ChildData hash;
-    hash.len = 1;
-    hash.data[0] = 0xa;
-    ChildData hashes[2] = {hash, hash};
-    hashes[0].branch = 0xa;
-    hashes[1].branch = 0xc;
-    node_ptr nexts[2] = {std::move(child1), std::move(child2)};
+    ChildData child;
+    child.len = 1;
+    child.data[0] = 0xa;
+    ChildData children[2] = {child, child};
+    children[0].branch = 0xa;
+    children[1].branch = 0xc;
+    children[0].ptr = child1;
+    children[1].ptr = child2;
     NibblesView relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node = create_node(comp, mask, mask, hashes, nexts, relpath2);
+    Node *node = create_node(comp, mask, children, relpath2);
 
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 0);
     EXPECT_EQ(node->get_mem_size(), 51);
+    EXPECT_EQ(node->get_disk_size(), 35);
 }

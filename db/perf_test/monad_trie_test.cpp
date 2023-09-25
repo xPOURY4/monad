@@ -7,7 +7,7 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
- 
+
 #include <monad/mem/cpool.h>
 #include <monad/mem/huge_mem.hpp>
 
@@ -67,8 +67,7 @@ inline node_ptr batch_upsert_commit(
     uint64_t offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_state_root, Compute &comp, MONAD_ASYNC_NAMESPACE::AsyncIO &io,
-    node_writer_unique_ptr_type &node_writer)
+    node_ptr prev_state_root, UpdateAux &update_aux)
 {
     // TODO: find state_root using find(root, block_id);
     (void)block_id;
@@ -86,8 +85,8 @@ inline node_ptr batch_upsert_commit(
     }
     auto ts_before = std::chrono::steady_clock::now();
 
-    node_ptr new_node = upsert(
-        comp, io, node_writer, prev_state_root.get(), std::move(update_ls));
+    node_ptr new_node =
+        upsert(update_aux, prev_state_root.get(), std::move(update_ls));
 
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -96,7 +95,7 @@ inline node_ptr batch_upsert_commit(
              1000000000.0;
 
     unsigned char root_hash[32];
-    comp.compute(root_hash, new_node.get());
+    update_aux.comp.compute(root_hash, new_node.get());
     fprintf(stdout, "root->data : ");
     __print_char_arr_in_hex((char *)root_hash, 32);
 
@@ -114,18 +113,6 @@ inline node_ptr batch_upsert_commit(
         csv_writer << (offset + keccak_offset + nkeys) << ","
                    << ((double)nkeys / tm_ram) << std::endl;
     }
-
-    // TEMPOROARY for leaf existence verification
-    // ts_before = std::chrono::steady_clock::now();
-    // fprintf(stdout, "num of leaves %u\n", count_leaves(new_node.get()));
-    // ts_after = std::chrono::steady_clock::now();
-    // fprintf(
-    //     stdout,
-    //     "count leaves traversal time: %.4f s\n",
-    //     std::chrono::duration_cast<std::chrono::nanoseconds>(
-    //         ts_after - ts_before)
-    //             .count() /
-    //         1000000000.0);
 
     return new_node;
 }
@@ -166,7 +153,9 @@ int main(int argc, char *argv[])
     uint64_t offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
+    bool in_memory = false; // default is on disk
     bool empty_cpu_caches = false;
+
     CLI::App cli{"monad_merge_trie_test"};
     try {
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
@@ -178,6 +167,8 @@ int main(int argc, char *argv[])
         cli.add_option("-n", n_slices, "n batch updates");
         cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
         cli.add_flag("--erase", erase, "test erase");
+        cli.add_flag(
+            "--in-memory", in_memory, "config trie to in memory or on-disk");
         cli.add_flag(
             "--empty-cpu-caches",
             empty_cpu_caches,
@@ -242,6 +233,8 @@ int main(int argc, char *argv[])
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
+        MerkleCompute comp{};
+
         // init uring
         monad::io::Ring ring(128, sq_thread_cpu);
 
@@ -249,23 +242,19 @@ int main(int argc, char *argv[])
         // TODO: pass in a preallocated memory
         monad::io::Buffers rwbuf{
             ring,
-            8192,
-            64,
+            8192 * 4,
+            128,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{dbname_path, ring, rwbuf};
 
-        file_offset_t root_off = 0;
-        auto node_writer = io.make_connected(
-            MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
-                round_up_align<DISK_PAGE_BITS>(root_off),
-                {(const std::byte *)nullptr,
-                 MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
-            write_operation_io_receiver{});
+        UpdateAux update_aux{comp};
+        if (!in_memory) {
+            update_aux.set_io(&io);
+        }
 
         node_ptr state_root{};
-        MerkleCompute comp{};
 
         auto begin_test = std::chrono::steady_clock::now();
         uint64_t max_key = n_slices * SLICE_LEN + offset;
@@ -302,9 +291,7 @@ int main(int argc, char *argv[])
                 keccak_values,
                 false,
                 std::move(state_root),
-                comp,
-                io,
-                node_writer);
+                update_aux);
 
             if (erase && (iter & 1) != 0) {
                 fprintf(stdout, "> erase iter = %d\n", iter);
@@ -319,9 +306,7 @@ int main(int argc, char *argv[])
                     keccak_values,
                     true,
                     std::move(state_root),
-                    comp,
-                    io,
-                    node_writer);
+                    update_aux);
                 ++vid;
 
                 fprintf(stdout, "> dup batch iter = %d\n", iter);
@@ -336,9 +321,7 @@ int main(int argc, char *argv[])
                     keccak_values,
                     false,
                     std::move(state_root),
-                    comp,
-                    io,
-                    node_writer);
+                    update_aux);
                 ++vid;
             }
 

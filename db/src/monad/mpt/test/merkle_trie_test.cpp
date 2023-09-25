@@ -10,14 +10,14 @@
 using namespace monad::mpt;
 using namespace monad::literals;
 
-node_ptr
-upsert_vector(Compute &comp, Node *const old, std::vector<Update> update_vec)
+node_ptr upsert_vector(
+    UpdateAux &update_aux, Node *const old, std::vector<Update> update_vec)
 {
     UpdateList update_ls;
     for (auto &it : update_vec) {
         update_ls.push_front(it);
     }
-    return upsert(comp, old, std::move(update_ls));
+    return upsert(update_aux, old, std::move(update_ls));
 }
 
 namespace fixed_updates
@@ -67,11 +67,54 @@ namespace var_len_updates
 
 class InMemoryTrie : public ::testing::Test
 {
-public:
-    MerkleCompute comp{};
-    node_ptr root{};
+private:
+    MerkleCompute comp;
 
-    InMemoryTrie() = default;
+public:
+    node_ptr root;
+    UpdateAux update_aux;
+
+    InMemoryTrie()
+        : comp(MerkleCompute{})
+        , root{}
+        , update_aux(comp, nullptr)
+    {
+    }
+
+    monad::byte_string root_hash()
+    {
+        if (this->root.get()) {
+            monad::byte_string res(32, 0);
+            this->comp.compute(res.data(), this->root.get());
+            return res;
+        }
+        return empty_trie_hash;
+    }
+};
+class OnDiskTrie : public ::testing::Test
+{
+private:
+    monad::io::Ring ring;
+    monad::io::Buffers rwbuf;
+    MONAD_ASYNC_NAMESPACE::AsyncIO io;
+    MerkleCompute comp;
+
+public:
+    node_ptr root;
+    UpdateAux update_aux;
+
+    OnDiskTrie()
+        : ring(monad::io::Ring(2, 0))
+        , rwbuf(
+              ring, 2, 2,
+              MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+              MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)
+        , io(MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{}, ring, rwbuf)
+        , comp(MerkleCompute{})
+        , root{}
+        , update_aux(comp, &io)
+    {
+    }
 
     monad::byte_string root_hash()
     {
@@ -84,13 +127,12 @@ public:
     }
 };
 
-class EraseFixture : public InMemoryTrie
+template <typename BaseTrie>
+class EraseFixture : public BaseTrie
 {
 public:
-    using InMemoryTrie::root_hash;
-
     EraseFixture()
-        : InMemoryTrie()
+        : BaseTrie()
     {
         auto &kv = fixed_updates::kv;
 
@@ -100,11 +142,29 @@ public:
                 auto &[k, v] = su;
                 return make_update(k, v);
             });
-        root = upsert_vector(comp, nullptr, update_vec);
+        this->root = upsert_vector(this->update_aux, nullptr, update_vec);
     }
 };
 
-TEST_F(InMemoryTrie, OneElement)
+template <typename TFixture>
+struct TrieTest : public TFixture
+{
+};
+
+using TrieTypes = ::testing::Types<InMemoryTrie, OnDiskTrie>;
+TYPED_TEST_SUITE(TrieTest, TrieTypes);
+
+template <typename TFixture>
+struct EraseTrieTest : public TFixture
+{
+};
+
+using EraseTrieType =
+    ::testing::Types<EraseFixture<InMemoryTrie>, EraseFixture<OnDiskTrie>>;
+TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
+
+// Test Starts
+TYPED_TEST(TrieTest, OneElement)
 {
     // keys are the same
     auto const
@@ -116,149 +176,155 @@ TEST_F(InMemoryTrie, OneElement)
             0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex;
 
     // single update
-    root = upsert_vector(comp, nullptr, {make_update(key, val1)});
+    this->root =
+        upsert_vector(this->update_aux, nullptr, {make_update(key, val1)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xa1aa368afa323866e03c21927db548afda3da793f4d3c646d7dd8109477b907e_hex);
 
     // update again
-    root = upsert_vector(comp, root.get(), {make_update(key, val2)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_update(key, val2)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x5d225e3b0f1f386171899d343211850f102fa15de6e808c6f614915333a4f3ab_hex);
 }
 
-TEST_F(InMemoryTrie, Simple)
+TYPED_TEST(TrieTest, Simple)
 {
     auto &kv = fixed_updates::kv;
 
-    root = upsert_vector(
-        comp,
+    this->root = upsert_vector(
+        this->update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
 
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[2].first, kv[2].second),
          make_update(kv[3].first, kv[3].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 }
 
-TEST_F(InMemoryTrie, same_prefix_length)
+TYPED_TEST(TrieTest, same_prefix_length)
 {
     auto &kv = var_len_updates::kv;
     // insert kv 0,1
-    root = upsert_vector(
-        comp,
+    this->root = upsert_vector(
+        this->update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
 
     // insert kv 2,3
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[2].first, kv[2].second),
          make_update(kv[3].first, kv[3].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x30175d933b55cc3528abc7083210296967ea3ccb2afeb12d966a7789e8d0fc1f_hex);
 
     // insert kv 4,5,6
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[4].first, kv[4].second),
          make_update(kv[5].first, kv[5].second),
          make_update(kv[6].first, kv[6].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x399580bb7585999a086e9bc6f29af647019826b49ef9d84004b0b03323ddb212_hex);
 
     // erases
-    root = upsert_vector(comp, root.get(), {make_erase(kv[4].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[4].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x3467f96b8c7a1f9646cbee98500111b37d160ec0f02844b2bdcb89c8bcd3878a_hex);
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[6].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[6].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xdba3fae4737cde5014f6200508d7659ccc146b760e3a2ded47d7c422372b6b6c_hex);
 
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_erase(kv[2].first),
          make_erase(kv[3].first),
          make_erase(kv[5].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[1].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[1].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x065ed1753a679bbde2ce3ba5af420292b86acd3fdc2ad74215d54cc10b2add72_hex);
 
     // erase the last one
-    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
-    EXPECT_EQ(root.get(), nullptr);
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[0].first)});
+    EXPECT_EQ(this->root.get(), nullptr);
 }
 
-TEST_F(InMemoryTrie, unrelated_leaves_with_read)
+TYPED_TEST(TrieTest, unrelated_leaves_with_read)
 {
     auto &kv = unrelated_leaves::kv;
 
-    root = upsert_vector(
-        comp,
+    this->root = upsert_vector(
+        this->update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xc2cbdf038f464a595ac12a257d48cc2a36614f0adfd2e9a08b79c5b34b52316a_hex);
 
     // two other updates for next batch
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[2].first, kv[2].second),
          make_update(kv[3].first, kv[3].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xd339cf4033aca65996859d35da4612b642664cc40734dbdd40738aa47f1e3e44_hex);
 
     Node *leaf;
-    EXPECT_TRUE(leaf = find(root.get(), kv[0].first));
+    EXPECT_TRUE(leaf = find(this->root.get(), kv[0].first));
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[0].second);
-    EXPECT_TRUE(leaf = find(root.get(), kv[1].first));
+    EXPECT_TRUE(leaf = find(this->root.get(), kv[1].first));
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[1].second);
-    EXPECT_TRUE(leaf = find(root.get(), kv[2].first));
+    EXPECT_TRUE(leaf = find(this->root.get(), kv[2].first));
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[2].second);
-    EXPECT_TRUE(leaf = find(root.get(), kv[3].first));
+    EXPECT_TRUE(leaf = find(this->root.get(), kv[3].first));
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[3].second);
 }
 
-TEST_F(InMemoryTrie, var_length_leaf_second)
+TYPED_TEST(TrieTest, var_length_leaf_second)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -276,9 +342,9 @@ TEST_F(InMemoryTrie, var_length_leaf_second)
             auto &[k, v] = su;
             return make_update(k, monad::byte_string_view{v});
         });
-    root = upsert_vector(comp, nullptr, update_vec);
+    this->root = upsert_vector(this->update_aux, nullptr, update_vec);
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xb796133251968233b84f3fcf8af88cdb42eeabe793f27835c10e8b46c91dfa4a_hex);
 }
 
@@ -286,14 +352,14 @@ TEST_F(InMemoryTrie, var_length_leaf_second)
 // Erase Trie Tests
 ////////////////////////////////////////////////////////////////////
 
-TEST_F(EraseFixture, none)
+TYPED_TEST(EraseTrieTest, none)
 {
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 }
 
-TEST_F(EraseFixture, remove_everything)
+TYPED_TEST(EraseTrieTest, remove_everything)
 {
     auto kv = fixed_updates::kv;
 
@@ -303,49 +369,55 @@ TEST_F(EraseFixture, remove_everything)
             auto &[k, v] = su;
             return make_erase(k);
         });
-    root = upsert_vector(comp, root.get(), update_vec);
+    this->root = upsert_vector(this->update_aux, this->root.get(), update_vec);
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
 }
 
-TEST_F(EraseFixture, delete_single_branch)
+TYPED_TEST(EraseTrieTest, delete_single_branch)
 {
     auto kv = fixed_updates::kv;
 
-    root = upsert_vector(
-        comp, root.get(), {make_erase(kv[2].first), make_erase(kv[3].first)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_erase(kv[2].first), make_erase(kv[3].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
 }
 
-TEST_F(EraseFixture, delete_one_at_a_time)
+TYPED_TEST(EraseTrieTest, delete_one_at_a_time)
 {
     auto kv = fixed_updates::kv;
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[2].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[2].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xd8b34a85db25148b1901459eac9805edadaa20b03f41fecd3b571f3b549e2774_hex);
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[1].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[1].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x107c8dd7bf9e7ca1faaa2c5856b412a8d7fccfa0005ca2500673a86b9c1760de_hex);
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[0].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x15fa9c02a40994d2d4f9c9b21daba3c4e455985490de5f9ae4889548f34d5873_hex);
 
-    root = upsert_vector(comp, root.get(), {make_erase(kv[3].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[3].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
 }
 
-TEST_F(InMemoryTrie, upsert_diff_key_length)
+TYPED_TEST(TrieTest, upsert_diff_key_length)
 {
     // 2 accounts, kv[0] and kv[1]
     // kv[2,3,4] are of kv[0]'s storages
@@ -369,14 +441,14 @@ TEST_F(InMemoryTrie, upsert_diff_key_length)
          0xcafe_hex}}; // 7
 
     // insert kv 0,1
-    root = upsert_vector(
-        comp,
+    this->root = upsert_vector(
+        this->update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second),
          make_update(kv[2].first, kv[2].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xd02534184b896dd4cb37fb34f176cafb508aa2ebc19a773c332514ca8c65ca10_hex);
 
     // update first trie's account value
@@ -384,70 +456,79 @@ TEST_F(InMemoryTrie, upsert_diff_key_length)
         acc1 =
             0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
         new_val = 0x1234_hex;
-    root = upsert_vector(comp, root.get(), {make_update(acc1, new_val)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_update(acc1, new_val)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
 
     // update storages
-    root = upsert_vector(
-        comp, root.get(), {make_update(kv[3].first, kv[3].second)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[3].first, kv[3].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xc2f4c0bf52f5b277252ecfe9df3c38b44d1787b3f89febde1d29406eb06e8f93_hex);
 
     // update storages again
-    root = upsert_vector(
-        comp, root.get(), {make_update(kv[4].first, kv[4].second)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[4].first, kv[4].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     // erase storage kv 3, 4
-    root = upsert_vector(
-        comp, root.get(), {make_erase(kv[3].first), make_erase(kv[4].first)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_erase(kv[3].first), make_erase(kv[4].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
 
     // incarnation: now acc(kv[0]) only has 1 storage
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[0].first, new_val, true),
          make_update(kv[4].first, kv[4].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x2667b2bcc7c6a9afcd5a621be863fc06bf76022450e7e2e11ef792d63c7a689c_hex);
 
     // insert storages to the second account
-    root = upsert_vector(
-        comp,
-        root.get(),
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
         {make_update(kv[5].first, kv[5].second),
          make_update(kv[6].first, kv[6].second),
          make_update(kv[7].first, kv[7].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x7954fcaa023fb356d6c626119220461c7859b93abd6ea71eac342d8407d7051e_hex);
 
     // erase all storages of kv[0].
     // TEMPORARY Note: when an existing account has no storages, the computed
     // leaf data is the input value, we don't concatenate with `empty_trie_hash`
     // in this poc impl yet.
-    root = upsert_vector(comp, root.get(), {make_erase(kv[4].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[4].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x055a9738d15fb121afe470905ca2254da172da7a188d8caa690f279c10422380_hex);
 
     // erase whole first account (kv[0])
-    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[0].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
 }
 
-TEST_F(InMemoryTrie, upsert_diff_key_length_nested)
+TYPED_TEST(TrieTest, upsert_diff_key_length_nested)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
@@ -465,40 +546,45 @@ TEST_F(InMemoryTrie, upsert_diff_key_length_nested)
     Update a = make_update(storage_kv[0].first, storage_kv[0].second);
     UpdateList storage;
     storage.push_front(a);
-    root = upsert_vector(
-        comp,
+    this->root = upsert_vector(
+        this->update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second, false, &storage),
          make_update(kv[1].first, kv[1].second)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xd02534184b896dd4cb37fb34f176cafb508aa2ebc19a773c332514ca8c65ca10_hex);
 
     // update first trie mid leaf data
     auto acc1 = kv[0].first, new_val = 0x1234_hex;
-    root = upsert_vector(comp, root.get(), {make_update(acc1, new_val)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_update(acc1, new_val)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
 
     // update storages
     Update b = make_update(storage_kv[1].first, storage_kv[1].second);
     storage.clear();
     storage.push_front(b);
-    root =
-        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[0].first, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xc2f4c0bf52f5b277252ecfe9df3c38b44d1787b3f89febde1d29406eb06e8f93_hex);
 
     // update storage again
     Update c = make_update(storage_kv[2].first, storage_kv[2].second);
     storage.clear();
     storage.push_front(c);
-    root =
-        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[0].first, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     // erase some storage
@@ -507,19 +593,23 @@ TEST_F(InMemoryTrie, upsert_diff_key_length_nested)
            erase_c = make_erase(storage_kv[2].first);
     storage.push_front(erase_b);
     storage.push_front(erase_c);
-    root =
-        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[0].first, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
 
     // incarnation
     storage.clear();
     storage.push_front(c);
-    root = upsert_vector(
-        comp, root.get(), {make_update(kv[0].first, new_val, true, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[0].first, new_val, true, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x2667b2bcc7c6a9afcd5a621be863fc06bf76022450e7e2e11ef792d63c7a689c_hex);
 
     // insert storages to the second account
@@ -527,29 +617,34 @@ TEST_F(InMemoryTrie, upsert_diff_key_length_nested)
     storage.push_front(a);
     storage.push_front(b);
     storage.push_front(c);
-    root =
-        upsert_vector(comp, root.get(), {make_update(kv[1].first, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[1].first, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x7954fcaa023fb356d6c626119220461c7859b93abd6ea71eac342d8407d7051e_hex);
 
     // erase all storages of kv[0].
     storage.clear();
     storage.push_front(erase_c);
-    root =
-        upsert_vector(comp, root.get(), {make_update(kv[0].first, &storage)});
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(kv[0].first, &storage)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x055a9738d15fb121afe470905ca2254da172da7a188d8caa690f279c10422380_hex);
 
     // erase whole first account (kv[0])
-    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
+    this->root = upsert_vector(
+        this->update_aux, this->root.get(), {make_erase(kv[0].first)});
     EXPECT_EQ(
-        root_hash(),
+        this->root_hash(),
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
 }
 
-TEST_F(InMemoryTrie, update_nested_with_blockno)
+TYPED_TEST(TrieTest, update_nested_with_blockno)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
@@ -577,10 +672,13 @@ TEST_F(InMemoryTrie, update_nested_with_blockno)
     state_changes.push_front(s1);
     state_changes.push_front(s2);
     auto blockno = 0x00000001_hex;
-    root = upsert_vector(
-        comp, nullptr, {make_update(blockno, {}, false, &state_changes)});
-    Node *state_root = find(root.get(), blockno);
+    this->root = upsert_vector(
+        this->update_aux,
+        nullptr,
+        {make_update(blockno, {}, false, &state_changes)});
+    Node *state_root = find(this->root.get(), blockno);
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+    // TODO: next blockno
 }

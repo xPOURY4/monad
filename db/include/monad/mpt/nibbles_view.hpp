@@ -44,11 +44,14 @@ struct Nibbles
         }
     }
 };
+static_assert(sizeof(Nibbles) == 16);
+static_assert(alignof(Nibbles) == 8);
+
 struct NibblesView
 {
-    unsigned char const *const data{nullptr};
-    bool const si{false};
-    uint8_t const ei{0};
+    unsigned char const *data{nullptr};
+    bool si{false};
+    uint8_t ei{0};
 
     constexpr unsigned size() const
     {
@@ -71,6 +74,9 @@ struct NibblesView
         : NibblesView{n.si, n.ei, n.data}
     {
     }
+
+    constexpr NibblesView(NibblesView const &other) = default;
+    NibblesView &operator=(NibblesView const &other) = default;
 
     constexpr bool operator==(NibblesView const &other) const
     {

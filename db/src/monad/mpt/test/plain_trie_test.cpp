@@ -24,25 +24,26 @@ namespace updates
     };
 }
 
-node_ptr
-upsert_vector(Compute &comp, Node *const old, std::vector<Update> update_vec)
+node_ptr upsert_vector(
+    UpdateAux &update_aux, Node *const old, std::vector<Update> update_vec)
 {
     UpdateList update_ls;
     for (auto &it : update_vec) {
         update_ls.push_front(it);
     }
-    return upsert(comp, old, std::move(update_ls));
+    return upsert(update_aux, old, std::move(update_ls));
 }
 
-TEST(TrieUpsert, var_length)
+TEST(InMemoryPlainTrie, var_length)
 {
     auto &kv = updates::kv;
     EmptyCompute comp;
+    UpdateAux update_aux{comp};
     node_ptr root;
 
     // insert kv 0,1,2,3
     root = upsert_vector(
-        comp,
+        update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second),
@@ -88,7 +89,7 @@ TEST(TrieUpsert, var_length)
 
     // insert kv 4,5
     root = upsert_vector(
-        comp,
+        update_aux,
         root.get(),
         {make_update(kv[4].first, kv[4].second),
          make_update(kv[5].first, kv[5].second)});
@@ -112,7 +113,7 @@ TEST(TrieUpsert, var_length)
 
     // insert kv 6,7
     root = upsert_vector(
-        comp,
+        update_aux,
         root.get(),
         {make_update(kv[6].first, kv[6].second),
          make_update(kv[7].first, kv[7].second)});
@@ -133,7 +134,7 @@ TEST(TrieUpsert, var_length)
         (NibblesView{9, 16, kv[7].first.data()}));
 }
 
-TEST(TrieUpsert, mismatch)
+TEST(InMemoryPlainTrie, mismatch)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0x12345678_hex, 0xdead_hex}, // 0
@@ -144,8 +145,8 @@ TEST(TrieUpsert, mismatch)
     };
 
     EmptyCompute comp;
+    UpdateAux update_aux{comp};
     node_ptr root;
-
     /* insert 12345678, 12346678, 12445678
             12
           /    \
@@ -154,7 +155,7 @@ TEST(TrieUpsert, mismatch)
     5678  6678
     */
     root = upsert_vector(
-        comp,
+        update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second),
@@ -179,7 +180,7 @@ TEST(TrieUpsert, mismatch)
       5678 6678 7678
     */
     root = upsert_vector(
-        comp,
+        update_aux,
         root.get(),
         {make_update(kv[3].first, kv[3].second),
          make_update(kv[4].first, kv[4].second)});
@@ -205,16 +206,16 @@ TEST(TrieUpsert, mismatch)
     EXPECT_EQ(node34->next(7)->leaf_view(), kv[3].second);
 }
 
-TEST(TrieUpsert, delete_wo_incarnation)
+TEST(InMemoryPlainTrie, delete_wo_incarnation)
 {
     auto &kv = updates::kv;
-
     EmptyCompute comp;
+    UpdateAux update_aux{comp};
     node_ptr root;
 
     // insert all
     root = upsert_vector(
-        comp,
+        update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second),
@@ -225,36 +226,37 @@ TEST(TrieUpsert, delete_wo_incarnation)
          make_update(kv[6].first, kv[6].second),
          make_update(kv[7].first, kv[7].second)});
     // erase 0
-    root = upsert_vector(comp, root.get(), {make_erase(kv[0].first)});
+    root = upsert_vector(update_aux, root.get(), {make_erase(kv[0].first)});
     EXPECT_EQ(root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
-    root = upsert_vector(comp, root.get(), {make_erase(kv[5].first)});
+    root = upsert_vector(update_aux, root.get(), {make_erase(kv[5].first)});
     EXPECT_EQ(root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 1, consequently 2,3 are erased
-    root = upsert_vector(comp, root.get(), {make_erase(kv[1].first)});
+    root = upsert_vector(update_aux, root.get(), {make_erase(kv[1].first)});
     EXPECT_EQ(root->mask, 0);
     EXPECT_EQ(root->leaf_view(), kv[4].second);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 8, kv[4].first.data()}));
 }
 
-TEST(TrieUpsert, delete_with_incarnation)
+TEST(InMemoryPlainTrie, delete_with_incarnation)
 {
     // upsert a bunch of var lengths kv
     auto &kv = updates::kv;
 
     EmptyCompute comp;
+    UpdateAux update_aux{comp};
     node_ptr root;
 
     // insert
     root = upsert_vector(
-        comp,
+        update_aux,
         nullptr,
         {make_update(kv[0].first, kv[0].second), // 0x01111111
          make_update(kv[1].first, kv[1].second), // 0x11111111
@@ -265,7 +267,7 @@ TEST(TrieUpsert, delete_with_incarnation)
 
     // upsert a bunch of new kvs, with incarnation flag set
     root = upsert_vector(
-        comp,
+        update_aux,
         root.get(),
         {make_update(kv[1].first, kv[1].second, true), // 0x11111111
          make_update(kv[3].first, kv[3].second)}); // 0x11111111aacd

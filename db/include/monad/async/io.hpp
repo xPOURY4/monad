@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <iostream>
 #include <span>
 #include <tuple>
 
@@ -153,6 +154,7 @@ public:
     void flush()
     {
         wait_until_done();
+        std::cout << "nreads: " << records_.nreads << std::endl;
         records_.nreads = 0;
     }
 

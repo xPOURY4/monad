@@ -3,6 +3,7 @@
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/update.hpp>
+#include <monad/mpt/upward_tnode.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <monad/async/io.hpp>
@@ -12,11 +13,11 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-// static_assert(
-//     MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE >=
-//         round_up_align<DISK_PAGE_BITS>(
-//             uint16_t(MAX_DISK_NODE_SIZE + DISK_PAGE_SIZE)),
-//     "AsyncIO::READ_BUFFER_SIZE needs to be raised");
+static_assert(
+    MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE >=
+        round_up_align<DISK_PAGE_BITS>(
+            uint16_t(MAX_DISK_NODE_SIZE + DISK_PAGE_SIZE)),
+    "AsyncIO::READ_BUFFER_SIZE needs to be raised");
 template <class T>
 using result = MONAD_ASYNC_NAMESPACE::result<T>;
 using MONAD_ASYNC_NAMESPACE::errc;
@@ -55,19 +56,58 @@ using node_writer_unique_ptr_type =
         MONAD_ASYNC_NAMESPACE::write_single_buffer_sender,
         write_operation_io_receiver>;
 
+struct UpdateAux
+{
+    Compute &comp;
+    MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
+    node_writer_unique_ptr_type node_writer{};
+
+    UpdateAux(
+        Compute &comp_, MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
+        file_offset_t root_off = 0)
+        : comp(comp_)
+        , node_writer(node_writer_unique_ptr_type{})
+    {
+        if (io_) {
+            set_io(io_, root_off);
+        }
+    }
+
+    void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_, file_offset_t root_off = 0)
+    {
+        io = io_;
+        node_writer =
+            io ? io->make_connected(
+                     MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
+                         round_up_align<DISK_PAGE_BITS>(root_off),
+                         {(const std::byte *)nullptr,
+                          MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
+                     write_operation_io_receiver{})
+               : node_writer_unique_ptr_type{};
+    }
+
+    constexpr bool is_in_memory() const noexcept
+    {
+        return io == nullptr;
+    }
+
+    constexpr bool is_on_disk() const noexcept
+    {
+        return io != nullptr;
+    }
+};
+
 async_write_node_result async_write_node(
     MONAD_ASYNC_NAMESPACE::AsyncIO &io,
     node_writer_unique_ptr_type &node_writer, Node *node);
 // invoke at the end of each block upsert
-// async_write_node_result flush_and_write_new_root_node(
-//     MONAD_ASYNC_NAMESPACE::AsyncIO &io, node_writer_unique_ptr_type
-//     node_writer, Node *root);
+async_write_node_result
+write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
 
-node_ptr upsert(
-    Compute &comp, MONAD_ASYNC_NAMESPACE::AsyncIO &io,
-    node_writer_unique_ptr_type &node_writer, Node *const old,
-    UpdateList &&updates);
+//! update function interafaces
+node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates);
 
+// TODO: have fine() backed by disk, too
 inline Node *find(Node *node, byte_string_view key)
 {
     unsigned pi = 0, node_pi = node->bitpacked.path_nibble_index_start;

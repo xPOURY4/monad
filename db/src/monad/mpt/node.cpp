@@ -7,8 +7,7 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-//! create leaf node without children, hash_len = 0
-node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
+Node *create_leaf(byte_string_view const data, NibblesView const relpath)
 {
     unsigned const bytes = sizeof(Node) + relpath.size() + data.size();
     node_ptr node = Node::make_node(bytes);
@@ -20,29 +19,23 @@ node_ptr create_leaf(byte_string_view const data, NibblesView const relpath)
     node->set_params(0, true, data.size(), 0);
     node->set_leaf(data);
     node->disk_size = node->get_disk_size();
-    return node;
+    assert(node->disk_size < 1024);
+    return node.release();
 }
 
-//! Note: there's a potential superfluous extension hash recomputation when node
-//! coaleases upon erases, because we compute node hash when relpath is not yet
-//! the final form. There's not yet a good way to avoid this unless we delay all
-//! the compute() after all child branches finish creating nodes and return in
-//! the recursion
-inline node_ptr create_coalesced_node_with_prefix(
+Node *create_coalesced_node_with_prefix(
     uint8_t const branch, node_ptr prev, NibblesView const prefix)
 {
     // Note that prev may be a leaf
     Nibbles relpath = concat3(prefix, branch, prev->path_nibble_view());
     unsigned size = prev->get_mem_size() + relpath.size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
-    // copy node, nexts, data_off
+    // copy node, fnexts, data_off
     std::memcpy(
-        (void *)node.get(),
-        (void *)prev.get(),
+        (unsigned char *)node.get(),
+        (unsigned char *)prev.get(),
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
-    for (unsigned j = 0; j < prev->n(); ++j) {
-        prev->next_j(j) = nullptr;
-    }
+
     node->set_path(relpath);
     node->set_leaf(prev->leaf_view());
     // hash and data arr
@@ -50,31 +43,24 @@ inline node_ptr create_coalesced_node_with_prefix(
         node->hash_data(),
         prev->hash_data(),
         node->hash_len + node->child_off_j(node->n()));
+    // copy nexts
+    if (node->n()) {
+        memcpy(
+            node->next_data(), prev->next_data(), node->n() * sizeof(Node *));
+    }
+    for (unsigned j = 0; j < prev->n(); ++j) {
+        prev->set_next_j(j, nullptr);
+    }
     node->disk_size = node->get_disk_size();
-    return node;
+    assert(node->disk_size >= prev->disk_size);
+    return node.release();
 }
 
-//! create node can either be a branch or extension or leaf with children
-node_ptr create_node(
-    Compute &comp, uint16_t const orig_mask, uint16_t const mask,
-    std::span<ChildData> children, NibblesView const relpath,
-    std::optional<byte_string_view> const leaf_data)
+Node *create_node(
+    Compute &comp, uint16_t const mask, std::span<ChildData> children,
+    NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
 {
-    // handle non child and single child cases
     unsigned const n = bitmask_count(mask);
-    assert(n > 1);
-    if (n == 0) {
-        if (leaf_data.has_value()) {
-            return create_leaf(leaf_data.value(), relpath);
-        }
-        return {};
-    }
-    else if (n == 1 && !leaf_data.has_value()) {
-        unsigned j = bitmask_index(orig_mask, std::countr_zero(mask));
-        return create_coalesced_node_with_prefix(
-            children[j].branch, node_ptr{children[j].ptr}, relpath);
-    }
-    MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.has_value()));
     // any node with child will have hash data
     bool const is_leaf = leaf_data.has_value();
     uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
@@ -85,7 +71,7 @@ node_ptr create_node(
                      relpath.size();
     Node::data_off_t offsets[n];
     unsigned data_len = 0;
-    for (unsigned j = 0; auto child : children) {
+    for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
             data_len += child.len;
             offsets[j++] = data_len;
@@ -102,11 +88,11 @@ node_ptr create_node(
     if (is_leaf) {
         node->set_leaf(leaf_data.value());
     }
-    // set next and data
-    for (unsigned j = 0; auto child : children) {
+    // set fnext, next and data
+    for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
-            node->next_j(j) = child.ptr;
-            node->set_fnext_j(j, child.offset);
+            node->fnext_j(j) = child.offset;
+            node->set_next_j(j, child.ptr);
             node->set_child_data_j(j++, {child.data, child.len});
         }
     }
@@ -114,11 +100,11 @@ node_ptr create_node(
         comp.compute_branch(node->hash_data(), node.get());
     }
     node->disk_size = node->get_disk_size();
-    return node;
+    assert(node->disk_size < 1024);
+    return node.release();
 }
 
-//! Copy old with new relpath and new leaf, new relpath might be shortened
-node_ptr update_node_shorter_path(
+Node *update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data)
 {
@@ -130,7 +116,7 @@ node_ptr update_node_shorter_path(
     unsigned bytes = old->get_mem_size() + leaf_len - old->leaf_len +
                      relpath.size() - old->path_bytes();
     node_ptr node = Node::make_node(bytes);
-    // copy Node, nexts and data_off array
+    // copy Node, fnexts and data_off array
     std::memcpy(
         (void *)node.get(),
         old,
@@ -146,14 +132,18 @@ node_ptr update_node_shorter_path(
         node->hash_data(),
         old->hash_data(),
         node->hash_len + old->child_off_j(old->n()));
+    // copy next array
+    if (old->n()) {
+        std::memcpy(
+            node->next_data(), old->next_data(), node->n() * sizeof(Node *));
+    }
     // clear old nexts
     for (unsigned j = 0; j < old->n(); ++j) {
-        old->next_j(j) = nullptr;
+        old->set_next_j(j, nullptr);
     }
-    MONAD_DEBUG_ASSERT(old->mask == node->mask);
-    MONAD_DEBUG_ASSERT(node->path_nibble_view() == relpath);
     node->disk_size = node->get_disk_size();
-    return node;
+    assert(node->disk_size < 1024);
+    return node.release();
 }
 
 MONAD_MPT_NAMESPACE_END

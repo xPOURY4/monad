@@ -6,6 +6,7 @@
 #include <monad/mem/allocators.hpp>
 
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/upward_tnode.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <bit>
@@ -26,8 +27,8 @@ class Node;
 // destructed when async
 struct ChildData
 {
-    Node *ptr;
-    file_offset_t offset;
+    Node *ptr{nullptr};
+    file_offset_t offset{INVALID_OFFSET};
     uint8_t branch{INVALID_BRANCH};
     unsigned char data[32];
     uint8_t len{0};
@@ -103,7 +104,8 @@ public:
     unsigned char data[0];
     /* Data layout that exceeds node struct size is organized as below:
     * `n` is the number of children the node has and equals bitmask_count(mask)
-    * `next` array: size-n array for children's mem pointers
+    * `fnext` array: size-n array storing children's on-disk offsets
+    * TODO: use the top two bits as num_pages needed to read child
     * `data_offset` array: size-n array each stores a specific child data's
     starting offset
     * `path`: a few bytes for relative path, size depends on
@@ -112,7 +114,7 @@ public:
     * `hash_data`: intermediate hash cached for a implicit branch node, which
     exists in leaf nodes that have child.
     * `data_arr`: concatenated data bytes for all children
-    * `fnext` array: size-n array for children's on-disk offsets [TODO]
+    * `next` array: size-n array storing children's mem pointers
     */
 
     // TODO:
@@ -204,39 +206,22 @@ public:
         return bitmask_count(mask);
     }
 
-    //! next ptrs
-    constexpr unsigned char *next_data() noexcept
+    //! fnext
+    constexpr unsigned char *fnext_data() noexcept
     {
         return data;
     }
 
-    Node *&next_j(unsigned const j) noexcept
+    file_offset_t &fnext_j(unsigned const j) noexcept
     {
         MONAD_DEBUG_ASSERT(j < n());
-        return reinterpret_cast<Node **>(next_data())[j];
+        return reinterpret_cast<file_offset_t *>(fnext_data())[j];
     }
 
-    Node *&next(unsigned const i) noexcept
+    file_offset_t &fnext(unsigned const i) noexcept
     {
         MONAD_DEBUG_ASSERT(i < 16);
-        return next_j(to_j(i));
-    }
-
-    unique_ptr_type next_j_ptr(unsigned const j) noexcept
-    {
-        Node *p = next_j(j);
-        next_j(j) = nullptr;
-        return unique_ptr_type{p};
-    }
-
-    unique_ptr_type next_ptr(unsigned const i) noexcept
-    {
-        return next_j_ptr(to_j(i));
-    }
-
-    void set_next_j(unsigned const j, unique_ptr_type ptr) noexcept
-    {
-        next_j(j) = ptr.release();
+        return fnext_j(to_j(i));
     }
 
     //! data_offset array
@@ -277,6 +262,16 @@ public:
     {
         return child_off_data() + n() * sizeof(data_off_t);
     }
+    constexpr unsigned path_nibbles_len() const noexcept
+    {
+        return path_nibble_index_end - bitpacked.path_nibble_index_start;
+    }
+
+    constexpr bool has_relpath() const noexcept
+    {
+        return path_nibbles_len() > 0;
+    }
+
     constexpr unsigned path_bytes() const noexcept
     {
         return (path_nibble_index_end + 1) / 2;
@@ -298,10 +293,6 @@ public:
         if (relpath.size()) {
             std::memcpy(path_data(), relpath.data, relpath.size());
         }
-    }
-    constexpr bool has_relpath() const noexcept
-    {
-        return path_nibble_index_end > 0;
     }
 
     //! leaf
@@ -385,44 +376,45 @@ public:
         std::memcpy(child_data_j(j), data.data(), data.size());
     }
 
-    constexpr unsigned char *fnext_data() noexcept
+    //! next pointers
+    constexpr unsigned char *next_data() noexcept
     {
         return child_data() + child_off_j(n());
     }
 
-    constexpr file_offset_t fnext_j(unsigned const j) noexcept
+    constexpr Node *next_j(unsigned const j) noexcept
     {
-        return unaligned_load<file_offset_t>(
-            fnext_data() + j * sizeof(file_offset_t));
+        return unaligned_load<Node *>(next_data() + j * sizeof(Node *));
     }
 
-    constexpr file_offset_t fnext(unsigned const i) noexcept
+    constexpr Node *next(unsigned const i) noexcept
     {
-        return fnext_j(to_j(i));
+        return next_j(to_j(i));
     }
 
-    void set_fnext_j(unsigned const j, file_offset_t const off) noexcept
+    void set_next_j(unsigned const j, Node *const node) noexcept
     {
-        memcpy(
-            fnext_data() + j * sizeof(file_offset_t),
-            &off,
-            sizeof(file_offset_t));
+        memcpy(next_data() + j * sizeof(Node *), &node, sizeof(Node *));
     }
-    void set_fnext(unsigned const i, file_offset_t const off) noexcept
+    void set_next(unsigned const i, Node *const node) noexcept
     {
-        set_fnext_j(to_j(i), off);
+        set_next_j(to_j(i), node);
+    }
+
+    void set_next_j(unsigned const j, unique_ptr_type ptr) noexcept
+    {
+        set_next_j(j, ptr.release());
     }
 
     //! node size in memory
     constexpr unsigned get_mem_size() noexcept
     {
-        return fnext_data() + sizeof(file_offset_t) * n() -
-               (unsigned char *)this;
+        return next_data() + sizeof(Node *) * n() - (unsigned char *)this;
     }
 
     constexpr uint16_t get_disk_size() noexcept
     {
-        return static_cast<uint16_t>(fnext_data() - (unsigned char *)this);
+        return next_data() - (unsigned char *)this;
     }
 };
 
@@ -433,7 +425,8 @@ using node_ptr = Node::unique_ptr_type;
 inline Node::~Node()
 {
     for (uint8_t j = 0; j < n(); ++j) {
-        next_j_ptr(j).reset();
+        node_ptr{next_j(j)};
+        set_next_j(j, nullptr);
     }
 }
 
@@ -449,35 +442,34 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
 }
 
 struct Compute;
-//! create leaf node without children, hash_len = 0
-node_ptr create_leaf(byte_string_view const data, NibblesView const relpath);
+// create leaf node without children, hash_len = 0
+Node *create_leaf(byte_string_view const data, NibblesView const relpath);
 
-//! create node: either branch/extension, with or without leaf
-node_ptr create_node(
-    Compute &comp, uint16_t const orig_mask, uint16_t const mask,
-    std::span<ChildData> children, NibblesView const relpath,
+/* Note: there's a potential superfluous extension hash recomputation when node
+coaleases upon erases, because we compute node hash when relpath is not yet
+the final form. There's not yet a good way to avoid this unless we delay all
+the compute() after all child branches finish creating nodes and return in
+the recursion */
+Node *create_coalesced_node_with_prefix(
+    uint8_t const branch, node_ptr prev, NibblesView const prefix);
+
+// create node: either branch/extension, with or without leaf
+Node *create_node(
+    Compute &comp, uint16_t const mask, std::span<ChildData> children,
+    NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
 
-//! create a new node from a old node with possibly shorter relpath and an
-//! optional new leaf data
-node_ptr update_node_shorter_path(
+/* create a new node from a old node with possibly shorter relpath and an
+optional new leaf data
+Copy old with new relpath and new leaf, new relpath might be shortened */
+Node *update_node_shorter_path(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
 
-// de/serlaization
-
-// store a bit in parent indicating num pages to read from disk
-inline unsigned
-serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
+inline void serialize_node_to_buffer(unsigned char *write_pos, Node *const node)
 {
-    // copy node's fnexts array to the location of nexts array in front
     memcpy(write_pos, node, node->disk_size);
-    // swap fnext into where next array is
-    memcpy(
-        write_pos + sizeof(Node),
-        node->next_data(),
-        node->n() * sizeof(file_offset_t));
-    return node->disk_size;
+    return;
 }
 
 inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
@@ -485,11 +477,10 @@ inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
     uint16_t const mask = unaligned_load<uint16_t>(read_pos);
     unsigned const n = bitmask_count(mask);
     uint16_t const disk_size = unaligned_load<uint16_t>(read_pos + 6),
-                   alloc_size = disk_size + n * sizeof(file_offset_t);
-
+                   alloc_size = disk_size + n * sizeof(Node *);
     node_ptr node = Node::make_node(alloc_size);
-    memcpy(node.get(), read_pos, disk_size);
-
+    memcpy((unsigned char *)node.get(), read_pos, disk_size);
+    memset(node->next_data(), 0, n * sizeof(Node *));
     return node;
 }
 
