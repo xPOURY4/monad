@@ -16,6 +16,7 @@ find_package(GTest)
 ### libs
 ############
 add_library(monad_async STATIC
+     "${PROJECT_SOURCE_DIR}/src/monad/async/boost_fiber_wrappers.cpp"
      "${PROJECT_SOURCE_DIR}/src/monad/async/io.cpp"
      "${PROJECT_SOURCE_DIR}/src/monad/async/util.cpp"
 )

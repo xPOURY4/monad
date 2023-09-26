@@ -209,15 +209,37 @@ namespace detail
         operator=(connected_operation_storage &&) = delete;
         ~connected_operation_storage() = default;
 
-        sender_type &sender() & noexcept { return _sender; }
+        sender_type &sender() & noexcept
+        {
+            return _sender;
+        }
+        const sender_type &sender() const & noexcept
+        {
+            return _sender;
+        }
         sender_type sender() && noexcept
         {
             return static_cast<sender_type &&>(_sender);
         }
-        receiver_type &receiver() & noexcept { return _receiver; }
+        const sender_type sender() const && noexcept
+        {
+            return static_cast<sender_type &&>(_sender);
+        }
+        const receiver_type &receiver() const & noexcept
+        {
+            return _receiver;
+        }
+        receiver_type &receiver() & noexcept
+        {
+            return _receiver;
+        }
         receiver_type receiver() && noexcept
         {
             return static_cast<receiver_type &&>(_receiver);
+        }
+        const receiver_type receiver() const && noexcept
+        {
+            return static_cast<const receiver_type &&>(_receiver);
         }
 
         static constexpr bool is_unknown_operation_type() noexcept

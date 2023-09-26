@@ -75,7 +75,10 @@ public:
         monad::io::Buffers &rwbuf);
     ~AsyncIO();
 
-    pid_t owning_thread_id() const noexcept { return owning_tid_; }
+    pid_t owning_thread_id() const noexcept
+    {
+        return owning_tid_;
+    }
 
     //! The instance for this thread
     static AsyncIO *thread_instance() noexcept;
@@ -88,11 +91,20 @@ public:
                deferred_initiations_in_flight();
     }
 
-    unsigned reads_in_flight() const noexcept { return records_.inflight_rd; }
+    unsigned reads_in_flight() const noexcept
+    {
+        return records_.inflight_rd;
+    }
 
-    unsigned writes_in_flight() const noexcept { return records_.inflight_wr; }
+    unsigned writes_in_flight() const noexcept
+    {
+        return records_.inflight_wr;
+    }
 
-    unsigned timers_in_flight() const noexcept { return records_.inflight_tm; }
+    unsigned timers_in_flight() const noexcept
+    {
+        return records_.inflight_tm;
+    }
 
     unsigned deferred_initiations_in_flight() const noexcept;
 
@@ -250,7 +262,10 @@ public:
         return false;
     }
 
-    constexpr int get_rd_fd() noexcept { return fds_[READ]; }
+    constexpr int get_rd_fd() noexcept
+    {
+        return fds_[READ];
+    }
 
     void submit_write_request(
         std::span<std::byte const> buffer, file_offset_t offset,

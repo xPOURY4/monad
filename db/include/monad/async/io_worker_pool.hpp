@@ -326,6 +326,7 @@ namespace detail
 \tparam QueueOptions Any options which `boost::lockfree::queue` can take.
 The most common is to make the work queue fixed capacity to avoid all
 dynamic memory allocations.
+
 NOTE: These workers are incapable of writing to the file, they can only
 read. Only the parent `AsyncIO` can write to the file. Therefore there
 is no point supplying write buffers for workers to use.
@@ -350,23 +351,30 @@ public:
 /*! \class execute_on_worker_pool
 \brief Wraps a Sender to be initiated at first opportunity by a kernel thread
 worker in an `AsyncReadIoWorkerPool` attached to a master `AsyncIO` instance.
+
 Exposes the Sender as a public inheritance, so all its member functions and
 typedefs pass through.
+
 After initiation, your Sender must NOT access state outside itself without
 appropriate thread synchronisation. For maximum performance, you should try
 to copy any state the Sender will need to use during execution into the Sender
 before initiation (its constructor is the obvious means here). As with all
 Sender initiation, there are three means of exiting initiation:
+
 1. Return `success()`, which means you have set up something else to call
 `completed()` on your connected i/o state later from the same kernel thread e.g.
 an i/o, a timer, some other Receiver.
+
 2. Return a failure, which means initiation failed and the Receiver is to be
 immediately informed of the cause of failure.
+
 3. Return `sender_errc::initiation_immediately_completed` optionally supplying
 a custom `bytes_transferred` via `make_status_code()`, this causes the Receiver
 to be immediately informed of success.
+
 (None of the above are any different for these wrapped Senders than to any other
 Sender)
+
 Upon completion, the Receiver is NOT invoked in the worker thread, it is instead
 invoked in the master `AsyncIO` instance. You are therefore free to access
 state associated with the master `AsyncIO` instance within the Receiver without
@@ -492,15 +500,18 @@ public:
 
     /*! \brief Initiates the initiation of the wrapped Sender on the next
     available worker thread.
+
     We do not wait for the remote worker, so the failures returned here are for
     the initiation of the remote execution, not the initiation of the wrapped
     Sender.
+
     If you configured the pool to have a fixed capacity, if the queue is full
     then a failure comparing equal to `errc::resource_unavailable_try_again`
     will be returned, which shall be passed onto your connected Receiver. It is
     on your Receiver to detect this temporary failure, reset the connected i/o
     state, and reschedule itself to be initiated later (a `timed_delay_sender`
     is suggested).
+
     If you configured the pool to have dynamic capacity, a failure comparing
     equal to `errc::not_enough_memory` is possible. Your Receiver will be told
     of this.
