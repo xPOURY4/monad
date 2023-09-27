@@ -118,11 +118,9 @@ namespace detail
                 this->_io->_notify_operation_completed(this, res);
             }
             if constexpr (requires(Sender x) {
-                              x.completed(
-                                  this, static_cast<result<void> &&>(res));
+                              x.completed(this, std::move(res));
                           }) {
-                auto r = this->_sender.completed(
-                    this, static_cast<result<void> &&>(res));
+                auto r = this->_sender.completed(this, std::move(res));
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
@@ -133,8 +131,7 @@ namespace detail
                 }
             }
             else {
-                this->_receiver.set_value(
-                    this, static_cast<result<void> &&>(res));
+                this->_receiver.set_value(this, std::move(res));
             }
         }
     };
@@ -154,25 +151,21 @@ namespace detail
                 this->_io->_notify_operation_completed(this, bytes_transferred);
             }
             if constexpr (requires(Sender x) {
-                              x.completed(
-                                  this,
-                                  static_cast<result<size_t> &&>(
-                                      bytes_transferred));
+                              x.completed(this, std::move(bytes_transferred));
                           }) {
-                auto r = static_cast<result<size_t> &&>(bytes_transferred);
+                auto r =
+                    this->_sender.completed(this, std::move(bytes_transferred));
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
                     this->initiate();
                 }
                 else {
-                    this->_receiver.set_value(
-                        this, this->_sender.completed(this, std::move(r)));
+                    this->_receiver.set_value(this, std::move(r));
                 }
             }
             else {
-                this->_receiver.set_value(
-                    this, static_cast<result<size_t> &&>(bytes_transferred));
+                this->_receiver.set_value(this, std::move(bytes_transferred));
             }
         }
     };
@@ -217,9 +210,9 @@ public:
     using _base::_base;
 
     // This is an immovable in memory object
-    connected_operation(const connected_operation &) = delete;
+    connected_operation(connected_operation const &) = delete;
     connected_operation(connected_operation &&) = delete;
-    connected_operation &operator=(const connected_operation &) = delete;
+    connected_operation &operator=(connected_operation const &) = delete;
     connected_operation &operator=(connected_operation &&) = delete;
 };
 //! Default connect customisation point taking sender and receiver by value,

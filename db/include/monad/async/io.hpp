@@ -40,9 +40,10 @@ public:
 
 private:
     friend class read_single_buffer_sender;
-    constexpr static unsigned READ = 0, WRITE = 1, MSG_READ = 2, MSG_WRITE = 3;
+    static constexpr unsigned READ = 0, WRITE = 1, MSG_READ = 2, MSG_WRITE = 3;
 
     // TODO: using user_data_t = variant<update_data_t, write_data_t>
+    pid_t const owning_tid_;
     int fds_[4];
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
@@ -55,7 +56,7 @@ private:
     void _submit_request(
         std::span<std::byte> buffer, file_offset_t offset, void *uring_data);
     void _submit_request(
-        std::span<const std::byte> buffer, file_offset_t offset,
+        std::span<std::byte const> buffer, file_offset_t offset,
         void *uring_data);
     void _submit_request(timed_invocation_state *state, void *uring_data);
 
@@ -67,34 +68,33 @@ public:
         std::pair<int, int> fds, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf);
     AsyncIO(
-        const std::filesystem::path &p, monad::io::Ring &ring,
+        std::filesystem::path const &p, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf);
     AsyncIO(
         use_anonymous_inode_tag, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf);
     ~AsyncIO();
 
+    pid_t owning_thread_id() const noexcept { return owning_tid_; }
+
+    //! The instance for this thread
+    static AsyncIO *thread_instance() noexcept;
+
     unsigned io_in_flight() const noexcept
     {
         return records_.inflight_rd + records_.inflight_wr +
                records_.inflight_tm +
-               records_.inflight_ts.load(std::memory_order_relaxed);
+               records_.inflight_ts.load(std::memory_order_relaxed) +
+               deferred_initiations_in_flight();
     }
 
-    unsigned reads_in_flight() const noexcept
-    {
-        return records_.inflight_rd;
-    }
+    unsigned reads_in_flight() const noexcept { return records_.inflight_rd; }
 
-    unsigned writes_in_flight() const noexcept
-    {
-        return records_.inflight_wr;
-    }
+    unsigned writes_in_flight() const noexcept { return records_.inflight_wr; }
 
-    unsigned timers_in_flight() const noexcept
-    {
-        return records_.inflight_tm;
-    }
+    unsigned timers_in_flight() const noexcept { return records_.inflight_tm; }
+
+    unsigned deferred_initiations_in_flight() const noexcept;
 
     unsigned threadsafeops_in_flight() const noexcept
     {
@@ -159,7 +159,7 @@ public:
             return erased_connected_operation::rbtree_node_traits::
                 to_erased_connected_operation(p);
         };
-        auto get_key = [](const erased_connected_operation *a) {
+        auto get_key = [](erased_connected_operation const *a) {
             return erased_connected_operation::rbtree_node_traits::get_key(a);
         };
         auto next =
@@ -223,7 +223,7 @@ public:
                         _extant_write_operations::prev_node(
                             _extant_write_operations::end_node(
                                 &_extant_write_operations_header)));
-                const auto writeoffset = get_key(it1);
+                auto const writeoffset = get_key(it1);
                 auto bytesfilled =
                     fill_from_buffers(writeoffset - offset, it1, it2);
                 bytesfilled -= writeoffset - offset;
@@ -250,13 +250,10 @@ public:
         return false;
     }
 
-    constexpr int get_rd_fd() noexcept
-    {
-        return fds_[READ];
-    }
+    constexpr int get_rd_fd() noexcept { return fds_[READ]; }
 
     void submit_write_request(
-        std::span<const std::byte> buffer, file_offset_t offset,
+        std::span<std::byte const> buffer, file_offset_t offset,
         erased_connected_operation *uring_data)
     {
         _submit_request(buffer, offset, uring_data);
@@ -312,7 +309,7 @@ public:
     {
         void operator()(erased_connected_operation *p) const
         {
-            const bool is_write = p->is_write();
+            bool const is_write = p->is_write();
             auto *buffer = (unsigned char *)p -
                            (is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE);
             assert(((uintptr_t)buffer & (CPU_PAGE_SIZE - 1)) == 0);
@@ -427,7 +424,7 @@ public:
             p->key = state->sender().offset();
             assert(p->key == state->sender().offset());
             _extant_write_operations::init(p);
-            auto pred = [](const auto *a, const auto *b) {
+            auto pred = [](auto const *a, auto const *b) {
                 auto get_key = [](const auto *a) {
                     return erased_connected_operation::rbtree_node_traits::
                         get_key(a);
@@ -482,7 +479,7 @@ private:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 104);
+static_assert(sizeof(AsyncIO) == 112);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_ASYNC_NAMESPACE_END

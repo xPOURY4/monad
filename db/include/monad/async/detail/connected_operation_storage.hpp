@@ -9,6 +9,7 @@ namespace detail
 {
     struct AsyncIO_per_thread_state_t
     {
+        AsyncIO *instance{nullptr};
         int within_completions_count{0};
         struct
         {
@@ -17,6 +18,10 @@ namespace detail
 
         struct within_completions_holder;
         within_completions_holder enter_completions();
+        bool empty() const noexcept
+        {
+            return pending_initiations.first == nullptr;
+        }
         bool am_within_completions() const noexcept
         {
             assert(within_completions_count >= 0);
@@ -195,27 +200,21 @@ namespace detail
         {
         }
 
-        connected_operation_storage(const connected_operation_storage &) =
+        connected_operation_storage(connected_operation_storage const &) =
             delete;
         connected_operation_storage(connected_operation_storage &&) = delete;
         connected_operation_storage &
-        operator=(const connected_operation_storage &) = delete;
+        operator=(connected_operation_storage const &) = delete;
         connected_operation_storage &
         operator=(connected_operation_storage &&) = delete;
         ~connected_operation_storage() = default;
 
-        sender_type &sender() & noexcept
-        {
-            return _sender;
-        }
+        sender_type &sender() & noexcept { return _sender; }
         sender_type sender() && noexcept
         {
             return static_cast<sender_type &&>(_sender);
         }
-        receiver_type &receiver() & noexcept
-        {
-            return _receiver;
-        }
+        receiver_type &receiver() & noexcept { return _receiver; }
         receiver_type receiver() && noexcept
         {
             return static_cast<receiver_type &&>(_receiver);

@@ -15,6 +15,8 @@ class connected_operation;
 namespace detail
 {
     struct AsyncIO_per_thread_state_t;
+    template <class QueueOptions>
+    class AsyncReadIoWorkerPoolImpl;
 };
 
 enum class operation_type : uint8_t
@@ -35,6 +37,8 @@ class erased_connected_operation
 public:
     template <sender Sender, receiver Receiver>
     friend class connected_operation;
+    template <class QueueOptions>
+    friend class detail::AsyncReadIoWorkerPoolImpl;
     friend struct detail::AsyncIO_per_thread_state_t;
 
     enum class initiation_result
@@ -84,6 +88,9 @@ protected:
         , _lifetime_managed_internally(lifetime_managed_internally)
         , _io(&io)
     {
+#ifndef __clang__
+        assert(&io != nullptr);
+#endif
     }
 
     virtual initiation_result
@@ -94,7 +101,7 @@ public:
     {
         using node = _rbtree_t;
         using node_ptr = _rbtree_t *;
-        using const_node_ptr = const _rbtree_t *;
+        using const_node_ptr = _rbtree_t const *;
         using color = bool;
         static node_ptr get_parent(const_node_ptr n)
         {
@@ -146,7 +153,7 @@ public:
             assert(n->key == v);
         }
         static erased_connected_operation *
-        get_parent(const erased_connected_operation *n)
+        get_parent(erased_connected_operation const *n)
         {
             return n->_rbtree.parent_;
         }
@@ -155,7 +162,7 @@ public:
         {
             n->_rbtree.parent_ = parent;
         }
-        static file_offset_t get_key(const erased_connected_operation *n)
+        static file_offset_t get_key(erased_connected_operation const *n)
         {
             return n->_rbtree.key;
         }
@@ -168,7 +175,7 @@ public:
         {
             return &n->_rbtree;
         }
-        static const_node_ptr to_node_ptr(const erased_connected_operation *n)
+        static const_node_ptr to_node_ptr(erased_connected_operation const *n)
         {
             return &n->_rbtree;
         }
@@ -181,11 +188,11 @@ public:
             return reinterpret_cast<erased_connected_operation *>(
                 ((char *)n) - offsetof(erased_connected_operation, _rbtree));
         }
-        static const erased_connected_operation *
+        static erased_connected_operation const *
         to_erased_connected_operation(const_node_ptr n)
         {
-            return reinterpret_cast<const erased_connected_operation *>(
-                ((const char *)n) -
+            return reinterpret_cast<erased_connected_operation const *>(
+                ((char const *)n) -
                 offsetof(erased_connected_operation, _rbtree));
         }
 #pragma GCC diagnostic pop

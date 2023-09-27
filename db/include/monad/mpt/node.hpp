@@ -111,6 +111,12 @@ public:
     // to new one, also help to keep allocated size as small as possible.
 
     using type_allocator = std::allocator<Node>;
+    static constexpr size_t raw_bytes_allocator_allocation_lower_bound = 8;
+    static constexpr size_t raw_bytes_allocator_allocation_upper_bound =
+        (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32);
+    static constexpr size_t raw_bytes_allocator_allocation_divisor = 36;
+    static constexpr size_t
+        raw_bytes_allocator_allocation_less_than_lower_bound = 8;
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     // upper bound = (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32)
     // assuming 8-byte mem pointers and on-disk offsets for now
@@ -118,7 +124,10 @@ public:
     // 32: max relpath bytes
     // 32: max intermediate branch hash bytes stored inline
     using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
-        8, (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32), 36, 8>;
+        raw_bytes_allocator_allocation_lower_bound,
+        raw_bytes_allocator_allocation_upper_bound,
+        raw_bytes_allocator_allocation_divisor,
+        raw_bytes_allocator_allocation_less_than_lower_bound>;
 #else
     using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -135,11 +144,11 @@ public:
     {
         // node size requested to allocate, n, not always equals a boost pool
         // size, here rounds n up => lower_bound + k * divisor */
-        size_t res = ((n - raw_bytes_allocator::allocation_lower_bound) /
-                          raw_bytes_allocator::allocation_divisor +
+        size_t res = ((n - raw_bytes_allocator_allocation_lower_bound) /
+                          raw_bytes_allocator_allocation_divisor +
                       1) *
-                         raw_bytes_allocator::allocation_divisor +
-                     raw_bytes_allocator::allocation_lower_bound;
+                         raw_bytes_allocator_allocation_divisor +
+                     raw_bytes_allocator_allocation_lower_bound;
         MONAD_DEBUG_ASSERT(res >= n);
         return res;
     }

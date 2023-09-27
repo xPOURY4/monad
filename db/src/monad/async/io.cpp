@@ -21,7 +21,7 @@ namespace detail
         {
             parent->within_completions_count++;
         }
-        within_completions_holder(const within_completions_holder &) = delete;
+        within_completions_holder(within_completions_holder const &) = delete;
         within_completions_holder(within_completions_holder &&) = default;
         ~within_completions_holder()
         {
@@ -45,19 +45,26 @@ namespace detail
 
 AsyncIO::AsyncIO(
     std::pair<int, int> fds, monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
-    : fds_{fds.first, fds.second, 0, 0}
+    : owning_tid_(gettid())
+    , fds_{fds.first, fds.second, 0, 0}
     , uring_(ring_)
     , rwbuf_(rwbuf)
     , rd_pool_(monad::io::BufferPool(rwbuf, true))
     , wr_pool_(monad::io::BufferPool(rwbuf, false))
 {
     _extant_write_operations::init_header(&_extant_write_operations_header);
-    MONAD_ASSERT(fds_[WRITE] != -1);
     MONAD_ASSERT(fds_[READ] != -1);
+
+    auto &ts = detail::AsyncIO_per_thread_state();
+    MONAD_ASSERT(ts.instance == nullptr); // currently cannot create more than
+                                          // one AsyncIO per thread at a time
+    ts.instance = this;
 
     // register files
     MONAD_ASSERT(!io_uring_register_files(
-        const_cast<io_uring *>(&uring_.get_ring()), fds_, 2));
+        const_cast<io_uring *>(&uring_.get_ring()),
+        fds_,
+        (fds_[WRITE] != -1) ? 2 : 1));
 
     // create and register the message type pipe for threadsafe communications
     // read side is nonblocking, write side is blocking
@@ -73,7 +80,7 @@ AsyncIO::AsyncIO(
 }
 
 AsyncIO::AsyncIO(
-    const std::filesystem::path &p, monad::io::Ring &ring,
+    std::filesystem::path const &p, monad::io::Ring &ring,
     monad::io::Buffers &rwbuf)
     : AsyncIO(
           [&p]() -> std::pair<int, int> {
@@ -109,11 +116,19 @@ AsyncIO::~AsyncIO()
     MONAD_ASSERT(!records_.inflight_wr);
     MONAD_ASSERT(!records_.inflight_tm);
 
+    auto &ts = detail::AsyncIO_per_thread_state();
+    MONAD_ASSERT(
+        ts.instance ==
+        this); // this is being destructed not from its thread, bad idea
+    ts.instance = nullptr;
+
     MONAD_ASSERT(
         !io_uring_unregister_files(const_cast<io_uring *>(&uring_.get_ring())));
 
     ::close(fds_[READ]);
-    ::close(fds_[WRITE]);
+    if (fds_[WRITE] != -1) {
+        ::close(fds_[WRITE]);
+    }
     ::close(fds_[MSG_READ]);
     ::close(fds_[MSG_WRITE]);
 }
@@ -143,7 +158,7 @@ void AsyncIO::_submit_request(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 void AsyncIO::_submit_request(
-    std::span<const std::byte> buffer, file_offset_t offset, void *uring_data)
+    std::span<std::byte const> buffer, file_offset_t offset, void *uring_data)
 {
     // Trap unintentional use of high bit offsets
     MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
@@ -219,11 +234,15 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
 
 bool AsyncIO::_poll_uring(bool blocking)
 {
+    auto h = detail::AsyncIO_per_thread_state().enter_completions();
+    MONAD_DEBUG_ASSERT(owning_tid_ == gettid());
+
     struct io_uring_cqe *cqe = nullptr;
     auto *const ring = const_cast<io_uring *>(&uring_.get_ring());
     auto inflight_ts = records_.inflight_ts.load(std::memory_order_acquire);
 
-    if (blocking && inflight_ts == 0) {
+    if (blocking && inflight_ts == 0 &&
+        detail::AsyncIO_per_thread_state().empty()) {
         MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
     }
     else {
@@ -255,6 +274,9 @@ bool AsyncIO::_poll_uring(bool blocking)
             fds_[MSG_READ], &state, sizeof(erased_connected_operation *));
         if (readed >= 0) {
             MONAD_ASSERT(sizeof(erased_connected_operation *) == readed);
+            // Writes flushed in the submitting thread must be acquired now
+            // before state can be dereferenced
+            std::atomic_thread_fence(std::memory_order_acquire);
         }
         else {
             if (EAGAIN == errno || EWOULDBLOCK == errno) {
@@ -290,22 +312,35 @@ bool AsyncIO::_poll_uring(bool blocking)
         --records_.inflight_tm;
     }
     else if (state->is_threadsafeop()) {
-        records_.inflight_ts.fetch_sub(1, std::memory_order_release);
+        records_.inflight_ts.fetch_sub(1, std::memory_order_acq_rel);
     }
     erased_connected_operation_unique_ptr_type h2;
     if (state->lifetime_is_managed_internally()) {
         h2 = erased_connected_operation_unique_ptr_type{state};
     }
-    auto h = detail::AsyncIO_per_thread_state().enter_completions();
     state->completed(std::move(res));
     return true;
+}
+
+AsyncIO *AsyncIO::thread_instance() noexcept
+{
+    auto &ts = detail::AsyncIO_per_thread_state();
+    return ts.instance;
+}
+
+unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
+{
+    auto &ts = detail::AsyncIO_per_thread_state();
+    return !ts.empty() && !ts.am_within_completions();
 }
 
 void AsyncIO::submit_threadsafe_invocation_request(
     erased_connected_operation *uring_data)
 {
     // WARNING: This function is usually called from foreign kernel threads!
-    records_.inflight_ts.fetch_add(1, std::memory_order_release);
+    records_.inflight_ts.fetch_add(1, std::memory_order_acq_rel);
+    // All writes to uring_data must be flushed before doing this
+    std::atomic_thread_fence(std::memory_order_release);
     for (;;) {
         auto written =
             ::write(fds_[MSG_WRITE], &uring_data, sizeof(uring_data));

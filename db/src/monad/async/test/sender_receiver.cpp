@@ -22,7 +22,7 @@ namespace
     using namespace MONAD_ASYNC_NAMESPACE;
     static constexpr size_t TEST_FILE_SIZE = 1024 * 1024;
     static constexpr size_t MAX_CONCURRENCY = 4;
-    static const std::vector<std::byte> testfilecontents = [] {
+    static std::vector<std::byte> const testfilecontents = [] {
         std::vector<std::byte> ret(TEST_FILE_SIZE);
         std::span<
             monad::small_prng::value_type,
@@ -52,7 +52,7 @@ namespace
     {
         virtual bool reinitiate(
             erased_connected_operation *i,
-            std::span<const std::byte> buffer) = 0;
+            std::span<std::byte const> buffer) = 0;
     };
     template <receiver Receiver>
     class read_single_buffer_operation_states final
@@ -102,7 +102,7 @@ namespace
         }
         virtual bool reinitiate(
             erased_connected_operation *i,
-            std::span<const std::byte> buffer) override final
+            std::span<std::byte const> buffer) override final
         {
             auto *state = static_cast<typename _io_state_type::pointer>(i);
             EXPECT_EQ(
@@ -130,7 +130,7 @@ namespace
 
     TEST(AsyncIO, timed_delay_sender_receiver)
     {
-        auto check = [](const char *desc, auto &&get_now, auto timeout) {
+        auto check = [](char const *desc, auto &&get_now, auto timeout) {
             struct receiver_t
             {
                 enum : bool
@@ -199,7 +199,7 @@ namespace
 
             std::atomic<bool> done{false};
             receiver_t() = default;
-            receiver_t(const receiver_t &) {}
+            receiver_t(receiver_t const &) {}
             void set_value(erased_connected_operation *, result<void> res)
             {
                 ASSERT_TRUE(res);
@@ -249,7 +249,7 @@ namespace
                 count++;
             }
         };
-        auto benchmark = [](const char *desc, auto &&initiate) {
+        auto benchmark = [](char const *desc, auto &&initiate) {
             std::cout << "Benchmarking " << desc << " ..." << std::endl;
             done = false;
             count = 0;
@@ -375,7 +375,7 @@ namespace
         }
         void set_value(
             erased_connected_operation *rawstate,
-            result<std::span<const std::byte>> buffer)
+            result<std::span<std::byte const>> buffer)
         {
             ASSERT_TRUE(buffer);
             state->reinitiate(rawstate, buffer.assume_value());
@@ -413,7 +413,7 @@ namespace
         static constexpr bool lifetime_managed_internally = false;
 
         using result_type = std::pair<
-            erased_connected_operation *, result<std::span<const std::byte>>>;
+            erased_connected_operation *, result<std::span<std::byte const>>>;
         std::coroutine_handle<> _h;
         std::optional<result_type> res;
 
@@ -423,7 +423,7 @@ namespace
         }
         void set_value(
             erased_connected_operation *rawstate,
-            result<std::span<const std::byte>> buffer)
+            result<std::span<std::byte const>> buffer)
         {
             assert(!res.has_value());
             res = {rawstate, std::move(buffer)};
@@ -505,7 +505,7 @@ namespace
         static constexpr bool lifetime_managed_internally = false;
 
         using result_type = std::pair<
-            erased_connected_operation *, result<std::span<const std::byte>>>;
+            erased_connected_operation *, result<std::span<std::byte const>>>;
         boost::fibers::promise<result_type> promise;
 
         explicit fiber_suspend_resume_io_receiver(
@@ -514,7 +514,7 @@ namespace
         }
         void set_value(
             erased_connected_operation *rawstate,
-            result<std::span<const std::byte>> buffer)
+            result<std::span<std::byte const>> buffer)
         {
             promise.set_value({rawstate, std::move(buffer)});
         }
@@ -568,8 +568,7 @@ namespace
     {
         // Do NOT use this for i/o, as we reuse testio's io_uring state
         static monad::io::Ring controller_executor_ring(1, 0);
-        static auto controller_executor = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, controller_executor_ring, testrwbuf);
+        static std::unique_ptr<AsyncIO> controller_executor;
         struct controller_notifying_io_receiver
         {
             enum : bool
@@ -620,7 +619,7 @@ namespace
                 threadsafe_sender, worker_initiating_io_receiver>>
                 state3; // used to have controlling thread invoke worker thread
             erased_connected_operation *original_rawstate;
-            std::span<const std::byte> original_buffer;
+            std::span<std::byte const> original_buffer;
 
             explicit controller_notifying_io_receiver(
                 read_single_buffer_operation_states_base *s)
@@ -639,7 +638,7 @@ namespace
             }
             void set_value(
                 erased_connected_operation *rawstate,
-                result<std::span<const std::byte>> buffer)
+                result<std::span<std::byte const>> buffer)
             {
                 ASSERT_TRUE(buffer);
                 original_rawstate = rawstate;
@@ -661,31 +660,36 @@ namespace
                 state1->reinitiate(original_rawstate, original_buffer);
             }
         };
-        read_single_buffer_operation_states<controller_notifying_io_receiver>
-            states(MAX_CONCURRENCY);
-        static std::atomic<bool> done{false};
+        static std::atomic<int> latch{-1};
         std::thread controller([] {
-            while (!done) {
+            controller_executor = std::make_unique<AsyncIO>(
+                use_anonymous_inode_tag{}, controller_executor_ring, testrwbuf);
+            latch = 0;
+            while (!latch) {
                 controller_executor->poll_blocking();
             }
             controller_executor->wait_until_done();
+            controller_executor.reset();
         });
+        while (latch != 0) {
+            std::this_thread::yield();
+        }
+        read_single_buffer_operation_states<controller_notifying_io_receiver>
+            states(MAX_CONCURRENCY);
         auto begin = std::chrono::steady_clock::now(), end = begin;
         states.initiate();
         for (; end - begin < std::chrono::seconds(5);
              end = std::chrono::steady_clock::now()) {
             testio->poll_blocking(256);
         }
-        done = true;
         states.stop();
         end = std::chrono::steady_clock::now();
-        controller.join();
         // Drain everything from both threads before exiting
-        while (controller_executor->io_in_flight() > 0 ||
-               testio->io_in_flight() > 0) {
-            controller_executor->poll_nonblocking();
+        latch = 1;
+        while (testio->io_in_flight() > 0) {
             testio->poll_nonblocking();
         }
+        controller.join();
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
         std::cout << "Did " << (1000.0 * states.count() / diff.count())
