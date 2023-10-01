@@ -4,8 +4,20 @@ packages=(
   abseil-cpp
   abseil-cpp-debuginfo
 
+  boost-atomic  # boost-filesystem
+  boost-atomic-debuginfo
+
+  boost-context  # boost-fiber
+  boost-context-debuginfo
+
   boost-fiber
   boost-fiber-debuginfo
+
+  boost-filesystem  # boost-fiber
+  boost-filesystem-debuginfo
+
+  boost-system  # boost-filesystem
+  boost-system-debuginfo
 
   glibc
   glibc-debuginfo
