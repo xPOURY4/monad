@@ -1,7 +1,8 @@
 #!/bin/bash
 
 yum -y install \
-  dnf-plugins-core
+  dnf-plugins-core \
+  dnf-utils
 
 dnf config-manager --enable \
   fedora-debuginfo \
