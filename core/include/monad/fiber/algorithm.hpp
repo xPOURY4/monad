@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/config.hpp>
+#include <monad/fiber/config.hpp>
 #include <monad/fiber/properties.hpp>
 
 #include <boost/fiber/algo/algorithm.hpp>
@@ -10,7 +10,7 @@
 #include <chrono>
 #include <mutex>
 
-MONAD_NAMESPACE_BEGIN
+MONAD_FIBER_NAMESPACE_BEGIN
 
 class shared_work final
     : public boost::fibers::algo::algorithm_with_properties<fiber_properties>
@@ -48,4 +48,4 @@ public:
         boost::fibers::context *, fiber_properties &) noexcept override;
 };
 
-MONAD_NAMESPACE_END
+MONAD_FIBER_NAMESPACE_END

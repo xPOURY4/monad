@@ -1,13 +1,13 @@
 #pragma once
 
-#include <monad/config.hpp>
+#include <monad/fiber/config.hpp>
 
 #include <boost/fiber/context.hpp>
 #include <boost/fiber/properties.hpp>
 
 #include <cstdint>
 
-MONAD_NAMESPACE_BEGIN
+MONAD_FIBER_NAMESPACE_BEGIN
 
 class fiber_properties final : public boost::fibers::fiber_properties
 {
@@ -32,4 +32,4 @@ public:
     }
 };
 
-MONAD_NAMESPACE_END
+MONAD_FIBER_NAMESPACE_END

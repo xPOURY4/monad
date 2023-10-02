@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-MONAD_NAMESPACE_BEGIN
+MONAD_FIBER_NAMESPACE_BEGIN
 
 shared_work::rqueue_type shared_work::rqueue_{};
 std::mutex shared_work::rqueue_mtx_{};
@@ -82,4 +82,4 @@ void shared_work::property_change(
     }
 }
 
-MONAD_NAMESPACE_END
+MONAD_FIBER_NAMESPACE_END
