@@ -56,12 +56,15 @@ def _create_test_class(test_dir):
                     "--show-below-main=yes",
                     "--callgrind-out-file=callgrind.out",
                 ]
+                env = {
+                    "LD_BIND_NOW": "1",
+                }
                 if "function_name" in data and data["function_name"] != "":
                     cmd.append("--toggle-collect=%s" % (data["function_name"],))
                 cmd.append("%s" % (data["binary_name"],))
                 if "args" in data:
                     cmd = cmd + data["args"]
-                check_output(cmd, cwd=tmp)
+                check_output(cmd, cwd=tmp, env=env)
                 result = callgrind_parser.parse(
                     fileinput.input(files=path.join(tmp, "callgrind.out"))
                 )
