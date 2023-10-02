@@ -1,6 +1,6 @@
 #include <chrono>
 
-#include <monad/core/shared_mutex.hpp>
+#include <monad/fiber/shared_mutex.hpp>
 
 #include <gtest/gtest.h>
 
@@ -14,13 +14,19 @@ struct NoLockingMutex
 {
     void lock() {}
 
-    [[nodiscard]] bool try_lock() { return true; }
+    [[nodiscard]] bool try_lock()
+    {
+        return true;
+    }
 
     void unlock() {}
 
     void lock_shared() {}
 
-    [[nodiscard]] bool try_lock_shared() { return true; }
+    [[nodiscard]] bool try_lock_shared()
+    {
+        return true;
+    }
 
     void unlock_shared() {}
 };
@@ -72,7 +78,7 @@ struct SharedMutex : public testing::Test
 };
 
 using MutexTypes = ::testing::Types<
-    NoLockingMutex, monad::shared_mutex, boost::fibers::mutex,
+    NoLockingMutex, monad::fiber::shared_mutex, boost::fibers::mutex,
     std::shared_mutex, std::mutex, std::timed_mutex, std::shared_timed_mutex>;
 
 TYPED_TEST_SUITE(SharedMutex, MutexTypes);
@@ -90,7 +96,7 @@ TYPED_TEST(SharedMutex, simple_bench)
 
 TEST(MutexCorrectness, many_readers)
 {
-    Counter<monad::shared_mutex> counter;
+    Counter<monad::fiber::shared_mutex> counter;
     (void)counter.increment();
 
     {
@@ -113,7 +119,7 @@ TEST(MutexCorrectness, many_readers)
 
 TEST(MutexCorrectness, many_readers_and_writers)
 {
-    Counter<monad::shared_mutex> counter;
+    Counter<monad::fiber::shared_mutex> counter;
     (void)counter.increment();
 
     {

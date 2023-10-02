@@ -76,13 +76,14 @@ add_library(
   "include/monad/core/math.hpp"
   "include/monad/core/nibble.h"
   "include/monad/core/offset.hpp"
-  "include/monad/core/shared_mutex.hpp"
   "include/monad/core/size_of.hpp"
   "include/monad/core/small_prng.hpp"
   "include/monad/core/unaligned.hpp"
   "src/monad/core/assert.cpp"
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
+  # fiber
+  "include/monad/fiber/shared_mutex.hpp"
   # io
   "include/monad/io/buffer_pool.hpp"
   "include/monad/io/buffers.hpp"

@@ -1,14 +1,14 @@
 #pragma once
 
-#include <monad/config.hpp>
 #include <monad/core/assert.h>
+#include <monad/fiber/config.hpp>
 
 #include <chrono>
 #include <shared_mutex>
 
 #include <boost/fiber/condition_variable.hpp>
 
-MONAD_NAMESPACE_BEGIN
+MONAD_FIBER_NAMESPACE_BEGIN
 
 /// A shared mutex type derived from the standard library, but implemented in
 /// terms of Boost.Fiber synchronization primitives. Wherever the original
@@ -26,9 +26,15 @@ class shared_mutex
     static constexpr uint32_t MAX_READERS = ~WRITE_ENTERED;
     static_assert(MAX_READERS == 0b01111111111111111111111111111111);
 
-    [[nodiscard]] bool write_entered() const { return state_ & WRITE_ENTERED; }
+    [[nodiscard]] bool write_entered() const
+    {
+        return state_ & WRITE_ENTERED;
+    }
 
-    [[nodiscard]] uint32_t readers() const { return state_ & MAX_READERS; }
+    [[nodiscard]] uint32_t readers() const
+    {
+        return state_ & MAX_READERS;
+    }
 
 public:
     shared_mutex()
@@ -36,7 +42,10 @@ public:
     {
     }
 
-    ~shared_mutex() { MONAD_ASSERT(state_ == 0); }
+    ~shared_mutex()
+    {
+        MONAD_ASSERT(state_ == 0);
+    }
 
     shared_mutex(shared_mutex const &) = delete;
     shared_mutex &operator=(shared_mutex const &) = delete;
@@ -109,4 +118,4 @@ public:
     }
 };
 
-MONAD_NAMESPACE_END
+MONAD_FIBER_NAMESPACE_END

@@ -12,7 +12,7 @@ monad_add_test(encode_test "encode_test.cpp")
 monad_add_test(hugemem_test "huge_mem.cpp")
 monad_add_test(io_buffers_test "io_buffers.cpp")
 monad_add_test(literal_test "literal_test.cpp")
-monad_add_test(shared_mutex "shared_mutex.cpp")
+monad_add_test(test_shared_mutex "fiber/test_shared_mutex.cpp")
 monad_add_test(unordered_map_test "unordered_map.cpp")
 
 # ##############################################################################
@@ -23,4 +23,4 @@ add_executable(ethash-test
                "../third_party/ethash/test/unittests/test_keccak.cpp")
 target_link_libraries(ethash-test PRIVATE ethash::global-context
                                           GTest::gtest_main)
-target_link_libraries(shared_mutex nanobench Boost::fiber)
+target_link_libraries(test_shared_mutex nanobench Boost::fiber)
