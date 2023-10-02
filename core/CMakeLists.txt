@@ -136,3 +136,5 @@ add_subdirectory("test")
 
 monad_add_test(bit_util_test c/src/monad/core/bit_util_test.cpp)
 monad_add_test(huge_mem_test c/src/monad/mem/huge_mem_test.cpp)
+monad_add_test(test_shared_mutex "src/monad/fiber/test_shared_mutex.cpp")
+target_link_libraries(test_shared_mutex nanobench Boost::fiber)
