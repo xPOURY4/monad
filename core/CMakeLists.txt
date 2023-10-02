@@ -24,6 +24,8 @@ set(OPTIONAL_BUILD_PACKAGE OFF)
 set(OPTIONAL_BUILD_TESTS OFF)
 add_subdirectory("third_party/optional" SYSTEM)
 
+add_subdirectory("third_party/nanobench")
+
 add_subdirectory("third_party/nlohmann_json" SYSTEM)
 
 add_subdirectory("third_party/unordered_dense")
@@ -74,6 +76,7 @@ add_library(
   "include/monad/core/math.hpp"
   "include/monad/core/nibble.h"
   "include/monad/core/offset.hpp"
+  "include/monad/core/shared_mutex.hpp"
   "include/monad/core/size_of.hpp"
   "include/monad/core/small_prng.hpp"
   "include/monad/core/unaligned.hpp"
@@ -122,6 +125,7 @@ target_link_libraries(monad_core_disas PUBLIC monad_core)
 enable_testing()
 
 find_package(GTest REQUIRED)
+find_package(Boost REQUIRED COMPONENTS fiber)
 
 add_subdirectory("test")
 

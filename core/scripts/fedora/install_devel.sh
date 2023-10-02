@@ -2,6 +2,7 @@
 
 yum -y install \
   abseil-cpp-devel \
+  boost-devel \
   gmock-devel \
   google-benchmark-devel \
   gtest-devel \

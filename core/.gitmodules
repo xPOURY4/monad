@@ -9,6 +9,9 @@
 	path = third_party/fuzztest
 	url = https://github.com/monad-crypto/fuzztest.git
         branch = monad
+[submodule "third_party/nanobench"]
+	path = third_party/nanobench
+	url = https://github.com/martinus/nanobench.git
 [submodule "third_party/nlohmann_json"]
 	path = third_party/nlohmann_json
 	url = https://github.com/nlohmann/json.git
