@@ -49,9 +49,6 @@ def parse(input):
     name_to_instr_self = {
         key: val for key, val in name_to_instr_self.items() if val != 0
     }
-    # sort in ascending order
-    name_to_instr_self = dict(sorted(name_to_instr_self.items(), key=lambda x: x[0]))
-
     return name_to_instr_self
 
 

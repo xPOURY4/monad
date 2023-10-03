@@ -68,11 +68,15 @@ def _create_test_class(test_dir):
                 result = callgrind_parser.parse(
                     fileinput.input(files=path.join(tmp, "callgrind.out"))
                 )
+                total = 0
+                for key, val in result.items():
+                    total += val
+                result[" total"] = total
             return result
 
         @staticmethod
         def _save_result(test_id):
-            result = json.dumps(TestCallgrind._gen_result(test_id), indent=2)
+            result = json.dumps(TestCallgrind._gen_result(test_id), indent=2, sort_keys=True)
             output_file = path.join(
                 TestCallgrind._test_dir, "_%s.callgrind.json" % (test_id,)
             )
