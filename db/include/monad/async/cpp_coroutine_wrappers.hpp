@@ -1,8 +1,8 @@
 #pragma once
 
-#include "io_senders.hpp"
+#include "io_worker_pool.hpp"
 
-#include <coroutine>
+#include "detail/boost_outcome_coroutine_support.hpp"
 
 #include <optional>
 
@@ -14,6 +14,16 @@
 #endif
 
 MONAD_ASYNC_NAMESPACE_BEGIN
+
+//! \brief Concept matching an awaitable
+template <class T>
+concept awaitable = requires(T x, std::coroutine_handle<> h) {
+    {
+        x.await_ready()
+    } -> std::same_as<bool>;
+    x.await_suspend(h);
+    x.await_resume();
+};
 
 namespace detail
 {
@@ -76,7 +86,7 @@ namespace detail
             std::tuple<SenderArgs...> &&sender_args)
         {
             return io.make_connected<Sender, Receiver>(
-                _, std::move(sender_args), Receiver{});
+                _, std::move(sender_args), std::tuple{});
         }
         static connected_state_type::element_type &
         access(connected_state_type &v)
@@ -185,6 +195,52 @@ template <sender Sender, class... SenderArgs>
 {
     return detail::awaitable<Sender>{
         io, _, std::forward<SenderArgs>(sender_args)...};
+}
+
+//! \brief Convenience wrapper initiating a callable returning an awaitable
+//! on a `` instance, returning an awaitable which readies when the callable
+//! readies its awaitable on the worker thread.
+template <class... QueueOptions, class F>
+    requires(awaitable<std::invoke_result_t<F, erased_connected_operation *>>)
+[[nodiscard]] auto
+co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
+{
+    using co_return_type =
+        decltype(f(std::declval<erased_connected_operation *>())
+                     .await_resume());
+    struct invoke_coroutine_sender
+    {
+        using result_type = co_return_type;
+
+        F f;
+        std::optional<awaitables::eager<void>> aw;
+        std::optional<co_return_type> res;
+
+        invoke_coroutine_sender(F &&_f)
+            : f(std::move(_f))
+        {
+        }
+        result<void> operator()(erased_connected_operation *io_state) noexcept
+        {
+            aw.emplace(co_initiate(io_state));
+            return success();
+        }
+        awaitables::eager<void>
+        co_initiate(erased_connected_operation *io_state)
+        {
+            res = co_await f(io_state);
+            io_state->completed(success());
+            co_return;
+        }
+        result_type
+        completed(erased_connected_operation *, result<void>) noexcept
+        {
+            return std::move(res).value();
+        }
+    };
+    return detail::awaitable<execute_on_worker_pool<invoke_coroutine_sender>>{
+        io,
+        execute_on_worker_pool<invoke_coroutine_sender>(pool, std::move(f))};
 }
 
 //! \brief Suspend execution on the current `AsyncIO`, and resume execution on

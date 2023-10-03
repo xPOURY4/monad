@@ -6,9 +6,8 @@
 
 #include <boost/lockfree/queue.hpp>
 
+#include <deque>
 #include <thread>
-
-#include "boost_outcome_coroutine_support.hpp"
 
 namespace
 {
@@ -47,7 +46,7 @@ namespace
             ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
         return ret;
     }();
-    // monad::small_prng test_rand;
+    monad::small_prng test_rand;
 
     TEST(CppCoroutineWrappers, coroutine_read)
     {
@@ -166,4 +165,145 @@ namespace
         EXPECT_NE(tids[1], gettid());
         EXPECT_EQ(tids[2], gettid());
     }
+
+    TEST(
+        CppCoroutineWrappers,
+        AsyncReadIoWorkerPool_custom_sender_workers_can_do_read_io)
+    {
+        AsyncReadIoWorkerPool workerpool(
+            *testio, MAX_CONCURRENCY, make_ring, make_buffers);
+
+        struct sender_t
+        {
+            using result_type = result<void>;
+
+            file_offset_t const offset;
+            struct receiver_t
+            {
+                file_offset_t const offset;
+                erased_connected_operation *const original_io_state;
+                void set_value(
+                    erased_connected_operation *,
+                    result<std::span<std::byte const>> res)
+                {
+                    if (!res) {
+                        std::cerr << res.assume_error().message().c_str()
+                                  << std::endl;
+                    }
+                    MONAD_ASSERT(res);
+                    MONAD_ASSERT(
+                        0 == memcmp(
+                                 res.assume_value().data(),
+                                 testfilecontents.data() + offset,
+                                 DISK_PAGE_SIZE));
+                    original_io_state->completed(success());
+                }
+            };
+
+            explicit sender_t(file_offset_t offset_)
+                : offset(offset_)
+            {
+            }
+            result_type
+            operator()(erased_connected_operation *io_state) noexcept
+            {
+                auto state =
+                    io_state->executor()
+                        ->make_connected<read_single_buffer_sender, receiver_t>(
+                            read_single_buffer_sender{
+                                offset,
+                                read_single_buffer_sender::buffer_type{
+                                    (std::byte *)nullptr, DISK_PAGE_SIZE}},
+                            receiver_t{offset, io_state});
+                state->initiate();
+                state.release();
+                return success();
+            }
+        };
+        static_assert(sender<sender_t>);
+        static_assert(std::is_constructible_v<sender_t, file_offset_t>);
+        using state_type = decltype(co_initiate(
+            *testio,
+            execute_on_worker_pool<sender_t>(workerpool, file_offset_t(0))));
+        std::deque<std::unique_ptr<state_type>> states;
+        for (size_t n = 0; n < 100; n++) {
+            auto offset =
+                round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE);
+            states.emplace_back(new state_type(co_initiate(
+                *testio,
+                execute_on_worker_pool<sender_t>(workerpool, offset))));
+            while (states.size() >= MAX_CONCURRENCY) {
+                testio->wait_until_done();
+                if (states.front()->await_ready()) {
+                    states.front()->await_resume().value();
+                    states.pop_front();
+                }
+            }
+        }
+        while (!states.empty()) {
+            testio->wait_until_done();
+            if (states.front()->await_ready()) {
+                states.front()->await_resume().value();
+                states.pop_front();
+            }
+        }
+    }
+
+    TEST(
+        CppCoroutineWrappers,
+        AsyncReadIoWorkerPool_coroutine_workers_can_do_read_io)
+    {
+        AsyncReadIoWorkerPool workerpool(
+            *testio, MAX_CONCURRENCY, make_ring, make_buffers);
+        static ::boost::lockfree::queue<pid_t> thread_ids(100);
+
+        auto task =
+            [&](erased_connected_operation *io_state,
+                file_offset_t offset) -> awaitables::eager<result<int>> {
+            // I am on a different kernel thread
+            MONAD_ASSERT(thread_ids.push(gettid()));
+            // Initiate the read
+            auto aw = co_initiate(
+                *io_state->executor(),
+                read_single_buffer_sender(
+                    offset, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE}));
+            // Suspend until the read completes
+            BOOST_OUTCOME_CO_TRY(
+                std::span<const std::byte> bytesread, co_await aw);
+            // Return the result of the byte comparison
+            co_return memcmp(
+                bytesread.data(),
+                testfilecontents.data() + offset,
+                DISK_PAGE_SIZE);
+        };
+        using state_type = decltype(co_initiate(
+            *testio,
+            workerpool,
+            std::bind(task, std::placeholders::_1, file_offset_t(0))));
+        std::deque<std::unique_ptr<state_type>> states;
+        for (size_t n = 0; n < 100; n++) {
+            file_offset_t offset =
+                round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE);
+            std::unique_ptr<state_type> p(new auto(co_initiate(
+                *testio,
+                workerpool,
+                std::bind(task, std::placeholders::_1, offset))));
+            states.push_back(std::move(p));
+            while (states.size() >= MAX_CONCURRENCY) {
+                testio->wait_until_done();
+                if (states.front()->await_ready()) {
+                    states.front()->await_resume().value();
+                    states.pop_front();
+                }
+            }
+        }
+        while (!states.empty()) {
+            testio->wait_until_done();
+            if (states.front()->await_ready()) {
+                states.front()->await_resume().value();
+                states.pop_front();
+            }
+        }
+    }
+
 }

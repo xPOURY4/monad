@@ -48,6 +48,8 @@ namespace detail
             return false;
         }
 
+        virtual bool try_submit_work_item(erased_connected_operation *item) = 0;
+
     protected:
         AsyncReadIoWorkerPoolBase(AsyncIO &parent_io)
             : _parent_io(parent_io)
@@ -56,7 +58,6 @@ namespace detail
 
     private:
         AsyncIO &_parent_io;
-        virtual bool try_submit_work_item(erased_connected_operation *item) = 0;
     };
 
     template <class T, class QueueOptions>
@@ -165,6 +166,7 @@ namespace detail
                 AsyncReadIoWorkerPoolImpl &parent_pool, U &&make_ring,
                 V &&make_buffers)
                 : thread([&](std::stop_token token) {
+                    pthread_setname_np(pthread_self(), "pool worker");
                     auto *ts = new thread_state_t(
                         parent_pool,
                         std::forward<U>(make_ring),
@@ -221,19 +223,6 @@ namespace detail
 
         // Unsafe to modify without locking
         std::vector<_worker_t> _workers;
-
-        virtual bool
-        try_submit_work_item(erased_connected_operation *item) override final
-        {
-            // All writes to global state must be flushed before other threads
-            // may acquire reads
-            std::atomic_thread_fence(std::memory_order_release);
-            auto ret = _enqueued_workitems.push(item);
-            if (ret) {
-                _enqueued_workitems_count.release();
-            }
-            return ret;
-        }
 
     protected:
         template <class U, class V>
@@ -318,6 +307,19 @@ namespace detail
             }
             return float(ret) / (_workers.size() * 2);
         }
+
+        virtual bool
+        try_submit_work_item(erased_connected_operation *item) override final
+        {
+            // All writes to global state must be flushed before other threads
+            // may acquire reads
+            std::atomic_thread_fence(std::memory_order_release);
+            auto ret = _enqueued_workitems.push(item);
+            if (ret) {
+                _enqueued_workitems_count.release();
+            }
+            return ret;
+        }
     };
 }
 
@@ -383,9 +385,6 @@ any thread synchronisation.
 template <sender Sender>
 class execute_on_worker_pool : public Sender
 {
-    template <class QueueOptions>
-    friend class AsyncReadIoWorkerPool;
-
 public:
     using result_type = typename Sender::result_type;
 
@@ -426,7 +425,7 @@ private:
 
         void set_value(erased_connected_operation *, result<void> res)
         {
-            ASSERT_TRUE(res);
+            MONAD_ASSERT(res);
             // We are back onto the master AsyncIO instance, issue the
             // completion
             original_io_state->completed(std::move(original_input_result));
@@ -459,10 +458,10 @@ private:
 
 public:
     execute_on_worker_pool() = default;
-    template <class... QueueOptions, class... Args>
+    template <class... Args>
         requires(std::is_constructible_v<Sender, Args...>)
     execute_on_worker_pool(
-        AsyncReadIoWorkerPool<QueueOptions...> &pool, Args &&...args)
+        detail::AsyncReadIoWorkerPoolBase &pool, Args &&...args)
         : Sender(std::forward<Args>(args)...)
         , _pool(&pool)
         , _initiating_tid(gettid())
