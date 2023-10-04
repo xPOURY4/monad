@@ -114,8 +114,9 @@ namespace detail
         virtual void completed(result<void> res) override final
         {
             this->_being_executed = false;
-            if (this->_io != nullptr) {
-                this->_io->_notify_operation_completed(this, res);
+            auto *thisio = this->executor();
+            if (thisio != nullptr) {
+                thisio->_notify_operation_completed(this, res);
             }
             if constexpr (requires(Sender x) {
                               x.completed(this, std::move(res));
@@ -124,7 +125,17 @@ namespace detail
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
-                    this->initiate();
+                    // Completions are allowed to be triggered from threads
+                    // different to initiation, but if completion then
+                    // reinitiates, this operation state needs a new owner
+                    this->_io.store(
+                        detail::AsyncIO_thread_instance(),
+                        std::memory_order_release);
+                    // Also, it is permitted for the completion to completely
+                    // replace the operation state with a brand new type with
+                    // new vptr, so we must also launder this else the old vptr
+                    // will get used on some compilers (currently only clang)
+                    std::launder(this)->initiate();
                 }
                 else {
                     this->_receiver.set_value(this, std::move(r));
@@ -147,8 +158,9 @@ namespace detail
         virtual void completed(result<size_t> bytes_transferred) override final
         {
             this->_being_executed = false;
-            if (this->_io != nullptr) {
-                this->_io->_notify_operation_completed(this, bytes_transferred);
+            auto *thisio = this->executor();
+            if (thisio != nullptr) {
+                thisio->_notify_operation_completed(this, bytes_transferred);
             }
             if constexpr (requires(Sender x) {
                               x.completed(this, std::move(bytes_transferred));
@@ -158,7 +170,17 @@ namespace detail
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
-                    this->initiate();
+                    // Completions are allowed to be triggered from threads
+                    // different to initiation, but if completion then
+                    // reinitiates, this operation state needs a new owner
+                    this->_io.store(
+                        detail::AsyncIO_thread_instance(),
+                        std::memory_order_release);
+                    // Also, it is permitted for the completion to completely
+                    // replace the operation state with a brand new type with
+                    // new vptr, so we must also launder this else the old vptr
+                    // will get used on some compilers (currently only clang)
+                    std::launder(this)->initiate();
                 }
                 else {
                     this->_receiver.set_value(this, std::move(r));

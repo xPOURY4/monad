@@ -1,5 +1,9 @@
 #include "gtest/gtest.h"
 
+#ifndef __clang__
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 #include "monad/async/io_senders.hpp"
 #include "monad/core/array.hpp"
 #include "monad/core/small_prng.hpp"

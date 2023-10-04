@@ -254,7 +254,7 @@ namespace
                 for (auto &state : states) {
                     state = std::unique_ptr<connected_state_type>(
                         new connected_state_type(connect(
-                            *testio,
+                            *st->executor(),
                             execute_on_worker_pool<sender2_t>{workerpool},
                             receiver2_t{st})));
                     state->receiver().sender = &state->sender();
@@ -391,5 +391,52 @@ namespace
                 states.pop_front();
             }
         }
+    }
+
+    TEST(AsyncReadIoWorkerPool, async_completions_are_not_racy)
+    {
+        AsyncReadIoWorkerPool workerpool(
+            *testio, MAX_CONCURRENCY, make_ring, make_buffers);
+        struct sender_t
+        {
+            bool defers{false};
+            using result_type = result<void>;
+            result_type
+            operator()(erased_connected_operation *io_state) noexcept
+            {
+                // This needs to defer until this exits, otherwise
+                // there is a race condition
+                io_state->completed(success());
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                defers = true;
+                return success();
+            }
+        };
+        static_assert(sender<sender_t>);
+        struct receiver_t
+        {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
+            bool done{false};
+            void set_value(erased_connected_operation *, result<void>)
+            {
+                done = true;
+            }
+        };
+        static_assert(receiver<receiver_t>);
+        auto state = connect(
+            *testio,
+            execute_on_worker_pool<sender_t>{workerpool},
+            receiver_t{});
+        ASSERT_FALSE(state.sender().defers);
+        state.initiate();
+        while (!state.receiver().done) {
+            testio->wait_until_done();
+        }
+        EXPECT_TRUE(state.sender().defers);
+        EXPECT_TRUE(workerpool.currently_idle());
     }
 }

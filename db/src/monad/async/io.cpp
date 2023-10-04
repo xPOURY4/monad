@@ -322,12 +322,6 @@ bool AsyncIO::_poll_uring(bool blocking)
     return true;
 }
 
-AsyncIO *AsyncIO::thread_instance() noexcept
-{
-    auto &ts = detail::AsyncIO_per_thread_state();
-    return ts.instance;
-}
-
 unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
 {
     auto &ts = detail::AsyncIO_per_thread_state();

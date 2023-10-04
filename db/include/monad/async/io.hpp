@@ -81,7 +81,10 @@ public:
     }
 
     //! The instance for this thread
-    static AsyncIO *thread_instance() noexcept;
+    static AsyncIO *thread_instance() noexcept
+    {
+        return detail::AsyncIO_thread_instance();
+    }
 
     unsigned io_in_flight() const noexcept
     {

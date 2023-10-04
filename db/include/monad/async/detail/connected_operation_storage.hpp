@@ -74,6 +74,11 @@ namespace detail
     // Implemented in io.cpp
     extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
     AsyncIO_per_thread_state();
+    inline AsyncIO *AsyncIO_thread_instance() noexcept
+    {
+        auto &ts = AsyncIO_per_thread_state();
+        return ts.instance;
+    }
 
     template <class Base, sender Sender, receiver Receiver>
     struct connected_operation_storage : public Base
@@ -135,6 +140,7 @@ namespace detail
             // Prevent compiler reordering write of _being_executed after this
             // point without using actual atomics.
             std::atomic_signal_fence(std::memory_order_release);
+            auto *thisio = this->_io.load(std::memory_order_acquire);
             if (!never_defer &&
                 AsyncIO_per_thread_state()
                     .if_within_completions_add_to_pending_initiations(this)) {
@@ -155,8 +161,8 @@ namespace detail
                     return initiation_result::initiation_failed_told_receiver;
                 }
             }
-            if (this->_io != nullptr) {
-                this->_io->_notify_operation_initiation_success(this);
+            if (thisio != nullptr) {
+                thisio->_notify_operation_initiation_success(this);
             }
             return initiation_result::initiation_success;
         }
@@ -266,7 +272,17 @@ namespace detail
         //! copy-on-write.
         initiation_result initiate() noexcept
         {
-            return this->_do_possibly_deferred_initiate(false);
+            // You must initiate operations on the same kernel thread as
+            // the AsyncIO instance associated with this operation state
+            // (except for threadsafeop)
+            auto *thisio = this->executor();
+            MONAD_ASSERT(
+                thisio == nullptr || this->is_threadsafeop() ||
+                thisio->owning_thread_id() == gettid());
+            // The threadsafe op is special, it isn't for this AsyncIO instance
+            // and therefore never needs deferring
+            return this->_do_possibly_deferred_initiate(
+                this->is_threadsafeop());
         }
 
         //! Resets the operation state. Only available if both sender and
@@ -285,8 +301,9 @@ namespace detail
             std::apply(
                 [this](auto &&...args) { _receiver.reset(std::move(args)...); },
                 std::move(receiver_args));
-            if (this->_io != nullptr) {
-                this->_io->_notify_operation_reset(this);
+            auto *thisio = this->executor();
+            if (thisio != nullptr) {
+                thisio->_notify_operation_reset(this);
             }
         }
     };

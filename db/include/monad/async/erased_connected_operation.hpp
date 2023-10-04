@@ -54,7 +54,9 @@ protected:
     bool _being_executed{false};
     bool _lifetime_managed_internally{
         false}; // some factory classes may deallocate states on their own
-    AsyncIO *_io{nullptr};
+    std::atomic<AsyncIO *> _io{
+        nullptr}; // set at construction if associated with an AsyncIO instance,
+                  // which isn't mandatory
     struct _rbtree_t
     {
         /* Users of these fields:
@@ -234,7 +236,7 @@ public:
     //! The executor instance being used, which may be none.
     AsyncIO *executor() noexcept
     {
-        return _io;
+        return _io.load(std::memory_order_acquire);
     }
     //! Invoke completion. The Sender will send the value to the Receiver. If
     //! the Receiver expects bytes transferred and the Sender does not send a
