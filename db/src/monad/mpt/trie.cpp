@@ -180,12 +180,16 @@ node_ptr _dispatch_updates(
         if (bit & requests.mask) {
             nexts[j] =
                 (bit & old->mask)
-                    ? _upsert(
-                          comp,
-                          old->next(i),
-                          std::move(requests)[i],
-                          pi + 1,
-                          old->next(i)->path_nibble_index_start)
+                    ? [&] {
+                          node_ptr next_ = old->next_ptr(i);
+                          auto res = _upsert(
+                              comp,
+                              next_.get(),
+                              std::move(requests)[i],
+                              pi + 1,
+                              next_->path_nibble_index_start);
+                          return res;
+                      }()
                     : _create_new_trie(comp, std::move(requests)[i], pi + 1);
             if (!nexts[j]) {
                 mask &= ~bit;
