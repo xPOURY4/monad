@@ -1,5 +1,0 @@
-#include <monad/trie/tnode.hpp>
-
-MONAD_TRIE_NAMESPACE_BEGIN
-
-MONAD_TRIE_NAMESPACE_END
