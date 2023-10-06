@@ -54,6 +54,7 @@ struct MerkleCompute final : Compute
     virtual unsigned compute_len(std::span<ChildData> const children) override
     {
         if (children.size() == 1) {
+            // TODO: not size() == 1 but #valid child = 1
             // special case, the node to be created has only one branch
             return _compute_hash_with_extra_nibble_to_state(children[0]);
         }

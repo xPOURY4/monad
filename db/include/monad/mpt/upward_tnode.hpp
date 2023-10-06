@@ -4,6 +4,7 @@
 #include <monad/mem/allocators.hpp>
 
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/node.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <optional>
@@ -16,9 +17,12 @@ class Node;
 struct UpwardTreeNode
 {
     UpwardTreeNode *parent{nullptr};
-    Node *node{nullptr};
+    Node *node{nullptr}; // new node
+    node_ptr old{}; // tnode owns old node's lifetime only when old is leaf
+                    // node, as opt_leaf_data has to be valid in memory when it
+                    // works the way back to recompute leaf data
     allocators::owning_span<ChildData> children{};
-    NibblesView relpath{};
+    Nibbles relpath{};
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
     uint16_t mask{0};
     uint16_t orig_mask{0};
@@ -70,12 +74,12 @@ struct UpwardTreeNode
 };
 using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
-inline tnode_unique_ptr make_tnode()
+inline tnode_unique_ptr make_tnode(node_ptr old = {})
 {
-    return UpwardTreeNode::make(UpwardTreeNode{});
+    return UpwardTreeNode::make(UpwardTreeNode{.old = std::move(old)});
 }
 
-static_assert(sizeof(UpwardTreeNode) == 80);
+static_assert(sizeof(UpwardTreeNode) == 88);
 static_assert(alignof(UpwardTreeNode) == 8);
 
 MONAD_MPT_NAMESPACE_END

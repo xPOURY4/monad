@@ -6,7 +6,6 @@
 #include <monad/mem/allocators.hpp>
 
 #include <monad/mpt/nibbles_view.hpp>
-#include <monad/mpt/upward_tnode.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <bit>
@@ -394,16 +393,24 @@ public:
 
     void set_next_j(unsigned const j, Node *const node) noexcept
     {
-        memcpy(next_data() + j * sizeof(Node *), &node, sizeof(Node *));
+        node ? memcpy(next_data() + j * sizeof(Node *), &node, sizeof(Node *))
+             : memset(next_data() + j * sizeof(Node *), 0, sizeof(Node *));
     }
     void set_next(unsigned const i, Node *const node) noexcept
     {
         set_next_j(to_j(i), node);
     }
 
-    void set_next_j(unsigned const j, unique_ptr_type ptr) noexcept
+    unique_ptr_type next_j_ptr(unsigned const j) noexcept
     {
-        set_next_j(j, ptr.release());
+        Node *p = next_j(j);
+        set_next_j(j, nullptr);
+        return unique_ptr_type{p};
+    }
+
+    unique_ptr_type next_ptr(unsigned const i) noexcept
+    {
+        return next_j_ptr(to_j(i));
     }
 
     //! node size in memory

@@ -10,11 +10,14 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
+struct NibblesView;
 struct Nibbles
 {
-    bool const si{false};
-    uint8_t const ei{0};
-    unsigned char *const data;
+    bool si{false};
+    uint8_t ei{0};
+    unsigned char *data{nullptr};
+
+    constexpr Nibbles() = default;
 
     Nibbles(unsigned const si_, unsigned const ei_)
         : si((si_ == ei_) ? false : (si_ & 1))
@@ -32,16 +35,18 @@ struct Nibbles
     {
     }
 
-    constexpr unsigned size() const
-    {
-        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
-    }
+    Nibbles &operator=(NibblesView const &other);
 
     ~Nibbles()
     {
         if (data) {
-            free(data);
+            std::free(data);
         }
+    }
+
+    constexpr unsigned size() const
+    {
+        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
     }
 };
 static_assert(sizeof(Nibbles) == 16);
@@ -101,6 +106,27 @@ struct NibblesView
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
+
+inline Nibbles &Nibbles::operator=(NibblesView const &n)
+{
+    if (data) {
+        free(data);
+    }
+    si = n.si;
+    ei = n.ei;
+    MONAD_DEBUG_ASSERT(si <= ei && ei <= 128);
+    if (si == ei) {
+        return *this;
+    }
+    unsigned const alloc_size = n.size();
+    auto *ret = std::malloc(alloc_size);
+    if (ret == nullptr) {
+        throw std::bad_alloc();
+    }
+    memcpy(ret, n.data, n.size());
+    data = reinterpret_cast<unsigned char *>(ret);
+    return *this;
+}
 
 inline Nibbles concat3(
     NibblesView const prefix, unsigned char const nibble,

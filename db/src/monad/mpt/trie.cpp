@@ -111,17 +111,15 @@ struct update_receiver
     UpwardTreeNode *tnode;
     uint16_t buffer_off;
     uint8_t pi;
-    uint8_t old_pi;
     unsigned bytes_to_read;
 
     update_receiver(
         UpdateAux *_update_aux, file_offset_t offset, UpdateList &&_updates,
-        UpwardTreeNode *_tnode, uint8_t _pi, uint8_t _old_pi)
+        UpwardTreeNode *_tnode, uint8_t _pi)
         : update_aux(_update_aux)
         , updates(std::move(_updates))
         , tnode(_tnode)
         , pi(_pi)
-        , old_pi(_old_pi)
     {
         // prep uring data
         auto node_offset = offset & MASK_TO_CLEAR_HIGH_FOUR_BITS;
@@ -139,21 +137,21 @@ struct update_receiver
     {
         MONAD_ASSERT(_buffer);
         std::span<const std::byte> buffer = std::move(_buffer).assume_value();
-        // load node from read buffer
-        Node *old = deserialize_node_from_buffer(
-                        (unsigned char *)buffer.data() + buffer_off)
-                        .release();
-        old_pi = (old_pi == INVALID_PATH_INDEX)
-                     ? old->bitpacked.path_nibble_index_start
-                     : old_pi;
+        // tnode owns the deserialized old node
+        node_ptr old = deserialize_node_from_buffer(
+            (unsigned char *)buffer.data() + buffer_off);
+        Node *old_node = old.get();
         if (!_upsert(
                 *update_aux,
-                old,
+                old_node,
                 tnode,
                 INVALID_OFFSET,
                 std::move(updates),
                 pi,
-                old_pi)) {
+                old_node->bitpacked.path_nibble_index_start)) {
+            if (tnode->opt_leaf_data.has_value()) {
+                tnode->old = std::move(old);
+            }
             return;
         }
         assert(tnode->npending == 0);
@@ -168,10 +166,10 @@ struct create_node_receiver
     UpdateAux *update_aux;
     file_offset_t rd_offset;
     UpwardTreeNode *tnode;
+    unsigned bytes_to_read;
+    uint16_t buffer_off;
     uint8_t j;
     uint8_t pi;
-    uint16_t buffer_off;
-    unsigned bytes_to_read;
 
     create_node_receiver(
         UpdateAux *const _update_aux, UpwardTreeNode *const _tnode,
@@ -199,15 +197,16 @@ struct create_node_receiver
         MONAD_ASSERT(_buffer);
         std::span<const std::byte> buffer = std::move(_buffer).assume_value();
         // load node from read buffer
-        Node *old = deserialize_node_from_buffer(
-                        (unsigned char *)buffer.data() + buffer_off)
-                        .release();
-        tnode->children[j].ptr = old;
-        MONAD_ASSERT(create_node_from_children_if_any_possibly_ondisk(
-            *update_aux, tnode, pi));
+        tnode->node = create_coalesced_node_with_prefix(
+            tnode->children[j].branch,
+            deserialize_node_from_buffer(
+                (unsigned char *)buffer.data() + buffer_off),
+            tnode->relpath);
         upward_update(*update_aux, tnode, pi);
     }
 };
+static_assert(sizeof(create_node_receiver) == 32);
+static_assert(alignof(create_node_receiver) == 8);
 
 using MONAD_ASYNC_NAMESPACE::receiver;
 template <receiver Receiver>
@@ -222,7 +221,7 @@ struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 };
 
 template <receiver Receiver>
-void async_read(UpdateAux &update_aux, Receiver &receiver)
+void async_read(UpdateAux &update_aux, Receiver &&receiver)
 {
     read_update_sender sender(receiver);
     assert(receiver.rd_offset < update_aux.node_writer->sender().offset());
@@ -296,7 +295,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
             bitmask_index(tnode->orig_mask, std::countr_zero(tnode->mask));
         if (!tnode->children[j].ptr) {
             create_node_receiver receiver(&update_aux, tnode, j, pi);
-            async_read(update_aux, receiver);
+            async_read(update_aux, std::move(receiver));
             return false;
         }
     }
@@ -413,8 +412,8 @@ bool _upsert(
 {
     if (!old) {
         update_receiver receiver(
-            &update_aux, offset, std::move(updates), tnode, pi, old_pi);
-        async_read(update_aux, receiver);
+            &update_aux, offset, std::move(updates), tnode, pi);
+        async_read(update_aux, std::move(receiver));
         return false;
     }
     assert(old_pi != INVALID_PATH_INDEX);
@@ -466,18 +465,21 @@ bool _dispatch_updates(
         if (bit & requests.mask) {
             Node *node = nullptr;
             if (bit & old->mask) {
+                node_ptr next_ = old->next_ptr(i);
                 auto next_tnode = make_tnode();
                 if (!_upsert(
                         update_aux,
-                        old->next(i),
+                        next_.get(),
                         next_tnode.get(),
                         old->fnext(i),
                         std::move(requests)[i],
                         pi + 1,
-                        old->next(i)
-                            ? old->next(i)->bitpacked.path_nibble_index_start
-                            : INVALID_PATH_INDEX)) {
+                        next_ ? next_->bitpacked.path_nibble_index_start
+                              : INVALID_PATH_INDEX)) {
                     // always link parent after recurse down
+                    if (next_tnode->opt_leaf_data.has_value()) {
+                        next_tnode->old = std::move(next_);
+                    }
                     next_tnode->link_parent(tnode, i);
                     next_tnode.release();
                     ++j;
@@ -502,8 +504,7 @@ bool _dispatch_updates(
         }
         else if (bit & old->mask) {
             if (old->next(i)) { // in memory, infers cached
-                child.ptr = old->next(i);
-                old->set_next(i, nullptr);
+                child.ptr = old->next_ptr(i).release();
             }
             auto const data = old->child_data_view(i);
             memcpy(&child.data, data.data(), data.size());
@@ -513,6 +514,10 @@ bool _dispatch_updates(
             --tnode->npending;
             ++j;
         }
+    }
+    // debug
+    for (unsigned j = 0; j < old->n(); ++j) {
+        assert(!old->next_j(j));
     }
     if (tnode->npending) {
         return false;
