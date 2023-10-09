@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.21)
 project(monad_trie)
 enable_testing()
 
+option(MONAD_FUZZTEST "Enable the fuzz tests" OFF)
+
 ############
 ### deps
 ############
@@ -11,6 +13,7 @@ add_subdirectory("monad-core")
 include("monad-core/cmake/find_our_dependency.cmake")
 find_package(Boost 1.78 COMPONENTS "" REQUIRED)
 find_package(GTest)
+find_package(Boost COMPONENTS fiber REQUIRED)
 
 ############
 ### libs
@@ -24,7 +27,7 @@ target_include_directories(monad_async
     PUBLIC "${PROJECT_SOURCE_DIR}/include"
 )
 monad_compile_options(monad_async)
-target_link_libraries(monad_async PUBLIC monad_core)
+target_link_libraries(monad_async PUBLIC monad_core Boost::fiber)
 
 add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
@@ -41,7 +44,6 @@ add_library(monad_trie STATIC
 
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/node.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
-
 )
 target_include_directories(monad_trie
     PUBLIC "${PROJECT_SOURCE_DIR}/include"
@@ -62,4 +64,11 @@ endfunction()
 add_subdirectory("src/monad/mpt/test")
 add_subdirectory("src/monad/async/test")
 add_subdirectory("perf_test")
+
+if(MONAD_FUZZTEST)
+  set(FUZZTEST_FUZZING_MODE
+      ON
+      CACHE INTERNAL "enable fuzzing" FORCE)
+  add_subdirectory("src/monad/mpt/test/fuzz")
+endif()
 

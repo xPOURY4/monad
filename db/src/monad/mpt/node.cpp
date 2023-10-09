@@ -121,6 +121,7 @@ Node *update_node_shorter_path(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
+    node->leaf_len = leaf_len;
     assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
