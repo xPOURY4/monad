@@ -1,7 +1,5 @@
 #pragma once
 
-#include "gtest/gtest.h"
-
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
@@ -35,7 +33,7 @@ namespace monad::test
 
     namespace fixed_updates
     {
-        const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+        std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
             {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
              0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
             {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
@@ -48,7 +46,7 @@ namespace monad::test
 
     namespace unrelated_leaves
     {
-        const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+        std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
             {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
              0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex},
             {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -61,7 +59,7 @@ namespace monad::test
 
     namespace var_len_updates
     {
-        const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+        std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
             {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
              0xdead_hex}, // 0
             {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -79,16 +77,22 @@ namespace monad::test
     };
 
     // merkle tries
-    class InMemoryTrie : public ::testing::Test
+    template <class Base>
+    class InMemoryTrieBase : public Base
     {
     public:
         node_ptr root;
         UpdateAux update_aux;
 
-        InMemoryTrie()
+        InMemoryTrieBase()
             : root{}
             , update_aux(std::make_unique<StateMachineWithBlockNo>(1), nullptr)
         {
+        }
+
+        void reset()
+        {
+            root.reset();
         }
 
         monad::byte_string root_hash()
@@ -111,7 +115,8 @@ namespace monad::test
             return nullptr;
         }
     };
-    class OnDiskTrie : public ::testing::Test
+    template <class Base>
+    class OnDiskTrieBase : public Base
     {
     private:
         monad::async::storage_pool pool{
@@ -124,7 +129,7 @@ namespace monad::test
         node_ptr root;
         UpdateAux update_aux;
 
-        OnDiskTrie()
+        OnDiskTrieBase()
             : ring(monad::io::Ring(2, 0))
             , rwbuf(
                   ring, 2, 2,
@@ -134,6 +139,11 @@ namespace monad::test
             , root{}
             , update_aux(std::make_unique<StateMachineWithBlockNo>(1), &io)
         {
+        }
+
+        void reset()
+        {
+            root.reset();
         }
 
         monad::byte_string root_hash()

@@ -5,7 +5,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
-#include "test_fixtures.hpp"
+#include "test_fixtures_gtest.hpp"
 
 #include <vector>
 
@@ -15,7 +15,7 @@ using namespace monad::test;
 
 namespace updates
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0x01111111_hex, 0xdead_hex}, // 0
         {0x11111111_hex, 0xbeef_hex}, // 1
         {0x11111111aaaa_hex, 0xdeafbeef_hex}, // 2
@@ -182,7 +182,7 @@ TEST(InMemoryPlainTrie, var_length)
 
 TEST(InMemoryPlainTrie, mismatch)
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0x12345678_hex, 0xdead_hex}, // 0
         {0x12346678_hex, 0xbeef_hex}, // 1
         {0x12445678_hex, 0xdeafbeef_hex}, // 2

@@ -3,7 +3,7 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
 
-#include "test_fixtures.hpp"
+#include "test_fixtures_gtest.hpp"
 
 using namespace ::monad::test;
 
@@ -12,7 +12,7 @@ struct TrieTest : public TFixture
 {
 };
 
-using TrieTypes = ::testing::Types<InMemoryTrie, OnDiskTrie>;
+using TrieTypes = ::testing::Types<InMemoryTrieGTest, OnDiskTrieGTest>;
 TYPED_TEST_SUITE(TrieTest, TrieTypes);
 
 template <typename TFixture>
@@ -20,8 +20,8 @@ struct EraseTrieTest : public TFixture
 {
 };
 
-using EraseTrieType =
-    ::testing::Types<EraseFixture<InMemoryTrie>, EraseFixture<OnDiskTrie>>;
+using EraseTrieType = ::testing::Types<
+    EraseFixture<InMemoryTrieGTest>, EraseFixture<OnDiskTrieGTest>>;
 TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
 // Test Starts
@@ -194,7 +194,7 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
 
 TYPED_TEST(TrieTest, inserts_shorter_leaf_data)
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
          0xdeadbeef_hex},
         {0x1234567822345678123456781234567812345678123456781234567812345678_hex,
@@ -293,7 +293,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     // 2 accounts, kv[0] and kv[1]
     // kv[2,3,4] are of kv[0]'s storages
     // kv[5,6,7] are of kv[1]'s storages
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
          0x0a0b_hex}, // 0
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbcc_hex,
@@ -406,7 +406,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
 
 TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 {
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
          0x0a0b_hex},
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbcc_hex,
@@ -524,7 +524,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
 {
     this->update_aux.sm = std::make_unique<StateMachineWithBlockNo>();
 
-    const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
+    std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
          0x1234_hex},
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbcc_hex,

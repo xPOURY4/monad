@@ -5,7 +5,7 @@
 #include "monad/core/small_prng.hpp"
 
 #include "fuzz/one_hundred_updates.hpp"
-#include "test_fixtures.hpp"
+#include "test_fixtures_gtest.hpp"
 
 #include <monad/mpt/trie.hpp>
 
@@ -29,7 +29,7 @@ namespace
             ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
     }
 
-    TEST_F(OnDiskTrie, single_thread_find)
+    TEST_F(OnDiskTrieGTest, single_thread_find)
     {
         // Populate the trie first with the 100 fixed updates
         std::vector<Update> updates;
@@ -104,7 +104,7 @@ namespace
 
     // THIS is the test resembles how execution txn fibers access states in
     // triedb
-    TEST_F(OnDiskTrie, spin_up_triedb_thread_do_find)
+    TEST_F(OnDiskTrieGTest, spin_up_triedb_thread_do_find)
     {
         // Populate the trie first with the 100 fixed updates
         std::vector<Update> updates;

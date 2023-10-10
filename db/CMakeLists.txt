@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.21)
 project(monad_trie)
 enable_testing()
 
-option(MONAD_FUZZTEST "Enable the fuzz tests" ON)
-
 # ##############################################################################
 # deps
 # ##############################################################################
@@ -70,9 +68,6 @@ add_subdirectory("src/monad/mpt/test")
 add_subdirectory("src/monad/async/test")
 add_subdirectory("perf_test")
 
-if(MONAD_FUZZTEST AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  set(FUZZTEST_FUZZING_MODE
-      ON
-      CACHE INTERNAL "enable fuzzing" FORCE)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   add_subdirectory("src/monad/mpt/test/fuzz")
 endif()
