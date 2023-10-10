@@ -321,8 +321,10 @@ public:
         // read buffer
         alignas(DMA_PAGE_SIZE)
             std::byte buffer[is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE];
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
         ConnectedOperationType state[0];
-
+#pragma GCC diagnostic pop
         constexpr registered_io_buffer_with_connected_operation() {}
     };
     friend struct

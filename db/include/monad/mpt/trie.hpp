@@ -107,11 +107,13 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
 //! update function interafaces
 node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates);
 
-// TODO: have fine() backed by disk, too
-inline Node *find(Node *node, byte_string_view key)
+// TODO: have find() backed by disk, too
+inline Node *find(Node *node, byte_string_view key, unsigned node_pi)
 {
-    unsigned pi = 0, node_pi = node->bitpacked.path_nibble_index_start;
-
+    if (!node) {
+        return nullptr;
+    }
+    unsigned pi = 0;
     while (pi < 2 * key.size()) {
         unsigned char nibble = get_nibble(key.data(), pi);
         if (node->path_nibble_index_end == node_pi) {
@@ -132,6 +134,14 @@ inline Node *find(Node *node, byte_string_view key)
         ++node_pi;
     }
     return node;
+}
+
+inline Node *find(Node *node, byte_string_view key)
+{
+    if (!node) {
+        return nullptr;
+    }
+    return find(node, key, node->bitpacked.path_nibble_index_start);
 }
 
 MONAD_MPT_NAMESPACE_END

@@ -20,7 +20,7 @@ to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
     }
     else {
         std::memcpy(dest, rlp.data(), rlp.size());
-        return rlp.size();
+        return static_cast<unsigned>(rlp.size());
     }
 }
 

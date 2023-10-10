@@ -21,7 +21,7 @@ struct Nibbles
 
     Nibbles(unsigned const si_, unsigned const ei_)
         : si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
+        , ei((si_ == ei_) ? 0 : static_cast<uint8_t>(ei_ - si_ + si))
         , data((si_ == ei_) ? nullptr : ([&] {
             MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
             unsigned const alloc_size = (ei + 1) / 2;
@@ -60,7 +60,7 @@ struct NibblesView
 
     constexpr unsigned size() const
     {
-        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
+        return (static_cast<uint8_t>(si) == ei) ? 0 : ((ei + 1) / 2);
     }
 
     constexpr NibblesView() = default;
@@ -70,7 +70,7 @@ struct NibblesView
         unsigned char const *const data_)
         : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
         , si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : (ei_ - si_ + si))
+        , ei((si_ == ei_) ? 0 : static_cast<uint8_t>(ei_ - si_ + si))
     {
         MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
     }

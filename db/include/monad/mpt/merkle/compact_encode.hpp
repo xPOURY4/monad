@@ -42,7 +42,7 @@ inline constexpr byte_string_view compact_encode(
         res[0] |= get_nibble(path, ci);
         ++ci;
     }
-    int res_ci = 2;
+    unsigned res_ci = 2;
     while (ci != ei) {
         set_nibble(res, res_ci++, get_nibble(path, ci++));
     }

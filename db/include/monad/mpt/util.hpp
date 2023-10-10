@@ -55,12 +55,13 @@ inline constexpr unsigned bitmask_index(uint16_t const mask, unsigned const i)
 {
     MONAD_DEBUG_ASSERT(i < 16);
     uint16_t const filter = UINT16_MAX >> (16 - i);
-    return std::popcount(static_cast<uint16_t>(mask & filter));
+    return static_cast<unsigned>(
+        std::popcount(static_cast<uint16_t>(mask & filter)));
 }
 
 inline constexpr unsigned bitmask_count(uint16_t const mask)
 {
-    return std::popcount(mask);
+    return static_cast<unsigned>(std::popcount(mask));
 }
 
 MONAD_MPT_NAMESPACE_END

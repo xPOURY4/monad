@@ -38,7 +38,7 @@ static_assert(alignof(ChildData) == 8);
 inline void set_child_data(ChildData &dest, byte_string_view src)
 {
     std::memcpy(dest.data, src.data(), src.size());
-    dest.len = src.size();
+    dest.len = static_cast<uint8_t>(src.size());
 }
 
 /* A note on generic trie
@@ -99,8 +99,10 @@ public:
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
     uint16_t disk_size{0}; // in bytes, mas possible ~1000
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
     unsigned char data[0];
+#pragma GCC diagnostic pop
     /* Data layout that exceeds node struct size is organized as below:
     * `n` is the number of children the node has and equals bitmask_count(mask)
     * `fnext` array: size-n array storing children's on-disk offsets
@@ -192,7 +194,7 @@ public:
         hash_len = hash_len_;
     }
 
-    constexpr unsigned to_j(uint16_t i) const noexcept
+    constexpr unsigned to_j(unsigned const i) const noexcept
     {
         // convert the enabled i'th bit in a 16-bit mask into its corresponding
         // index location - j
