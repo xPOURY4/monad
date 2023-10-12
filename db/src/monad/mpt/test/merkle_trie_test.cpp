@@ -25,7 +25,7 @@ using EraseTrieType =
 TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
 // Test Starts
-TYPED_TEST(TrieTest, OneElement)
+TYPED_TEST(TrieTest, insert_one_element)
 {
     // keys are the same
     auto const
@@ -51,7 +51,7 @@ TYPED_TEST(TrieTest, OneElement)
         0x5d225e3b0f1f386171899d343211850f102fa15de6e808c6f614915333a4f3ab_hex);
 }
 
-TYPED_TEST(TrieTest, Simple)
+TYPED_TEST(TrieTest, simple_inserts)
 {
     auto &kv = fixed_updates::kv;
 
@@ -74,7 +74,7 @@ TYPED_TEST(TrieTest, Simple)
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 }
 
-TYPED_TEST(TrieTest, same_prefix_length)
+TYPED_TEST(TrieTest, upsert_fixed_key_length)
 {
     auto &kv = var_len_updates::kv;
     // insert kv 0,1
@@ -143,7 +143,7 @@ TYPED_TEST(TrieTest, same_prefix_length)
     EXPECT_EQ(this->root.get(), nullptr);
 }
 
-TYPED_TEST(TrieTest, unrelated_leaves_with_read)
+TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
 {
     auto &kv = unrelated_leaves::kv;
 
@@ -185,7 +185,7 @@ TYPED_TEST(TrieTest, unrelated_leaves_with_read)
         kv[3].second);
 }
 
-TYPED_TEST(TrieTest, var_length_leaf_second)
+TYPED_TEST(TrieTest, inserts_shorter_leaf_data)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0x1234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -278,7 +278,7 @@ TYPED_TEST(EraseTrieTest, delete_one_at_a_time)
         0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
 }
 
-TYPED_TEST(TrieTest, upsert_diff_key_length)
+TYPED_TEST(TrieTest, upsert_var_len_keys)
 {
     // 2 accounts, kv[0] and kv[1]
     // kv[2,3,4] are of kv[0]'s storages
@@ -389,7 +389,7 @@ TYPED_TEST(TrieTest, upsert_diff_key_length)
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
 }
 
-TYPED_TEST(TrieTest, upsert_diff_key_length_nested)
+TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 {
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
@@ -505,7 +505,7 @@ TYPED_TEST(TrieTest, upsert_diff_key_length_nested)
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
 }
 
-TYPED_TEST(TrieTest, update_nested_with_blockno)
+TYPED_TEST(TrieTest, nested_updates_block_no)
 {
     const_cast<unsigned &>(this->update_aux.list_dim_to_apply_cache) = 1;
 
