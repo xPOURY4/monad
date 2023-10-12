@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{dbname_path, ring, rwbuf};
 
-        UpdateAux update_aux{comp};
+        UpdateAux update_aux{comp, nullptr, /*when_to_apply_cache*/ 0};
         if (!in_memory) {
             update_aux.set_io(&io);
         }

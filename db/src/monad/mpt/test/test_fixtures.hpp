@@ -114,7 +114,7 @@ namespace monad::test
             , io(MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{}, ring, rwbuf)
             , comp(MerkleCompute{})
             , root{}
-            , update_aux(comp, &io)
+            , update_aux(comp, &io, /*list_dim_to_apply_cache*/ 0)
         {
         }
 

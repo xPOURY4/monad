@@ -56,6 +56,7 @@ Node *create_coalesced_node_with_prefix(
     return node.release();
 }
 
+// all children's offset are set before creating parent
 Node *create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
     NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
@@ -78,7 +79,8 @@ Node *create_node(
         }
     }
     bytes += data_len;
-    node_ptr node = Node::make_node(bytes); // zero initialized
+    node_ptr node =
+        Node::make_node(bytes); // zero initialized in Node but not tail
     node->set_params(mask, is_leaf, leaf_len, hash_len);
     std::memcpy(node->child_off_data(), offsets, n * sizeof(Node::data_off_t));
     // order is enforced, must set path first
@@ -104,7 +106,7 @@ Node *create_node(
     return node.release();
 }
 
-Node *update_node_shorter_path(
+Node *update_node_diff_path_leaf(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data)
 {
@@ -122,7 +124,8 @@ Node *update_node_shorter_path(
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
     node->leaf_len = leaf_len;
-    assert(is_leaf == node->is_leaf());
+    node->bitpacked.is_leaf = is_leaf;
+    // assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first
     node->set_path(relpath); // overwrite old path
     if (is_leaf) {

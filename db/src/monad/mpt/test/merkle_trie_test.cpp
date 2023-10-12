@@ -507,6 +507,8 @@ TYPED_TEST(TrieTest, upsert_diff_key_length_nested)
 
 TYPED_TEST(TrieTest, update_nested_with_blockno)
 {
+    const_cast<unsigned &>(this->update_aux.list_dim_to_apply_cache) = 1;
+
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
          0x1234_hex},
@@ -533,6 +535,7 @@ TYPED_TEST(TrieTest, update_nested_with_blockno)
     state_changes.push_front(s1);
     state_changes.push_front(s2);
     auto blockno = 0x00000001_hex;
+    auto blockno2 = 0x00000002_hex;
     this->root = upsert_vector(
         this->update_aux,
         nullptr,
@@ -541,5 +544,32 @@ TYPED_TEST(TrieTest, update_nested_with_blockno)
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
-    // TODO: next blockno
+
+    // new blockno2
+    this->root = copy_node(std::move(this->root), blockno, blockno2, false);
+
+    storage.clear();
+    storage.push_front(a);
+    storage.push_front(b);
+    storage.push_front(c);
+    state_changes.clear();
+    state_changes.push_front(s1);
+    state_changes.push_front(s2);
+
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(blockno2, {}, false, &state_changes)});
+    state_root = find(this->root.get(), blockno2);
+    ASSERT_NE(state_root, nullptr);
+    EXPECT_EQ(
+        state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+
+    Node *old_state_root = find(this->root.get(), blockno);
+    ASSERT_NE(old_state_root, nullptr);
+    EXPECT_EQ(old_state_root->next_j(0), nullptr);
+    EXPECT_EQ(
+        old_state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 }

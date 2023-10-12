@@ -44,6 +44,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
 
 node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
 {
+    MONAD_DEBUG_ASSERT(update_aux.current_list_dim == 0);
     auto root_tnode = make_tnode();
     if (!old) {
         root_tnode->node = _create_new_trie(update_aux, std::move(updates));
@@ -67,6 +68,7 @@ node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
     if (update_aux.is_on_disk()) {
         write_new_root_node(update_aux, root_tnode);
     }
+    MONAD_DEBUG_ASSERT(update_aux.current_list_dim == 0);
     return node_ptr{root_tnode->node};
 }
 
@@ -275,8 +277,14 @@ Node *create_node_from_children_if_any(
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
+                bool const apply_cache = update_aux.current_list_dim ==
+                                         update_aux.list_dim_to_apply_cache;
+                bool const dispose_all = update_aux.current_list_dim >
+                                         update_aux.list_dim_to_apply_cache;
                 if (n > 1 && pi > 0 &&
-                    (pi + 1 + child.ptr->path_nibbles_len() > CACHE_LEVEL)) {
+                    (dispose_all ||
+                     (apply_cache && (pi + 1 + child.ptr->path_nibbles_len() >
+                                      CACHE_LEVEL)))) {
                     node_ptr{child.ptr};
                     child.ptr = nullptr;
                 }
@@ -332,20 +340,23 @@ bool _update_leaf_data(
         return true;
     }
     if (u.next) {
+        update_aux.current_list_dim++;
         Requests requests;
         requests.split_into_sublists(std::move(*(UpdateList *)u.next), 0);
+        bool finished = true;
         if (u.incarnation) {
             tnode->node = _create_new_trie_from_requests(
                 update_aux, requests, relpath, 0, _get_leaf_data(u));
-            return true;
         }
         else {
-            return _dispatch_updates(update_aux, old, tnode, requests, 0);
+            finished = _dispatch_updates(update_aux, old, tnode, requests, 0);
         }
+        update_aux.current_list_dim--;
+        return finished;
     }
     tnode->node = u.incarnation
                       ? create_leaf(u.opt.value().data(), relpath)
-                      : update_node_shorter_path(
+                      : update_node_diff_path_leaf(
                             old, relpath, _get_leaf_data(u, old->opt_leaf()));
     return true;
 }
@@ -582,7 +593,8 @@ bool _mismatch_handler(
             NibblesView relpath{
                 old_pi + 1, old->path_nibble_index_end, old->path_data()};
             // compute node hash
-            child.ptr = update_node_shorter_path(old, relpath, old->opt_leaf());
+            child.ptr =
+                update_node_diff_path_leaf(old, relpath, old->opt_leaf());
             child.branch = i;
             child.len = update_aux.comp.compute(child.data, child.ptr);
             --tnode->npending;

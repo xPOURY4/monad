@@ -228,11 +228,11 @@ public:
     //! data_offset array
     constexpr unsigned char *child_off_data() noexcept
     {
-        return data + n() * sizeof(Node *);
+        return data + n() * sizeof(file_offset_t);
     }
     constexpr unsigned char const *child_off_data() const noexcept
     {
-        return data + n() * sizeof(Node *);
+        return data + n() * sizeof(file_offset_t);
     }
     data_off_t child_off_j(unsigned const j) noexcept
     {
@@ -471,9 +471,28 @@ Node *create_node(
 /* create a new node from a old node with possibly shorter relpath and an
 optional new leaf data
 Copy old with new relpath and new leaf, new relpath might be shortened */
-Node *update_node_shorter_path(
+Node *update_node_diff_path_leaf(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt);
+
+inline Node *create_node_nodata(
+    uint16_t const mask, NibblesView const relpath, bool is_leaf = false)
+{
+    unsigned const n = bitmask_count(mask);
+    unsigned const bytes =
+        sizeof(Node) + relpath.size() +
+        n * (sizeof(Node *) + sizeof(file_offset_t) + sizeof(Node::data_off_t));
+
+    node_ptr node = Node::make_node(bytes);
+    memset((void *)node.get(), 0, bytes);
+
+    node->set_params(mask, is_leaf, /*leaf_len*/ 0, /*hash_len*/ 0);
+    if (relpath.size()) {
+        node->set_path(relpath);
+    }
+    node->disk_size = node->get_disk_size();
+    return node.release();
+}
 
 inline void serialize_node_to_buffer(unsigned char *write_pos, Node *const node)
 {
