@@ -1,0 +1,316 @@
+#include "gtest/gtest.h"
+
+#include "monad/async/detail/scope_polyfill.hpp"
+#include "monad/async/storage_pool.hpp"
+#include "monad/core/assert.h"
+
+#include <cmath>
+#include <iostream>
+
+namespace
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    inline void print_pool_statistics(const storage_pool &pool)
+    {
+        std::cout << "Pool has " << pool.devices().size() << " devices:";
+        for (size_t n = 0; n < pool.devices().size(); n++) {
+            auto &device = pool.devices()[n];
+            auto capacity = device.capacity();
+            std::cout << "\n   " << (n + 1) << ". chunks = " << device.chunks()
+                      << " capacity = " << capacity.first
+                      << " used = " << capacity.second
+                      << " path = " << device.current_path();
+        }
+        std::cout << "\n\n    Total conventional chunks = "
+                  << pool.chunks(storage_pool::cnv) << " of which active = "
+                  << pool.currently_active_chunks(storage_pool::cnv);
+        std::cout << "\nTotal sequential write chunks = "
+                  << pool.chunks(storage_pool::seq) << " of which active = "
+                  << pool.currently_active_chunks(storage_pool::seq);
+        std::cout << "\n   First conventional chunk ";
+        if (auto chunk = pool.chunk(storage_pool::cnv, 0)) {
+            std::cout << "has capacity = " << chunk->capacity()
+                      << " used = " << chunk->size();
+        }
+        else {
+            std::cout << "is not active";
+        }
+        std::cout << "\n   First sequential chunk ";
+        if (auto chunk = pool.chunk(storage_pool::seq, 0)) {
+            std::cout << "has capacity = " << chunk->capacity()
+                      << " used = " << chunk->size();
+        }
+        else {
+            std::cout << "is not active";
+        }
+        std::cout << std::endl;
+    }
+
+    inline void run_tests(storage_pool &pool)
+    {
+        print_pool_statistics(pool);
+        std::cout << "\n\nActivating first conventional chunk ..." << std::endl;
+        auto chunk1 = pool.activate_chunk(storage_pool::cnv, 0);
+        print_pool_statistics(pool);
+        std::cout << "\n\nActivating first sequential chunk ..." << std::endl;
+        auto chunk2 = pool.activate_chunk(storage_pool::seq, 0);
+        print_pool_statistics(pool);
+        std::cout << "\n\nActivating last sequential chunk (which is "
+                  << (pool.chunks(storage_pool::seq) - 1) << ") ..."
+                  << std::endl;
+        auto chunk3 = pool.activate_chunk(
+            storage_pool::seq, pool.chunks(storage_pool::seq) - 1);
+        print_pool_statistics(pool);
+
+        std::vector<std::byte> buffer(1024 * 1024);
+        memset(buffer.data(), 0xee, buffer.size());
+        std::cout << "\n\nWriting to conventional chunk ..." << std::endl;
+        auto fd = chunk1->write_fd(buffer.size());
+        EXPECT_EQ(fd.second, 0);
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk1->size(), buffer.size());
+
+        memset(buffer.data(), 0xaa, buffer.size());
+        fd = chunk1->write_fd(buffer.size());
+        EXPECT_EQ(fd.second, buffer.size());
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk1->size(), buffer.size() * 2);
+        print_pool_statistics(pool);
+
+        memset(buffer.data(), 0x77, buffer.size());
+        std::cout << "\n\nWriting to first sequential chunk ..." << std::endl;
+        fd = chunk2->write_fd(buffer.size());
+        EXPECT_EQ(fd.second, chunk1->capacity());
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk2->size(), buffer.size());
+        print_pool_statistics(pool);
+
+        memset(buffer.data(), 0x55, buffer.size());
+        fd = chunk2->write_fd(buffer.size());
+        EXPECT_EQ(fd.second, chunk1->capacity() + buffer.size());
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk2->size(), buffer.size() * 2);
+        print_pool_statistics(pool);
+
+        memset(buffer.data(), 0x33, buffer.size());
+        std::cout << "\n\nWriting to last sequential chunk ..." << std::endl;
+        fd = chunk3->write_fd(buffer.size());
+        EXPECT_EQ(
+            fd.second,
+            chunk1->capacity() * pool.chunks(storage_pool::seq) /
+                pool.devices().size());
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk3->size(), buffer.size());
+        print_pool_statistics(pool);
+
+        memset(buffer.data(), 0x22, buffer.size());
+        fd = chunk3->write_fd(buffer.size());
+        EXPECT_EQ(
+            fd.second,
+            chunk1->capacity() * pool.chunks(storage_pool::seq) /
+                    pool.devices().size() +
+                buffer.size());
+        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        EXPECT_EQ(chunk3->size(), buffer.size() * 2);
+        print_pool_statistics(pool);
+
+        std::vector<std::byte> buffer2(buffer.size());
+        auto check = [&](auto &chunk, char a, char b) {
+            auto fd = chunk->read_fd();
+            ::pread(fd.first, buffer2.data(), buffer2.size(), fd.second + 0);
+            memset(buffer.data(), a, buffer.size());
+            EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
+            ::pread(
+                fd.first,
+                buffer2.data(),
+                buffer2.size(),
+                fd.second + buffer.size());
+            memset(buffer.data(), b, buffer.size());
+            EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
+        };
+        std::cout << "\n\nChecking contents of conventional chunk ..."
+                  << std::endl;
+        check(chunk1, 0xee, 0xaa);
+        std::cout << "\n\nChecking contents of first sequential chunk ..."
+                  << std::endl;
+        check(chunk2, 0x77, 0x55);
+        std::cout << "\n\nChecking contents of last sequential chunk ..."
+                  << std::endl;
+        check(chunk3, 0x33, 0x22);
+
+        std::cout << "\n\nDestroying contents of last sequential chunk ..."
+                  << std::endl;
+        print_pool_statistics(pool);
+        chunk3->destroy_contents();
+        EXPECT_EQ(chunk1->size(), buffer.size() * 2);
+        EXPECT_EQ(chunk2->size(), buffer.size() * 2);
+        EXPECT_EQ(chunk3->size(), 0);
+        check(chunk1, 0xee, 0xaa);
+        check(chunk2, 0x77, 0x55);
+        check(chunk3, 0x00, 0x00);
+        print_pool_statistics(pool);
+
+        std::cout << "\n\nDestroying contents of conventional chunk ..."
+                  << std::endl;
+        chunk1->destroy_contents();
+        EXPECT_EQ(chunk1->size(), 0);
+        EXPECT_EQ(chunk2->size(), buffer.size() * 2);
+        EXPECT_EQ(chunk3->size(), 0);
+        check(chunk1, 0x00, 0x00);
+        check(chunk2, 0x77, 0x55);
+        check(chunk3, 0x00, 0x00);
+        print_pool_statistics(pool);
+
+        std::cout << "\n\nDestroying contents of first sequential chunk ..."
+                  << std::endl;
+        chunk2->destroy_contents();
+        EXPECT_EQ(chunk1->size(), 0);
+        EXPECT_EQ(chunk2->size(), 0);
+        EXPECT_EQ(chunk3->size(), 0);
+        check(chunk1, 0x00, 0x00);
+        check(chunk2, 0x00, 0x00);
+        check(chunk3, 0x00, 0x00);
+        print_pool_statistics(pool);
+
+        std::cout << "\n\nReleasing chunks ..." << std::endl;
+        chunk1.reset();
+        chunk2.reset();
+        chunk3.reset();
+        print_pool_statistics(pool);
+    }
+
+    TEST(StoragePool, anonymous_inode)
+    {
+        storage_pool pool(use_anonymous_inode_tag{});
+        run_tests(pool);
+    }
+
+    TEST(StoragePool, raw_partitions)
+    {
+        std::filesystem::path devs[] = {
+            "/dev/mapper/raid0-rawblk0", "/dev/mapper/raid0-rawblk1"};
+        try {
+            storage_pool pool(devs);
+            run_tests(pool);
+        }
+        catch (const std::system_error &e) {
+            if (e.code() != std::errc::no_such_file_or_directory) {
+                throw;
+            }
+        }
+    }
+
+    TEST(StoragePool, device_interleaving)
+    {
+        auto create_temp_file =
+            [](file_offset_t length) -> std::filesystem::path {
+            std::filesystem::path ret(
+                std::filesystem::temp_directory_path() /
+                "monad_storage_pool_test_XXXXXX");
+            int fd = ::mkstemp((char *)ret.native().data());
+            MONAD_ASSERT(fd != -1);
+            ::ftruncate(fd, length + 16384);
+            ::close(fd);
+            return ret;
+        };
+        static constexpr file_offset_t BLKSIZE = 256 * 1024 * 1024;
+        std::filesystem::path devs[] = {
+            create_temp_file(20 * BLKSIZE),
+            create_temp_file(10 * BLKSIZE),
+            create_temp_file(5 * BLKSIZE)};
+        auto undevs = monad::make_scope_exit([&]() noexcept {
+            for (auto &p : devs) {
+                std::filesystem::remove(p);
+            }
+        });
+        storage_pool pool(devs);
+        std::array<size_t, 3> counts{0, 0, 0};
+        std::array<std::vector<size_t>, 3> indices;
+        for (size_t n = 0; n < pool.chunks(storage_pool::seq); n++) {
+            auto p = pool.activate_chunk(storage_pool::seq, n);
+            auto device_idx = &p->device() - pool.devices().data();
+            counts[device_idx]++;
+            indices[device_idx].push_back(n);
+        }
+        EXPECT_EQ(counts[0], 19);
+        EXPECT_EQ(counts[1], 9);
+        EXPECT_EQ(counts[2], 4);
+        std::array<std::vector<size_t>, 3> gaps;
+        std::cout << "\n   Device 0 appears at";
+        for (size_t n = 0; n < indices[0].size(); n++) {
+            std::cout << " " << indices[0][n];
+            if (n > 0) {
+                gaps[0].push_back(indices[0][n] - indices[0][n - 1]);
+                EXPECT_LE(gaps[0].back(), 3);
+            }
+        }
+        std::cout << "\n   Device 1 appears at";
+        for (size_t n = 0; n < indices[1].size(); n++) {
+            std::cout << " " << indices[1][n];
+            if (n > 0) {
+                gaps[1].push_back(indices[1][n] - indices[1][n - 1]);
+                EXPECT_LE(gaps[1].back(), 5);
+            }
+        }
+        std::cout << "\n   Device 2 appears at";
+        for (size_t n = 0; n < indices[2].size(); n++) {
+            std::cout << " " << indices[2][n];
+            if (n > 0) {
+                gaps[2].push_back(indices[2][n] - indices[2][n - 1]);
+                EXPECT_LE(gaps[2].back(), 8);
+            }
+        }
+        std::cout << "\n";
+        auto print_stddev = [](size_t devid, const std::vector<size_t> &vals) {
+            double mean = 0;
+            for (auto &i : vals) {
+                mean += i;
+            }
+            mean /= vals.size();
+            double variance = 0;
+            for (auto &i : vals) {
+                variance += pow(i - mean, 2);
+            }
+            variance /= vals.size();
+            std::cout << "\n   Device " << devid
+                      << " incidence gap mean = " << mean
+                      << " stddev = " << sqrt(variance)
+                      << " 95% confidence interval = +/- "
+                      << (1.96 * sqrt(variance) / sqrt(vals.size()));
+        };
+        print_stddev(0, gaps[0]);
+        print_stddev(1, gaps[1]);
+        print_stddev(2, gaps[2]);
+        std::cout << std::endl;
+    }
+
+    TEST(StoragePool, config_hash_differs)
+    {
+        auto create_temp_file =
+            [](file_offset_t length) -> std::filesystem::path {
+            std::filesystem::path ret(
+                std::filesystem::temp_directory_path() /
+                "monad_storage_pool_test_XXXXXX");
+            int fd = ::mkstemp((char *)ret.native().data());
+            MONAD_ASSERT(fd != -1);
+            ::ftruncate(fd, length + 16384);
+            ::close(fd);
+            return ret;
+        };
+        static constexpr file_offset_t BLKSIZE = 256 * 1024 * 1024;
+        std::filesystem::path devs[] = {
+            create_temp_file(20 * BLKSIZE),
+            create_temp_file(10 * BLKSIZE),
+            create_temp_file(5 * BLKSIZE)};
+        auto undevs = monad::make_scope_exit([&]() noexcept {
+            for (auto &p : devs) {
+                std::filesystem::remove(p);
+            }
+        });
+        storage_pool{devs};
+        std::filesystem::path devs2[] = {devs[0], devs[1]};
+        EXPECT_THROW(storage_pool{devs2}, std::runtime_error);
+        storage_pool{devs2, storage_pool::mode::truncate};
+    }
+}

@@ -21,6 +21,7 @@ find_package(Boost COMPONENTS fiber REQUIRED)
 add_library(monad_async STATIC
      "${PROJECT_SOURCE_DIR}/src/monad/async/boost_fiber_wrappers.cpp"
      "${PROJECT_SOURCE_DIR}/src/monad/async/io.cpp"
+     "${PROJECT_SOURCE_DIR}/src/monad/async/storage_pool.cpp"
      "${PROJECT_SOURCE_DIR}/src/monad/async/util.cpp"
 )
 target_include_directories(monad_async

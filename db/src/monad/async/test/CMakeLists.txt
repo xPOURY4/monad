@@ -15,4 +15,6 @@ if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 target_link_libraries(sender_receiver_test PRIVATE Boost::fiber)
 
+add_trie_test(storage_pool_test "storage_pool.cpp")
+
 add_trie_test(writeback_cache_test "writeback_cache.cpp")
