@@ -1,0 +1,186 @@
+#include "gtest/gtest.h"
+
+#include "monad/async/boost_fiber_wrappers.hpp"
+
+#include "monad/core/small_prng.hpp"
+
+#include "fuzz/one_hundred_updates.hpp"
+#include "test_fixtures.hpp"
+
+#include <monad/mpt/trie.hpp>
+
+#include <boost/fiber/buffered_channel.hpp>
+
+#include <vector>
+
+namespace
+{
+    using namespace monad::test;
+    using namespace MONAD_ASYNC_NAMESPACE;
+    static constexpr size_t MAX_CONCURRENCY = 4;
+
+    inline monad::io::Ring make_ring()
+    {
+        return monad::io::Ring(MAX_CONCURRENCY, 0);
+    }
+    inline monad::io::Buffers make_buffers(monad::io::Ring &ring)
+    {
+        return monad::io::Buffers{
+            ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
+    }
+
+    TEST_F(OnDiskTrie, single_thread_find)
+    {
+        // Populate the trie first with the 100 fixed updates
+        std::vector<Update> updates;
+        for (auto &i : one_hundred_updates) {
+            updates.emplace_back(make_update(i.first, i.second));
+        }
+        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        EXPECT_EQ(
+            root_hash(),
+            0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
+
+        typedef boost::fibers::buffered_channel<find_request_t> channel_t;
+        channel_t chan{2};
+        AsyncIO &io = *this->update_aux.io;
+
+        // fiber that push one request to chan
+        auto push_request_impl =
+            [&](int i) -> result<std::optional<monad::byte_string>> {
+            ::boost::fibers::promise<monad::mpt::find_result_type> p;
+            find_request_t req{
+                &p, this->root.get(), one_hundred_updates[i].first};
+            EXPECT_TRUE(
+                chan.push(std::move(req)) !=
+                boost::fibers::channel_op_status::closed);
+
+            auto [node, errc] = p.get_future().get();
+            if (node) {
+                return monad::byte_string{node->leaf_view()};
+            }
+            std::cerr << "ERROR: find node error" << (uint8_t)errc << std::endl;
+            return std::nullopt;
+        };
+
+        // Launch fiber tasks
+        std::vector<
+            ::boost::fibers::future<result<std::optional<monad::byte_string>>>>
+            futures;
+        for (auto i = 0; i < 100; ++i) {
+            futures.emplace_back(::boost::fibers::async(push_request_impl, i));
+        }
+        // pop from channel and poll uring to complete fiber tasks
+        for (unsigned i = 0; i < futures.size(); ++i) {
+            auto &fut = futures[i];
+            while (::boost::fibers::future_status::ready !=
+                   fut.wait_for(std::chrono::seconds(0))) {
+                find_request_t req;
+                if (boost::fibers::channel_op_status::success ==
+                    chan.try_pop(req)) {
+                    monad::mpt::find_notify_fiber_future(
+                        io, *req.promise, req.root, req.key, req.node_pi);
+                }
+                io.poll_nonblocking(1);
+            }
+            result<std::optional<monad::byte_string>> res = fut.get();
+            // The result may contain a failure
+            if (!res) {
+                std::cerr << "ERROR: " << res.error().message().c_str()
+                          << std::endl;
+                ASSERT_TRUE(res);
+            }
+            ASSERT_TRUE(res.value().has_value());
+            EXPECT_EQ(res.value().value(), one_hundred_updates[i].second);
+        }
+    }
+
+    // THIS is the test resembles how execution txn fibers access states in
+    // triedb
+    TEST_F(OnDiskTrie, spin_up_triedb_thread_do_find)
+    {
+        // Populate the trie first with the 100 fixed updates
+        std::vector<Update> updates;
+        for (auto &i : one_hundred_updates) {
+            updates.emplace_back(make_update(i.first, i.second));
+        }
+        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        EXPECT_EQ(
+            root_hash(),
+            0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
+
+        // main thread initiates fibers with find requests, hidden thread is
+        // responsible for polling uring
+        typedef boost::fibers::buffered_channel<find_request_t> channel_t;
+        channel_t chan{2};
+
+        std::jthread triedb_thr([&](std ::stop_token token) {
+            // create a new io instance of the same file name
+            auto ring = make_ring();
+            auto buf = make_buffers(ring);
+            int main_fd = this->update_aux.io->get_rd_fd();
+            AsyncIO io({main_fd, main_fd}, ring, buf);
+            // when nothing to pop, poll uring, when nothing to poll, pop from
+            // chan
+            while (!token.stop_requested()) {
+                find_request_t req;
+                while (boost::fibers::channel_op_status::success ==
+                       chan.try_pop(req)) {
+                    monad::mpt::find_notify_fiber_future(
+                        io, *req.promise, req.root, req.key, req.node_pi);
+                }
+                while (io.poll_nonblocking(1)) {
+                }
+            }
+            io.wait_until_done();
+        });
+
+        typedef std::pair<monad::byte_string, monad::mpt::find_result>
+            fiber_result;
+
+        auto push_request_impl = [&](int i) -> result<fiber_result> {
+            ::boost::fibers::promise<monad::mpt::find_result_type> p;
+            find_request_t req{
+                &p, this->root.get(), one_hundred_updates[i].first};
+            EXPECT_TRUE(
+                chan.push(std::move(req)) !=
+                boost::fibers::channel_op_status::closed);
+
+            auto [node, errc] = p.get_future().get();
+            if (node) {
+                return {monad::byte_string{node->leaf_view()}, errc};
+            }
+            return {monad::byte_string{}, errc};
+        };
+
+        // Launch fiber tasks
+        int nreq = 1000;
+        std::vector<::boost::fibers::future<result<fiber_result>>> futures;
+        for (auto i = 0; i < nreq; ++i) {
+            futures.emplace_back(
+                ::boost::fibers::async(push_request_impl, i % 100));
+        }
+        for (unsigned i = 0; i < futures.size(); ++i) {
+            auto &fut = futures[i];
+            auto res = fut.get();
+            // The result may contain a failure
+            if (!res) {
+                std::cerr << "ERROR: " << res.error().message().c_str()
+                          << std::endl;
+                ASSERT_TRUE(res);
+            }
+            // Find result may contain a failure as well
+            if (auto errc = res.value().second; errc != find_result::success) {
+                std::cerr << "ERROR: find node error " << static_cast<int>(errc)
+                          << std::endl;
+            }
+            else {
+                EXPECT_EQ(
+                    res.value().first, one_hundred_updates[i % 100].second);
+            }
+        }
+
+        triedb_thr.request_stop();
+        triedb_thr.join();
+    }
+}

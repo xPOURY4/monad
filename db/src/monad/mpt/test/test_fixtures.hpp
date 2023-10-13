@@ -75,6 +75,7 @@ namespace monad::test
     public:
         node_ptr root;
         UpdateAux update_aux;
+        bool const on_disk{false};
 
         InMemoryTrie()
             : comp(MerkleCompute{})
@@ -104,6 +105,7 @@ namespace monad::test
     public:
         node_ptr root;
         UpdateAux update_aux;
+        bool const on_disk{true};
 
         OnDiskTrie()
             : ring(monad::io::Ring(2, 0))

@@ -50,10 +50,14 @@ TEST(InMemoryPlainTrie, var_length)
          make_update(kv[2].first, kv[2].second),
          make_update(kv[3].first, kv[3].second)});
 
-    EXPECT_EQ(find(root.get(), kv[0].first)->leaf_view(), kv[0].second);
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[2].first)->leaf_view(), kv[2].second);
-    EXPECT_EQ(find(root.get(), kv[3].first)->leaf_view(), kv[3].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[0].first)->leaf_view(), kv[0].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[2].first)->leaf_view(), kv[2].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[3].first)->leaf_view(), kv[3].second);
 
     EXPECT_EQ(root->mask, 0b11);
     EXPECT_EQ(root->leaf_len, 0);
@@ -93,12 +97,18 @@ TEST(InMemoryPlainTrie, var_length)
         root.get(),
         {make_update(kv[4].first, kv[4].second),
          make_update(kv[5].first, kv[5].second)});
-    EXPECT_EQ(find(root.get(), kv[0].first)->leaf_view(), kv[0].second);
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[2].first)->leaf_view(), kv[2].second);
-    EXPECT_EQ(find(root.get(), kv[3].first)->leaf_view(), kv[3].second);
-    EXPECT_EQ(find(root.get(), kv[4].first)->leaf_view(), kv[4].second);
-    EXPECT_EQ(find(root.get(), kv[5].first)->leaf_view(), kv[5].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[0].first)->leaf_view(), kv[0].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[2].first)->leaf_view(), kv[2].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[3].first)->leaf_view(), kv[3].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[4].first)->leaf_view(), kv[4].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[5].first)->leaf_view(), kv[5].second);
 
     EXPECT_EQ(root->mask, 0b11);
     node1 = root->next(1); // 1111... 111a... 111b...
@@ -117,9 +127,12 @@ TEST(InMemoryPlainTrie, var_length)
         root.get(),
         {make_update(kv[6].first, kv[6].second),
          make_update(kv[7].first, kv[7].second)});
-    EXPECT_EQ(find(root.get(), kv[5].first)->leaf_view(), kv[5].second);
-    EXPECT_EQ(find(root.get(), kv[6].first)->leaf_view(), kv[6].second);
-    EXPECT_EQ(find(root.get(), kv[7].first)->leaf_view(), kv[7].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[5].first)->leaf_view(), kv[5].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[6].first)->leaf_view(), kv[6].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[7].first)->leaf_view(), kv[7].second);
 
     node1 = root->next(1);
     node111b = node1->next(0xb);
@@ -160,9 +173,12 @@ TEST(InMemoryPlainTrie, mismatch)
         {make_update(kv[0].first, kv[0].second),
          make_update(kv[1].first, kv[1].second),
          make_update(kv[2].first, kv[2].second)});
-    EXPECT_EQ(find(root.get(), kv[0].first)->leaf_view(), kv[0].second);
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[2].first)->leaf_view(), kv[2].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[0].first)->leaf_view(), kv[0].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[2].first)->leaf_view(), kv[2].second);
 
     EXPECT_EQ(root->mask, 0b11000);
     EXPECT_EQ(
@@ -184,10 +200,14 @@ TEST(InMemoryPlainTrie, mismatch)
         root.get(),
         {make_update(kv[3].first, kv[3].second),
          make_update(kv[4].first, kv[4].second)});
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[2].first)->leaf_view(), kv[2].second);
-    EXPECT_EQ(find(root.get(), kv[3].first)->leaf_view(), kv[3].second);
-    EXPECT_EQ(find(root.get(), kv[4].first)->leaf_view(), kv[4].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[2].first)->leaf_view(), kv[2].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[3].first)->leaf_view(), kv[3].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[4].first)->leaf_view(), kv[4].second);
 
     EXPECT_EQ(root->mask, 0b11000);
     EXPECT_EQ(
@@ -261,9 +281,12 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         {make_update(kv[0].first, kv[0].second), // 0x01111111
          make_update(kv[1].first, kv[1].second), // 0x11111111
          make_update(kv[2].first, kv[2].second)}); // 0x11111111aaaa
-    EXPECT_EQ(find(root.get(), kv[0].first)->leaf_view(), kv[0].second);
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[2].first)->leaf_view(), kv[2].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[0].first)->leaf_view(), kv[0].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[2].first)->leaf_view(), kv[2].second);
 
     // upsert a bunch of new kvs, with incarnation flag set
     root = upsert_vector(
@@ -271,8 +294,11 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         root.get(),
         {make_update(kv[1].first, kv[1].second, true), // 0x11111111
          make_update(kv[3].first, kv[3].second)}); // 0x11111111aacd
-    EXPECT_EQ(find(root.get(), kv[0].first)->leaf_view(), kv[0].second);
-    EXPECT_EQ(find(root.get(), kv[1].first)->leaf_view(), kv[1].second);
-    EXPECT_EQ(find(root.get(), kv[3].first)->leaf_view(), kv[3].second);
-    EXPECT_EQ(find(root.get(), kv[2].first), nullptr);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[0].first)->leaf_view(), kv[0].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[1].first)->leaf_view(), kv[1].second);
+    EXPECT_EQ(
+        find_in_mem_trie(root.get(), kv[3].first)->leaf_view(), kv[3].second);
+    EXPECT_EQ(find_in_mem_trie(root.get(), kv[2].first), nullptr);
 }

@@ -11,6 +11,18 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
 
+struct async_write_node_result
+{
+    file_offset_t offset_written_to;
+    unsigned bytes_appended;
+    erased_connected_operation *io_state;
+};
+async_write_node_result async_write_node(
+    AsyncIO &io, node_writer_unique_ptr_type &node_writer, Node *node);
+// invoke at the end of each block upsert
+async_write_node_result
+write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
+
 /* Names: `pi` is nibble index in prefix of an update,
  `old_pi` is nibble index of relpath in previous node - old.
  `*psi` is the starting nibble index in current function frame
@@ -134,7 +146,7 @@ struct update_receiver
     }
 
     void set_value(
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+        erased_connected_operation *,
         result<std::span<const std::byte>> _buffer)
     {
         MONAD_ASSERT(_buffer);
@@ -193,7 +205,7 @@ struct create_node_receiver
     }
 
     void set_value(
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+        erased_connected_operation *,
         result<std::span<const std::byte>> _buffer)
     {
         MONAD_ASSERT(_buffer);
@@ -209,18 +221,6 @@ struct create_node_receiver
 };
 static_assert(sizeof(create_node_receiver) == 32);
 static_assert(alignof(create_node_receiver) == 8);
-
-using MONAD_ASYNC_NAMESPACE::receiver;
-template <receiver Receiver>
-struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
-{
-    read_update_sender(Receiver const &receiver)
-        : read_single_buffer_sender(
-              receiver.rd_offset, {(std::byte *)nullptr /*set by AsyncIO for
-              us*/, receiver.bytes_to_read})
-    {
-    }
-};
 
 template <receiver Receiver>
 void async_read(UpdateAux &update_aux, Receiver &&receiver)
@@ -673,7 +673,7 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
     node_writer_unique_ptr_type &node_writer = update_aux.node_writer;
     assert(root_tnode->node);
 
-    auto ret = async_write_node(io, node_writer, root_tnode->node);
+    auto const ret = async_write_node(io, node_writer, root_tnode->node);
     // Round up with all bits zero
     auto *sender = &node_writer->sender();
     auto written = sender->written_buffer_bytes();

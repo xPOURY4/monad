@@ -189,7 +189,7 @@ namespace details
         } state{};
 
         unsigned _encode_two_pieces(
-            unsigned char *const dest, NibblesView relpath,
+            unsigned char *const dest, NibblesView const relpath,
             byte_string_view const second, bool const is_leaf = false)
         {
             unsigned char path_arr[56];

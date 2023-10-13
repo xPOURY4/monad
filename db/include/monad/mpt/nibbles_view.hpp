@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/core/assert.h>
+#include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
 #include <monad/mpt/config.hpp>
 
@@ -13,17 +14,18 @@ MONAD_MPT_NAMESPACE_BEGIN
 struct NibblesView;
 struct Nibbles
 {
+    using size_type = uint8_t; // max length support is 255 nibbles
     bool si{false};
-    uint8_t ei{0};
+    size_type ei{0};
     unsigned char *data{nullptr};
 
     constexpr Nibbles() = default;
 
     Nibbles(unsigned const si_, unsigned const ei_)
         : si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : static_cast<uint8_t>(ei_ - si_ + si))
+        , ei((si_ == ei_) ? 0 : static_cast<size_type>(ei_ - si_ + si))
         , data((si_ == ei_) ? nullptr : ([&] {
-            MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
+            MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
             unsigned const alloc_size = (ei + 1) / 2;
             auto *ret = std::malloc(alloc_size);
             if (ret == nullptr) {
@@ -46,7 +48,7 @@ struct Nibbles
 
     constexpr unsigned size() const
     {
-        return ((uint8_t)si == ei) ? 0 : ((ei + 1) / 2);
+        return ((size_type)si == ei) ? 0 : ((ei + 1) / 2);
     }
 };
 static_assert(sizeof(Nibbles) == 16);
@@ -54,14 +56,10 @@ static_assert(alignof(Nibbles) == 8);
 
 struct NibblesView
 {
+    using size_type = uint8_t; // max length support is 255 nibbles
     unsigned char const *data{nullptr};
-    bool si{false};
-    uint8_t ei{0};
-
-    constexpr unsigned size() const
-    {
-        return (static_cast<uint8_t>(si) == ei) ? 0 : ((ei + 1) / 2);
-    }
+    bool const si{false};
+    size_type const ei{0};
 
     constexpr NibblesView() = default;
 
@@ -70,18 +68,45 @@ struct NibblesView
         unsigned char const *const data_)
         : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
         , si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : static_cast<uint8_t>(ei_ - si_ + si))
+        , ei((si_ == ei_) ? 0 : static_cast<size_type>(ei_ - si_ + si))
     {
-        MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 128);
+        MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
     }
 
+    constexpr NibblesView(NibblesView const &other)
+        : NibblesView(other.si, other.ei, other.data)
+    {
+    }
+    NibblesView &operator=(NibblesView const &other) = delete;
+
+    // constructor from byte_string_view
+    constexpr NibblesView(byte_string_view const &s)
+        : NibblesView(false, 2 * s.size(), s.data())
+    {
+    }
+
+    // construct from Nibbles
     constexpr NibblesView(Nibbles const &n)
         : NibblesView{n.si, n.ei, n.data}
     {
     }
 
-    constexpr NibblesView(NibblesView const &other) = default;
-    NibblesView &operator=(NibblesView const &other) = default;
+    constexpr size_type nibble_size() const
+    {
+        return ei - static_cast<size_type>(si);
+    }
+
+    // size of data in bytes
+    constexpr unsigned size() const
+    {
+        return (static_cast<size_type>(si) == ei) ? 0 : ((ei + 1) / 2);
+    }
+
+    constexpr NibblesView suffix(size_type pos)
+    {
+        return NibblesView{
+            static_cast<unsigned>(this->si + pos), this->ei, this->data};
+    }
 
     constexpr bool operator==(NibblesView const &other) const
     {
@@ -103,6 +128,11 @@ struct NibblesView
         }
         return true;
     }
+
+    unsigned char operator[](unsigned i) const
+    {
+        return get_nibble(data, si + i);
+    }
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
@@ -114,7 +144,7 @@ inline Nibbles &Nibbles::operator=(NibblesView const &n)
     }
     si = n.si;
     ei = n.ei;
-    MONAD_DEBUG_ASSERT(si <= ei && ei <= 128);
+    MONAD_DEBUG_ASSERT(si <= ei && ei <= 255);
     if (si == ei) {
         return *this;
     }

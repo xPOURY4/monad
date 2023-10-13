@@ -42,6 +42,9 @@ add_library(monad_trie STATIC
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
     "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
 
+    "${PROJECT_SOURCE_DIR}/src/monad/mpt/copy_node.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"
+    "${PROJECT_SOURCE_DIR}/src/monad/mpt/in_memory_find.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/node.cpp"
     "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
 )
