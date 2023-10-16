@@ -89,7 +89,9 @@ node_ptr copy_node(
                             ret->set_next_j(j++, leaf);
                         }
                         else if (mask & bit) {
-                            ret->set_next_j(j++, node->next_j(old_j++));
+                            // also clear node's child mem ptr
+                            ret->set_next_j(
+                                j++, node->next_j_ptr(old_j++).release());
                         }
                     }
                     return ret;
@@ -106,7 +108,7 @@ node_ptr copy_node(
         }
         if (auto node_nibble = get_nibble(node->path_data(), node_pi);
             nibble != node_nibble) {
-            // split node's path: turn node to a branch node having two branches
+            // split node's path: turn node to a branch node with two children
             new_node = [&]() -> Node * {
                 Node *leaf = update_node_diff_path_leaf(
                     src_leaf, /* unlink its children to avoid dup reference */

@@ -371,11 +371,14 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         NibblesView const relpath{
             pi, (uint8_t)(2 * u.key.size()), u.key.data()};
         if (u.next) {
+            update_aux.current_list_dim++;
             Requests requests;
             requests.split_into_sublists(std::move(*(UpdateList *)u.next), 0);
             MONAD_DEBUG_ASSERT(u.opt.has_value());
-            return _create_new_trie_from_requests(
+            auto ret = _create_new_trie_from_requests(
                 update_aux, requests, relpath, 0, _get_leaf_data(u));
+            update_aux.current_list_dim--;
+            return ret;
         }
         return create_leaf(u.opt.value(), relpath);
     }
