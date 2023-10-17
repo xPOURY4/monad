@@ -2,6 +2,8 @@
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include <stack>
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 find_result _find_and_dealloc(Node *node, byte_string_view key)

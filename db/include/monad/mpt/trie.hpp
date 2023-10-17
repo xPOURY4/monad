@@ -9,10 +9,12 @@
 #include <monad/async/io.hpp>
 #include <monad/async/io_senders.hpp>
 
+#include <monad/core/unordered_map.hpp>
+
 #include <boost/fiber/future.hpp>
 
 #include <cstdint>
-#include <stack>
+#include <list>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -140,20 +142,32 @@ struct find_request_t
     byte_string_view key{};
     std::optional<unsigned> node_pi{std::nullopt};
 };
+static_assert(sizeof(find_request_t) == 40);
+static_assert(alignof(find_request_t) == 8);
+
+namespace detail
+{
+    // Type for intermediate pending requests that pends on an inflight read. It
+    // is a pair of the search key and a promise associated with the initial
+    // find_request_t.
+    using pending_request_t =
+        std::pair<NibblesView, ::boost::fibers::promise<find_result_type> *>;
+}
+using inflight_map_t =
+    unordered_dense_map<file_offset_t, std::list<detail::pending_request_t>>;
+
 //! \warning this is not threadsafe, should only be called from triedb thread
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
 // not race free.
 void find_notify_fiber_future(
-    MONAD_ASYNC_NAMESPACE::AsyncIO &io,
-    ::boost::fibers::promise<find_result_type> &promise, Node *node,
-    byte_string_view key, std::optional<unsigned> node_pi = std::nullopt);
+    MONAD_ASYNC_NAMESPACE::AsyncIO &, inflight_map_t &inflights,
+    find_request_t);
 
 /*! \brief Copy a leaf node under prefix `src` to prefix `dest`. Invoked before
-committing block updates to triedb. By copy we mean everything other than the
+committing block updates to triedb. By copy we mean everything other than
 relpath. When copying children over, also remove the original's child pointers
-to avoid dup referencing.
-Additionally for on-disk trie, after copy is done, deallocate nodes from memory
-under prefix `src` from bottom up. */
+to avoid dup referencing. For on-disk trie deallocate nodes under prefix `src`
+after copy is done when the node is the only in-memory child of its parent. */
 node_ptr copy_node(
     UpdateAux &, node_ptr root, byte_string_view src, byte_string_view dest);
 

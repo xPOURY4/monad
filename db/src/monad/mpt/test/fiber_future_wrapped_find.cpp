@@ -44,7 +44,11 @@ namespace
         typedef boost::fibers::buffered_channel<find_request_t> channel_t;
         channel_t chan{2};
         AsyncIO &io = *this->update_aux.io;
-
+        // randomize the order of find requests
+        std::vector<int> rand_idx(100);
+        std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
+        auto rng = std::minstd_rand{};
+        std::shuffle(std::begin(rand_idx), std::end(rand_idx), rng);
         // fiber that push one request to chan
         auto push_request_impl =
             [&](int i) -> result<std::optional<monad::byte_string>> {
@@ -68,8 +72,10 @@ namespace
             ::boost::fibers::future<result<std::optional<monad::byte_string>>>>
             futures;
         for (auto i = 0; i < 100; ++i) {
-            futures.emplace_back(::boost::fibers::async(push_request_impl, i));
+            futures.emplace_back(
+                ::boost::fibers::async(push_request_impl, rand_idx[i]));
         }
+        inflight_map_t inflights;
         // pop from channel and poll uring to complete fiber tasks
         for (unsigned i = 0; i < futures.size(); ++i) {
             auto &fut = futures[i];
@@ -78,8 +84,7 @@ namespace
                 find_request_t req;
                 if (boost::fibers::channel_op_status::success ==
                     chan.try_pop(req)) {
-                    monad::mpt::find_notify_fiber_future(
-                        io, *req.promise, req.root, req.key, req.node_pi);
+                    monad::mpt::find_notify_fiber_future(io, inflights, req);
                 }
                 io.poll_nonblocking(1);
             }
@@ -91,7 +96,8 @@ namespace
                 ASSERT_TRUE(res);
             }
             ASSERT_TRUE(res.value().has_value());
-            EXPECT_EQ(res.value().value(), one_hundred_updates[i].second);
+            EXPECT_EQ(
+                res.value().value(), one_hundred_updates[rand_idx[i]].second);
         }
     }
 
@@ -113,7 +119,14 @@ namespace
         // responsible for polling uring
         typedef boost::fibers::buffered_channel<find_request_t> channel_t;
         channel_t chan{2};
+        // randomize the order of find requests
+        int nreq = 1000;
+        std::vector<int> rand_idx(nreq);
+        std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
+        auto rng = std::minstd_rand{};
+        std::shuffle(std::begin(rand_idx), std::end(rand_idx), rng);
 
+        inflight_map_t inflights;
         std::jthread triedb_thr([&](std ::stop_token token) {
             // create a new io instance of the same file name
             auto ring = make_ring();
@@ -126,8 +139,7 @@ namespace
                 find_request_t req;
                 while (boost::fibers::channel_op_status::success ==
                        chan.try_pop(req)) {
-                    monad::mpt::find_notify_fiber_future(
-                        io, *req.promise, req.root, req.key, req.node_pi);
+                    monad::mpt::find_notify_fiber_future(io, inflights, req);
                 }
                 while (io.poll_nonblocking(1)) {
                 }
@@ -154,11 +166,10 @@ namespace
         };
 
         // Launch fiber tasks
-        int nreq = 1000;
         std::vector<::boost::fibers::future<result<fiber_result>>> futures;
         for (auto i = 0; i < nreq; ++i) {
             futures.emplace_back(
-                ::boost::fibers::async(push_request_impl, i % 100));
+                ::boost::fibers::async(push_request_impl, rand_idx[i] % 100));
         }
         for (unsigned i = 0; i < futures.size(); ++i) {
             auto &fut = futures[i];
@@ -175,8 +186,10 @@ namespace
                           << std::endl;
             }
             else {
+                EXPECT_EQ(res.value().second, find_result::success);
                 EXPECT_EQ(
-                    res.value().first, one_hundred_updates[i % 100].second);
+                    res.value().first,
+                    one_hundred_updates[rand_idx[i] % 100].second);
             }
         }
 

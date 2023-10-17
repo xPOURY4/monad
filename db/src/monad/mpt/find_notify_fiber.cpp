@@ -10,28 +10,26 @@ MONAD_MPT_NAMESPACE_BEGIN
 using namespace MONAD_ASYNC_NAMESPACE;
 
 void find_recursive(
-    AsyncIO &io, ::boost::fibers::promise<find_result_type> &promise,
-    Node *node, NibblesView key,
+    AsyncIO &, inflight_map_t &, ::boost::fibers::promise<find_result_type> &,
+    Node *, NibblesView key,
     std::optional<unsigned> opt_node_pi = std::nullopt);
 
 struct find_receiver
 {
     AsyncIO *io;
-    ::boost::fibers::promise<find_result_type> &promise;
+    inflight_map_t &inflights;
     Node *parent;
-    NibblesView next_key;
-    file_offset_t rd_offset;
-    unsigned bytes_to_read;
+    file_offset_t rd_offset; // required for sender
+    unsigned bytes_to_read; // required for sender too
     uint16_t buffer_off;
     unsigned char const branch_j;
 
     find_receiver(
-        AsyncIO &_io, ::boost::fibers::promise<find_result_type> &_promise,
-        Node *_parent, unsigned char const _branch, NibblesView const _next_key)
+        AsyncIO &_io, inflight_map_t &_inflights, Node *const _parent,
+        unsigned char const _branch)
         : io(&_io)
-        , promise(_promise)
+        , inflights(_inflights)
         , parent(_parent)
-        , next_key(_next_key)
         , branch_j(parent->to_j(_branch))
     {
         file_offset_t offset = parent->fnext_j(branch_j);
@@ -44,24 +42,37 @@ struct find_receiver
         buffer_off = uint16_t(node_offset - rd_offset);
     }
 
+    //! notify a list of requests pending on this node
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
         result<std::span<const std::byte>> _buffer)
     {
         MONAD_ASSERT(_buffer);
         std::span<const std::byte> buffer = std::move(_buffer).assume_value();
+        MONAD_ASSERT(parent->next_j(branch_j) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off)
                          .release();
         parent->set_next_j(branch_j, node);
-        find_recursive(*io, promise, node, next_key);
+        auto const offset = parent->fnext_j(branch_j);
+        auto &pendings = inflights.at(offset);
+        for (auto &[key, promise] : pendings) {
+            MONAD_DEBUG_ASSERT(promise != nullptr);
+            find_recursive(*io, inflights, *promise, node, key);
+        }
+        inflights.erase(offset);
         return;
     }
 };
 
+// Use a hashtable for inflight requests, it maps a file offset to a list of
+// requests. If a read request exists in the hash table, simply append to an
+// existing inflight read, Otherwise, send a read request and put itself on the
+// map
 void find_recursive(
-    AsyncIO &io, ::boost::fibers::promise<find_result_type> &promise,
-    Node *node, NibblesView key, std::optional<unsigned> opt_node_pi)
+    AsyncIO &io, inflight_map_t &inflights,
+    ::boost::fibers::promise<find_result_type> &promise, Node *node,
+    NibblesView const key, std::optional<unsigned> opt_node_pi)
 {
     MONAD_ASSERT(node != nullptr);
     unsigned pi = 0, node_pi = opt_node_pi.has_value()
@@ -83,19 +94,26 @@ void find_recursive(
         return;
     }
     MONAD_ASSERT(pi < key.nibble_size());
-    if (unsigned char branch = key[pi]; node->mask & (1u << branch)) {
-        NibblesView next_key = key.suffix(pi + 1);
-        if (node->next(branch) == nullptr) {
-            find_receiver receiver(io, promise, node, branch, next_key);
-            read_update_sender sender(receiver);
-            auto iostate =
-                io.make_connected(std::move(sender), std::move(receiver));
-            iostate->initiate();
-            iostate.release();
+    if (unsigned char const branch = key[pi]; node->mask & (1u << branch)) {
+        auto const next_key = key.suffix(pi + 1);
+        if (node->next(branch) != nullptr) {
+            find_recursive(
+                io, inflights, promise, node->next(branch), next_key);
             return;
         }
-        auto next_node = node->next(branch);
-        find_recursive(io, promise, next_node, next_key);
+        file_offset_t const offset = node->fnext(branch);
+        if (auto lt = inflights.find(offset); lt != inflights.end()) {
+            lt->second.push_back({next_key, &promise});
+            return;
+        }
+        inflights.emplace(
+            offset, std::list<detail::pending_request_t>{{next_key, &promise}});
+        find_receiver receiver(io, inflights, node, branch);
+        read_update_sender sender(receiver);
+        auto iostate =
+            io.make_connected(std::move(sender), std::move(receiver));
+        iostate->initiate();
+        iostate.release();
     }
     else {
         promise.set_value({nullptr, find_result::branch_not_exist_failure});
@@ -103,15 +121,15 @@ void find_recursive(
 }
 
 void find_notify_fiber_future(
-    AsyncIO &io, ::boost::fibers::promise<find_result_type> &promise,
-    Node *const node, byte_string_view key, std::optional<unsigned> opt_node_pi)
+    AsyncIO &io, inflight_map_t &inflights, find_request_t const req)
 {
     // default is to find from start node pi
-    if (!node) {
-        promise.set_value({nullptr, find_result::root_node_is_null_failure});
+    if (!req.root) {
+        req.promise->set_value(
+            {nullptr, find_result::root_node_is_null_failure});
         return;
     }
-    find_recursive(io, promise, node, key, opt_node_pi);
+    find_recursive(io, inflights, *req.promise, req.root, req.key, req.node_pi);
 }
 
 MONAD_MPT_NAMESPACE_END
