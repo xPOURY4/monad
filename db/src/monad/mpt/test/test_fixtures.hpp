@@ -75,7 +75,6 @@ namespace monad::test
     public:
         node_ptr root;
         UpdateAux update_aux;
-        bool const on_disk{false};
 
         InMemoryTrie()
             : comp(MerkleCompute{})
@@ -93,6 +92,16 @@ namespace monad::test
             }
             return empty_trie_hash;
         }
+
+        constexpr bool on_disk() const
+        {
+            return update_aux.is_on_disk();
+        }
+
+        constexpr int get_rd_fd() const
+        {
+            return -1;
+        }
     };
     class OnDiskTrie : public ::testing::Test
     {
@@ -105,7 +114,6 @@ namespace monad::test
     public:
         node_ptr root;
         UpdateAux update_aux;
-        bool const on_disk{true};
 
         OnDiskTrie()
             : ring(monad::io::Ring(2, 0))
@@ -128,6 +136,16 @@ namespace monad::test
                 return res;
             }
             return empty_trie_hash;
+        }
+
+        constexpr bool on_disk() const
+        {
+            return update_aux.is_on_disk();
+        }
+
+        constexpr int get_rd_fd()
+        {
+            return io.get_rd_fd();
         }
     };
 

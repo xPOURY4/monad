@@ -512,4 +512,24 @@ inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
     return node;
 }
 
+inline Node *read_node_blocking(
+    int fd, file_offset_t node_offset,
+    unsigned bytes_to_read = 3U << DISK_PAGE_BITS)
+{
+    MONAD_ASSERT(fd != -1);
+    file_offset_t rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);
+    uint16_t buffer_off = uint16_t(node_offset - rd_offset);
+    alignas(DISK_PAGE_SIZE) unsigned char buffer[bytes_to_read];
+
+    ssize_t bytes_read = pread(fd, buffer, bytes_to_read, rd_offset);
+    if (bytes_read < 0) {
+        fprintf(
+            stderr,
+            "FATAL: pread(%u, %llu) failed with '%s'\n",
+            bytes_to_read,
+            rd_offset,
+            strerror(errno));
+    }
+    return deserialize_node_from_buffer(buffer + buffer_off).release();
+}
 MONAD_MPT_NAMESPACE_END

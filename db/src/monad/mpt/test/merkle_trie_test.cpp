@@ -166,20 +166,27 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
         this->root_hash(),
         0xd339cf4033aca65996859d35da4612b642664cc40734dbdd40738aa47f1e3e44_hex);
 
-    Node *leaf;
-    EXPECT_TRUE(leaf = find_in_mem_trie(this->root.get(), kv[0].first));
+    auto [leaf, res] =
+        find_blocking(this->get_rd_fd(), this->root.get(), kv[0].first);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[0].second);
-    EXPECT_TRUE(leaf = find_in_mem_trie(this->root.get(), kv[1].first));
+    std::tie(leaf, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), kv[1].first);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[1].second);
-    EXPECT_TRUE(leaf = find_in_mem_trie(this->root.get(), kv[2].first));
+    std::tie(leaf, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), kv[2].first);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[2].second);
-    EXPECT_TRUE(leaf = find_in_mem_trie(this->root.get(), kv[3].first));
+    std::tie(leaf, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), kv[3].first);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[3].second);
@@ -540,13 +547,16 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         this->update_aux,
         nullptr,
         {make_update(blockno, {}, false, &state_changes)});
-    Node *state_root = find_in_mem_trie(this->root.get(), blockno);
+    auto [state_root, res] =
+        find_blocking(this->get_rd_fd(), this->root.get(), blockno);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
-    // new blockno2
-    this->root = copy_node(std::move(this->root), blockno, blockno2, false);
+    // copy state root to blockno2
+    this->root =
+        copy_node(this->update_aux, std::move(this->root), blockno, blockno2);
 
     storage.clear();
     storage.push_front(a);
@@ -555,23 +565,38 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     state_changes.clear();
     state_changes.push_front(s1);
     state_changes.push_front(s2);
-
     this->root = upsert_vector(
         this->update_aux,
         this->root.get(),
         {make_update(blockno2, {}, false, &state_changes)});
-    state_root = find_in_mem_trie(this->root.get(), blockno2);
-    ASSERT_NE(state_root, nullptr);
+
+    std::tie(state_root, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), blockno2);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
-    Node *old_state_root = find_in_mem_trie(this->root.get(), blockno);
-    ASSERT_NE(old_state_root, nullptr);
+    Node *old_state_root;
+    std::tie(old_state_root, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), blockno);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(old_state_root->next_j(0), nullptr);
     EXPECT_EQ(
         old_state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
-    // TODO: copy to more empty blockno
+    // copy state root to blockno3
+    auto blockno3 = 0x00000003_hex;
+    this->root =
+        copy_node(this->update_aux, std::move(this->root), blockno2, blockno3);
+    if (this->on_disk()) {
+        this->update_aux.io->flush();
+    }
+    std::tie(state_root, res) =
+        find_blocking(this->get_rd_fd(), this->root.get(), blockno3);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
+    EXPECT_EQ(
+        state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 }

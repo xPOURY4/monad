@@ -64,13 +64,16 @@ void find_recursive(
     Node *node, NibblesView key, std::optional<unsigned> opt_node_pi)
 {
     MONAD_ASSERT(node != nullptr);
-    unsigned node_pi = opt_node_pi.has_value()
-                           ? opt_node_pi.value()
-                           : node->bitpacked.path_nibble_index_start,
-             pi = 0;
+    unsigned pi = 0, node_pi = opt_node_pi.has_value()
+                                   ? opt_node_pi.value()
+                                   : node->bitpacked.path_nibble_index_start;
     for (; node_pi < node->path_nibble_index_end; ++node_pi, ++pi) {
-        if (pi >= key.nibble_size() ||
-            key[pi] != get_nibble(node->path_data(), node_pi)) {
+        if (pi >= key.nibble_size()) {
+            promise.set_value(
+                {nullptr, find_result::key_ends_ealier_than_node_failure});
+            return;
+        }
+        if (key[pi] != get_nibble(node->path_data(), node_pi)) {
             promise.set_value({nullptr, find_result::key_mismatch_failure});
             return;
         }

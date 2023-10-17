@@ -41,6 +41,28 @@ using node_writer_unique_ptr_type =
         MONAD_ASYNC_NAMESPACE::write_single_buffer_sender,
         write_operation_io_receiver>;
 
+using MONAD_ASYNC_NAMESPACE::receiver;
+template <receiver Receiver>
+struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
+{
+    read_update_sender(Receiver const &receiver)
+        : read_single_buffer_sender(
+              receiver.rd_offset, {(std::byte *)nullptr /*set by AsyncIO for
+              us*/, receiver.bytes_to_read})
+    {
+    }
+};
+
+struct async_write_node_result
+{
+    file_offset_t offset_written_to;
+    unsigned bytes_appended;
+    MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
+};
+async_write_node_result async_write_node(
+    MONAD_ASYNC_NAMESPACE::AsyncIO &io,
+    node_writer_unique_ptr_type &node_writer, Node *node);
+
 // \struct Auxiliaries for triedb update
 struct UpdateAux
 {
@@ -94,18 +116,6 @@ struct UpdateAux
 static_assert(sizeof(UpdateAux) == 32);
 static_assert(alignof(UpdateAux) == 8);
 
-using MONAD_ASYNC_NAMESPACE::receiver;
-template <receiver Receiver>
-struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
-{
-    read_update_sender(Receiver const &receiver)
-        : read_single_buffer_sender(
-              receiver.rd_offset, {(std::byte *)nullptr /*set by AsyncIO for
-              us*/, receiver.bytes_to_read})
-    {
-    }
-};
-
 // batch upsert, updates can be nested
 node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates);
 
@@ -146,12 +156,25 @@ to avoid dup referencing.
 Additionally for on-disk trie, after copy is done, deallocate nodes from memory
 under prefix `src` from bottom up. */
 node_ptr copy_node(
-    node_ptr root, byte_string_view const src, byte_string_view const dest,
-    bool on_disk = false);
+    UpdateAux &update_aux, node_ptr root, byte_string_view const src,
+    byte_string_view const dest);
 
-// in memory finds
-Node *find_in_mem_trie(
-    Node *node, byte_string_view key,
+/*! \brief blocking find node indexed by key from root, It works for bothon-disk
+and in-memory trie. When node along key is not yet in memory, it load node
+through blocking read.
+ \warning Should only invoke it from the triedb owning
+thread, as no synchronization is provided, and user code should make sure no
+other place is modifying trie. */
+find_result_type find_blocking(
+    int fd, Node *root, byte_string_view key,
     std::optional<unsigned> opt_node_pi = std::nullopt);
+
+// helper
+inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
+{
+    auto rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
+    bytes += offset - rd_offset;
+    return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
+}
 
 MONAD_MPT_NAMESPACE_END

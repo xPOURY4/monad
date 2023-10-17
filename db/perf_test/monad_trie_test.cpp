@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
         // TODO: pass in a preallocated memory
         monad::io::Buffers rwbuf{
             ring,
-            8192 * 4,
+            8192 * 8,
             128,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};

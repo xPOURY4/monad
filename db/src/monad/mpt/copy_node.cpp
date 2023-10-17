@@ -19,9 +19,9 @@ find_result _find_and_dealloc(Node *node, byte_string_view key)
             // go to node's matched child
             node_stack.push({node, nibble});
             node = node->next(nibble);
-            MONAD_ASSERT(node); // nodes indexed by `key` should be in memory
+            MONAD_ASSERT(node); // nodes indexed by `key` is already in memory
             node_pi = node->bitpacked.path_nibble_index_start;
-            ++pi; // branch nibble
+            ++pi;
             continue;
         }
         if (nibble != get_nibble(node->path_data(), node_pi)) {
@@ -36,7 +36,7 @@ find_result _find_and_dealloc(Node *node, byte_string_view key)
         return find_result::key_ends_ealier_than_node_failure;
     }
 
-    // deallocate upward
+    // deallocate node from the stack until it's not the single child in memory
     while (!node_stack.empty()) {
         auto [parent, branch] = node_stack.top();
         node_stack.pop();
@@ -46,7 +46,7 @@ find_result _find_and_dealloc(Node *node, byte_string_view key)
                 ++num_mem_child;
             }
         }
-        parent->next_ptr(branch);
+        parent->next_ptr(branch).reset();
         if (num_mem_child > 1) {
             break;
         }
@@ -55,10 +55,12 @@ find_result _find_and_dealloc(Node *node, byte_string_view key)
 }
 
 node_ptr copy_node(
-    node_ptr root, byte_string_view const src, byte_string_view const dest,
-    bool on_disk)
+    UpdateAux &update_aux, node_ptr root, byte_string_view const src,
+    byte_string_view const dest)
 {
-    Node *src_leaf = find_in_mem_trie(root.get(), src);
+    int const fd = update_aux.is_on_disk() ? update_aux.io->get_rd_fd() : -1;
+    auto [src_leaf, res] = find_blocking(fd, root.get(), src);
+    MONAD_ASSERT(res == find_result::success);
 
     Node *parent = nullptr, *node = root.get(), *new_node = nullptr;
     unsigned pi = 0, node_pi = root->bitpacked.path_nibble_index_start;
@@ -75,7 +77,7 @@ node_ptr copy_node(
                 // add a branch = nibble to new_node
                 new_node = [&]() -> Node * {
                     Node *leaf = update_node_diff_path_leaf(
-                        src_leaf, /*unlink children to avoid dup reference*/
+                        src_leaf, /* unlink children to avoid dup reference */
                         NibblesView{pi + 1, dest_nibble_size, dest.data()},
                         src_leaf->leaf_view());
                     // create a node, with no leaf data
@@ -89,6 +91,10 @@ node_ptr copy_node(
                             ret->set_next_j(j++, leaf);
                         }
                         else if (mask & bit) {
+                            // Assume child has no data for now
+                            if (update_aux.is_on_disk()) {
+                                ret->fnext_j(j) = node->fnext_j(old_j);
+                            }
                             // also clear node's child mem ptr
                             ret->set_next_j(
                                 j++, node->next_j_ptr(old_j++).release());
@@ -98,7 +104,7 @@ node_ptr copy_node(
                 }();
                 break;
             }
-            // go to next node's matching branch
+            // go to node's matched child
             parent = node;
             branch_i = nibble;
             node = node->next(nibble);
@@ -133,6 +139,22 @@ node_ptr copy_node(
                 assert(node_latter_half);
                 ret->set_next_j(leaf_first ? 0 : 1, leaf);
                 ret->set_next_j(leaf_first ? 1 : 0, node_latter_half);
+                if (update_aux.is_on_disk()) {
+                    // Request a write for the modified node, not necessarily
+                    // land on disk immediately, but it's queued until the
+                    // buffer is full or a root node is written in the next
+                    // batch update.
+                    auto off = async_write_node(
+                                   *update_aux.io,
+                                   update_aux.node_writer,
+                                   node_latter_half)
+                                   .offset_written_to;
+                    off |=
+                        ((file_offset_t)num_pages(
+                             off, node_latter_half->get_disk_size())
+                         << 62);
+                    ret->fnext_j(leaf_first ? 1 : 0) = off;
+                }
                 return ret;
             }();
             break;
@@ -143,15 +165,15 @@ node_ptr copy_node(
     }
     // deallocate previous child at branch i
     if (parent) {
-        parent->next_ptr(branch_i); // deallocate child = node
+        parent->next_ptr(branch_i).reset(); // deallocate child (= node)
         parent->set_next(branch_i, new_node);
     }
     else {
         assert(node == root.get());
-        root = node_ptr{new_node}; // deallocate node
+        root = node_ptr{new_node}; // deallocate root (= node)
     }
     // in memory version doesn't dealloc any nodes
-    if (on_disk) {
+    if (update_aux.is_on_disk()) {
         MONAD_ASSERT(
             _find_and_dealloc(root.get(), src) == find_result::success);
     }

@@ -11,14 +11,6 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
 
-struct async_write_node_result
-{
-    file_offset_t offset_written_to;
-    unsigned bytes_appended;
-    erased_connected_operation *io_state;
-};
-async_write_node_result async_write_node(
-    AsyncIO &io, node_writer_unique_ptr_type &node_writer, Node *node);
 // invoke at the end of each block upsert
 async_write_node_result
 write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
@@ -233,13 +225,6 @@ void async_read(UpdateAux &update_aux, Receiver &&receiver)
     // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
     // management until i/o completes
     iostate.release();
-}
-
-constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
-{
-    auto rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
-    bytes += offset - rd_offset;
-    return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
 }
 
 // helpers
