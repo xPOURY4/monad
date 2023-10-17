@@ -452,7 +452,7 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
 
 struct Compute;
 // create leaf node without children, hash_len = 0
-Node *create_leaf(byte_string_view const data, NibblesView const relpath);
+Node *create_leaf(byte_string_view data, NibblesView relpath);
 
 /* Note: there's a potential superfluous extension hash recomputation when node
 coaleases upon erases, because we compute node hash when relpath is not yet
@@ -460,23 +460,23 @@ the final form. There's not yet a good way to avoid this unless we delay all
 the compute() after all child branches finish creating nodes and return in
 the recursion */
 Node *create_coalesced_node_with_prefix(
-    uint8_t const branch, node_ptr prev, NibblesView const prefix);
+    uint8_t branch, node_ptr prev, NibblesView prefix);
 
 // create node: either branch/extension, with or without leaf
 Node *create_node(
-    Compute &comp, uint16_t const mask, std::span<ChildData> children,
-    NibblesView const relpath,
-    std::optional<byte_string_view> const leaf_data = std::nullopt);
+    Compute &, uint16_t mask, std::span<ChildData> children,
+    NibblesView relpath,
+    std::optional<byte_string_view> leaf_data = std::nullopt);
 
 /* create a new node from a old node with possibly shorter relpath and an
 optional new leaf data
 Copy old with new relpath and new leaf, new relpath might be shortened */
 Node *update_node_diff_path_leaf(
-    Node *old, NibblesView const relpath,
-    std::optional<byte_string_view> const leaf_data = std::nullopt);
+    Node *old, NibblesView relpath,
+    std::optional<byte_string_view> leaf_data = std::nullopt);
 
 inline Node *create_node_nodata(
-    uint16_t const mask, NibblesView const relpath, bool is_leaf = false)
+    uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
 {
     unsigned const n = bitmask_count(mask);
     unsigned const bytes =
@@ -494,7 +494,8 @@ inline Node *create_node_nodata(
     return node.release();
 }
 
-inline void serialize_node_to_buffer(unsigned char *write_pos, Node *const node)
+inline void
+serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
 {
     memcpy(write_pos, node, node->disk_size);
     return;
@@ -513,8 +514,8 @@ inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
 }
 
 inline Node *read_node_blocking(
-    int fd, file_offset_t node_offset,
-    unsigned bytes_to_read = 3U << DISK_PAGE_BITS)
+    int fd, file_offset_t const node_offset,
+    unsigned const bytes_to_read = 3U << DISK_PAGE_BITS)
 {
     MONAD_ASSERT(fd != -1);
     file_offset_t rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);

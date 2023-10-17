@@ -60,8 +60,7 @@ struct async_write_node_result
     MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
 };
 async_write_node_result async_write_node(
-    MONAD_ASYNC_NAMESPACE::AsyncIO &io,
-    node_writer_unique_ptr_type &node_writer, Node *node);
+    MONAD_ASYNC_NAMESPACE::AsyncIO &, node_writer_unique_ptr_type &, Node *);
 
 // \struct Auxiliaries for triedb update
 struct UpdateAux
@@ -117,7 +116,7 @@ static_assert(sizeof(UpdateAux) == 32);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
-node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates);
+node_ptr upsert(UpdateAux &, Node *old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -156,8 +155,7 @@ to avoid dup referencing.
 Additionally for on-disk trie, after copy is done, deallocate nodes from memory
 under prefix `src` from bottom up. */
 node_ptr copy_node(
-    UpdateAux &update_aux, node_ptr root, byte_string_view const src,
-    byte_string_view const dest);
+    UpdateAux &, node_ptr root, byte_string_view src, byte_string_view dest);
 
 /*! \brief blocking find node indexed by key from root, It works for bothon-disk
 and in-memory trie. When node along key is not yet in memory, it load node

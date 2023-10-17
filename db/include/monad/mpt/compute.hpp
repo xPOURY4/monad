@@ -18,16 +18,15 @@ struct Compute
     virtual ~Compute(){};
     //! compute length of hash from a span of child data, which include the node
     //! pointer, file offset and calculated hash
-    virtual unsigned compute_len(std::span<ChildData> const children) = 0;
+    virtual unsigned compute_len(std::span<ChildData> children) = 0;
     //! compute hash_data inside node if hash_len > 0, which is the hash of all
     //! node's branches, return hash data length
-    virtual unsigned
-    compute_branch(unsigned char *const buffer, Node *const node) = 0;
+    virtual unsigned compute_branch(unsigned char *buffer, Node *node) = 0;
     //! compute data of a trie rooted at node, put data to first argument and
     //! return data length. 3rd parameter is the branch nibble of node, it's
     //! present only when node is the single child of its parent, which is a
     //! leaf node
-    virtual unsigned compute(unsigned char *const buffer, Node *const node) = 0;
+    virtual unsigned compute(unsigned char *buffer, Node *node) = 0;
 };
 
 struct EmptyCompute final : Compute
