@@ -44,13 +44,14 @@ struct UpwardTreeNode
         opt_leaf_data = _opt_leaf_data;
     }
 
-    void link_parent(UpwardTreeNode *const parent_tnode, uint8_t const branch)
+    void link_parent(
+        UpwardTreeNode *const parent_tnode, uint8_t const branch) noexcept
     {
         parent = parent_tnode;
         child_branch_bit = branch;
     }
 
-    constexpr uint8_t child_j() const
+    constexpr uint8_t child_j() const noexcept
     {
         MONAD_ASSERT(parent != nullptr);
         return bitmask_index(parent->orig_mask, child_branch_bit);

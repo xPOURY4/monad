@@ -144,14 +144,16 @@ struct find_request_t
 };
 static_assert(sizeof(find_request_t) == 40);
 static_assert(alignof(find_request_t) == 8);
+static_assert(std::is_trivially_copyable_v<find_request_t> == true);
 
 namespace detail
 {
     // Type for intermediate pending requests that pends on an inflight read. It
     // is a pair of the search key and a promise associated with the initial
     // find_request_t.
-    using pending_request_t =
-        std::pair<NibblesView, ::boost::fibers::promise<find_result_type> *>;
+    using pending_request_t = std::pair<
+        NibblesView const, ::boost::fibers::promise<find_result_type> *const>;
+    static_assert(std::is_trivially_copyable_v<pending_request_t> == true);
 }
 using inflight_map_t =
     unordered_dense_map<file_offset_t, std::list<detail::pending_request_t>>;

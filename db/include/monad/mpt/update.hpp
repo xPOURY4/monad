@@ -56,21 +56,22 @@ static_assert(alignof(UpdateList) == 8);
 // 3. leaf erase: when opt is empty, next = nullptr
 inline Update make_update(
     monad::byte_string_view const key, monad::byte_string_view const value,
-    bool incarnation = false, UpdateList *next = nullptr)
+    bool incarnation = false, UpdateList *next = nullptr) noexcept
 {
     return Update{
         {key, std::optional<Data>{value}, (void *)next, incarnation},
         UpdateMemberHook{}};
 }
 
-inline Update make_update(monad::byte_string_view const key, UpdateList *next)
+inline Update
+make_update(monad::byte_string_view const key, UpdateList *next) noexcept
 {
     return Update{
         {key, std::nullopt, (void *)next, /*incarnation*/ false},
         UpdateMemberHook{}};
 }
 
-inline Update make_erase(monad::byte_string_view const key)
+inline Update make_erase(monad::byte_string_view const key) noexcept
 {
     return Update{{key, std::nullopt}, UpdateMemberHook{}};
 }

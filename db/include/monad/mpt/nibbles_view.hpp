@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -46,7 +47,7 @@ struct Nibbles
         }
     }
 
-    constexpr unsigned size() const
+    constexpr unsigned size() const noexcept
     {
         return ((size_type)si == ei) ? 0 : ((ei + 1) / 2);
     }
@@ -57,17 +58,17 @@ static_assert(alignof(Nibbles) == 8);
 struct NibblesView
 {
     using size_type = uint8_t; // max length support is 255 nibbles
-    unsigned char const *const data{nullptr};
-    bool const si{false};
-    size_type const ei{0};
+    unsigned char const *data{nullptr};
+    bool si{false};
+    size_type ei{0};
 
     constexpr NibblesView() = default;
-    constexpr NibblesView(NibblesView const &other) = default;
-    NibblesView &operator=(NibblesView const &other) = delete;
+    constexpr NibblesView(NibblesView const &) = default;
+    NibblesView &operator=(NibblesView const &) = default;
 
     constexpr explicit NibblesView(
         unsigned const si_, unsigned const ei_,
-        unsigned char const *const data_)
+        unsigned char const *const data_) noexcept
         : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
         , si((si_ == ei_) ? false : (si_ & 1))
         , ei((si_ == ei_) ? 0 : static_cast<size_type>(ei_ - si_ + si))
@@ -76,13 +77,13 @@ struct NibblesView
     }
 
     // constructor from byte_string_view
-    constexpr NibblesView(byte_string_view const &s)
+    constexpr NibblesView(byte_string_view const &s) noexcept
         : NibblesView(false, 2 * s.size(), s.data())
     {
     }
 
     // construct from Nibbles
-    constexpr NibblesView(Nibbles const &n)
+    constexpr NibblesView(Nibbles const &n) noexcept
         : NibblesView{n.si, n.ei, n.data}
     {
     }
@@ -132,6 +133,7 @@ struct NibblesView
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
+static_assert(std::is_trivially_copyable_v<NibblesView> == true);
 
 inline Nibbles &Nibbles::operator=(NibblesView const &n)
 {

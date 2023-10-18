@@ -51,7 +51,8 @@ static const byte_string empty_trie_hash = [] {
     return 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex;
 }();
 
-inline constexpr unsigned bitmask_index(uint16_t const mask, unsigned const i)
+inline constexpr unsigned
+bitmask_index(uint16_t const mask, unsigned const i) noexcept
 {
     MONAD_DEBUG_ASSERT(i < 16);
     uint16_t const filter = UINT16_MAX >> (16 - i);
@@ -59,7 +60,7 @@ inline constexpr unsigned bitmask_index(uint16_t const mask, unsigned const i)
         std::popcount(static_cast<uint16_t>(mask & filter)));
 }
 
-inline constexpr unsigned bitmask_count(uint16_t const mask)
+inline constexpr unsigned bitmask_count(uint16_t const mask) noexcept
 {
     return static_cast<unsigned>(std::popcount(mask));
 }

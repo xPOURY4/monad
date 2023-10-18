@@ -18,30 +18,30 @@ struct Requests
 
     Requests() = default;
 
-    UpdateList const &operator[](size_t i) const &
+    UpdateList const &operator[](size_t i) const & noexcept
     {
         assert(i < 16);
         return sublists[i];
     }
 
-    UpdateList &&operator[](size_t i) &&
+    UpdateList &&operator[](size_t i) && noexcept
     {
         assert(i < 16);
         return std::move(sublists[i]);
     }
 
-    constexpr unsigned get_first_branch() const
+    constexpr unsigned get_first_branch() const noexcept
     {
         return std::countr_zero(mask);
     }
 
-    constexpr UpdateList &&first_and_only_list() &&
+    constexpr UpdateList &&first_and_only_list() && noexcept
     {
         MONAD_DEBUG_ASSERT(bitmask_count(mask) == 1);
         return std::move(sublists[get_first_branch()]);
     }
 
-    constexpr unsigned const char *get_first_path() const
+    constexpr unsigned const char *get_first_path() const noexcept
     {
         return sublists[get_first_branch()].front().key.data();
     }
