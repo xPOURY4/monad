@@ -33,14 +33,18 @@ namespace
         return monad::io::Buffers{
             ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
     }
+    static monad::async::storage_pool pool{
+        monad::async::use_anonymous_inode_tag{}};
     static monad::io::Ring testring = make_ring();
     static monad::io::Buffers testrwbuf = make_buffers(testring);
     static auto testio = [] {
-        auto ret = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf);
+        auto ret = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
+        auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
+                      ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
             TEST_FILE_SIZE ==
-            ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
+            ::pwrite(
+                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
         return ret;
     }();
     monad::small_prng test_rand;
@@ -50,7 +54,7 @@ namespace
         struct receiver_t
         {
             ::boost::fibers::promise<std::span<std::byte const>> promise;
-            file_offset_t offset;
+            chunk_offset_t offset;
 
             enum : bool
             {
@@ -61,7 +65,7 @@ namespace
 
             receiver_t(
                 ::boost::fibers::promise<std::span<std::byte const>> &&p,
-                file_offset_t const offset_)
+                chunk_offset_t const offset_)
                 : promise(std::move(p))
                 , offset(offset_)
             {
@@ -75,7 +79,7 @@ namespace
                 std::span<const std::byte> buffer =
                     std::move(res).assume_value();
 
-                EXPECT_EQ(buffer.front(), testfilecontents[offset]);
+                EXPECT_EQ(buffer.front(), testfilecontents[offset.offset]);
 
                 promise.set_value(std::move(buffer));
                 done = true;
@@ -89,8 +93,10 @@ namespace
             // randomized offset
             using promise_result_t = std::span<std::byte const>;
 
-            auto offset = round_down_align<DISK_PAGE_BITS>(
-                test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
+            chunk_offset_t offset(
+                0,
+                round_down_align<DISK_PAGE_BITS>(
+                    test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
             auto sender = read_single_buffer_sender(
                 offset, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
             ::boost::fibers::promise<promise_result_t> promise;
@@ -110,7 +116,9 @@ namespace
             // This initiates the i/o reading DISK_PAGE_SIZE bytes from offset
             // 0, returning a boost fiber future like object
             auto fut = boost_fibers::read_single_buffer(
-                *testio, 0, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
+                *testio,
+                chunk_offset_t{0, 0},
+                std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
             std::cout << "fiber wrapped sender..." << std::endl;
             // You can do other stuff here, like initiate more i/o or do compute
 

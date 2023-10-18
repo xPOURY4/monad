@@ -4,20 +4,20 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Node *_read_node_blocking(int fd, Node *parent, unsigned char branch)
+Node *_read_node_blocking(
+    MONAD_ASYNC_NAMESPACE::storage_pool &pool, Node *parent,
+    unsigned char branch)
 {
-    MONAD_ASSERT(fd != -1);
     auto offset = parent->fnext(branch);
-    auto node_offset = offset & MASK_TO_CLEAR_HIGH_FOUR_BITS;
     // top 2 bits are for no_pages
-    auto const num_pages_to_load_node = offset >> 62;
+    auto const num_pages_to_load_node = offset.spare;
     assert(num_pages_to_load_node <= 3);
     unsigned bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
-    return read_node_blocking(fd, node_offset, bytes_to_read);
+    return read_node_blocking(pool, offset, bytes_to_read);
 }
 
 find_result_type find_blocking(
-    int fd, Node *node, byte_string_view key,
+    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *node, byte_string_view key,
     std::optional<unsigned> opt_node_pi)
 {
     if (!node) {
@@ -35,8 +35,9 @@ find_result_type find_blocking(
             }
             // go to node's matched child
             if (!node->next(nibble)) { // read node if not yet in mem
-                MONAD_ASSERT(fd != -1);
-                node->set_next(nibble, _read_node_blocking(fd, node, nibble));
+                MONAD_ASSERT(pool != nullptr);
+                node->set_next(
+                    nibble, _read_node_blocking(*pool, node, nibble));
             }
             node = node->next(nibble);
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory

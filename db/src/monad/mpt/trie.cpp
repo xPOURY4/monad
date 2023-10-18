@@ -36,7 +36,7 @@ Node *_create_new_trie_from_requests(
 
 bool _upsert(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    file_offset_t const old_offset, UpdateList &&updates, unsigned pi = 0,
+    chunk_offset_t const old_offset, UpdateList &&updates, unsigned pi = 0,
     unsigned old_pi = 0);
 
 void write_node_and_compute_hash(
@@ -112,7 +112,7 @@ void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode, unsigned pi)
 struct update_receiver
 {
     UpdateAux *update_aux;
-    file_offset_t rd_offset;
+    chunk_offset_t rd_offset;
     UpdateList updates;
     UpwardTreeNode *tnode;
     uint16_t buffer_off;
@@ -120,19 +120,19 @@ struct update_receiver
     unsigned bytes_to_read;
 
     update_receiver(
-        UpdateAux *_update_aux, file_offset_t offset, UpdateList &&_updates,
+        UpdateAux *_update_aux, chunk_offset_t offset, UpdateList &&_updates,
         UpwardTreeNode *_tnode, uint8_t _pi)
         : update_aux(_update_aux)
+        , rd_offset(round_down_align<DISK_PAGE_BITS>(offset))
         , updates(std::move(_updates))
         , tnode(_tnode)
         , pi(_pi)
     {
         // prep uring data
-        auto node_offset = offset & MASK_TO_CLEAR_HIGH_FOUR_BITS;
-        rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);
-        buffer_off = uint16_t(node_offset - rd_offset);
+        rd_offset.spare = 0;
+        buffer_off = uint16_t(offset.offset - rd_offset.offset);
         auto const num_pages_to_load_node =
-            offset >> 62; // top 2 bits are for no_pages
+            offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
         bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
     }
@@ -170,7 +170,7 @@ static_assert(alignof(update_receiver) == 8);
 struct create_node_receiver
 {
     UpdateAux *update_aux;
-    file_offset_t rd_offset;
+    chunk_offset_t rd_offset;
     UpwardTreeNode *tnode;
     unsigned bytes_to_read;
     uint16_t buffer_off;
@@ -181,17 +181,18 @@ struct create_node_receiver
         UpdateAux *const _update_aux, UpwardTreeNode *const _tnode,
         uint8_t const _j, uint8_t const _pi)
         : update_aux(_update_aux)
+        , rd_offset(0, 0)
         , tnode(_tnode)
         , j(_j)
         , pi(_pi)
     {
         // prep uring data
         auto offset = tnode->children[j].offset;
-        auto node_offset = offset & MASK_TO_CLEAR_HIGH_FOUR_BITS;
-        rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);
-        buffer_off = uint16_t(node_offset - rd_offset);
+        rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
+        rd_offset.spare = 0;
+        buffer_off = uint16_t(offset.offset - rd_offset.offset);
         auto const num_pages_to_load_node =
-            offset >> 62; // top 2 bits are for no_pages
+            offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
         bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
     }
@@ -255,10 +256,8 @@ Node *create_node_from_children_if_any(
                     async_write_node(
                         *update_aux.io, update_aux.node_writer, child.ptr)
                         .offset_written_to;
-                child.offset |=
-                    ((file_offset_t)num_pages(
-                         child.offset, child.ptr->get_disk_size())
-                     << 62);
+                child.offset.spare =
+                    num_pages(child.offset.offset, child.ptr->get_disk_size());
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
@@ -406,7 +405,7 @@ Node *_create_new_trie_from_requests(
 
 bool _upsert(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    file_offset_t const offset, UpdateList &&updates, unsigned pi,
+    chunk_offset_t const offset, UpdateList &&updates, unsigned pi,
     unsigned old_pi)
 {
     if (!old) {
@@ -549,7 +548,7 @@ bool _mismatch_handler(
                         update_aux,
                         old,
                         next_tnode.get(),
-                        0,
+                        {0, 0},
                         std::move(requests)[i],
                         pi + 1,
                         old_pi + 1)) {
@@ -600,12 +599,31 @@ node_writer_unique_ptr_type replace_node_writer(
     AsyncIO &io, node_writer_unique_ptr_type &node_writer,
     size_t bytes_yet_to_be_appended_to_existing = 0)
 {
+    // Can't use add_to_offset(), because it asserts if we go past the capacity
+    auto offset_of_next_block = node_writer->sender().offset();
+    file_offset_t offset = offset_of_next_block.offset;
+    offset += node_writer->sender().written_buffer_bytes() +
+              bytes_yet_to_be_appended_to_existing;
+    offset_of_next_block.offset = offset;
+    auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
+    const auto chunk_capacity = io.chunk_capacity(offset_of_next_block.id);
+    assert(offset <= chunk_capacity);
+    if (offset == chunk_capacity) {
+        offset_of_next_block.id++;
+        offset_of_next_block.offset = 0;
+    }
+    else if (offset + block_size > chunk_capacity) {
+        block_size = chunk_capacity - offset;
+    }
+    /*printf(
+        "*** replace_node_writer next write buffer will use chunk %u offset "
+        "%u size %lu\n",
+        offset_of_next_block.id,
+        offset_of_next_block.offset,
+        block_size);*/
     auto ret = io.make_connected(
         write_single_buffer_sender{
-            node_writer->sender().offset() +
-                node_writer->sender().written_buffer_bytes() +
-                bytes_yet_to_be_appended_to_existing,
-            {(const std::byte *)nullptr, AsyncIO::WRITE_BUFFER_SIZE}},
+            offset_of_next_block, {(const std::byte *)nullptr, block_size}},
         write_operation_io_receiver{});
     return ret;
 }
@@ -618,7 +636,7 @@ async_write_node_result async_write_node(
     auto *sender = &node_writer->sender();
     auto const size = node->disk_size;
     const async_write_node_result ret{
-        sender->offset() + sender->written_buffer_bytes(),
+        sender->offset().add_to_offset(sender->written_buffer_bytes()),
         size,
         node_writer.get()};
     auto const remaining_bytes = sender->remaining_buffer_bytes();

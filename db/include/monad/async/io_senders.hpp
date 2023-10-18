@@ -20,17 +20,17 @@ public:
     using result_type = result<const_buffer_type>;
 
 private:
-    file_offset_t _offset;
+    chunk_offset_t _offset;
     buffer_type _buffer;
 
 public:
     constexpr read_single_buffer_sender(
-        file_offset_t offset, buffer_type buffer)
+        chunk_offset_t offset, buffer_type buffer)
         : _offset(offset)
         , _buffer(buffer)
     {
     }
-    constexpr file_offset_t offset() const noexcept
+    constexpr chunk_offset_t offset() const noexcept
     {
         return _offset;
     }
@@ -38,7 +38,7 @@ public:
     {
         return _buffer;
     }
-    void reset(file_offset_t offset, buffer_type buffer)
+    void reset(chunk_offset_t offset, buffer_type buffer)
     {
         _offset = offset;
         _buffer = buffer;
@@ -77,19 +77,19 @@ public:
     using result_type = result<const_buffer_type>;
 
 private:
-    file_offset_t _offset;
+    chunk_offset_t _offset;
     buffer_type _buffer;
     std::byte *_append;
 
 public:
     explicit constexpr write_single_buffer_sender(
-        file_offset_t offset, buffer_type buffer)
+        chunk_offset_t offset, buffer_type buffer)
         : _offset(offset)
         , _buffer(buffer)
         , _append(const_cast<std::byte *>(buffer.data()))
     {
     }
-    constexpr file_offset_t offset() const noexcept
+    constexpr chunk_offset_t offset() const noexcept
     {
         return _offset;
     }
@@ -97,7 +97,7 @@ public:
     {
         return _buffer;
     }
-    void reset(file_offset_t offset, buffer_type buffer)
+    void reset(chunk_offset_t offset, buffer_type buffer)
     {
         _offset = offset;
         _buffer = buffer;
@@ -116,10 +116,12 @@ public:
         if (!bytes_transferred) {
             fprintf(
                 stderr,
-                "ERROR: Write of %zu bytes to offset %llu failed with error "
+                "ERROR: Write of %zu bytes to chunk %u offset %llu failed with "
+                "error "
                 "'%s'\n",
                 buffer().size(),
-                offset(),
+                offset().id,
+                file_offset_t(offset().offset),
                 bytes_transferred.assume_error().message().c_str());
         }
         BOOST_OUTCOME_TRY(auto &&count, std::move(bytes_transferred));

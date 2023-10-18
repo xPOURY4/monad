@@ -7,6 +7,8 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
+using chunk_offset_t = MONAD_ASYNC_NAMESPACE::chunk_offset_t;
+using chunk_offset_t_hasher = MONAD_ASYNC_NAMESPACE::chunk_offset_t_hasher;
 using file_offset_t = MONAD_ASYNC_NAMESPACE::file_offset_t;
 
 using MONAD_ASYNC_NAMESPACE::CPU_PAGE_BITS;
@@ -23,7 +25,6 @@ using MONAD_ASYNC_NAMESPACE::round_up_align;
 static constexpr uint8_t INVALID_BRANCH = 255;
 static constexpr uint8_t INVALID_PATH_INDEX = 255;
 static constexpr unsigned CACHE_LEVEL = 5;
-static constexpr uint64_t MASK_TO_CLEAR_HIGH_FOUR_BITS = 0x0fffffffffffffff;
 /* The maximum disk storage used by a node:
 # assume each child node's hash data is 32 bytes
 def calc_size(path_len, num_child, leaf_len = 0,  ptr_size = 8, off_size = 8):

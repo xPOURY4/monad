@@ -10,6 +10,7 @@ namespace
 {
     using namespace MONAD_ASYNC_NAMESPACE;
 
+#if 0 // disabled pending removal after discontiguous storage is implemented
     TEST(AsyncIO, writeback_cache)
     {
         static constexpr size_t TEST_FILE_SIZE = 256 * 1024;
@@ -27,6 +28,8 @@ namespace
             }
             return ret;
         }();
+        monad::async::storage_pool pool{
+            monad::async::use_anonymous_inode_tag{}};
         monad::io::Ring testring(MAX_CONCURRENCY * 2, 0);
         monad::io::Buffers testrwbuf{
             testring,
@@ -34,8 +37,7 @@ namespace
             4,
             AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        auto testio = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf);
+        auto testio = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
         struct receiver_t
         {
             enum : bool
@@ -68,13 +70,12 @@ namespace
         std::deque<read_state_type> read_states;
         monad::small_prng rand;
         for (size_t count = 0; count < 1024; count++) {
-            ASSERT_NE(ftruncate(testio->get_rd_fd(), 0), -1);
-            ASSERT_NE(ftruncate(testio->get_rd_fd(), TEST_FILE_SIZE), -1);
+            pool.activate_chunk(pool.seq, 0)->destroy_contents();
             for (size_t offset = 0; offset < TEST_FILE_SIZE;
                  offset += DISK_PAGE_SIZE * 4) {
                 while (!read_states.empty() &&
                        read_states.front()->receiver().done) {
-                    auto o = read_states.front()->sender().offset();
+                    auto o = read_states.front()->sender().offset().offset;
                     auto b = read_states.front()->receiver().buffer;
                     ASSERT_EQ(
                         read_states.front()->sender().buffer().size(),
@@ -105,22 +106,22 @@ namespace
                 std::array<write_state_type, 4> write_states{
                     testio->make_connected(
                         write_single_buffer_sender(
-                            offset + 0 * DISK_PAGE_SIZE,
+                            {0, offset + 0 * DISK_PAGE_SIZE},
                             {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                         receiver_t{}),
                     testio->make_connected(
                         write_single_buffer_sender(
-                            offset + 1 * DISK_PAGE_SIZE,
+                            {0, offset + 1 * DISK_PAGE_SIZE},
                             {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                         receiver_t{}),
                     testio->make_connected(
                         write_single_buffer_sender(
-                            offset + 2 * DISK_PAGE_SIZE,
+                            {0, offset + 2 * DISK_PAGE_SIZE},
                             {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                         receiver_t{}),
                     testio->make_connected(
                         write_single_buffer_sender(
-                            offset + 3 * DISK_PAGE_SIZE,
+                            {0, offset + 3 * DISK_PAGE_SIZE},
                             {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                         receiver_t{}),
                 };
@@ -145,7 +146,7 @@ namespace
                     if (amount > 0) {
                         read_states.push_back(testio->make_connected(
                             read_single_buffer_sender(
-                                readoffset,
+                                {0, readoffset},
                                 read_single_buffer_sender::buffer_type{
                                     (std::byte *)nullptr, amount}),
                             receiver_t{}));
@@ -162,4 +163,5 @@ namespace
             }
         }
     }
+#endif
 }

@@ -34,14 +34,18 @@ namespace
         return monad::io::Buffers{
             ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
     }
+    static monad::async::storage_pool pool{
+        monad::async::use_anonymous_inode_tag{}};
     static monad::io::Ring testring = make_ring();
     static monad::io::Buffers testrwbuf = make_buffers(testring);
     static auto testio = [] {
-        auto ret = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf);
+        auto ret = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
+        auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
+                      ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
             TEST_FILE_SIZE ==
-            ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
+            ::pwrite(
+                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
         return ret;
     }();
     monad::small_prng test_rand;
@@ -308,10 +312,10 @@ namespace
         {
             using result_type = result<void>;
 
-            file_offset_t const offset;
+            chunk_offset_t const offset;
             struct receiver_t
             {
-                file_offset_t const offset;
+                chunk_offset_t const offset;
                 erased_connected_operation *const original_io_state;
                 void set_value(
                     erased_connected_operation *,
@@ -325,13 +329,13 @@ namespace
                     MONAD_ASSERT(
                         0 == memcmp(
                                  res.assume_value().data(),
-                                 testfilecontents.data() + offset,
+                                 testfilecontents.data() + offset.offset,
                                  DISK_PAGE_SIZE));
                     original_io_state->completed(success());
                 }
             };
 
-            explicit sender_t(file_offset_t offset_)
+            explicit sender_t(chunk_offset_t offset_)
                 : offset(offset_)
             {
             }
@@ -368,12 +372,13 @@ namespace
         };
         using state_type = decltype(connect(
             *testio,
-            execute_on_worker_pool<sender_t>{workerpool, 0},
+            execute_on_worker_pool<sender_t>{workerpool, chunk_offset_t{0, 0}},
             receiver_t{}));
         std::deque<std::unique_ptr<state_type>> states;
         for (size_t n = 0; n < 100; n++) {
-            auto offset =
-                round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE);
+            chunk_offset_t offset(
+                0,
+                round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE));
             states.emplace_back(new state_type(
                 execute_on_worker_pool<sender_t>{workerpool, offset},
                 receiver_t{}));

@@ -2,6 +2,8 @@
 
 #include "../config.hpp"
 
+#include <cstddef>
+
 namespace monad
 {
     //! \brief A STL compatible hash based on the high quality FNV1 hash

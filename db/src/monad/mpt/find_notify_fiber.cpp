@@ -19,7 +19,7 @@ struct find_receiver
     AsyncIO *io;
     inflight_map_t &inflights;
     Node *parent;
-    file_offset_t rd_offset; // required for sender
+    chunk_offset_t rd_offset; // required for sender
     unsigned bytes_to_read; // required for sender too
     uint16_t buffer_off;
     unsigned char const branch_j;
@@ -30,16 +30,17 @@ struct find_receiver
         : io(&_io)
         , inflights(_inflights)
         , parent(_parent)
+        , rd_offset(0, 0)
         , branch_j(parent->to_j(_branch))
     {
-        file_offset_t offset = parent->fnext_j(branch_j);
-        file_offset_t node_offset = offset & MASK_TO_CLEAR_HIGH_FOUR_BITS;
+        chunk_offset_t offset = parent->fnext_j(branch_j);
         auto const num_pages_to_load_node =
-            offset >> 62; // top 2 bits are for no_pages
+            offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
         bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
-        rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);
-        buffer_off = uint16_t(node_offset - rd_offset);
+        rd_offset = offset;
+        rd_offset.offset = round_down_align<DISK_PAGE_BITS>(offset.offset);
+        buffer_off = uint16_t(offset.offset - rd_offset.offset);
     }
 
     //! notify a list of requests pending on this node
@@ -101,7 +102,7 @@ void find_recursive(
                 io, inflights, promise, node->next(branch), next_key);
             return;
         }
-        file_offset_t const offset = node->fnext(branch);
+        chunk_offset_t const offset = node->fnext(branch);
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
             lt->second.push_back({next_key, &promise});
             return;

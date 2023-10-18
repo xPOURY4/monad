@@ -2,7 +2,7 @@
 
 #include <monad/async/connected_operation.hpp>
 
-#include <monad/async/util.hpp>
+#include <monad/async/storage_pool.hpp>
 
 #include <monad/io/buffer_pool.hpp>
 #include <monad/io/buffers.hpp>
@@ -41,10 +41,33 @@ public:
 
 private:
     friend class read_single_buffer_sender;
-    static constexpr unsigned READ = 0, WRITE = 1, MSG_READ = 2, MSG_WRITE = 3;
+    using _storage_pool = class storage_pool;
+    using cnv_chunk = _storage_pool::cnv_chunk;
+    using seq_chunk = _storage_pool::seq_chunk;
+
+    template <class T>
+    struct chunk_ptr
+    {
+        std::shared_ptr<T> ptr;
+        int io_uring_read_fd{-1}, io_uring_write_fd{-1};
+
+        constexpr chunk_ptr() = default;
+        constexpr chunk_ptr(std::shared_ptr<T> ptr_)
+            : ptr(std::move(ptr_))
+            , io_uring_read_fd(ptr ? ptr->read_fd().first : -1)
+            , io_uring_write_fd(ptr ? ptr->write_fd(0).first : -1)
+        {
+        }
+    };
 
     pid_t const owning_tid_;
-    int fds_[4];
+    class storage_pool *storage_pool_{nullptr};
+    chunk_ptr<cnv_chunk> cnv_chunk_;
+    std::vector<chunk_ptr<seq_chunk>> seq_chunks_;
+    struct
+    {
+        int msgread, msgwrite;
+    } fds_;
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
@@ -53,10 +76,14 @@ private:
     // IO records
     IORecord records_;
 
+    AsyncIO(monad::io::Ring &ring, monad::io::Buffers &rwbuf);
+    void _init(std::span<int> fds);
+
     void _submit_request(
-        std::span<std::byte> buffer, file_offset_t offset, void *uring_data);
+        std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
+        void *uring_data);
     void _submit_request(
-        std::span<std::byte const> buffer, file_offset_t offset,
+        std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
         void *uring_data);
     void _submit_request(timed_invocation_state *state, void *uring_data);
 
@@ -65,19 +92,28 @@ private:
 
 public:
     AsyncIO(
-        std::pair<int, int> fds, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf);
-    AsyncIO(
-        std::filesystem::path const &p, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf);
-    AsyncIO(
-        use_anonymous_inode_tag, monad::io::Ring &ring,
+        class storage_pool &pool, monad::io::Ring &ring,
         monad::io::Buffers &rwbuf);
     ~AsyncIO();
 
     pid_t owning_thread_id() const noexcept
     {
         return owning_tid_;
+    }
+
+    class storage_pool &storage_pool() noexcept
+    {
+        return *storage_pool_;
+    }
+    const class storage_pool &storage_pool() const noexcept
+    {
+        return *storage_pool_;
+    }
+
+    file_offset_t chunk_capacity(size_t id) const noexcept
+    {
+        MONAD_ASSERT(id < seq_chunks_.size());
+        return seq_chunks_[id].ptr->capacity();
     }
 
     //! The instance for this thread
@@ -159,22 +195,34 @@ public:
     }
 
     bool submit_read_request(
-        std::span<std::byte> buffer, file_offset_t offset,
+        std::span<std::byte> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
+#if 0 // disabled pending removal after discontiguous storage is implemented
+        union key_to_chunk_offset_t
+        {
+            file_offset_t key;
+            chunk_offset_t offset;
+
+            explicit constexpr key_to_chunk_offset_t(file_offset_t k)
+                : key(k)
+            {
+            }
+        };
         erased_connected_operation::rbtree_node_traits::set_key(uring_data, 0);
         auto less_than_or_equal =
-            [this](file_offset_t offset) -> erased_connected_operation * {
+            [this](chunk_offset_t offset) -> erased_connected_operation * {
             auto pred = [](const auto *a, const auto b) {
-                return erased_connected_operation::rbtree_node_traits::get_key(
-                           a) > b;
+                return key_to_chunk_offset_t(erased_connected_operation::
+                                                 rbtree_node_traits::get_key(a))
+                           .offset > b;
             };
             auto *p = _extant_write_operations::lower_bound(
                 &_extant_write_operations_header, offset, pred);
             if (p == &_extant_write_operations_header) {
                 return nullptr;
             }
-            assert(p->key <= offset);
+            // assert(key_to_chunk_offset_t(p->key).offset <= offset);
             return erased_connected_operation::rbtree_node_traits::
                 to_erased_connected_operation(p);
         };
@@ -194,7 +242,7 @@ public:
                 to_erased_connected_operation(p);
         };
         auto *it1 = less_than_or_equal(offset);
-        auto *it2 = less_than_or_equal(offset + buffer.size() - 1);
+        auto *it2 = less_than_or_equal(offset.add_to_offset(buffer.size() - 1));
         if (it1 != nullptr || it2 != nullptr) {
             auto fill_from_buffers = [&](size_t offsetincr,
                                          erased_connected_operation *it1,
@@ -222,7 +270,8 @@ public:
                         tofill.size());*/
                     memcpy(
                         buffer.data() + offsetincr,
-                        writebuffer + (offset + offsetincr - writeoffset),
+                        writebuffer +
+                            (offset.offset + offsetincr - writeoffset),
                         tofill.size());
                     offsetincr += tofill.size();
                     if (it1 == it2) {
@@ -244,11 +293,11 @@ public:
                                 &_extant_write_operations_header)));
                 auto const writeoffset = get_key(it1);
                 auto bytesfilled =
-                    fill_from_buffers(writeoffset - offset, it1, it2);
-                bytesfilled -= writeoffset - offset;
+                    fill_from_buffers(writeoffset - offset.offset, it1, it2);
+                bytesfilled -= writeoffset - offset.offset;
                 erased_connected_operation::rbtree_node_traits::set_key(
                     uring_data, bytesfilled);
-                buffer = {buffer.data(), writeoffset - offset};
+                buffer = {buffer.data(), writeoffset - offset.offset};
                 /*printf(
                     "   *** tail filled %lu bytes from extant writes "
                     "starting from offset %llu, doing read of shortened "
@@ -263,19 +312,15 @@ public:
                 return true;
             }
         }
+#endif
         _submit_request(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;
         return false;
     }
 
-    constexpr int get_rd_fd() noexcept
-    {
-        return fds_[READ];
-    }
-
     void submit_write_request(
-        std::span<std::byte const> buffer, file_offset_t offset,
+        std::span<std::byte const> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
         _submit_request(buffer, offset, uring_data);
@@ -445,8 +490,8 @@ public:
             auto *p =
                 erased_connected_operation::rbtree_node_traits::to_node_ptr(
                     state);
-            p->key = state->sender().offset();
-            assert(p->key == state->sender().offset());
+            p->key = state->sender().offset().raw();
+            assert(p->key == state->sender().offset().raw());
             _extant_write_operations::init(p);
             auto pred = [](auto const *a, auto const *b) {
                 auto get_key = [](const auto *a) {
@@ -503,7 +548,7 @@ private:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 112);
+static_assert(sizeof(AsyncIO) == 160);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_ASYNC_NAMESPACE_END

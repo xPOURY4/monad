@@ -60,8 +60,9 @@ node_ptr copy_node(
     UpdateAux &update_aux, node_ptr root, byte_string_view const src,
     byte_string_view const dest)
 {
-    int const fd = update_aux.is_on_disk() ? update_aux.io->get_rd_fd() : -1;
-    auto [src_leaf, res] = find_blocking(fd, root.get(), src);
+    MONAD_ASYNC_NAMESPACE::storage_pool *pool =
+        update_aux.is_on_disk() ? &update_aux.io->storage_pool() : nullptr;
+    auto [src_leaf, res] = find_blocking(pool, root.get(), src);
     MONAD_ASSERT(res == find_result::success);
 
     Node *parent = nullptr, *node = root.get(), *new_node = nullptr;
@@ -151,10 +152,8 @@ node_ptr copy_node(
                                    update_aux.node_writer,
                                    node_latter_half)
                                    .offset_written_to;
-                    off |=
-                        ((file_offset_t)num_pages(
-                             off, node_latter_half->get_disk_size())
-                         << 62);
+                    off.spare = num_pages(
+                        off.offset, node_latter_half->get_disk_size());
                     ret->fnext_j(leaf_first ? 1 : 0) = off;
                 }
                 return ret;

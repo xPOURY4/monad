@@ -167,25 +167,25 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
         0xd339cf4033aca65996859d35da4612b642664cc40734dbdd40738aa47f1e3e44_hex);
 
     auto [leaf, res] =
-        find_blocking(this->get_rd_fd(), this->root.get(), kv[0].first);
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[0].second);
     std::tie(leaf, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), kv[1].first);
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[1].second);
     std::tie(leaf, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), kv[2].first);
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
         kv[2].second);
     std::tie(leaf, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), kv[3].first);
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
@@ -548,7 +548,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         nullptr,
         {make_update(blockno, {}, false, &state_changes)});
     auto [state_root, res] =
-        find_blocking(this->get_rd_fd(), this->root.get(), blockno);
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),
@@ -571,7 +571,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         {make_update(blockno2, {}, false, &state_changes)});
 
     std::tie(state_root, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), blockno2);
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),
@@ -579,7 +579,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
 
     Node *old_state_root;
     std::tie(old_state_root, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), blockno);
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(old_state_root->next_j(0), nullptr);
     EXPECT_EQ(
@@ -594,7 +594,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         this->update_aux.io->flush();
     }
     std::tie(state_root, res) =
-        find_blocking(this->get_rd_fd(), this->root.get(), blockno3);
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),

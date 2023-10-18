@@ -108,8 +108,14 @@ storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
         auto *metadata = device()._metadata;
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device()._size_of_file);
-        auto size = chunk_bytes_used[device_zone_id()].fetch_add(
-            bytes_which_shall_be_written, std::memory_order_acq_rel);
+        auto size =
+            (bytes_which_shall_be_written > 0)
+                ? chunk_bytes_used[device_zone_id()].fetch_add(
+                      bytes_which_shall_be_written, std::memory_order_acq_rel)
+                : chunk_bytes_used[device_zone_id()].load(
+                      std::memory_order_acquire);
+        MONAD_ASSERT(
+            size + bytes_which_shall_be_written <= metadata->chunk_capacity);
         return std::pair<int, file_offset_t>{_write_fd, _offset + size};
     }
     MONAD_ASSERT("zonefs support isn't implemented yet" == nullptr);
@@ -160,9 +166,14 @@ void storage_pool::chunk::destroy_contents()
 /***************************************************************************/
 
 storage_pool::device storage_pool::_make_device(
-    mode op, device::_type_t type, const std::filesystem::path &path, int fd)
+    mode op, device::_type_t type, const std::filesystem::path &path, int fd,
+    size_t chunk_capacity)
 {
     int readfd = fd, writefd = fd;
+    // chunk capacity must be a power of two, or Linux gets upset
+    MONAD_ASSERT(
+        chunk_capacity ==
+        (1ULL << (63 - std::countl_zero(uint64_t(chunk_capacity)))));
     if (!path.empty()) {
         readfd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
         if (-1 == readfd) {
@@ -257,7 +268,7 @@ storage_pool::device storage_pool::_make_device(
             }
             memset(buffer, 0, DISK_PAGE_SIZE * 2);
             memcpy(metadata_footer->magic, "MND0", 4);
-            metadata_footer->chunk_capacity = 256 * 1024 * 1024; // 256Mb
+            metadata_footer->chunk_capacity = chunk_capacity;
             ::pwrite(writefd, buffer, bytesread, offset);
         }
         total_size = metadata_footer->total_size(stat.st_size);
@@ -295,6 +306,8 @@ void storage_pool::_fill_chunks()
                 total += devicechunks - 1;
             }
             fnv1a_hash<uint32_t>::add(hashshouldbe, devicechunks);
+            fnv1a_hash<uint32_t>::add(
+                hashshouldbe, device._metadata->chunk_capacity);
         }
         else {
             throw std::runtime_error("zonefs support isn't implemented yet");
@@ -388,7 +401,7 @@ storage_pool::storage_pool(std::span<std::filesystem::path> sources, mode mode)
     _fill_chunks();
 }
 
-storage_pool::storage_pool(use_anonymous_inode_tag)
+storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
 {
     int fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
@@ -396,8 +409,8 @@ storage_pool::storage_pool(use_anonymous_inode_tag)
         ::ftruncate(fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
         throw std::system_error(errno, std::system_category());
     }
-    _devices.push_back(
-        _make_device(mode::truncate, device::_type_t::file, {}, fd));
+    _devices.push_back(_make_device(
+        mode::truncate, device::_type_t::file, {}, fd, chunk_capacity));
     unfd.release();
     _fill_chunks();
 }

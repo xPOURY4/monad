@@ -267,12 +267,18 @@ public:
             return true;
         }
     };
+
+    //! \brief What to do when opening the pool for use.
     enum class mode
     {
         open_existing,
         create_if_needed,
         truncate
     };
+
+    using chunk_ptr = std::shared_ptr<class chunk>;
+    using cnv_chunk_ptr = std::shared_ptr<cnv_chunk>;
+    using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
 
 private:
     std::vector<device> _devices;
@@ -289,7 +295,7 @@ private:
 
     device _make_device(
         mode op, device::_type_t type, const std::filesystem::path &path,
-        int fd);
+        int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
 
     void _fill_chunks();
 
@@ -306,7 +312,8 @@ public:
         mode mode = mode::create_if_needed);
     //! \brief Constructs a storage pool from a temporary anonymous inode.
     //! Useful for test code.
-    storage_pool(use_anonymous_inode_tag);
+    storage_pool(
+        use_anonymous_inode_tag, size_t chunk_capacity = 256ULL * 1024 * 1024);
     ~storage_pool();
 
     //! \brief Returns a list of the backing storage devices

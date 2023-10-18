@@ -33,14 +33,18 @@ namespace
         return monad::io::Buffers{
             ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
     }
+    static monad::async::storage_pool pool{
+        monad::async::use_anonymous_inode_tag{}};
     static monad::io::Ring testring = make_ring();
     static monad::io::Buffers testrwbuf = make_buffers(testring);
     static auto testio = [] {
-        auto ret = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf);
+        auto ret = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
+        auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
+                      ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
             TEST_FILE_SIZE ==
-            ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
+            ::pwrite(
+                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
         return ret;
     }();
     // monad::small_prng test_rand;
@@ -51,7 +55,9 @@ namespace
             // This initiates the i/o reading DISK_PAGE_SIZE bytes from offset
             // 0, returning a boost fiber future like object
             auto fut = boost_fibers::read_single_buffer(
-                *testio, 0, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
+                *testio,
+                chunk_offset_t{0, 0},
+                std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
             // You can do other stuff here, like initiate more i/o or do compute
 
             // When you really do need the result to progress further, suspend
@@ -111,9 +117,10 @@ namespace
     {
         std::atomic<AsyncIO *> other{nullptr};
         std::jthread thr([&](std::stop_token token) {
+            storage_pool pool{use_anonymous_inode_tag{}};
             auto ring = make_ring();
             auto buf = make_buffers(ring);
-            AsyncIO io(use_anonymous_inode_tag{}, ring, buf);
+            AsyncIO io(pool, ring, buf);
             other = &io;
             while (!token.stop_requested()) {
                 ::boost::this_fiber::yield();

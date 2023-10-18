@@ -98,14 +98,16 @@ namespace monad::test
             return update_aux.is_on_disk();
         }
 
-        constexpr int get_rd_fd() const
+        constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool() const
         {
-            return -1;
+            return nullptr;
         }
     };
     class OnDiskTrie : public ::testing::Test
     {
     private:
+        monad::async::storage_pool pool{
+            monad::async::use_anonymous_inode_tag{}};
         monad::io::Ring ring;
         monad::io::Buffers rwbuf;
         MONAD_ASYNC_NAMESPACE::AsyncIO io;
@@ -121,7 +123,7 @@ namespace monad::test
                   ring, 2, 2,
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)
-            , io(MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{}, ring, rwbuf)
+            , io(pool, ring, rwbuf)
             , comp(MerkleCompute{})
             , root{}
             , update_aux(comp, &io, /*list_dim_to_apply_cache*/ 0)
@@ -143,9 +145,9 @@ namespace monad::test
             return update_aux.is_on_disk();
         }
 
-        constexpr int get_rd_fd()
+        constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool()
         {
-            return io.get_rd_fd();
+            return &io.storage_pool();
         }
     };
 

@@ -6,10 +6,17 @@ namespace
 {
     TEST(AsyncIO, hardlink_fd_to)
     {
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        {
+            auto chunk = pool.activate_chunk(pool.seq, 0);
+            auto fd = chunk->write_fd(1);
+            char c = 5;
+            ::pwrite(fd.first, &c, 1, fd.second);
+        }
         monad::io::Ring testring(1, 0);
         monad::io::Buffers testrwbuf{testring, 1, 1, 1UL << 13};
-        monad::async::AsyncIO testio(
-            monad::async::use_anonymous_inode_tag{}, testring, testrwbuf);
+        monad::async::AsyncIO testio(pool, testring, testrwbuf);
         try {
             testio.dump_fd_to(0, "hardlink_fd_to_testname");
             EXPECT_TRUE(std::filesystem::exists("hardlink_fd_to_testname"));

@@ -131,8 +131,8 @@ namespace
             // create a new io instance of the same file name
             auto ring = make_ring();
             auto buf = make_buffers(ring);
-            int main_fd = this->update_aux.io->get_rd_fd();
-            AsyncIO io({main_fd, main_fd}, ring, buf);
+            auto &main_pool = this->update_aux.io->storage_pool();
+            AsyncIO io(main_pool, ring, buf);
             // when nothing to pop, poll uring, when nothing to poll, pop from
             // chan
             while (!token.stop_requested()) {

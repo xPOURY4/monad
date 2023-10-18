@@ -1,9 +1,14 @@
 #include <monad/async/io.hpp>
 
+#include <monad/async/detail/scope_polyfill.hpp>
+
+#include <monad/core/unordered_map.hpp>
+
 #include <cassert>
 
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/resource.h> // for setrlimit
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -41,72 +46,144 @@ namespace detail
         static thread_local AsyncIO_per_thread_state_t v;
         return v;
     }
+
+    static struct AsyncIO_rlimit_raiser_impl
+    {
+        AsyncIO_rlimit_raiser_impl()
+        {
+            size_t n = 1U << 30U;
+            for (; n >= 1024; n >>= 1) {
+                struct rlimit r
+                {
+                    n, n
+                };
+                int ret = setrlimit(RLIMIT_NOFILE, &r);
+                if (ret >= 0) {
+                    break;
+                }
+            }
+            if (n < 16384) {
+                std::cerr << "WARNING: maximum hard file descriptor kimit is "
+                          << n
+                          << " which is less than 16384. 'Too many open files' "
+                             "errors may result. You can increase the hard "
+                             "file descriptor limit for a given user by adding "
+                             "to '/etc/security/limits.conf' '<username> hard "
+                             "nofile 16384'."
+                          << std::endl;
+            }
+        }
+    } AsyncIO_rlimit_raiser;
+
 }
 
-AsyncIO::AsyncIO(
-    std::pair<int, int> fds, monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
+AsyncIO::AsyncIO(monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
     : owning_tid_(gettid())
-    , fds_{fds.first, fds.second, 0, 0}
+    , fds_{-1, -1}
     , uring_(ring_)
     , rwbuf_(rwbuf)
     , rd_pool_(monad::io::BufferPool(rwbuf, true))
     , wr_pool_(monad::io::BufferPool(rwbuf, false))
 {
     _extant_write_operations::init_header(&_extant_write_operations_header);
-    MONAD_ASSERT(fds_[READ] != -1);
 
     auto &ts = detail::AsyncIO_per_thread_state();
     MONAD_ASSERT(ts.instance == nullptr); // currently cannot create more than
                                           // one AsyncIO per thread at a time
     ts.instance = this;
 
-    // register files
-    MONAD_ASSERT(!io_uring_register_files(
-        const_cast<io_uring *>(&uring_.get_ring()),
-        fds_,
-        (fds_[WRITE] != -1) ? 2 : 1));
-
     // create and register the message type pipe for threadsafe communications
     // read side is nonblocking, write side is blocking
-    MONAD_ASSERT(::pipe2(fds_ + 2, O_NONBLOCK | O_DIRECT | O_CLOEXEC) != -1);
-    MONAD_ASSERT(::fcntl(fds_[MSG_WRITE], F_SETFL, O_DIRECT | O_CLOEXEC) != -1);
+    MONAD_ASSERT(
+        ::pipe2((int *)&fds_, O_NONBLOCK | O_DIRECT | O_CLOEXEC) != -1);
+    MONAD_ASSERT(::fcntl(fds_.msgwrite, F_SETFL, O_DIRECT | O_CLOEXEC) != -1);
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
     MONAD_ASSERT(sqe);
-    io_uring_prep_poll_multishot(sqe, fds_[MSG_READ], POLLIN);
+    io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
     io_uring_sqe_set_data(
         sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
     MONAD_ASSERT(io_uring_submit(ring) >= 0);
 }
 
-AsyncIO::AsyncIO(
-    std::filesystem::path const &p, monad::io::Ring &ring,
-    monad::io::Buffers &rwbuf)
-    : AsyncIO(
-          [&p]() -> std::pair<int, int> {
-              int fds[2];
-              // append only file descriptor
-              fds[WRITE] = ::open(
-                  p.c_str(), O_CREAT | O_WRONLY | O_DIRECT | O_CLOEXEC, 0600);
-              // read only file descriptor
-              fds[READ] = ::open(p.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
-              return {fds[0], fds[1]};
-          }(),
-          ring, rwbuf)
+void AsyncIO::_init(std::span<int> fds)
 {
+    // register files
+    for (auto fd : fds) {
+        MONAD_ASSERT(fd != -1);
+    }
+    auto e = io_uring_register_files(
+        const_cast<io_uring *>(&uring_.get_ring()), fds.data(), fds.size());
+    if (e) {
+        fprintf(
+            stderr,
+            "io_uring_register_files failed due to %d %s\n",
+            errno,
+            strerror(errno));
+    }
+    MONAD_ASSERT(!e);
 }
 
 AsyncIO::AsyncIO(
-    use_anonymous_inode_tag, monad::io::Ring &ring, monad::io::Buffers &rwbuf)
-    : AsyncIO(
-          []() -> std::pair<int, int> {
-              int fds[2];
-              fds[0] = make_temporary_inode();
-              fds[1] = dup(fds[0]);
-              return {fds[0], fds[1]};
-          }(),
-          ring, rwbuf)
+    class storage_pool &pool, monad::io::Ring &ring, monad::io::Buffers &rwbuf)
+    : AsyncIO(ring, rwbuf)
 {
+    // TODO(niall): In the future don't activate all the chunks, as
+    // theoretically zoned storage may enforce a maximum open zone count in
+    // hardware. I cannot find any current zoned storage implementation that
+    // does not implement infinite open zones so I went ahead and have been lazy
+    // here, and we open everything all at once. It also means I can avoid
+    // dynamic fd registration with io_uring, which simplifies implementation.
+    storage_pool_ = &pool;
+    cnv_chunk_ = std::static_pointer_cast<storage_pool::cnv_chunk>(
+        pool.activate_chunk(storage_pool::cnv, 0));
+    auto count = pool.chunks(storage_pool::seq);
+    seq_chunks_.reserve(count);
+    std::vector<int> fds;
+    fds.reserve(count * 2 + 2);
+    fds.push_back(cnv_chunk_.io_uring_read_fd);
+    fds.push_back(cnv_chunk_.io_uring_write_fd);
+    for (size_t n = 0; n < count; n++) {
+        seq_chunks_.emplace_back(
+            std::static_pointer_cast<storage_pool::seq_chunk>(
+                pool.activate_chunk(storage_pool::seq, n)));
+        MONAD_ASSERT(
+            seq_chunks_.back().ptr->capacity() >= MONAD_IO_BUFFERS_WRITE_SIZE);
+        MONAD_ASSERT(
+            (seq_chunks_.back().ptr->capacity() %
+             MONAD_IO_BUFFERS_WRITE_SIZE) == 0);
+        fds.push_back(seq_chunks_[n].io_uring_read_fd);
+        fds.push_back(seq_chunks_[n].io_uring_write_fd);
+    }
+    /* Annoyingly io_uring refuses duplicate file descriptors in its
+    registration, and for efficiency the zoned storage emulation returns the
+    same file descriptor for reads (and it may do so for writes depending). So
+    reduce to a minimum mapped set.
+     */
+    unordered_dense_map<int, int> fd_to_iouring_map;
+    for (auto fd : fds) {
+        MONAD_ASSERT(fd != -1);
+        fd_to_iouring_map[fd] = -1;
+    }
+    int idx = 0;
+    fds.clear();
+    for (auto &fd : fd_to_iouring_map) {
+        fd.second = idx++;
+        fds.push_back(fd.first);
+    }
+    _init(fds);
+    auto replace_fds_with_iouring_fds = [&](auto &p) {
+        auto it = fd_to_iouring_map.find(p.io_uring_read_fd);
+        MONAD_ASSERT(it != fd_to_iouring_map.end());
+        p.io_uring_read_fd = it->second;
+        it = fd_to_iouring_map.find(p.io_uring_write_fd);
+        MONAD_ASSERT(it != fd_to_iouring_map.end());
+        p.io_uring_write_fd = it->second;
+    };
+    replace_fds_with_iouring_fds(cnv_chunk_);
+    for (auto &chnk : seq_chunks_) {
+        replace_fds_with_iouring_fds(chnk);
+    }
 }
 
 AsyncIO::~AsyncIO()
@@ -125,20 +202,15 @@ AsyncIO::~AsyncIO()
     MONAD_ASSERT(
         !io_uring_unregister_files(const_cast<io_uring *>(&uring_.get_ring())));
 
-    ::close(fds_[READ]);
-    if (fds_[WRITE] != -1) {
-        ::close(fds_[WRITE]);
-    }
-    ::close(fds_[MSG_READ]);
-    ::close(fds_[MSG_WRITE]);
+    ::close(fds_.msgread);
+    ::close(fds_.msgwrite);
 }
 
 void AsyncIO::_submit_request(
-    std::span<std::byte> buffer, file_offset_t offset, void *uring_data)
+    std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
+    void *uring_data)
 {
-    // Trap unintentional use of high bit offsets
-    MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
-    assert((offset & (DISK_PAGE_SIZE - 1)) == 0);
+    assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     assert(buffer.size() <= READ_BUFFER_SIZE);
 #ifndef NDEBUG
     memset(buffer.data(), 0xff, buffer.size());
@@ -149,8 +221,14 @@ void AsyncIO::_submit_request(
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
+    const auto &ci = seq_chunks_[chunk_and_offset.id];
     io_uring_prep_read_fixed(
-        sqe, READ, buffer.data(), buffer.size(), offset, 0);
+        sqe,
+        ci.io_uring_read_fd,
+        buffer.data(),
+        buffer.size(),
+        ci.ptr->read_fd().second + chunk_and_offset.offset,
+        0);
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
@@ -158,11 +236,10 @@ void AsyncIO::_submit_request(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 void AsyncIO::_submit_request(
-    std::span<std::byte const> buffer, file_offset_t offset, void *uring_data)
+    std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
+    void *uring_data)
 {
-    // Trap unintentional use of high bit offsets
-    MONAD_ASSERT(offset <= (file_offset_t(1) << 48));
-    assert((offset & (DISK_PAGE_SIZE - 1)) == 0);
+    assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     assert(buffer.size() <= WRITE_BUFFER_SIZE);
 
     _poll_uring_while_submission_queue_full();
@@ -170,8 +247,13 @@ void AsyncIO::_submit_request(
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
+    const auto &ci = seq_chunks_[chunk_and_offset.id];
+    auto offset = ci.ptr->write_fd(buffer.size()).second;
+    // Do sanity check to ensure they are appending where they are actually
+    // appending
+    MONAD_ASSERT((chunk_and_offset.offset & 0xffff) == (offset & 0xffff));
     io_uring_prep_write_fixed(
-        sqe, WRITE, buffer.data(), buffer.size(), offset, 1);
+        sqe, ci.io_uring_write_fd, buffer.data(), buffer.size(), offset, 1);
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
@@ -265,13 +347,13 @@ bool AsyncIO::_poll_uring(bool blocking)
             // Rearm the poll
             struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
             MONAD_ASSERT(sqe);
-            io_uring_prep_poll_multishot(sqe, fds_[MSG_READ], POLLIN);
+            io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
             io_uring_sqe_set_data(
                 sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
             MONAD_ASSERT(io_uring_submit(ring) >= 0);
         }
-        auto readed = ::read(
-            fds_[MSG_READ], &state, sizeof(erased_connected_operation *));
+        auto readed =
+            ::read(fds_.msgread, &state, sizeof(erased_connected_operation *));
         if (readed >= 0) {
             MONAD_ASSERT(sizeof(erased_connected_operation *) == readed);
             // Writes flushed in the submitting thread must be acquired now
@@ -330,17 +412,23 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
 
 void AsyncIO::dump_fd_to(int which, const std::filesystem::path &path)
 {
-    int fd = ::creat(path.c_str(), 0600);
-    if (fd == -1) {
+    int tofd = ::creat(path.c_str(), 0600);
+    if (tofd == -1) {
         throw std::system_error(std::error_code(errno, std::system_category()));
     }
-    off64_t off_in = 0, off_out = 0;
-    auto copied =
-        copy_file_range(fds_[which], &off_in, fd, &off_out, size_t(-1), 0);
+    auto untodfd = make_scope_exit([tofd]() noexcept { ::close(tofd); });
+    auto fromfd = seq_chunks_[which].ptr->read_fd();
+    off64_t off_in = fromfd.second, off_out = 0;
+    auto copied = copy_file_range(
+        fromfd.first,
+        &off_in,
+        tofd,
+        &off_out,
+        seq_chunks_[which].ptr->size(),
+        0);
     if (copied == -1) {
         throw std::system_error(std::error_code(errno, std::system_category()));
     }
-    ::close(fd);
 }
 
 void AsyncIO::submit_threadsafe_invocation_request(
@@ -351,8 +439,7 @@ void AsyncIO::submit_threadsafe_invocation_request(
     // All writes to uring_data must be flushed before doing this
     std::atomic_thread_fence(std::memory_order_release);
     for (;;) {
-        auto written =
-            ::write(fds_[MSG_WRITE], &uring_data, sizeof(uring_data));
+        auto written = ::write(fds_.msgwrite, &uring_data, sizeof(uring_data));
         if (written == sizeof(uring_data)) {
             break;
         }

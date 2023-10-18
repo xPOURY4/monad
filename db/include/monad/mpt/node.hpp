@@ -1,5 +1,8 @@
 #pragma once
 
+#include <monad/async/detail/scope_polyfill.hpp>
+#include <monad/async/storage_pool.hpp>
+
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/unaligned.hpp>
@@ -27,7 +30,7 @@ class Node;
 struct ChildData
 {
     Node *ptr{nullptr};
-    file_offset_t offset{INVALID_OFFSET};
+    chunk_offset_t offset{INVALID_OFFSET};
     uint8_t branch{INVALID_BRANCH};
     unsigned char data[32];
     uint8_t len{0};
@@ -213,13 +216,13 @@ public:
         return data;
     }
 
-    file_offset_t &fnext_j(unsigned const j) noexcept
+    chunk_offset_t &fnext_j(unsigned const j) noexcept
     {
         MONAD_DEBUG_ASSERT(j < n());
-        return reinterpret_cast<file_offset_t *>(fnext_data())[j];
+        return reinterpret_cast<chunk_offset_t *>(fnext_data())[j];
     }
 
-    file_offset_t &fnext(unsigned const i) noexcept
+    chunk_offset_t &fnext(unsigned const i) noexcept
     {
         MONAD_DEBUG_ASSERT(i < 16);
         return fnext_j(to_j(i));
@@ -514,15 +517,20 @@ inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
 }
 
 inline Node *read_node_blocking(
-    int fd, file_offset_t const node_offset,
-    unsigned const bytes_to_read = 3U << DISK_PAGE_BITS)
+    MONAD_ASYNC_NAMESPACE::storage_pool &pool, chunk_offset_t node_offset,
+    unsigned bytes_to_read = 3U << DISK_PAGE_BITS)
 {
-    MONAD_ASSERT(fd != -1);
-    file_offset_t rd_offset = round_down_align<DISK_PAGE_BITS>(node_offset);
-    uint16_t buffer_off = uint16_t(node_offset - rd_offset);
-    alignas(DISK_PAGE_SIZE) unsigned char buffer[bytes_to_read];
+    file_offset_t rd_offset =
+        round_down_align<DISK_PAGE_BITS>(node_offset.offset);
+    uint16_t buffer_off = uint16_t(node_offset.offset - rd_offset);
+    auto *buffer =
+        (unsigned char *)aligned_alloc(DISK_PAGE_SIZE, bytes_to_read);
+    auto unbuffer = make_scope_exit([buffer]() noexcept { ::free(buffer); });
 
-    ssize_t bytes_read = pread(fd, buffer, bytes_to_read, rd_offset);
+    auto chunk = pool.activate_chunk(pool.seq, node_offset.id);
+    auto fd = chunk->read_fd();
+    ssize_t bytes_read =
+        pread(fd.first, buffer, bytes_to_read, fd.second + rd_offset);
     if (bytes_read < 0) {
         fprintf(
             stderr,

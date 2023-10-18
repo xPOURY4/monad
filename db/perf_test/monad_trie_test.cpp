@@ -1,8 +1,11 @@
 #include <CLI/CLI.hpp>
 #include <cassert>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h> // for SYS_gettid
 #include <unistd.h> // for syscall()
+
+#include <monad/async/detail/scope_polyfill.hpp>
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
@@ -235,6 +238,24 @@ int main(int argc, char *argv[])
 
         MerkleCompute comp{};
 
+        if (!std::filesystem::exists(dbname_path)) {
+            int fd =
+                ::open(dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+            if (-1 == fd) {
+                throw std::system_error(errno, std::system_category());
+            }
+            auto unfd =
+                monad::make_scope_exit([fd]() noexcept { ::close(fd); });
+            if (-1 ==
+                ::ftruncate(
+                    fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
+                throw std::system_error(errno, std::system_category());
+            }
+        }
+        MONAD_ASYNC_NAMESPACE::storage_pool pool{
+            {&dbname_path, 1},
+            MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
+
         // init uring
         monad::io::Ring ring(128, sq_thread_cpu);
 
@@ -247,7 +268,7 @@ int main(int argc, char *argv[])
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
-        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{dbname_path, ring, rwbuf};
+        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
         UpdateAux update_aux{comp, nullptr, /*when_to_apply_cache*/ 0};
         if (!in_memory) {

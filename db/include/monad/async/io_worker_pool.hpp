@@ -116,16 +116,8 @@ namespace detail
                     , ring(make_ring())
                     , buf(make_buffers(ring))
                     , local_io(
-                          {[&] {
-                               int ret = ::fcntl(
-                                   parent_pool.master_controller().get_rd_fd(),
-                                   F_DUPFD_CLOEXEC,
-                                   0);
-                               MONAD_ASSERT(ret != -1);
-                               return ret;
-                           }(),
-                           -1},
-                          ring, buf)
+                          parent_pool.master_controller().storage_pool(), ring,
+                          buf)
                 {
                 }
                 void iterate()

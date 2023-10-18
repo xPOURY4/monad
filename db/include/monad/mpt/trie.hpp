@@ -57,7 +57,7 @@ struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 
 struct async_write_node_result
 {
-    file_offset_t offset_written_to;
+    chunk_offset_t offset_written_to;
     unsigned bytes_appended;
     MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
 };
@@ -80,7 +80,8 @@ struct UpdateAux
 
     UpdateAux(
         Compute &comp_, MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
-        unsigned const list_dim_to_apply_cache_ = 1, file_offset_t root_off = 0)
+        unsigned const list_dim_to_apply_cache_ = 1,
+        chunk_offset_t root_off = {0, 0})
         : comp(comp_)
         , node_writer(node_writer_unique_ptr_type{})
         , list_dim_to_apply_cache(list_dim_to_apply_cache_)
@@ -91,7 +92,8 @@ struct UpdateAux
         }
     }
 
-    void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_, file_offset_t root_off = 0)
+    void set_io(
+        MONAD_ASYNC_NAMESPACE::AsyncIO *io_, chunk_offset_t root_off = {0, 0})
     {
         io = io_;
         node_writer =
@@ -155,8 +157,9 @@ namespace detail
         NibblesView const, ::boost::fibers::promise<find_result_type> *const>;
     static_assert(std::is_trivially_copyable_v<pending_request_t> == true);
 }
-using inflight_map_t =
-    unordered_dense_map<file_offset_t, std::list<detail::pending_request_t>>;
+using inflight_map_t = unordered_dense_map<
+    chunk_offset_t, std::list<detail::pending_request_t>,
+    chunk_offset_t_hasher>;
 
 //! \warning this is not threadsafe, should only be called from triedb thread
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
@@ -180,7 +183,7 @@ through blocking read.
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
-    int fd, Node *root, byte_string_view key,
+    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, byte_string_view key,
     std::optional<unsigned> opt_node_pi = std::nullopt);
 
 // helper

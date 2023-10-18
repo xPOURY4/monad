@@ -39,15 +39,19 @@ namespace
         }
         return ret;
     }();
+    static monad::async::storage_pool pool{
+        monad::async::use_anonymous_inode_tag{}};
     static monad::io::Ring testring(MAX_CONCURRENCY * 2, 0);
     static monad::io::Buffers testrwbuf{
         testring, MAX_CONCURRENCY * 2, MAX_CONCURRENCY * 2, 1UL << 13};
     static auto testio = [] {
-        auto ret = std::make_unique<AsyncIO>(
-            use_anonymous_inode_tag{}, testring, testrwbuf);
+        auto ret = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
+        auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
+                      ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
             TEST_FILE_SIZE ==
-            ::write(ret->get_rd_fd(), testfilecontents.data(), TEST_FILE_SIZE));
+            ::pwrite(
+                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
         return ret;
     }();
     monad::small_prng test_rand;
@@ -75,8 +79,10 @@ namespace
         {
             _states.reserve(total);
             for (size_t n = 0; n < total; n++) {
-                auto offset = round_down_align<DISK_PAGE_BITS>(
-                    test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
+                chunk_offset_t offset(
+                    0,
+                    round_down_align<DISK_PAGE_BITS>(
+                        test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
                 _states.push_back(testio->make_connected(
                     read_single_buffer_sender(
                         offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
@@ -110,10 +116,13 @@ namespace
         {
             auto *state = static_cast<typename _io_state_type::pointer>(i);
             EXPECT_EQ(
-                buffer.front(), testfilecontents[state->sender().offset()]);
+                buffer.front(),
+                testfilecontents[state->sender().offset().offset]);
             if (!_test_is_done) {
-                auto offset = round_down_align<DISK_PAGE_BITS>(
-                    test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE));
+                chunk_offset_t offset(
+                    0,
+                    round_down_align<DISK_PAGE_BITS>(
+                        test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
                 state->reset(
                     std::tuple{offset, state->sender().buffer()}, std::tuple{});
                 state->initiate();
@@ -666,8 +675,9 @@ namespace
         };
         static std::atomic<int> latch{-1};
         std::thread controller([] {
+            storage_pool pool{use_anonymous_inode_tag{}};
             controller_executor = std::make_unique<AsyncIO>(
-                use_anonymous_inode_tag{}, controller_executor_ring, testrwbuf);
+                pool, controller_executor_ring, testrwbuf);
             latch = 0;
             while (!latch) {
                 controller_executor->poll_blocking();
