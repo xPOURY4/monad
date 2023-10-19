@@ -114,6 +114,7 @@ Node *update_node_diff_path_leaf(
     bool const is_leaf = leaf_data.has_value();
     unsigned const leaf_len =
         leaf_data.has_value() ? leaf_data.value().size() : 0;
+    MONAD_ASSERT(leaf_len < 255); // or uint8_t will overflow
 
     unsigned bytes = old->get_mem_size() + leaf_len - old->leaf_len +
                      relpath.size() - old->path_bytes();

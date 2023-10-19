@@ -63,6 +63,7 @@ struct trie_fuzzer_fixture
             // Fix the trie so that the root hashes are back to normal
             std::vector<Update> correct;
             for (auto const &[i, _] : mods) {
+                // overwrite mods values to final ones
                 correct.emplace_back(make_update(
                     one_hundred_updates[i].first,
                     one_hundred_updates[i].second));
@@ -70,7 +71,6 @@ struct trie_fuzzer_fixture
             this->root =
                 upsert_vector(this->update_aux, this->root.get(), correct);
         }
-
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
@@ -139,6 +139,7 @@ struct trie_fuzzer_fixture
             MONAD_DEBUG_ASSERT(next != inputs.end());
 
             if (mods.at(i).has_value()) {
+                // insert kv of {key[i], random generated value in mods}
                 next->second.emplace_back(
                     make_update(kv[i].first, mods.at(i).value()));
             }
@@ -153,8 +154,6 @@ struct trie_fuzzer_fixture
 
         size_t count = 0;
         for (auto &[_, input] : inputs) {
-            std::ranges::sort(
-                input, std::less<>{}, [](const Update &x) { return x.key; });
             count += input.size();
             this->root =
                 upsert_vector(this->update_aux, this->root.get(), input);
@@ -172,13 +171,16 @@ FUZZ_TEST_F(in_memory_trie_fixture_t, SimplePermuted)
     .WithDomains(Arbitrary<uint32_t>());
 #endif
 
+inline constexpr auto MAX_VALUE_SIZE = 110u;
 FUZZ_TEST_F(in_memory_trie_fixture_t, OneHundredUpdates)
     .WithDomains(
         ArrayOf<one_hundred_updates.size()>(
             InRange(0ul, one_hundred_updates.size() - 1)),
         MapOf(
             InRange(0ul, one_hundred_updates.size() - 1),
-            OptionalOf(Arbitrary<monad::byte_string>().WithMinSize(1))));
+            OptionalOf(Arbitrary<monad::byte_string>()
+                           .WithMinSize(1)
+                           .WithMaxSize(MAX_VALUE_SIZE))));
 
 inline constexpr auto GENERATED_SIZE = 100ul;
 
@@ -189,9 +191,11 @@ FUZZ_TEST_F(in_memory_trie_fixture_t, GeneratedKv)
     .WithDomains(
         MapOf(
             Arbitrary<monad::byte_string>().WithSize(32),
-            NonEmpty(Arbitrary<monad::byte_string>()))
+            NonEmpty(
+                Arbitrary<monad::byte_string>().WithMaxSize(MAX_VALUE_SIZE)))
             .WithSize(GENERATED_SIZE),
         VectorOf(InRange(0ul, GENERATED_SIZE - 1)).WithSize(GENERATED_SIZE),
         MapOf(
             InRange(0ul, GENERATED_SIZE - 1),
-            OptionalOf(NonEmpty(Arbitrary<monad::byte_string>()))));
+            OptionalOf(NonEmpty(
+                Arbitrary<monad::byte_string>().WithMaxSize(MAX_VALUE_SIZE)))));
