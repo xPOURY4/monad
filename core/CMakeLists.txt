@@ -76,6 +76,7 @@ add_library(
   "include/monad/core/math.hpp"
   "include/monad/core/nibble.h"
   "include/monad/core/offset.hpp"
+  "include/monad/core/result.hpp"
   "include/monad/core/size_of.hpp"
   "include/monad/core/small_prng.hpp"
   "include/monad/core/unaligned.hpp"
