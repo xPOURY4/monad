@@ -63,6 +63,7 @@ inline Update make_update(
         UpdateMemberHook{}};
 }
 
+// When updates in the nested list but not in this key value pair itself
 inline Update
 make_update(monad::byte_string_view const key, UpdateList *next) noexcept
 {

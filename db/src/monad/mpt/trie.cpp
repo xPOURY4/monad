@@ -628,7 +628,6 @@ node_writer_unique_ptr_type replace_node_writer(
     return ret;
 }
 
-// always write 2-byte aligned size
 async_write_node_result async_write_node(
     AsyncIO &io, node_writer_unique_ptr_type &node_writer, Node *node)
 {

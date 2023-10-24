@@ -82,6 +82,12 @@ struct NibblesView
     {
     }
 
+    // constructor from byte_string
+    constexpr NibblesView(byte_string const &s) noexcept
+        : NibblesView(false, 2 * s.size(), s.data())
+    {
+    }
+
     // construct from Nibbles
     constexpr NibblesView(Nibbles const &n) noexcept
         : NibblesView{n.si, n.ei, n.data}

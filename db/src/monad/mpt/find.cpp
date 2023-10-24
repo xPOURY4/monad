@@ -17,8 +17,8 @@ Node *_read_node_blocking(
 }
 
 find_result_type find_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *node, byte_string_view key,
-    std::optional<unsigned> opt_node_pi)
+    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *node,
+    NibblesView const key, std::optional<unsigned> opt_node_pi)
 {
     if (!node) {
         return {nullptr, find_result::root_node_is_null_failure};
@@ -26,9 +26,8 @@ find_result_type find_blocking(
     unsigned pi = 0, node_pi = opt_node_pi.has_value()
                                    ? opt_node_pi.value()
                                    : node->bitpacked.path_nibble_index_start;
-    unsigned const key_nibble_size = 2 * key.size();
-    while (pi < key_nibble_size) {
-        unsigned char nibble = get_nibble(key.data(), pi);
+    while (pi < key.nibble_size()) {
+        unsigned char nibble = key[pi];
         if (node->path_nibble_index_end == node_pi) {
             if (!(node->mask & (1u << nibble))) {
                 return {nullptr, find_result::branch_not_exist_failure};

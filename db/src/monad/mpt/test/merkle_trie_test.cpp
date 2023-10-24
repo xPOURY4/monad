@@ -557,18 +557,10 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     // copy state root to blockno2
     this->root =
         copy_node(this->update_aux, std::move(this->root), blockno, blockno2);
-
-    storage.clear();
-    storage.push_front(a);
-    storage.push_front(b);
-    storage.push_front(c);
-    state_changes.clear();
-    state_changes.push_front(s1);
-    state_changes.push_front(s2);
     this->root = upsert_vector(
         this->update_aux,
         this->root.get(),
-        {make_update(blockno2, {}, false, &state_changes)});
+        {make_update(blockno2, monad::byte_string_view{})});
 
     std::tie(state_root, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
@@ -586,17 +578,42 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         old_state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
-    // copy state root to blockno3
+    // copy state root to blockno3, update blockno3's leaf data
     auto blockno3 = 0x00000003_hex;
     this->root =
         copy_node(this->update_aux, std::move(this->root), blockno2, blockno3);
-    if (this->on_disk()) {
-        this->update_aux.io->flush();
-    }
+    this->root = upsert_vector(
+        this->update_aux,
+        this->root.get(),
+        {make_update(blockno3, 0xdeadbeef03_hex)});
     std::tie(state_root, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+    EXPECT_EQ(state_root->leaf_view(), 0xdeadbeef03_hex);
+
+    std::tie(state_root, res) =
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
+    EXPECT_EQ(
+        state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+    EXPECT_EQ(state_root->leaf_view(), monad::byte_string_view{});
+
+    // copy state root from blockno2 to blockno3 again. In on-disk trie case,
+    // blockno2 leaf is on disk and blockno3 leaf in memory, find_blocking()
+    // will read for leaf of blockno2, and update curr blockno3 leaf to the same
+    // as blockno2.
+    this->root =
+        copy_node(this->update_aux, std::move(this->root), blockno2, blockno3);
+    std::tie(state_root, res) =
+        find_blocking(this->get_storage_pool(), this->root.get(), blockno3);
+    EXPECT_EQ(res, monad::mpt::find_result::success);
+    EXPECT_EQ(
+        state_root->hash_view(),
+        0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+    // leaf data changed here
+    EXPECT_EQ(state_root->leaf_view(), monad::byte_string_view{});
 }

@@ -172,9 +172,10 @@ void find_notify_fiber_future(
 committing block updates to triedb. By copy we mean everything other than
 relpath. When copying children over, also remove the original's child pointers
 to avoid dup referencing. For on-disk trie deallocate nodes under prefix `src`
-after copy is done when the node is the only in-memory child of its parent. */
-node_ptr copy_node(
-    UpdateAux &, node_ptr root, byte_string_view src, byte_string_view dest);
+after copy is done when the node is the only in-memory child of its parent.
+Note that we handle the case where `dest` is pre-existed in trie. */
+node_ptr
+copy_node(UpdateAux &, node_ptr root, NibblesView src, NibblesView dest);
 
 /*! \brief blocking find node indexed by key from root, It works for bothon-disk
 and in-memory trie. When node along key is not yet in memory, it load node
@@ -183,7 +184,7 @@ through blocking read.
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, byte_string_view key,
+    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, NibblesView key,
     std::optional<unsigned> opt_node_pi = std::nullopt);
 
 // helper
