@@ -244,7 +244,12 @@ public:
             return 0;
         }
         else {
-            return reinterpret_cast<data_off_t *>(child_off_data())[j - 1];
+            data_off_t res;
+            memcpy(
+                &res,
+                child_off_data() + (j - 1) * sizeof(data_off_t),
+                sizeof(data_off_t));
+            return res;
         }
     }
     constexpr unsigned child_data_len_j(unsigned const j)

@@ -695,6 +695,8 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
     to_initiate.release();
     // flush async write root
     io.flush();
+    // write new root offset to the front of disk
+    update_aux.update_root_offset(ret.offset_written_to);
     return ret;
 }
 

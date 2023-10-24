@@ -70,6 +70,7 @@ public:
         {
             // Preceding this is an array of uint32_t of chunk bytes used
 
+            chunk_offset_t root_offset;
             uint32_t _spare0; // set aside for flags later
             uint32_t config_hash; // hash of this configuration
             uint32_t chunk_capacity;
@@ -143,6 +144,11 @@ public:
         //! Returns the capacity of the device, and how much of that is
         //! currently filled with data, in that order.
         std::pair<file_offset_t, file_offset_t> capacity() const;
+        //! Returns the latest root offset
+        chunk_offset_t *root_offset() const
+        {
+            return &_metadata->root_offset;
+        }
     };
     /*! \brief A zone chunk from storage, which is always managed by a shared
     ptr. When the shared ptr count reaches zero, any file descriptors or other

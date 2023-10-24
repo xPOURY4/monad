@@ -28,12 +28,12 @@ struct Nibbles
         , data((si_ == ei_) ? nullptr : ([&] {
             MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
             unsigned const alloc_size = (ei + 1) / 2;
-            auto *ret = std::malloc(alloc_size);
+            void *ret = std::malloc(alloc_size);
             if (ret == nullptr) {
                 throw std::bad_alloc();
             }
             std::memset(ret, 0, alloc_size);
-            return reinterpret_cast<unsigned char *>(ret);
+            return static_cast<unsigned char *>(ret);
         }()))
     {
     }
@@ -153,12 +153,12 @@ inline Nibbles &Nibbles::operator=(NibblesView const &n)
         return *this;
     }
     unsigned const alloc_size = n.size();
-    auto *ret = std::malloc(alloc_size);
+    void *ret = std::malloc(alloc_size);
     if (ret == nullptr) {
         throw std::bad_alloc();
     }
     memcpy(ret, n.data, n.size());
-    data = reinterpret_cast<unsigned char *>(ret);
+    data = static_cast<unsigned char *>(ret);
     return *this;
 }
 

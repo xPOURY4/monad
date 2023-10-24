@@ -37,11 +37,11 @@ static void ctrl_c_handler(int s)
     exit(0);
 }
 
-void __print_char_arr_in_hex(char *arr, int n)
+void __print_bytes_in_hex(monad::byte_string_view arr)
 {
     fprintf(stdout, "0x");
-    for (int i = 0; i < n; ++i) {
-        fprintf(stdout, "%02x", (uint8_t)arr[i]);
+    for (auto &c : arr) {
+        fprintf(stdout, "%02x", (uint8_t)c);
     }
     fprintf(stdout, "\n");
 }
@@ -62,76 +62,85 @@ inline unsigned count_leaves(Node *const root, unsigned n = 0)
 }
 
 /*  Commit one batch of updates
-    offset: key offset, insert key starting from this number
+    key_offset: insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
 inline node_ptr batch_upsert_commit(
-    std::ostream &csv_writer, uint64_t block_id, uint64_t keccak_offset,
-    uint64_t offset, uint64_t nkeys,
+    std::ostream &csv_writer, uint64_t block_id, uint64_t vec_idx,
+    uint64_t key_offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_state_root, UpdateAux &update_aux)
+    node_ptr prev_root, UpdateAux &update_aux)
 {
-    // TODO: find state_root using find(root, block_id);
-    (void)block_id;
+    auto const block_no = serialise_as_big_endian<6>(block_id);
+    if (block_id != 0) {
+        prev_root = monad::mpt::copy_node(
+            update_aux,
+            std::move(prev_root),
+            serialise_as_big_endian<6>(block_id - 1),
+            block_no);
+    }
 
     double tm_ram;
-
     std::vector<Update> update_vec;
     update_vec.reserve(SLICE_LEN);
-    UpdateList update_ls;
-    for (uint64_t i = keccak_offset; i < keccak_offset + nkeys; ++i) {
+    UpdateList state_updates;
+    for (uint64_t i = 0; i < nkeys; ++i) {
         update_vec.push_back(
-            erase ? make_erase(keccak_keys[i])
-                  : make_update(keccak_keys[i], keccak_values[i]));
-        update_ls.push_front(update_vec[i - keccak_offset]);
+            erase ? make_erase(keccak_keys[i + vec_idx])
+                  : make_update(
+                        keccak_keys[i + vec_idx], keccak_values[i + vec_idx]));
+        state_updates.push_front(update_vec[i]);
     }
+    Update u = make_update(block_no, {}, false, &state_updates);
+    UpdateList updates;
+    updates.push_front(u);
+
     auto ts_before = std::chrono::steady_clock::now();
-
-    node_ptr new_node =
-        upsert(update_aux, prev_state_root.get(), std::move(update_ls));
-
+    node_ptr new_root = upsert(update_aux, prev_root.get(), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
                  ts_after - ts_before)
                  .count() /
              1000000000.0;
 
-    unsigned char root_hash[32];
-    update_aux.comp.compute(root_hash, new_node.get());
+    auto [state_root, res] = find_blocking(
+        update_aux.is_on_disk() ? &update_aux.io->storage_pool() : nullptr,
+        new_root.get(),
+        block_no);
+    MONAD_ASSERT(res == find_result::success);
     fprintf(stdout, "root->data : ");
-    __print_char_arr_in_hex((char *)root_hash, 32);
+    __print_bytes_in_hex(state_root->hash_view());
 
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in "
         "RAM: "
         "%f /s, total_t %.4f s\n",
-        offset + keccak_offset + nkeys,
+        key_offset + vec_idx + nkeys,
         nkeys,
         (double)nkeys / tm_ram,
         tm_ram);
     fflush(stdout);
     if (csv_writer) {
-        csv_writer << (offset + keccak_offset + nkeys) << ","
+        csv_writer << (key_offset + vec_idx + nkeys) << ","
                    << ((double)nkeys / tm_ram) << std::endl;
     }
 
-    return new_node;
+    return new_root;
 }
 
 void prepare_keccak(
     size_t nkeys, std::vector<monad::byte_string> &keccak_keys,
-    std::vector<monad::byte_string> &keccak_values, size_t idx_offset,
-    size_t offset)
+    std::vector<monad::byte_string> &keccak_values, size_t key_offset)
 {
     size_t key;
     size_t val;
 
     // prepare keccak
-    for (size_t i = idx_offset; i < idx_offset + nkeys; ++i) {
+    for (size_t i = 0; i < nkeys; ++i) {
         // assign keccak256 on i to key
-        key = i + offset;
+        key = i + key_offset;
         keccak_keys[i].resize(32);
         keccak256((const unsigned char *)&key, 8, keccak_keys[i].data());
 
@@ -149,24 +158,27 @@ int main(int argc, char *argv[])
     sig.sa_flags = 0;
     sigaction(SIGINT, &sig, nullptr);
 
-    int n_slices = 20;
+    unsigned n_slices = 20;
     bool append = false;
-    uint64_t vid = 0;
+    uint64_t block_no = 0;
     std::filesystem::path dbname_path = "test.db", csv_stats_path;
-    uint64_t offset = 0;
+    uint64_t key_offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;
     bool in_memory = false; // default is on disk
     bool empty_cpu_caches = false;
 
+    // TODO: add block num in trie update, cache level should be 1,
     CLI::App cli{"monad_merge_trie_test"};
     try {
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
-        cli.add_flag("--append", append, "append on a specific version in db");
-        cli.add_option("--vid", vid, "append on a specific version in db");
+        cli.add_flag("--append", append, "append at a specific block in db");
+        cli.add_option(
+            "--block-no", block_no, "append on a specific block in db");
         cli.add_option("--db-name", dbname_path, "db file name");
         cli.add_option("--csv-stats", csv_stats_path, "CSV stats file name");
-        cli.add_option("--offset", offset, "integer offset to start insert");
+        cli.add_option(
+            "--key-offset", key_offset, "integer offset to start insert");
         cli.add_option("-n", n_slices, "n batch updates");
         cli.add_option("--kcpu", sq_thread_cpu, "io_uring sq_thread_cpu");
         cli.add_flag("--erase", erase, "test erase");
@@ -177,6 +189,8 @@ int main(int argc, char *argv[])
             empty_cpu_caches,
             "empty cpu caches between updates");
         cli.parse(argc, argv);
+
+        MONAD_ASSERT(in_memory + append < 2);
 
         std::ofstream csv_writer;
         if (!csv_stats_path.empty()) {
@@ -232,7 +246,7 @@ int main(int argc, char *argv[])
             }
         } cpu_cache_emptier{empty_cpu_caches};
 
-        uint64_t keccak_cap = 100 * SLICE_LEN;
+        uint64_t const keccak_cap = 100 * SLICE_LEN;
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
@@ -254,7 +268,8 @@ int main(int argc, char *argv[])
         }
         MONAD_ASYNC_NAMESPACE::storage_pool pool{
             {&dbname_path, 1},
-            MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
+            append ? MONAD_ASYNC_NAMESPACE::storage_pool::mode::open_existing
+                   : MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
 
         // init uring
         monad::io::Ring ring(128, sq_thread_cpu);
@@ -263,37 +278,59 @@ int main(int argc, char *argv[])
         // TODO: pass in a preallocated memory
         monad::io::Buffers rwbuf{
             ring,
-            8192 * 8,
+            8192 * 16,
             128,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
-        UpdateAux update_aux{comp, nullptr, /*when_to_apply_cache*/ 0};
+        UpdateAux update_aux{comp, nullptr, /*when_to_apply_cache*/ 1};
         if (!in_memory) {
             update_aux.set_io(&io);
         }
 
         node_ptr state_root{};
+        if (append) { // TO erase chunks and revert metadata to places we start
+                      // again
+            auto root_off = update_aux.get_root_offset();
+            Node *root = read_node_blocking(io.storage_pool(), root_off);
+            state_root.reset(root);
+            chunk_offset_t block_start{0, 0};
+            if (root_off.offset + (file_offset_t)root->get_disk_size() <
+                update_aux.io->chunk_capacity(root_off.id)) {
+                block_start = round_up_align<DISK_PAGE_BITS>(
+                    root_off.add_to_offset(root->get_disk_size()));
+            }
+            else { // This won't hit once we disable node write across chunks
+                auto bytesnextchunk =
+                    root->get_disk_size() + root_off.offset -
+                    update_aux.io->chunk_capacity(root_off.id);
+                root_off.id++;
+                root_off.offset = 0;
+                block_start = round_up_align<DISK_PAGE_BITS>(
+                    root_off.add_to_offset(bytesnextchunk));
+            }
+            update_aux.reset_node_writer_offset(block_start);
+            block_no += 1;
+        }
 
         auto begin_test = std::chrono::steady_clock::now();
-        uint64_t max_key = n_slices * SLICE_LEN + offset;
+        uint64_t max_key = n_slices * SLICE_LEN + key_offset;
         /* start profiling upsert and commit */
-        for (int iter = 0; iter < n_slices; ++iter) {
+        for (uint64_t iter = 0; iter < n_slices; ++iter) {
             // renew keccak values
             if (!(iter * SLICE_LEN % keccak_cap)) {
                 auto begin_prepare_keccak = std::chrono::steady_clock::now();
                 if (iter) {
-                    offset += keccak_cap;
+                    key_offset += keccak_cap;
                 }
                 // pre-calculate keccak
                 prepare_keccak(
-                    std::min(keccak_cap, max_key - int64_t(offset)),
+                    std::min(keccak_cap, max_key - key_offset),
                     keccak_keys,
                     keccak_values,
-                    0,
-                    offset);
+                    key_offset);
                 fprintf(
                     stdout, "Finish preparing keccak.\nStart transactions\n");
                 fflush(stdout);
@@ -304,10 +341,10 @@ int main(int argc, char *argv[])
             cpu_cache_emptier();
             state_root = batch_upsert_commit(
                 csv_writer,
-                vid,
-                (iter % 100) * SLICE_LEN,
-                offset,
-                SLICE_LEN,
+                block_no++,
+                (iter % 100) * SLICE_LEN, /* vec_idx */
+                key_offset, /* key offset */
+                SLICE_LEN, /* nkeys */
                 keccak_keys,
                 keccak_values,
                 false,
@@ -315,38 +352,34 @@ int main(int argc, char *argv[])
                 update_aux);
 
             if (erase && (iter & 1) != 0) {
-                fprintf(stdout, "> erase iter = %d\n", iter);
+                fprintf(stdout, "> erase iter = %lu\n", iter);
                 fflush(stdout);
                 state_root = batch_upsert_commit(
                     csv_writer,
-                    vid,
-                    (iter % 100) * SLICE_LEN,
-                    offset,
-                    SLICE_LEN,
+                    block_no++,
+                    (iter % 100) * SLICE_LEN, /* vec_idx */
+                    key_offset, /* key offset */
+                    SLICE_LEN, /* nkeys */
                     keccak_keys,
                     keccak_values,
                     true,
                     std::move(state_root),
                     update_aux);
-                ++vid;
 
-                fprintf(stdout, "> dup batch iter = %d\n", iter);
+                fprintf(stdout, "> dup batch iter = %lu\n", iter);
 
                 state_root = batch_upsert_commit(
                     csv_writer,
-                    vid,
-                    (iter % 100) * SLICE_LEN,
-                    offset,
-                    SLICE_LEN,
+                    block_no++,
+                    (iter % 100) * SLICE_LEN, /* vec_idx */
+                    key_offset, /* key offset */
+                    SLICE_LEN, /* nkeys */
                     keccak_keys,
                     keccak_values,
                     false,
                     std::move(state_root),
                     update_aux);
-                ++vid;
             }
-
-            ++vid;
         }
 
         auto end_test = std::chrono::steady_clock::now();

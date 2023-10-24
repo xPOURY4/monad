@@ -81,29 +81,36 @@ struct UpdateAux
     UpdateAux(
         Compute &comp_, MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
         unsigned const list_dim_to_apply_cache_ = 1,
-        chunk_offset_t root_off = {0, 0})
+        chunk_offset_t write_block_offset = {0, 0})
         : comp(comp_)
         , node_writer(node_writer_unique_ptr_type{})
         , list_dim_to_apply_cache(list_dim_to_apply_cache_)
         , current_list_dim{0}
     {
         if (io_) {
-            set_io(io_, root_off);
+            set_io(io_, write_block_offset);
         }
     }
 
     void set_io(
-        MONAD_ASYNC_NAMESPACE::AsyncIO *io_, chunk_offset_t root_off = {0, 0})
+        MONAD_ASYNC_NAMESPACE::AsyncIO *io_,
+        chunk_offset_t write_block_offset = {0, 0})
     {
         io = io_;
         node_writer =
             io ? io->make_connected(
                      MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
-                         round_up_align<DISK_PAGE_BITS>(root_off),
+                         round_up_align<DISK_PAGE_BITS>(write_block_offset),
                          {(const std::byte *)nullptr,
                           MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
                      write_operation_io_receiver{})
                : node_writer_unique_ptr_type{};
+    }
+
+    void reset_node_writer_offset(chunk_offset_t const write_block_offset)
+    {
+        node_writer->sender().reset(
+            write_block_offset, node_writer->sender().buffer());
     }
 
     constexpr bool is_in_memory() const noexcept
@@ -114,6 +121,20 @@ struct UpdateAux
     constexpr bool is_on_disk() const noexcept
     {
         return io != nullptr;
+    }
+
+    void update_root_offset(chunk_offset_t const offset)
+    {
+        MONAD_ASSERT(this->is_on_disk());
+        MONAD_ASYNC_NAMESPACE::storage_pool &pool = io->storage_pool();
+        *(pool.devices()[0].root_offset()) = offset;
+    }
+
+    chunk_offset_t get_root_offset() noexcept
+    {
+        MONAD_ASSERT(this->is_on_disk());
+        MONAD_ASYNC_NAMESPACE::storage_pool &pool = io->storage_pool();
+        return *(pool.devices()[0].root_offset());
     }
 };
 static_assert(sizeof(UpdateAux) == 32);
