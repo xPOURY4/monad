@@ -101,10 +101,7 @@ node_ptr copy_node(
                 // land on disk immediately, but it's queued until the
                 // buffer is full or a root node is written in the next
                 // batch update.
-                auto off = async_write_node(
-                               *update_aux.io,
-                               update_aux.node_writer,
-                               node_latter_half)
+                auto off = async_write_node(update_aux, node_latter_half)
                                .offset_written_to;
                 auto const pages =
                     num_pages(off.offset, node_latter_half->get_disk_size());

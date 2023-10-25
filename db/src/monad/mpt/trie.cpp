@@ -5,11 +5,293 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/upward_tnode.hpp>
 
+#include <monad/async/detail/scope_polyfill.hpp>
+
+#include <monad/core/small_prng.hpp>
+
 #include <cstdint>
+#include <vector>
+
+#include <sys/mman.h>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
+
+std::pair<UpdateAux::chunk_list, uint32_t>
+UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
+{
+    auto const *ci = _db_metadata[0]->at(idx);
+    std::pair<chunk_list, uint32_t> ret(
+        chunk_list::free, ci->insertion_count());
+    if (ci->in_fast_list) {
+        ret.first = chunk_list::fast;
+        ret.second -= _db_metadata[0]->fast_list_begin()->insertion_count();
+    }
+    else if (ci->in_slow_list) {
+        ret.first = chunk_list::slow;
+        ret.second -= _db_metadata[0]->slow_list_begin()->insertion_count();
+    }
+    else {
+        ret.second -= _db_metadata[0]->free_list_begin()->insertion_count();
+    }
+    ret.second &= 0xfffff;
+    return ret;
+}
+
+void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
+{
+    auto do_ = [&](detail::db_metadata *m) {
+        switch (list) {
+        case chunk_list::free:
+            m->_append(m->free_list, m->_at(idx));
+            break;
+        case chunk_list::fast:
+            m->_append(m->fast_list, m->_at(idx));
+            break;
+        case chunk_list::slow:
+            m->_append(m->slow_list, m->_at(idx));
+            break;
+        }
+    };
+    do_(_db_metadata[0]);
+    do_(_db_metadata[1]);
+    if (list == chunk_list::free) {
+        auto chunk = io->storage_pool().chunk(
+            MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
+        auto capacity = chunk->capacity();
+        assert(chunk->size() == 0);
+        _db_metadata[0]->_free_capacity_add(capacity);
+        _db_metadata[1]->_free_capacity_add(capacity);
+    }
+}
+
+void UpdateAux::prepend(chunk_list list, uint32_t idx) noexcept
+{
+    auto do_ = [&](detail::db_metadata *m) {
+        switch (list) {
+        case chunk_list::free:
+            m->_prepend(m->free_list, m->_at(idx));
+            break;
+        case chunk_list::fast:
+            m->_prepend(m->fast_list, m->_at(idx));
+            break;
+        case chunk_list::slow:
+            m->_prepend(m->slow_list, m->_at(idx));
+            break;
+        }
+    };
+    do_(_db_metadata[0]);
+    do_(_db_metadata[1]);
+    if (list == chunk_list::free) {
+        auto chunk = io->storage_pool().chunk(
+            MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
+        auto capacity = chunk->capacity();
+        assert(chunk->size() == 0);
+        _db_metadata[0]->_free_capacity_add(capacity);
+        _db_metadata[1]->_free_capacity_add(capacity);
+    }
+}
+
+void UpdateAux::remove(uint32_t idx) noexcept
+{
+    bool const is_free_list =
+        (!_db_metadata[0]->_at(idx)->in_fast_list &&
+         !_db_metadata[0]->_at(idx)->in_slow_list);
+    auto do_ = [&](detail::db_metadata *m) { m->_remove(m->_at(idx)); };
+    do_(_db_metadata[0]);
+    do_(_db_metadata[1]);
+    if (is_free_list) {
+        auto chunk = io->storage_pool().chunk(
+            MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
+        auto capacity = chunk->capacity();
+        assert(chunk->size() == 0);
+        _db_metadata[0]->_free_capacity_sub(capacity);
+        _db_metadata[1]->_free_capacity_sub(capacity);
+    }
+}
+
+void UpdateAux::rewind_root_offset_to(chunk_offset_t offset)
+{
+    // TODO FIXME: We need to also adjust the slow list
+    auto *ci = _db_metadata[0]->fast_list_begin();
+    for (; ci != nullptr && offset.id != ci->index(_db_metadata[0]);
+         ci = ci->next(_db_metadata[0])) {
+    }
+    // If this trips, the supplied root offset is not in the fast list
+    MONAD_ASSERT(ci != nullptr);
+    while (ci != _db_metadata[0]->fast_list_end()) {
+        auto const idx = _db_metadata[0]->fast_list.end;
+        remove(idx);
+        io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
+        prepend(chunk_list::free, idx);
+    }
+    {
+        auto g = _db_metadata[0]->hold_dirty();
+        _db_metadata[0]->root_offset = offset;
+    }
+    {
+        auto g = _db_metadata[1]->hold_dirty();
+        _db_metadata[1]->root_offset = offset;
+    }
+}
+
+UpdateAux::~UpdateAux()
+{
+    if (io != nullptr) {
+        auto const chunk_count = io->chunk_count();
+        auto const map_size =
+            sizeof(detail::db_metadata) +
+            chunk_count * sizeof(detail::db_metadata::chunk_info_t);
+        (void)::munmap(_db_metadata[0], map_size);
+        (void)::munmap(_db_metadata[1], map_size);
+    }
+}
+
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
+void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
+{
+    io = io_;
+    auto const chunk_count = io->chunk_count();
+    auto const map_size =
+        sizeof(detail::db_metadata) +
+        chunk_count * sizeof(detail::db_metadata::chunk_info_t);
+    auto cnv_chunk = io->storage_pool().activate_chunk(storage_pool::cnv, 0);
+    auto fd = cnv_chunk->write_fd(0);
+    _db_metadata[0] = start_lifetime_as<detail::db_metadata>(::mmap(
+        nullptr,
+        map_size,
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED,
+        fd.first,
+        off_t(fd.second)));
+    MONAD_ASSERT(_db_metadata[0] != MAP_FAILED);
+    _db_metadata[1] = start_lifetime_as<detail::db_metadata>(::mmap(
+        nullptr,
+        map_size,
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED,
+        fd.first,
+        off_t(fd.second + cnv_chunk->capacity() / 2)));
+    MONAD_ASSERT(_db_metadata[1] != MAP_FAILED);
+    // If the front copy vanished for some reason ...
+    if (0 != memcmp(_db_metadata[0]->magic, "MND0", 4)) {
+        if (0 == memcmp(_db_metadata[1]->magic, "MND0", 4)) {
+            memcpy(_db_metadata[0], _db_metadata[1], map_size);
+        }
+    }
+    // Replace any dirty copy with the non-dirty copy
+    if (0 == memcmp(_db_metadata[0]->magic, "MND0", 4) &&
+        0 == memcmp(_db_metadata[1]->magic, "MND0", 4)) {
+        MONAD_ASSERT(
+            !_db_metadata[0]->is_dirty().load(std::memory_order_acquire) ||
+            !_db_metadata[1]->is_dirty().load(std::memory_order_acquire));
+        if (_db_metadata[0]->is_dirty().load(std::memory_order_acquire)) {
+            memcpy(_db_metadata[0], _db_metadata[1], map_size);
+        }
+        else if (_db_metadata[1]->is_dirty().load(std::memory_order_acquire)) {
+            memcpy(_db_metadata[1], _db_metadata[0], map_size);
+        }
+    }
+    if (0 != memcmp(_db_metadata[0]->magic, "MND0", 4)) {
+        memset(_db_metadata[0], 0, map_size);
+        assert((chunk_count & ~0xfffffU) == 0);
+        _db_metadata[0]->chunk_info_count = chunk_count & 0xfffffU;
+        memset(
+            &_db_metadata[0]->free_list,
+            0xff,
+            sizeof(_db_metadata[0]->free_list));
+        memset(
+            &_db_metadata[0]->fast_list,
+            0xff,
+            sizeof(_db_metadata[0]->fast_list));
+        memset(
+            &_db_metadata[0]->slow_list,
+            0xff,
+            sizeof(_db_metadata[0]->slow_list));
+        auto *chunk_info =
+            start_lifetime_as_array<detail::db_metadata::chunk_info_t>(
+                _db_metadata[0]->chunk_info, chunk_count);
+        for (size_t n = 0; n < chunk_count; n++) {
+            auto &ci = chunk_info[n];
+            ci.prev_chunk_id = ci.next_chunk_id =
+                detail::db_metadata::chunk_info_t::INVALID_CHUNK_ID;
+        }
+        memcpy(_db_metadata[1], _db_metadata[0], map_size);
+
+        // Insert all chunks into the free list
+        std::vector<uint32_t> chunks;
+        chunks.reserve(chunk_count);
+        for (uint32_t n = 0; n < chunk_count; n++) {
+            auto chunk = io->storage_pool().chunk(storage_pool::seq, n);
+            MONAD_ASSERT(chunk->size() == 0); // chunks must actually be free
+            chunks.push_back(n);
+        }
+        struct prng_wrapper : small_prng
+        {
+            using result_type = uint32_t;
+            static constexpr result_type min()
+            {
+                return 0;
+            }
+            static constexpr result_type max()
+            {
+                return UINT32_MAX;
+            }
+        } rand;
+        std::shuffle(chunks.begin(), chunks.end(), rand);
+        chunk_offset_t const root_offset(chunks.back(), 0);
+        append(chunk_list::fast, root_offset.id);
+        chunks.pop_back();
+        for (uint32_t i : chunks) {
+            append(chunk_list::free, i);
+        }
+
+        // Mark as done
+        _db_metadata[0]->root_offset = root_offset;
+        _db_metadata[1]->root_offset = root_offset;
+        std::atomic_signal_fence(
+            std::memory_order_seq_cst); // no compiler reordering here
+        memcpy(_db_metadata[0]->magic, "MND0", 4);
+        memcpy(_db_metadata[1]->magic, "MND0", 4);
+    }
+    // If the pool has changed since we configured the metadata, this will fail
+    MONAD_ASSERT(_db_metadata[0]->chunk_info_count == chunk_count);
+    // Make sure the root offset points into a block in use as a sanity check
+    auto const root_offset = get_root_offset();
+    auto chunk = io->storage_pool().chunk(storage_pool::seq, root_offset.id);
+    MONAD_ASSERT(chunk->size() >= root_offset.offset);
+    /* The DB may have trailing garbage if it died when writing the next block.
+    We simply ignore it, it'll get compacted at some later point.
+    */
+    chunk_offset_t node_writer_offset(root_offset);
+    auto *last_chunk_info = _db_metadata[0]->fast_list_end();
+    if (last_chunk_info != nullptr &&
+        last_chunk_info->index(db_metadata()) != node_writer_offset.id) {
+        node_writer_offset.id =
+            last_chunk_info->index(db_metadata()) & 0xfffffU;
+        chunk =
+            io->storage_pool().chunk(storage_pool::seq, node_writer_offset.id);
+    }
+    node_writer_offset.offset = chunk->size() & 0xfffffU;
+    node_writer =
+        io ? io->make_connected(
+                 MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
+                     node_writer_offset,
+                     {(std::byte const *)nullptr,
+                      std::min(
+                          MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE,
+                          size_t(
+                              chunk->capacity() - node_writer_offset.offset))}},
+                 write_operation_io_receiver{})
+           : node_writer_unique_ptr_type{};
+}
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
 
 // invoke at the end of each block upsert
 async_write_node_result
@@ -140,10 +422,10 @@ struct update_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<const std::byte>> _buffer)
+        result<std::span<std::byte const>> _buffer)
     {
         MONAD_ASSERT(_buffer);
-        std::span<const std::byte> buffer = std::move(_buffer).assume_value();
+        std::span<std::byte const> buffer = std::move(_buffer).assume_value();
         // tnode owns the deserialized old node
         node_ptr old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
@@ -200,10 +482,10 @@ struct create_node_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<const std::byte>> _buffer)
+        result<std::span<std::byte const>> _buffer)
     {
         MONAD_ASSERT(_buffer);
-        std::span<const std::byte> buffer = std::move(_buffer).assume_value();
+        std::span<std::byte const> buffer = std::move(_buffer).assume_value();
         // load node from read buffer
         tnode->node = create_coalesced_node_with_prefix(
             tnode->children[j].branch,
@@ -220,7 +502,6 @@ template <receiver Receiver>
 void async_read(UpdateAux &update_aux, Receiver &&receiver)
 {
     read_update_sender sender(receiver);
-    assert(receiver.rd_offset < update_aux.node_writer->sender().offset());
     auto iostate =
         update_aux.io->make_connected(std::move(sender), std::move(receiver));
     iostate->initiate();
@@ -255,9 +536,7 @@ Node *create_node_from_children_if_any(
             if (child.branch != INVALID_BRANCH &&
                 child.offset == INVALID_OFFSET) {
                 child.offset =
-                    async_write_node(
-                        *update_aux.io, update_aux.node_writer, child.ptr)
-                        .offset_written_to;
+                    async_write_node(update_aux, child.ptr).offset_written_to;
                 auto const pages =
                     num_pages(child.offset.offset, child.ptr->get_disk_size());
                 MONAD_DEBUG_ASSERT(
@@ -624,21 +903,25 @@ bool _mismatch_handler(
 }
 
 node_writer_unique_ptr_type replace_node_writer(
-    AsyncIO &io, node_writer_unique_ptr_type &node_writer,
-    size_t bytes_yet_to_be_appended_to_existing = 0)
+    UpdateAux &aux, size_t bytes_yet_to_be_appended_to_existing = 0)
 {
+    node_writer_unique_ptr_type &node_writer = aux.node_writer;
     // Can't use add_to_offset(), because it asserts if we go past the capacity
     auto offset_of_next_block = node_writer->sender().offset();
     file_offset_t offset = offset_of_next_block.offset;
     offset += node_writer->sender().written_buffer_bytes() +
               bytes_yet_to_be_appended_to_existing;
-    MONAD_DEBUG_ASSERT(offset <= chunk_offset_t::max_offset);
     offset_of_next_block.offset = offset & chunk_offset_t::max_offset;
     auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
-    auto const chunk_capacity = io.chunk_capacity(offset_of_next_block.id);
+    auto const chunk_capacity = aux.io->chunk_capacity(offset_of_next_block.id);
     assert(offset <= chunk_capacity);
     if (offset == chunk_capacity) {
-        offset_of_next_block.id++;
+        auto *ci_ = aux.db_metadata()->free_list_begin();
+        MONAD_ASSERT(ci_ != nullptr); // we are out of free blocks!
+        auto idx = ci_->index(aux.db_metadata());
+        aux.remove(idx);
+        aux.append(UpdateAux::chunk_list::fast, idx);
+        offset_of_next_block.id = idx & 0xfffffU;
         offset_of_next_block.offset = 0;
     }
     else if (offset + block_size > chunk_capacity) {
@@ -650,20 +933,20 @@ node_writer_unique_ptr_type replace_node_writer(
         offset_of_next_block.id,
         offset_of_next_block.offset,
         block_size);*/
-    auto ret = io.make_connected(
+    auto ret = aux.io->make_connected(
         write_single_buffer_sender{
             offset_of_next_block, {(std::byte const *)nullptr, block_size}},
         write_operation_io_receiver{});
     return ret;
 }
 
-async_write_node_result async_write_node(
-    AsyncIO &io, node_writer_unique_ptr_type &node_writer, Node *node)
+async_write_node_result async_write_node(UpdateAux &aux, Node *node)
 {
-    io.poll_nonblocking(1);
+    node_writer_unique_ptr_type &node_writer = aux.node_writer;
+    aux.io->poll_nonblocking(1);
     auto *sender = &node_writer->sender();
     auto const size = node->disk_size;
-    const async_write_node_result ret{
+    async_write_node_result ret{
         sender->offset().add_to_offset(sender->written_buffer_bytes()),
         size,
         node_writer.get()};
@@ -675,24 +958,41 @@ async_write_node_result async_write_node(
     }
     else {
         // renew write sender
-        auto new_node_writer =
-            replace_node_writer(io, node_writer, remaining_bytes);
+        auto new_node_writer = replace_node_writer(aux, remaining_bytes);
         auto to_initiate = std::move(node_writer);
         node_writer = std::move(new_node_writer);
         sender = &node_writer->sender();
         auto *where_to_serialize = (unsigned char *)sender->buffer().data();
         assert(where_to_serialize != nullptr);
         serialize_node_to_buffer(where_to_serialize, node);
-        // Move the front of this into the tail of to_initiate
-        auto *where_to_serialize2 =
-            to_initiate->sender().advance_buffer_append(remaining_bytes);
-        assert(where_to_serialize2 != nullptr);
-        memcpy(where_to_serialize2, where_to_serialize, remaining_bytes);
-        memmove(
-            where_to_serialize,
-            where_to_serialize + remaining_bytes,
-            size - remaining_bytes);
-        sender->advance_buffer_append(size - remaining_bytes);
+        if (node_writer->sender().offset().id ==
+            to_initiate->sender().offset().id) {
+            // Move the front of this into the tail of to_initiate as they share
+            // the same chunk
+            auto *where_to_serialize2 =
+                to_initiate->sender().advance_buffer_append(remaining_bytes);
+            assert(where_to_serialize2 != nullptr);
+            memcpy(where_to_serialize2, where_to_serialize, remaining_bytes);
+            memmove(
+                where_to_serialize,
+                where_to_serialize + remaining_bytes,
+                size - remaining_bytes);
+            sender->advance_buffer_append(size - remaining_bytes);
+        }
+        else {
+            // Don't split nodes across storage chunks, this simplifies reads
+            // greatly
+            ret = async_write_node_result{
+                sender->offset().add_to_offset(size), size, node_writer.get()};
+            // Pad buffer about to get initiated so it's O_DIRECT i/o aligned
+            auto written = to_initiate->sender().written_buffer_bytes();
+            auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
+            auto const tozerobytes = paddedup - written;
+            auto *tozero =
+                to_initiate->sender().advance_buffer_append(tozerobytes);
+            assert(tozero != nullptr);
+            memset(tozero, 0, tozerobytes);
+        }
         to_initiate->initiate();
         // shall be recycled by the i/o receiver
         to_initiate.release();
@@ -703,11 +1003,10 @@ async_write_node_result async_write_node(
 async_write_node_result
 write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
 {
-    AsyncIO &io = *update_aux.io;
     node_writer_unique_ptr_type &node_writer = update_aux.node_writer;
     assert(root_tnode->node);
 
-    auto const ret = async_write_node(io, node_writer, root_tnode->node);
+    auto const ret = async_write_node(update_aux, root_tnode->node);
     // Round up with all bits zero
     auto *sender = &node_writer->sender();
     auto written = sender->written_buffer_bytes();
@@ -716,16 +1015,16 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
     auto *tozero = sender->advance_buffer_append(tozerobytes);
     assert(tozero != nullptr);
     memset(tozero, 0, tozerobytes);
-    auto new_node_writer = replace_node_writer(io, node_writer);
+    auto new_node_writer = replace_node_writer(update_aux);
     auto to_initiate = std::move(node_writer);
     node_writer = std::move(new_node_writer);
     to_initiate->initiate();
     // shall be recycled by the i/o receiver
     to_initiate.release();
     // flush async write root
-    io.flush();
+    update_aux.io->flush();
     // write new root offset to the front of disk
-    update_aux.update_root_offset(ret.offset_written_to);
+    update_aux.advance_root_offset(ret.offset_written_to);
     return ret;
 }
 

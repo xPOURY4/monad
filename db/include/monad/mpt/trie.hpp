@@ -2,6 +2,7 @@
 
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/upward_tnode.hpp>
@@ -61,48 +62,60 @@ struct async_write_node_result
     unsigned bytes_appended;
     MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
 };
-async_write_node_result async_write_node(
-    MONAD_ASYNC_NAMESPACE::AsyncIO &, node_writer_unique_ptr_type &, Node *);
+async_write_node_result async_write_node(UpdateAux &, Node *);
 
-// \struct Auxiliaries for triedb update
-struct UpdateAux
+// \class Auxiliaries for triedb update
+class UpdateAux
 {
+    detail::db_metadata *_db_metadata[2]{
+        nullptr, nullptr}; // two copies, to prevent sudden process
+                           // exits making the DB irretrievable
+
+public:
+    enum class chunk_list
+    {
+        free,
+        fast,
+        slow
+    };
+
+    const detail::db_metadata *db_metadata() const noexcept
+    {
+        return _db_metadata[0];
+    }
+    std::pair<chunk_list, uint32_t>
+    chunk_list_and_age(uint32_t idx) const noexcept;
+
+    void append(chunk_list list, uint32_t idx) noexcept;
+    void prepend(chunk_list list, uint32_t idx) noexcept;
+    void remove(uint32_t idx) noexcept;
+    void advance_root_offset(chunk_offset_t offset) noexcept
+    {
+        auto do_ = [&](detail::db_metadata *m) { m->root_offset = offset; };
+        do_(_db_metadata[0]);
+        do_(_db_metadata[1]);
+    }
+    // WARNING: This is destructive
+    void rewind_root_offset_to(chunk_offset_t offset);
+
+public:
     std::unique_ptr<TrieStateMachine> sm;
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
     node_writer_unique_ptr_type node_writer{};
 
     UpdateAux(
         std::unique_ptr<TrieStateMachine> &&sm_,
-        MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
-        chunk_offset_t write_block_offset = {0, 0})
+        MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
         : sm(std::move(sm_))
         , node_writer(node_writer_unique_ptr_type{})
     {
         if (io_) {
-            set_io(io_, write_block_offset);
+            set_io(io_);
         }
     }
+    ~UpdateAux();
 
-    void set_io(
-        MONAD_ASYNC_NAMESPACE::AsyncIO *io_,
-        chunk_offset_t write_block_offset = {0, 0})
-    {
-        io = io_;
-        node_writer =
-            io ? io->make_connected(
-                     MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
-                         round_up_align<DISK_PAGE_BITS>(write_block_offset),
-                         {(std::byte const *)nullptr,
-                          MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
-                     write_operation_io_receiver{})
-               : node_writer_unique_ptr_type{};
-    }
-
-    void reset_node_writer_offset(chunk_offset_t const write_block_offset)
-    {
-        node_writer->sender().reset(
-            write_block_offset, node_writer->sender().buffer());
-    }
+    void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_);
 
     constexpr bool is_in_memory() const noexcept
     {
@@ -114,18 +127,16 @@ struct UpdateAux
         return io != nullptr;
     }
 
-    void update_root_offset(chunk_offset_t const offset)
+    chunk_offset_t get_root_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        MONAD_ASYNC_NAMESPACE::storage_pool &pool = io->storage_pool();
-        *(pool.devices()[0].root_offset()) = offset;
+        return _db_metadata[0]->root_offset;
     }
 
-    chunk_offset_t get_root_offset() noexcept
+    file_offset_t get_lower_bound_free_space() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        MONAD_ASYNC_NAMESPACE::storage_pool &pool = io->storage_pool();
-        return *(pool.devices()[0].root_offset());
+        return _db_metadata[0]->capacity_in_free_list;
     }
 
     constexpr Compute &comp() const noexcept
@@ -138,7 +149,7 @@ struct UpdateAux
         return sm->get_state();
     }
 };
-static_assert(sizeof(UpdateAux) == 24);
+static_assert(sizeof(UpdateAux) == 40);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

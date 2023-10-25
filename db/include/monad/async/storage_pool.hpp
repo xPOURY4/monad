@@ -58,19 +58,21 @@ public:
     {
         friend class storage_pool;
 
-        int const _readfd, _writefd;
+        int const _readfd; // O_DIRECT shared by chunks for random read i/o
+        int const _writefd; // used for the device memory map of its metadata
+        int _writefd2; // may or may not be an O_DIRECT shared by chunks for
+                       // append i/o
         const enum class _type_t : uint8_t {
             unknown,
             file,
             block_device,
             zoned_device
         } _type;
-        const file_offset_t _size_of_file;
+        file_offset_t const _size_of_file;
         struct metadata_t
         {
             // Preceding this is an array of uint32_t of chunk bytes used
 
-            chunk_offset_t root_offset;
             uint32_t _spare0; // set aside for flags later
             uint32_t config_hash; // hash of this configuration
             uint32_t chunk_capacity;
@@ -115,6 +117,7 @@ public:
             metadata_t *metadata)
             : _readfd(readfd)
             , _writefd(writefd)
+            , _writefd2(-1)
             , _type(type)
             , _size_of_file(size_of_file)
             , _metadata(metadata)
@@ -144,11 +147,6 @@ public:
         //! Returns the capacity of the device, and how much of that is
         //! currently filled with data, in that order.
         std::pair<file_offset_t, file_offset_t> capacity() const;
-        //! Returns the latest root offset
-        chunk_offset_t *root_offset() const
-        {
-            return &_metadata->root_offset;
-        }
     };
     /*! \brief A zone chunk from storage, which is always managed by a shared
     ptr. When the shared ptr count reaches zero, any file descriptors or other
@@ -161,7 +159,7 @@ public:
     protected:
         class device &_device;
         int _read_fd{-1}, _write_fd{-1};
-        const file_offset_t _offset{file_offset_t(-1)},
+        file_offset_t const _offset{file_offset_t(-1)},
             _capacity{file_offset_t(-1)};
         uint32_t _chunkid{uint32_t(-1)};
         bool const _owns_readfd{false}, _owns_writefd{false},
@@ -234,10 +232,6 @@ public:
 
         //! \brief Destroys the contents of the chunk, releasing the backing
         //! storage for use by others.
-        void reset_size(uint32_t);
-
-        //! \brief Destroys the contents of the chunk, releasing the backing
-        //! storage for use by others.
         void destroy_contents();
     };
     /*! \brief A conventional zone chunk from the `cnv` subdirectory.
@@ -307,7 +301,7 @@ private:
         mode op, device::_type_t type, std::filesystem::path const &path,
         int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
 
-    void _fill_chunks();
+    void _fill_chunks(bool interleave_chunks_evenly);
 
 public:
     enum chunk_type
@@ -319,7 +313,8 @@ public:
     //! sources
     storage_pool(
         std::span<std::filesystem::path> sources,
-        mode mode = mode::create_if_needed);
+        mode mode = mode::create_if_needed,
+        bool interleave_chunks_evenly = false);
     //! \brief Constructs a storage pool from a temporary anonymous inode.
     //! Useful for test code.
     storage_pool(
@@ -343,8 +338,6 @@ public:
     std::shared_ptr<class chunk> chunk(chunk_type which, uint32_t id) const;
     //! \brief Activate a chunk (i.e. open file descriptors to it, if necessary)
     std::shared_ptr<class chunk> activate_chunk(chunk_type which, uint32_t id);
-    //! \brief Destroy seq chunks starting from id
-    void clear_chunks_since(size_t id) const noexcept;
 };
 
 MONAD_ASYNC_NAMESPACE_END

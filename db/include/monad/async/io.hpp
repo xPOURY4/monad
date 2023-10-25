@@ -46,13 +46,13 @@ private:
     using seq_chunk = _storage_pool::seq_chunk;
 
     template <class T>
-    struct chunk_ptr
+    struct chunk_ptr_
     {
         std::shared_ptr<T> ptr;
-        int io_uring_read_fd{-1}, io_uring_write_fd{-1};
+        int io_uring_read_fd{-1}, io_uring_write_fd{-1}; // NOT POSIX fds!
 
-        constexpr chunk_ptr() = default;
-        constexpr chunk_ptr(std::shared_ptr<T> ptr_)
+        constexpr chunk_ptr_() = default;
+        constexpr chunk_ptr_(std::shared_ptr<T> ptr_)
             : ptr(std::move(ptr_))
             , io_uring_read_fd(ptr ? ptr->read_fd().first : -1)
             , io_uring_write_fd(ptr ? ptr->write_fd(0).first : -1)
@@ -62,8 +62,8 @@ private:
 
     pid_t const owning_tid_;
     class storage_pool *storage_pool_{nullptr};
-    chunk_ptr<cnv_chunk> cnv_chunk_;
-    std::vector<chunk_ptr<seq_chunk>> seq_chunks_;
+    chunk_ptr_<cnv_chunk> cnv_chunk_;
+    std::vector<chunk_ptr_<seq_chunk>> seq_chunks_;
     struct
     {
         int msgread, msgwrite;
@@ -110,6 +110,10 @@ public:
         return *storage_pool_;
     }
 
+    size_t chunk_count() const noexcept
+    {
+        return seq_chunks_.size();
+    }
     file_offset_t chunk_capacity(size_t id) const noexcept
     {
         MONAD_ASSERT(id < seq_chunks_.size());
@@ -198,121 +202,6 @@ public:
         std::span<std::byte> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
-#if 0 // disabled pending removal after discontiguous storage is implemented
-        union key_to_chunk_offset_t
-        {
-            file_offset_t key;
-            chunk_offset_t offset;
-
-            explicit constexpr key_to_chunk_offset_t(file_offset_t k)
-                : key(k)
-            {
-            }
-        };
-        erased_connected_operation::rbtree_node_traits::set_key(uring_data, 0);
-        auto less_than_or_equal =
-            [this](chunk_offset_t offset) -> erased_connected_operation * {
-            auto pred = [](const auto *a, const auto b) {
-                return key_to_chunk_offset_t(erased_connected_operation::
-                                                 rbtree_node_traits::get_key(a))
-                           .offset > b;
-            };
-            auto *p = _extant_write_operations::lower_bound(
-                &_extant_write_operations_header, offset, pred);
-            if (p == &_extant_write_operations_header) {
-                return nullptr;
-            }
-            // assert(key_to_chunk_offset_t(p->key).offset <= offset);
-            return erased_connected_operation::rbtree_node_traits::
-                to_erased_connected_operation(p);
-        };
-        auto get_key = [](erased_connected_operation const *a) {
-            return erased_connected_operation::rbtree_node_traits::get_key(a);
-        };
-        auto next =
-            [this](
-                erased_connected_operation *a) -> erased_connected_operation * {
-            auto *p =
-                erased_connected_operation::rbtree_node_traits::to_node_ptr(a);
-            p = _extant_write_operations::prev_node(p);
-            if (p == &_extant_write_operations_header) {
-                return nullptr;
-            }
-            return erased_connected_operation::rbtree_node_traits::
-                to_erased_connected_operation(p);
-        };
-        auto *it1 = less_than_or_equal(offset);
-        auto *it2 = less_than_or_equal(offset.add_to_offset(buffer.size() - 1));
-        if (it1 != nullptr || it2 != nullptr) {
-            auto fill_from_buffers = [&](size_t offsetincr,
-                                         erased_connected_operation *it1,
-                                         erased_connected_operation *it2) {
-                for (auto nextit = next(it1);;
-                     it1 = nextit, nextit = next(nextit)) {
-                    assert(it1->is_write());
-                    auto *writebuffer =
-                        (unsigned char *)it1 - WRITE_BUFFER_SIZE;
-                    const auto writeoffset = get_key(it1);
-                    const auto tofill =
-                        (nextit != nullptr)
-                            ? buffer.subspan(
-                                  offsetincr, get_key(nextit) - writeoffset)
-                            : buffer.subspan(offsetincr);
-                    /*printf(
-                        "   *** read of %zu from offset %llu lands within "
-                        "extant write of offset %llu. Do memcpy(%p, %p, "
-                        "%zu)\n",
-                        tofill.size(),
-                        offset + offsetincr,
-                        writeoffset,
-                        buffer.data() + offsetincr,
-                        writebuffer + (offset + offsetincr - writeoffset),
-                        tofill.size());*/
-                    memcpy(
-                        buffer.data() + offsetincr,
-                        writebuffer +
-                            (offset.offset + offsetincr - writeoffset),
-                        tofill.size());
-                    offsetincr += tofill.size();
-                    if (it1 == it2) {
-                        break;
-                    }
-                }
-                return offsetincr;
-            };
-            if (it1 == nullptr && it2 != nullptr) {
-                // The tail of this read reads from extant write buffers
-                // We need to fill the tail from those buffers, but do
-                // an i/o for the front part. When the i/o completes, it
-                // needs to return the correctly fully filled buffer.
-                assert(it2->is_write());
-                it1 = erased_connected_operation::rbtree_node_traits::
-                    to_erased_connected_operation(
-                        _extant_write_operations::prev_node(
-                            _extant_write_operations::end_node(
-                                &_extant_write_operations_header)));
-                auto const writeoffset = get_key(it1);
-                auto bytesfilled =
-                    fill_from_buffers(writeoffset - offset.offset, it1, it2);
-                bytesfilled -= writeoffset - offset.offset;
-                erased_connected_operation::rbtree_node_traits::set_key(
-                    uring_data, bytesfilled);
-                buffer = {buffer.data(), writeoffset - offset.offset};
-                /*printf(
-                    "   *** tail filled %lu bytes from extant writes "
-                    "starting from offset %llu, doing read of shortened "
-                    "buffer of %zu bytes.\n",
-                    bytesfilled,
-                    writeoffset,
-                    buffer.size());*/
-            }
-            else {
-                // This read spans one or more write buffers wholly
-                fill_from_buffers(0, it1, it2);
-                return true;
-            }
-        }
-#endif
         _submit_request(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;

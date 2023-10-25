@@ -66,7 +66,7 @@ struct Requests
             }
             uint8_t branch = get_nibble(req.key.data(), pi);
             if (sublists[branch].empty()) {
-                mask |= 1u << branch;
+                mask |= uint16_t(1u << branch);
                 ++n;
             }
             sublists[branch].push_front(req);

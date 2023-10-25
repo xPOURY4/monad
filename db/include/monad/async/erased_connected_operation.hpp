@@ -67,9 +67,6 @@ protected:
 
            - i/o read uses `key` between initiation and completion. It says what
            offset to add to bytes transferred returned.
-
-           - i/o write uses all these fields between initiation and completion.
-           `key` is the offset at which the write is being performed.
         */
         union
         {

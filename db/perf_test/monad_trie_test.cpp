@@ -299,30 +299,10 @@ int main(int argc, char *argv[])
             state_root.reset(root);
 
             chunk_offset_t block_start{0, 0};
-            if (root_off.offset + (file_offset_t)root->get_disk_size() <
-                update_aux.io->chunk_capacity(root_off.id)) {
-                block_start = round_up_align<DISK_PAGE_BITS>(
-                    root_off.add_to_offset(root->get_disk_size()));
-            }
-            else { // TEMPORARY: this won't hit once we disable node write
-                   // across chunks
-                auto bytesnextchunk =
-                    root->get_disk_size() + root_off.offset -
-                    update_aux.io->chunk_capacity(root_off.id);
-                root_off.id++;
-                root_off.offset = 0;
-                block_start = round_up_align<DISK_PAGE_BITS>(
-                    root_off.add_to_offset(bytesnextchunk));
-            }
-            // reset starting chunk's metadata
-            auto chunk = io.storage_pool().chunk(
-                MONAD_ASYNC_NAMESPACE::storage_pool::chunk_type::seq,
-                block_start.id);
-            chunk->reset_size(block_start.offset);
-            // destroy_contents after block_start.id chunck
-            io.storage_pool().clear_chunks_since(block_start.id + 1);
-
-            update_aux.reset_node_writer_offset(block_start);
+            block_start = round_up_align<DISK_PAGE_BITS>(
+                root_off.add_to_offset(root->get_disk_size()));
+            // destroy contents after block_start.id chunck
+            update_aux.rewind_root_offset_to(block_start);
         }
 
         auto begin_test = std::chrono::steady_clock::now();

@@ -224,7 +224,8 @@ namespace
             run_tests(pool);
         }
         catch (std::system_error const &e) {
-            if (e.code() != std::errc::no_such_file_or_directory) {
+            if (e.code() != std::errc::no_such_file_or_directory &&
+                e.code() != std::errc::permission_denied) {
                 throw;
             }
         }
@@ -232,67 +233,75 @@ namespace
 
     TEST(StoragePool, device_interleaving)
     {
-        auto create_temp_file =
-            [](file_offset_t length) -> std::filesystem::path {
-            std::filesystem::path ret(
-                working_temporary_directory() /
-                "monad_storage_pool_test_XXXXXX");
-            int fd = ::mkstemp((char *)ret.native().data());
-            MONAD_ASSERT(fd != -1);
-            ::ftruncate(fd, static_cast<off_t>(length + 16384));
-            ::close(fd);
-            return ret;
-        };
-        static constexpr file_offset_t BLKSIZE = 256 * 1024 * 1024;
-        std::filesystem::path devs[] = {
-            create_temp_file(20 * BLKSIZE),
-            create_temp_file(10 * BLKSIZE),
-            create_temp_file(5 * BLKSIZE)};
-        auto undevs = monad::make_scope_exit([&]() noexcept {
-            for (auto &p : devs) {
-                std::filesystem::remove(p);
-            }
-        });
-        storage_pool pool(devs);
-        std::array<size_t, 3> counts{0, 0, 0};
-        std::array<std::vector<size_t>, 3> indices;
-        for (size_t n = 0; n < pool.chunks(storage_pool::seq); n++) {
-            auto p = pool.activate_chunk(
-                storage_pool::seq, static_cast<uint32_t>(n));
-            auto const device_idx = static_cast<unsigned long>(
-                &p->device() - pool.devices().data());
-            counts[device_idx]++;
-            indices[device_idx].push_back(n);
-        }
-        EXPECT_EQ(counts[0], 19);
-        EXPECT_EQ(counts[1], 9);
-        EXPECT_EQ(counts[2], 4);
         std::array<std::vector<size_t>, 3> gaps;
-        std::cout << "\n   Device 0 appears at";
-        for (size_t n = 0; n < indices[0].size(); n++) {
-            std::cout << " " << indices[0][n];
-            if (n > 0) {
-                gaps[0].push_back(indices[0][n] - indices[0][n - 1]);
-                EXPECT_LE(gaps[0].back(), 3);
+        auto do_test = [&](bool enable_interleaving) {
+            gaps[0].clear();
+            gaps[1].clear();
+            gaps[2].clear();
+            auto create_temp_file =
+                [](file_offset_t length) -> std::filesystem::path {
+                std::filesystem::path ret(
+                    working_temporary_directory() /
+                    "monad_storage_pool_test_XXXXXX");
+                int fd = ::mkstemp((char *)ret.native().data());
+                MONAD_ASSERT(fd != -1);
+                ::ftruncate(fd, static_cast<off_t>(length + 16384));
+                ::close(fd);
+                return ret;
+            };
+            static constexpr file_offset_t BLKSIZE = 256 * 1024 * 1024;
+            std::filesystem::path devs[] = {
+                create_temp_file(20 * BLKSIZE),
+                create_temp_file(10 * BLKSIZE),
+                create_temp_file(5 * BLKSIZE)};
+            auto undevs = monad::make_scope_exit([&]() noexcept {
+                for (auto &p : devs) {
+                    std::filesystem::remove(p);
+                }
+            });
+            storage_pool pool(
+                devs,
+                storage_pool::mode::create_if_needed,
+                enable_interleaving);
+            std::array<size_t, 3> counts{0, 0, 0};
+            std::array<std::vector<size_t>, 3> indices;
+            for (size_t n = 0; n < pool.chunks(storage_pool::seq); n++) {
+                auto p = pool.activate_chunk(
+                    storage_pool::seq, static_cast<uint32_t>(n));
+                auto const device_idx = static_cast<unsigned long>(
+                    &p->device() - pool.devices().data());
+                counts[device_idx]++;
+                indices[device_idx].push_back(n);
             }
-        }
-        std::cout << "\n   Device 1 appears at";
-        for (size_t n = 0; n < indices[1].size(); n++) {
-            std::cout << " " << indices[1][n];
-            if (n > 0) {
-                gaps[1].push_back(indices[1][n] - indices[1][n - 1]);
-                EXPECT_LE(gaps[1].back(), 5);
+            EXPECT_EQ(counts[0], 19);
+            EXPECT_EQ(counts[1], 9);
+            EXPECT_EQ(counts[2], 4);
+            std::cout << "\n   Device 0 appears at";
+            for (size_t n = 0; n < indices[0].size(); n++) {
+                std::cout << " " << indices[0][n];
+                if (n > 0) {
+                    gaps[0].push_back(indices[0][n] - indices[0][n - 1]);
+                    EXPECT_LE(gaps[0].back(), 3);
+                }
             }
-        }
-        std::cout << "\n   Device 2 appears at";
-        for (size_t n = 0; n < indices[2].size(); n++) {
-            std::cout << " " << indices[2][n];
-            if (n > 0) {
-                gaps[2].push_back(indices[2][n] - indices[2][n - 1]);
-                EXPECT_LE(gaps[2].back(), 8);
+            std::cout << "\n   Device 1 appears at";
+            for (size_t n = 0; n < indices[1].size(); n++) {
+                std::cout << " " << indices[1][n];
+                if (n > 0) {
+                    gaps[1].push_back(indices[1][n] - indices[1][n - 1]);
+                    EXPECT_LE(gaps[1].back(), 5);
+                }
             }
-        }
-        std::cout << "\n";
+            std::cout << "\n   Device 2 appears at";
+            for (size_t n = 0; n < indices[2].size(); n++) {
+                std::cout << " " << indices[2][n];
+                if (n > 0) {
+                    gaps[2].push_back(indices[2][n] - indices[2][n - 1]);
+                    EXPECT_LE(gaps[2].back(), 8);
+                }
+            }
+            std::cout << "\n";
+        };
         auto print_stddev = [](size_t devid, std::vector<size_t> const &vals) {
             double mean = 0;
             for (auto &i : vals) {
@@ -308,12 +317,35 @@ namespace
                       << " incidence gap mean = " << mean
                       << " stddev = " << sqrt(variance)
                       << " 95% confidence interval = +/- "
-                      << (1.96 * sqrt(variance) / std::sqrt(vals.size()));
+                      << (1.96 * sqrt(variance) / sqrt(double(vals.size())))
+                      << std::endl;
+            return std::pair{mean, variance};
         };
-        print_stddev(0, gaps[0]);
-        print_stddev(1, gaps[1]);
-        print_stddev(2, gaps[2]);
-        std::cout << std::endl;
+        // Default is non-interleaved
+        std::cout << "Checking the default is NOT interleaved chunks ...";
+        do_test(false);
+        auto stats = print_stddev(0, gaps[0]);
+        EXPECT_EQ(stats.first, 1);
+        EXPECT_EQ(stats.second, 0);
+        stats = print_stddev(1, gaps[1]);
+        EXPECT_EQ(stats.first, 1);
+        EXPECT_EQ(stats.second, 0);
+        stats = print_stddev(2, gaps[2]);
+        EXPECT_EQ(stats.first, 1);
+        EXPECT_EQ(stats.second, 0);
+
+        // Set interleaved
+        std::cout
+            << "\n\nChecking turning on interleaved chunks does do so ...";
+        do_test(true);
+        stats = print_stddev(0, gaps[0]);
+        EXPECT_GE(stats.first, 1.6);
+        EXPECT_GE(stats.second, 0.45);
+        stats = print_stddev(1, gaps[1]);
+        EXPECT_GE(stats.first, 3.5);
+        EXPECT_GE(stats.second, 0.75);
+        stats = print_stddev(2, gaps[2]);
+        EXPECT_GE(stats.first, 8);
     }
 
     TEST(StoragePool, config_hash_differs)

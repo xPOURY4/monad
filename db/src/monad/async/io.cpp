@@ -162,7 +162,7 @@ AsyncIO::AsyncIO(
     registration, and for efficiency the zoned storage emulation returns the
     same file descriptor for reads (and it may do so for writes depending). So
     reduce to a minimum mapped set.
-     */
+    */
     unordered_dense_map<int, int> fd_to_iouring_map;
     for (auto fd : fds) {
         MONAD_ASSERT(fd != -1);
