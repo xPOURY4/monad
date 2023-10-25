@@ -133,6 +133,19 @@ file_offset_t storage_pool::chunk::size() const
     throw std::runtime_error("zonefs support isn't implemented yet");
 }
 
+void storage_pool::chunk::reset_size(uint32_t size)
+{
+    if (device().is_file() || device().is_block_device()) {
+        auto *metadata = device()._metadata;
+        auto chunk_bytes_used =
+            metadata->chunk_bytes_used(device()._size_of_file);
+        chunk_bytes_used[device_zone_id()].store(
+            size, std::memory_order_release);
+        return;
+    }
+    throw std::runtime_error("zonefs support isn't implemented yet");
+}
+
 void storage_pool::chunk::destroy_contents()
 {
     if (device().is_file()) {
@@ -548,6 +561,17 @@ storage_pool::activate_chunk(const chunk_type which, const uint32_t id)
     }
     _chunks[which][id].chunk = ret;
     return ret;
+}
+
+void storage_pool::clear_chunks_since(size_t id) const noexcept
+{
+    std::unique_lock g(_lock);
+    for (; id < _chunks[seq].size(); id++) {
+        auto ptr = _chunks[seq][id].chunk.lock();
+        if (ptr) {
+            ptr->destroy_contents();
+        }
+    }
 }
 
 MONAD_ASYNC_NAMESPACE_END

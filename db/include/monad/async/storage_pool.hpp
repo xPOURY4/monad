@@ -234,6 +234,10 @@ public:
 
         //! \brief Destroys the contents of the chunk, releasing the backing
         //! storage for use by others.
+        void reset_size(uint32_t);
+
+        //! \brief Destroys the contents of the chunk, releasing the backing
+        //! storage for use by others.
         void destroy_contents();
     };
     /*! \brief A conventional zone chunk from the `cnv` subdirectory.
@@ -339,6 +343,8 @@ public:
     std::shared_ptr<class chunk> chunk(chunk_type which, uint32_t id) const;
     //! \brief Activate a chunk (i.e. open file descriptors to it, if necessary)
     std::shared_ptr<class chunk> activate_chunk(chunk_type which, uint32_t id);
+    //! \brief Destroy seq chunks starting from id
+    void clear_chunks_since(size_t id) const noexcept;
 };
 
 MONAD_ASYNC_NAMESPACE_END

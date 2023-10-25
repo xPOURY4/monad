@@ -291,18 +291,19 @@ int main(int argc, char *argv[])
         }
 
         node_ptr state_root{};
-        if (append) { // TO erase chunks and revert metadata to places we start
-                      // again
+        if (append) {
             auto root_off = update_aux.get_root_offset();
             Node *root = read_node_blocking(io.storage_pool(), root_off);
             state_root.reset(root);
+
             chunk_offset_t block_start{0, 0};
             if (root_off.offset + (file_offset_t)root->get_disk_size() <
                 update_aux.io->chunk_capacity(root_off.id)) {
                 block_start = round_up_align<DISK_PAGE_BITS>(
                     root_off.add_to_offset(root->get_disk_size()));
             }
-            else { // This won't hit once we disable node write across chunks
+            else { // TEMPORARY: this won't hit once we disable node write
+                   // across chunks
                 auto bytesnextchunk =
                     root->get_disk_size() + root_off.offset -
                     update_aux.io->chunk_capacity(root_off.id);
@@ -311,6 +312,14 @@ int main(int argc, char *argv[])
                 block_start = round_up_align<DISK_PAGE_BITS>(
                     root_off.add_to_offset(bytesnextchunk));
             }
+            // reset starting chunk's metadata
+            auto chunk = io.storage_pool().chunk(
+                MONAD_ASYNC_NAMESPACE::storage_pool::chunk_type::seq,
+                block_start.id);
+            chunk->reset_size(block_start.offset);
+            // destroy_contents after block_start.id chunck
+            io.storage_pool().clear_chunks_since(block_start.id + 1);
+
             update_aux.reset_node_writer_offset(block_start);
             block_no += 1;
         }
