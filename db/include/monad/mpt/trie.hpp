@@ -1,5 +1,6 @@
 #pragma once
 
+#include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/update.hpp>
@@ -18,7 +19,6 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct Compute;
 class Node;
 
 struct write_operation_io_receiver
@@ -67,25 +67,16 @@ async_write_node_result async_write_node(
 // \struct Auxiliaries for triedb update
 struct UpdateAux
 {
-    Compute &comp;
+    std::unique_ptr<TrieStateMachine> sm;
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
     node_writer_unique_ptr_type node_writer{};
-    /* Note on list dimension: when using nested update list with level-based
-     * caching in trie, need to specify which dimension in the nested list to
-     * apply cache rule on. We keep all nodes before that dimension during batch
-     * upsert, apply cache rule starting that dimension, and always evict nodes
-     * when larger than that dimension */
-    unsigned const list_dim_to_apply_cache{1};
-    unsigned current_list_dim{0};
 
     UpdateAux(
-        Compute &comp_, MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
-        unsigned const list_dim_to_apply_cache_ = 1,
+        std::unique_ptr<TrieStateMachine> &&sm_,
+        MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr,
         chunk_offset_t write_block_offset = {0, 0})
-        : comp(comp_)
+        : sm(std::move(sm_))
         , node_writer(node_writer_unique_ptr_type{})
-        , list_dim_to_apply_cache(list_dim_to_apply_cache_)
-        , current_list_dim{0}
     {
         if (io_) {
             set_io(io_, write_block_offset);
@@ -136,8 +127,18 @@ struct UpdateAux
         MONAD_ASYNC_NAMESPACE::storage_pool &pool = io->storage_pool();
         return *(pool.devices()[0].root_offset());
     }
+
+    constexpr Compute &comp() const noexcept
+    {
+        return sm->get_compute();
+    }
+
+    constexpr uint8_t trie_section() const noexcept
+    {
+        return sm->get_state();
+    }
 };
-static_assert(sizeof(UpdateAux) == 32);
+static_assert(sizeof(UpdateAux) == 24);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

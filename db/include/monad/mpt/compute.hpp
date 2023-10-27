@@ -4,6 +4,7 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/rlp/encode.hpp>
 
+#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/merkle/compact_encode.hpp>
 #include <monad/mpt/merkle/node_reference.hpp>
@@ -29,6 +30,24 @@ struct Compute
     virtual unsigned compute(unsigned char *buffer, Node *node) = 0;
 };
 
+struct TrieStateMachine
+{
+    virtual ~TrieStateMachine(){};
+    //! reset state to default
+    virtual void reset(std::optional<uint8_t> sec = std::nullopt) = 0;
+    //! forward transition down the trie, with a possible input value
+    virtual void forward(byte_string_view = {}) = 0;
+    //! transform back up the trie
+    virtual void backward() = 0;
+    //! get the current compute implementation
+    virtual Compute &get_compute() const = 0;
+    //! get current state in uint8_t. It is up to the user to design what each
+    //! value means in the state enum
+    virtual uint8_t get_state() const = 0;
+    //! get the current cache option in CacheOption enum type.
+    virtual CacheOption cache_option() const = 0;
+};
+
 struct EmptyCompute final : Compute
 {
     virtual unsigned compute_len(std::span<ChildData> const) override
@@ -47,7 +66,7 @@ struct EmptyCompute final : Compute
     }
 };
 
-namespace details
+namespace detail
 {
 
     template <typename T>
@@ -254,6 +273,97 @@ struct DummyComputeLeafData
     }
 };
 
-using MerkleCompute = details::MerkleComputeBase<DummyComputeLeafData>;
+using MerkleCompute = detail::MerkleComputeBase<DummyComputeLeafData>;
+
+class StateMachineWithBlockNo final : public TrieStateMachine
+{
+private:
+    enum class TrieSection : uint8_t
+    {
+        BlockNo = 0,
+        Account,
+        Storage,
+        Receipt, // not used yet
+        Invalid
+    }  default_section_, curr_section_;
+
+    static std::pair<Compute &, Compute &> candidate_computes()
+    {
+        // candidate impls to use
+        static MerkleCompute m{};
+        static EmptyCompute e{};
+        return {m, e};
+    }
+
+public:
+    StateMachineWithBlockNo(uint8_t const sec = 0)
+        : default_section_(static_cast<TrieSection>(sec))
+        , curr_section_(default_section_)
+    {
+    }
+
+    virtual void reset(std::optional<uint8_t> sec) override
+    {
+        curr_section_ = sec.has_value() ? static_cast<TrieSection>(sec.value())
+                                        : default_section_;
+    }
+
+    virtual void forward(byte_string_view = {}) override
+    {
+        switch (curr_section_) {
+        case (TrieSection::BlockNo):
+            curr_section_ = TrieSection::Account;
+            break;
+        case (TrieSection::Account):
+            curr_section_ = TrieSection::Storage;
+            break;
+        default:
+            curr_section_ = TrieSection::Invalid;
+        }
+    }
+
+    virtual void backward() override
+    {
+        switch (curr_section_) {
+        case (TrieSection::Storage):
+            curr_section_ = TrieSection::Account;
+            break;
+        case (TrieSection::Account):
+            curr_section_ = TrieSection::BlockNo;
+            break;
+        default:
+            curr_section_ = TrieSection::Invalid;
+        }
+    }
+
+    virtual constexpr Compute &get_compute() const override
+    {
+        if (curr_section_ == TrieSection::BlockNo) {
+            return candidate_computes().second;
+        }
+        else {
+            return candidate_computes().first;
+        }
+    }
+
+    virtual constexpr uint8_t get_state() const override
+    {
+        return static_cast<uint8_t>(curr_section_);
+    }
+
+    virtual constexpr CacheOption cache_option() const override
+    {
+        switch (curr_section_) {
+        case (TrieSection::BlockNo):
+            return CacheOption::CacheAll;
+        case (TrieSection::Account):
+            return CacheOption::ApplyLevelBasedCache;
+        default:
+            return CacheOption::DisposeAll;
+        }
+    }
+};
+static_assert(sizeof(StateMachineWithBlockNo) == 16);
+static_assert(alignof(StateMachineWithBlockNo) == 8);
 
 MONAD_MPT_NAMESPACE_END

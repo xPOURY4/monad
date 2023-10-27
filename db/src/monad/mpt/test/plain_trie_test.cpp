@@ -27,11 +27,38 @@ namespace updates
     };
 }
 
+class StateMachineAlwaysEmpty final : public TrieStateMachine
+{
+    static Compute &candidate_computes()
+    {
+        // candidate impls to use
+        static EmptyCompute e{};
+        return e;
+    }
+
+public:
+    StateMachineAlwaysEmpty() {}
+    virtual void reset(std::optional<uint8_t>) override {}
+    virtual void forward(monad::byte_string_view = {}) override {}
+    virtual void backward() override {}
+    virtual Compute &get_compute() const override
+    {
+        return candidate_computes();
+    }
+    virtual constexpr uint8_t get_state() const override
+    {
+        return 0;
+    }
+    virtual constexpr CacheOption cache_option() const override
+    {
+        return CacheOption::CacheAll;
+    }
+};
+
 TEST(InMemoryPlainTrie, var_length)
 {
     auto &kv = updates::kv;
-    EmptyCompute comp;
-    UpdateAux update_aux{comp};
+    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert kv 0,1,2,3
@@ -163,8 +190,7 @@ TEST(InMemoryPlainTrie, mismatch)
         {0x123aabcd_hex, 0xbabe_hex}, // 4
     };
 
-    EmptyCompute comp;
-    UpdateAux update_aux{comp};
+    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
     /* insert 12345678, 12346678, 12445678
             12
@@ -242,8 +268,7 @@ TEST(InMemoryPlainTrie, mismatch)
 TEST(InMemoryPlainTrie, delete_wo_incarnation)
 {
     auto &kv = updates::kv;
-    EmptyCompute comp;
-    UpdateAux update_aux{comp};
+    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert all
@@ -283,8 +308,7 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     // upsert a bunch of var lengths kv
     auto &kv = updates::kv;
 
-    EmptyCompute comp;
-    UpdateAux update_aux{comp};
+    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert

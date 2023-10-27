@@ -48,8 +48,8 @@ bool create_node_from_children_if_any_possibly_ondisk(
 
 node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
 {
-    MONAD_DEBUG_ASSERT(update_aux.current_list_dim == 0);
-    auto root_tnode = make_tnode();
+    update_aux.sm->reset();
+    auto root_tnode = make_tnode(update_aux.trie_section());
     if (!old) {
         root_tnode->node = _create_new_trie(update_aux, std::move(updates));
     }
@@ -72,32 +72,31 @@ node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
     if (update_aux.is_on_disk()) {
         write_new_root_node(update_aux, root_tnode);
     }
-    MONAD_DEBUG_ASSERT(update_aux.current_list_dim == 0);
     return node_ptr{root_tnode->node};
 }
 
-void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode, unsigned pi)
+void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode)
 {
     bool beginning = true;
     while (!tnode->npending && tnode->parent) {
         auto parent_tnode = tnode->parent;
+        update_aux.sm->reset(tnode->trie_section);
         if (beginning) {
             beginning = false;
         }
         else {
             MONAD_DEBUG_ASSERT(tnode->children.size()); // not a leaf
             if (!create_node_from_children_if_any_possibly_ondisk(
-                    update_aux, tnode, pi)) {
+                    update_aux, tnode, tnode->pi)) {
                 // create_node not finished, but issued an async read
                 return;
             }
         }
         if (tnode->node) {
-            pi -= tnode->node->path_nibbles_len() + 1;
             auto &entry = parent_tnode->children[tnode->child_j()];
             entry.branch = tnode->child_branch_bit;
             entry.ptr = tnode->node;
-            entry.len = update_aux.comp.compute(entry.data, entry.ptr);
+            entry.len = update_aux.comp().compute(entry.data, entry.ptr);
         }
         else { // node ends up being removed by erase updates
             parent_tnode->mask &= ~(1u << tnode->child_branch_bit);
@@ -116,17 +115,15 @@ struct update_receiver
     UpdateList updates;
     UpwardTreeNode *tnode;
     uint16_t buffer_off;
-    uint8_t pi;
     unsigned bytes_to_read;
 
     update_receiver(
         UpdateAux *_update_aux, chunk_offset_t offset, UpdateList &&_updates,
-        UpwardTreeNode *_tnode, uint8_t _pi)
+        UpwardTreeNode *_tnode)
         : update_aux(_update_aux)
         , rd_offset(round_down_align<DISK_PAGE_BITS>(offset))
         , updates(std::move(_updates))
         , tnode(_tnode)
-        , pi(_pi)
     {
         // prep uring data
         rd_offset.spare = 0;
@@ -147,13 +144,14 @@ struct update_receiver
         node_ptr old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
         Node *old_node = old.get();
+        update_aux->sm->reset(tnode->trie_section);
         if (!_upsert(
                 *update_aux,
                 old_node,
                 tnode,
                 INVALID_OFFSET,
                 std::move(updates),
-                pi,
+                tnode->pi,
                 old_node->bitpacked.path_nibble_index_start)) {
             if (tnode->opt_leaf_data.has_value()) {
                 tnode->old = std::move(old);
@@ -161,7 +159,7 @@ struct update_receiver
             return;
         }
         assert(tnode->npending == 0);
-        upward_update(*update_aux, tnode, pi);
+        upward_update(*update_aux, tnode);
     }
 };
 static_assert(sizeof(update_receiver) == 48);
@@ -175,16 +173,14 @@ struct create_node_receiver
     unsigned bytes_to_read;
     uint16_t buffer_off;
     uint8_t j;
-    uint8_t pi;
 
     create_node_receiver(
         UpdateAux *const _update_aux, UpwardTreeNode *const _tnode,
-        uint8_t const _j, uint8_t const _pi)
+        uint8_t const _j)
         : update_aux(_update_aux)
         , rd_offset(0, 0)
         , tnode(_tnode)
         , j(_j)
-        , pi(_pi)
     {
         // prep uring data
         auto offset = tnode->children[j].offset;
@@ -209,7 +205,7 @@ struct create_node_receiver
             deserialize_node_from_buffer(
                 (unsigned char *)buffer.data() + buffer_off),
             tnode->relpath);
-        upward_update(*update_aux, tnode, pi);
+        upward_update(*update_aux, tnode);
     }
 };
 static_assert(sizeof(create_node_receiver) == 32);
@@ -261,21 +257,19 @@ Node *create_node_from_children_if_any(
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
-                bool const apply_cache = update_aux.current_list_dim ==
-                                         update_aux.list_dim_to_apply_cache;
-                bool const dispose_all = update_aux.current_list_dim >
-                                         update_aux.list_dim_to_apply_cache;
+                auto cache_opt = update_aux.sm->cache_option();
                 if (n > 1 && pi > 0 &&
-                    (dispose_all ||
-                     (apply_cache && (pi + 1 + child.ptr->path_nibbles_len() >
-                                      CACHE_LEVEL)))) {
+                    (cache_opt == CacheOption::DisposeAll ||
+                     (cache_opt == CacheOption::ApplyLevelBasedCache &&
+                      (pi + 1 + child.ptr->path_nibbles_len() >
+                       CACHE_LEVEL)))) {
                     node_ptr{child.ptr};
                     child.ptr = nullptr;
                 }
             }
         }
     }
-    return create_node(update_aux.comp, mask, children, relpath, leaf_data);
+    return create_node(update_aux.comp(), mask, children, relpath, leaf_data);
 }
 
 bool create_node_from_children_if_any_possibly_ondisk(
@@ -286,7 +280,8 @@ bool create_node_from_children_if_any_possibly_ondisk(
         unsigned const j =
             bitmask_index(tnode->orig_mask, std::countr_zero(tnode->mask));
         if (!tnode->children[j].ptr) {
-            create_node_receiver receiver(&update_aux, tnode, j, pi);
+            tnode->pi = pi;
+            create_node_receiver receiver(&update_aux, tnode, j);
             async_read(update_aux, std::move(receiver));
             return false;
         }
@@ -312,7 +307,8 @@ bool _update_leaf_data(
         return true;
     }
     if (u.next.has_value()) {
-        update_aux.current_list_dim++;
+        update_aux.sm->forward();
+        tnode->trie_section = update_aux.trie_section();
         Requests requests;
         requests.split_into_sublists(std::move(u.next.value()), 0);
         bool finished = true;
@@ -323,7 +319,7 @@ bool _update_leaf_data(
         else {
             finished = _dispatch_updates(update_aux, old, tnode, requests, 0);
         }
-        update_aux.current_list_dim--;
+        update_aux.sm->backward();
         return finished;
     }
     tnode->node = u.incarnation
@@ -345,13 +341,13 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         NibblesView const relpath{
             pi, (uint8_t)(2 * u.key.size()), u.key.data()};
         if (u.next.has_value()) {
-            update_aux.current_list_dim++;
+            update_aux.sm->forward();
             Requests requests;
             requests.split_into_sublists(std::move(u.next.value()), 0);
             MONAD_DEBUG_ASSERT(u.value.has_value());
             auto ret = _create_new_trie_from_requests(
                 update_aux, requests, relpath, 0, u.value);
-            update_aux.current_list_dim--;
+            update_aux.sm->backward();
             return ret;
         }
         return create_leaf(u.value.value(), relpath);
@@ -386,7 +382,7 @@ Node *_create_new_trie_from_requests(
             auto &entry = children[j++];
             entry.branch = i;
             entry.ptr = node;
-            entry.len = update_aux.comp.compute(entry.data, entry.ptr);
+            entry.len = update_aux.comp().compute(entry.data, entry.ptr);
         }
     }
     return create_node_from_children_if_any(
@@ -399,8 +395,9 @@ bool _upsert(
     unsigned old_pi)
 {
     if (!old) {
+        tnode->pi = pi;
         update_receiver receiver(
-            &update_aux, offset, std::move(updates), tnode, pi);
+            &update_aux, offset, std::move(updates), tnode);
         async_read(update_aux, std::move(receiver));
         return false;
     }
@@ -446,6 +443,7 @@ bool _dispatch_updates(
     }
     tnode->init(
         (old->mask | requests.mask),
+        pi,
         (opt_leaf.has_value() && opt_leaf.value().value.has_value())
             ? opt_leaf.value().value
             : old->opt_leaf());
@@ -457,7 +455,7 @@ bool _dispatch_updates(
             Node *node = nullptr;
             if (bit & old->mask) {
                 node_ptr next_ = old->next_ptr(i);
-                auto next_tnode = make_tnode();
+                auto next_tnode = make_tnode(update_aux.trie_section());
                 if (!_upsert(
                         update_aux,
                         next_.get(),
@@ -485,7 +483,7 @@ bool _dispatch_updates(
             if (node) {
                 child.ptr = node;
                 child.branch = i;
-                child.len = update_aux.comp.compute(child.data, child.ptr);
+                child.len = update_aux.comp().compute(child.data, child.ptr);
             }
             else {
                 tnode->mask &= ~bit;
@@ -528,7 +526,7 @@ bool _mismatch_handler(
     // Note: no leaf can be created at an existing non-leaf node
     MONAD_DEBUG_ASSERT(!requests.opt_leaf.has_value());
     unsigned char const old_nibble = get_nibble(old->path_data(), old_pi);
-    tnode->init((1u << old_nibble | requests.mask));
+    tnode->init((1u << old_nibble | requests.mask), pi);
     unsigned const n = tnode->npending;
     MONAD_DEBUG_ASSERT(n > 1);
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
@@ -536,7 +534,7 @@ bool _mismatch_handler(
         if (bit & requests.mask) {
             Node *node = nullptr;
             if (i == old_nibble) {
-                auto next_tnode = make_tnode();
+                auto next_tnode = make_tnode(update_aux.trie_section());
                 if (!_upsert(
                         update_aux,
                         old,
@@ -545,8 +543,8 @@ bool _mismatch_handler(
                         std::move(requests)[i],
                         pi + 1,
                         old_pi + 1)) {
-                    next_tnode->child_branch_bit = i;
-                    next_tnode->parent = tnode;
+                    MONAD_ASSERT(next_tnode->npending);
+                    next_tnode->link_parent(tnode, i);
                     next_tnode.release();
                     ++j;
                     continue;
@@ -560,7 +558,7 @@ bool _mismatch_handler(
             if (node) {
                 child.ptr = node;
                 child.branch = i;
-                child.len = update_aux.comp.compute(child.data, child.ptr);
+                child.len = update_aux.comp().compute(child.data, child.ptr);
             }
             else {
                 tnode->mask &= ~bit;
@@ -576,7 +574,7 @@ bool _mismatch_handler(
             child.ptr =
                 update_node_diff_path_leaf(old, relpath, old->opt_leaf());
             child.branch = i;
-            child.len = update_aux.comp.compute(child.data, child.ptr);
+            child.len = update_aux.comp().compute(child.data, child.ptr);
             --tnode->npending;
             ++j;
         }

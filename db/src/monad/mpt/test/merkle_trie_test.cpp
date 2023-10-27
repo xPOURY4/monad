@@ -518,7 +518,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
 TYPED_TEST(TrieTest, nested_updates_block_no)
 {
-    const_cast<unsigned &>(this->update_aux.list_dim_to_apply_cache) = 1;
+    this->update_aux.sm = std::make_unique<StateMachineWithBlockNo>();
 
     const std::vector<std::pair<monad::byte_string, monad::byte_string>> kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,

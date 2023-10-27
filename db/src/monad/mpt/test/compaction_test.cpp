@@ -32,7 +32,9 @@ namespace
             AsyncIO io{pool, ring, rwbuf};
             MerkleCompute comp;
             node_ptr root;
-            UpdateAux update_aux{comp, &io, /*list_dim_to_apply_cache*/ 0};
+            UpdateAux update_aux{
+                std::make_unique<StateMachineWithBlockNo>(1),
+                &io}; // trie section starts from account
             monad::small_prng rand;
             std::vector<std::pair<monad::byte_string, size_t>> keys;
 

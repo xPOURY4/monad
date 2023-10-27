@@ -106,10 +106,11 @@ public:
 #pragma GCC diagnostic ignored "-Wpedantic"
     unsigned char data[0];
 #pragma GCC diagnostic pop
-    /* Data layout that exceeds node struct size is organized as below:
-    * `n` is the number of children the node has and equals bitmask_count(mask)
+    /* Member funcs and data layout that exceeds node struct size is organized
+    as below:
+    * `n()` is the number of children the node has and equals
+    bitmask_count(mask)
     * `fnext` array: size-n array storing children's on-disk offsets
-    * TODO: use the top two bits as num_pages needed to read child
     * `data_offset` array: size-n array each stores a specific child data's
     starting offset
     * `path`: a few bytes for relative path, size depends on

@@ -28,18 +28,21 @@ struct UpwardTreeNode
     uint16_t orig_mask{0};
     uint8_t child_branch_bit{INVALID_BRANCH};
     int8_t npending{0};
+    uint8_t trie_section{0}; // max 255 diff sections in trie
+    uint8_t pi{0};
 
     // void (*done_)(UpwardTreeNode *, void *) noexcept {nullptr};
     // void *done_value_{nullptr};
 
     void init(
-        uint16_t const _mask,
+        uint16_t const _mask, unsigned const _pi,
         std::optional<byte_string_view> const _opt_leaf_data = std::nullopt)
     {
         unsigned const n = bitmask_count(_mask);
         mask = _mask;
         orig_mask = _mask;
         npending = n;
+        pi = static_cast<uint8_t>(_pi);
         children = allocators::owning_span<ChildData>(n);
         opt_leaf_data = _opt_leaf_data;
     }
@@ -75,9 +78,11 @@ struct UpwardTreeNode
 };
 using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
-inline tnode_unique_ptr make_tnode(node_ptr old = {})
+inline tnode_unique_ptr
+make_tnode(uint8_t const trie_section = 0, node_ptr old = {})
 {
-    return UpwardTreeNode::make(UpwardTreeNode{.old = std::move(old)});
+    return UpwardTreeNode::make(
+        UpwardTreeNode{.old = std::move(old), .trie_section = trie_section});
 }
 
 static_assert(sizeof(UpwardTreeNode) == 88);

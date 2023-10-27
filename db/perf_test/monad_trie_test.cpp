@@ -174,7 +174,9 @@ int main(int argc, char *argv[])
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
         cli.add_flag("--append", append, "append at a specific block in db");
         cli.add_option(
-            "--block-no", block_no, "append on a specific block in db");
+            "--block-no",
+            block_no,
+            "start at a specific block_no, append to block_no-1");
         cli.add_option("--db-name", dbname_path, "db file name");
         cli.add_option("--csv-stats", csv_stats_path, "CSV stats file name");
         cli.add_option(
@@ -250,8 +252,6 @@ int main(int argc, char *argv[])
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
-        MerkleCompute comp{};
-
         if (!std::filesystem::exists(dbname_path)) {
             int fd =
                 ::open(dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
@@ -285,7 +285,8 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
-        UpdateAux update_aux{comp, nullptr, /*when_to_apply_cache*/ 1};
+        UpdateAux update_aux{
+            std::make_unique<StateMachineWithBlockNo>(), nullptr};
         if (!in_memory) {
             update_aux.set_io(&io);
         }
@@ -321,7 +322,6 @@ int main(int argc, char *argv[])
             io.storage_pool().clear_chunks_since(block_start.id + 1);
 
             update_aux.reset_node_writer_offset(block_start);
-            block_no += 1;
         }
 
         auto begin_test = std::chrono::steady_clock::now();

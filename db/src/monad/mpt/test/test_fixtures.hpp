@@ -78,19 +78,16 @@ namespace monad::test
              0xdeadbabedeadbabedeadbabedead_hex}}; // 6
     };
 
+    // merkle tries
     class InMemoryTrie : public ::testing::Test
     {
-    private:
-        MerkleCompute comp;
-
     public:
         node_ptr root;
         UpdateAux update_aux;
 
         InMemoryTrie()
-            : comp(MerkleCompute{})
-            , root{}
-            , update_aux(comp, nullptr)
+            : root{}
+            , update_aux(std::make_unique<StateMachineWithBlockNo>(1), nullptr)
         {
         }
 
@@ -98,7 +95,7 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->comp.compute(res.data(), this->root.get());
+                this->update_aux.comp().compute(res.data(), this->root.get());
                 return res;
             }
             return empty_trie_hash;
@@ -122,7 +119,6 @@ namespace monad::test
         monad::io::Ring ring;
         monad::io::Buffers rwbuf;
         MONAD_ASYNC_NAMESPACE::AsyncIO io;
-        MerkleCompute comp;
 
     public:
         node_ptr root;
@@ -135,9 +131,8 @@ namespace monad::test
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)
             , io(pool, ring, rwbuf)
-            , comp(MerkleCompute{})
             , root{}
-            , update_aux(comp, &io, /*list_dim_to_apply_cache*/ 0)
+            , update_aux(std::make_unique<StateMachineWithBlockNo>(1), &io)
         {
         }
 
@@ -145,7 +140,7 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->comp.compute(res.data(), this->root.get());
+                this->update_aux.comp().compute(res.data(), this->root.get());
                 return res;
             }
             return empty_trie_hash;
