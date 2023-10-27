@@ -92,7 +92,7 @@ inline node_ptr batch_upsert_commit(
                         keccak_keys[i + vec_idx], keccak_values[i + vec_idx]));
         state_updates.push_front(update_vec[i]);
     }
-    Update u = make_update(block_no, {}, false, &state_updates);
+    Update u = make_update(block_no, {}, false, std::move(state_updates));
     UpdateList updates;
     updates.push_front(u);
 

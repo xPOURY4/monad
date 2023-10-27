@@ -302,35 +302,23 @@ bool create_node_from_children_if_any_possibly_ondisk(
     return true;
 }
 
-//! get optional leaf data from optional new update and old leaf
-std::optional<byte_string_view> _get_leaf_data(
-    std::optional<Update> opt_update,
-    std::optional<byte_string_view> const old_leaf = std::nullopt)
-{
-    if (opt_update.has_value() && opt_update.value().value.has_value()) {
-        return opt_update.value().value;
-    }
-    return old_leaf;
-}
-
 //! update leaf data of old, old can have branches
 bool _update_leaf_data(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Update const u)
+    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode, Update &u)
 {
     auto const &relpath = tnode->relpath;
     if (u.is_deletion()) {
         tnode->node = nullptr;
         return true;
     }
-    if (u.next) {
+    if (u.next.has_value()) {
         update_aux.current_list_dim++;
         Requests requests;
-        requests.split_into_sublists(std::move(*(UpdateList *)u.next), 0);
+        requests.split_into_sublists(std::move(u.next.value()), 0);
         bool finished = true;
         if (u.incarnation) {
             tnode->node = _create_new_trie_from_requests(
-                update_aux, requests, relpath, 0, _get_leaf_data(u));
+                update_aux, requests, relpath, 0, u.value);
         }
         else {
             finished = _dispatch_updates(update_aux, old, tnode, requests, 0);
@@ -341,7 +329,9 @@ bool _update_leaf_data(
     tnode->node = u.incarnation
                       ? create_leaf(u.value.value().data(), relpath)
                       : update_node_diff_path_leaf(
-                            old, relpath, _get_leaf_data(u, old->opt_leaf()));
+                            old,
+                            relpath,
+                            u.value.has_value() ? u.value : old->opt_leaf());
     return true;
 }
 
@@ -354,13 +344,13 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         MONAD_DEBUG_ASSERT(u.incarnation == false && u.value.has_value());
         NibblesView const relpath{
             pi, (uint8_t)(2 * u.key.size()), u.key.data()};
-        if (u.next) {
+        if (u.next.has_value()) {
             update_aux.current_list_dim++;
             Requests requests;
-            requests.split_into_sublists(std::move(*(UpdateList *)u.next), 0);
+            requests.split_into_sublists(std::move(u.next.value()), 0);
             MONAD_DEBUG_ASSERT(u.value.has_value());
             auto ret = _create_new_trie_from_requests(
-                update_aux, requests, relpath, 0, _get_leaf_data(u));
+                update_aux, requests, relpath, 0, u.value);
             update_aux.current_list_dim--;
             return ret;
         }
@@ -378,7 +368,7 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         requests,
         NibblesView{psi, pi, requests.get_first_path()},
         pi,
-        _get_leaf_data(requests.opt_leaf));
+        requests.opt_leaf.and_then(&Update::value));
 }
 
 Node *_create_new_trie_from_requests(
@@ -451,11 +441,14 @@ bool _dispatch_updates(
         // incranation = 1, also have new children longer than curr update's key
         MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
         tnode->node = _create_new_trie_from_requests(
-            update_aux, requests, tnode->relpath, pi, _get_leaf_data(opt_leaf));
+            update_aux, requests, tnode->relpath, pi, opt_leaf.value().value);
         return true;
     }
     tnode->init(
-        (old->mask | requests.mask), _get_leaf_data(opt_leaf, old->opt_leaf()));
+        (old->mask | requests.mask),
+        (opt_leaf.has_value() && opt_leaf.value().value.has_value())
+            ? opt_leaf.value().value
+            : old->opt_leaf());
     unsigned const n = tnode->npending;
 
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {

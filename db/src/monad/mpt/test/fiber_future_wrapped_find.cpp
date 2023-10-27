@@ -33,10 +33,11 @@ namespace
     {
         // Populate the trie first with the 100 fixed updates
         std::vector<Update> updates;
-        for (auto &i : one_hundred_updates) {
+        for (auto const &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
         }
-        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        this->root = upsert_vector(
+            this->update_aux, this->root.get(), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
@@ -107,10 +108,11 @@ namespace
     {
         // Populate the trie first with the 100 fixed updates
         std::vector<Update> updates;
-        for (auto &i : one_hundred_updates) {
+        for (auto const &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
         }
-        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        this->root = upsert_vector(
+            this->update_aux, this->root.get(), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);

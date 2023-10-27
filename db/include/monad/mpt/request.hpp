@@ -61,7 +61,7 @@ struct Requests
             Update &req = updates.front();
             updates.pop_front();
             if (pi == req.key.size() * 2) {
-                opt_leaf = req;
+                opt_leaf = std::move(req);
                 continue;
             }
             uint8_t branch = get_nibble(req.key.data(), pi);

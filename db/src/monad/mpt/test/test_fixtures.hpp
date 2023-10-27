@@ -5,6 +5,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include <array>
 #include <vector>
 
 namespace monad::test
@@ -13,12 +14,22 @@ namespace monad::test
     using namespace monad::literals;
 
     node_ptr upsert_vector(
-        UpdateAux &update_aux, Node *const old, std::vector<Update> update_vec)
+        UpdateAux &update_aux, Node *const old,
+        std::vector<Update> &&update_vec)
     {
         UpdateList update_ls;
         for (auto &it : update_vec) {
             update_ls.push_front(it);
         }
+        return upsert(update_aux, old, std::move(update_ls));
+    }
+
+    template <class... Updates>
+    [[nodiscard]] constexpr node_ptr
+    upsert_updates(UpdateAux &update_aux, Node *const old, Updates... updates)
+    {
+        UpdateList update_ls;
+        (update_ls.push_front(updates), ...);
         return upsert(update_aux, old, std::move(update_ls));
     }
 
@@ -166,7 +177,8 @@ namespace monad::test
                     auto &[k, v] = su;
                     return make_update(k, v);
                 });
-            this->root = upsert_vector(this->update_aux, nullptr, update_vec);
+            this->root =
+                upsert_vector(this->update_aux, nullptr, std::move(update_vec));
         }
     };
 

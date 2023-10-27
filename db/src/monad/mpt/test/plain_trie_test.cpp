@@ -5,10 +5,13 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include "test_fixtures.hpp"
+
 #include <vector>
 
 using namespace monad::mpt;
 using namespace monad::literals;
+using namespace monad::test;
 
 namespace updates
 {
@@ -24,16 +27,6 @@ namespace updates
     };
 }
 
-node_ptr upsert_vector(
-    UpdateAux &update_aux, Node *const old, std::vector<Update> update_vec)
-{
-    UpdateList update_ls;
-    for (auto &it : update_vec) {
-        update_ls.push_front(it);
-    }
-    return upsert(update_aux, old, std::move(update_ls));
-}
-
 TEST(InMemoryPlainTrie, var_length)
 {
     auto &kv = updates::kv;
@@ -42,13 +35,13 @@ TEST(InMemoryPlainTrie, var_length)
     node_ptr root;
 
     // insert kv 0,1,2,3
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         nullptr,
-        {make_update(kv[0].first, kv[0].second),
-         make_update(kv[1].first, kv[1].second),
-         make_update(kv[2].first, kv[2].second),
-         make_update(kv[3].first, kv[3].second)});
+        make_update(kv[0].first, kv[0].second),
+        make_update(kv[1].first, kv[1].second),
+        make_update(kv[2].first, kv[2].second),
+        make_update(kv[3].first, kv[3].second));
 
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
@@ -96,11 +89,11 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(node1aacd->leaf_view(), kv[3].second);
 
     // insert kv 4,5
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         root.get(),
-        {make_update(kv[4].first, kv[4].second),
-         make_update(kv[5].first, kv[5].second)});
+        make_update(kv[4].first, kv[4].second),
+        make_update(kv[5].first, kv[5].second));
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
         kv[0].second);
@@ -132,11 +125,11 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(node111b->leaf_view(), kv[5].second);
 
     // insert kv 6,7
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         root.get(),
-        {make_update(kv[6].first, kv[6].second),
-         make_update(kv[7].first, kv[7].second)});
+        make_update(kv[6].first, kv[6].second),
+        make_update(kv[7].first, kv[7].second));
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[5].first).first->leaf_view(),
         kv[5].second);
@@ -180,12 +173,12 @@ TEST(InMemoryPlainTrie, mismatch)
         / \
     5678  6678
     */
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         nullptr,
-        {make_update(kv[0].first, kv[0].second),
-         make_update(kv[1].first, kv[1].second),
-         make_update(kv[2].first, kv[2].second)});
+        make_update(kv[0].first, kv[0].second),
+        make_update(kv[1].first, kv[1].second),
+        make_update(kv[2].first, kv[2].second));
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
         kv[0].second);
@@ -211,11 +204,11 @@ TEST(InMemoryPlainTrie, mismatch)
           / | \
       5678 6678 7678
     */
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         root.get(),
-        {make_update(kv[3].first, kv[3].second),
-         make_update(kv[4].first, kv[4].second)});
+        make_update(kv[3].first, kv[3].second),
+        make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
         kv[1].second);
@@ -254,31 +247,31 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
     node_ptr root;
 
     // insert all
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         nullptr,
-        {make_update(kv[0].first, kv[0].second),
-         make_update(kv[1].first, kv[1].second),
-         make_update(kv[2].first, kv[2].second),
-         make_update(kv[3].first, kv[3].second),
-         make_update(kv[4].first, kv[4].second),
-         make_update(kv[5].first, kv[5].second),
-         make_update(kv[6].first, kv[6].second),
-         make_update(kv[7].first, kv[7].second)});
+        make_update(kv[0].first, kv[0].second),
+        make_update(kv[1].first, kv[1].second),
+        make_update(kv[2].first, kv[2].second),
+        make_update(kv[3].first, kv[3].second),
+        make_update(kv[4].first, kv[4].second),
+        make_update(kv[5].first, kv[5].second),
+        make_update(kv[6].first, kv[6].second),
+        make_update(kv[7].first, kv[7].second));
     // erase 0
-    root = upsert_vector(update_aux, root.get(), {make_erase(kv[0].first)});
+    root = upsert_updates(update_aux, root.get(), make_erase(kv[0].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
-    root = upsert_vector(update_aux, root.get(), {make_erase(kv[5].first)});
+    root = upsert_updates(update_aux, root.get(), make_erase(kv[5].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 1, consequently 2,3 are erased
-    root = upsert_vector(update_aux, root.get(), {make_erase(kv[1].first)});
+    root = upsert_updates(update_aux, root.get(), make_erase(kv[1].first));
     EXPECT_EQ(root->mask, 0);
     EXPECT_EQ(root->leaf_view(), kv[4].second);
     EXPECT_EQ(
@@ -295,12 +288,12 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     node_ptr root;
 
     // insert
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         nullptr,
-        {make_update(kv[0].first, kv[0].second), // 0x01111111
-         make_update(kv[1].first, kv[1].second), // 0x11111111
-         make_update(kv[2].first, kv[2].second)}); // 0x11111111aaaa
+        make_update(kv[0].first, kv[0].second), // 0x01111111
+        make_update(kv[1].first, kv[1].second), // 0x11111111
+        make_update(kv[2].first, kv[2].second)); // 0x11111111aaaa
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
         kv[0].second);
@@ -312,11 +305,11 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         kv[2].second);
 
     // upsert a bunch of new kvs, with incarnation flag set
-    root = upsert_vector(
+    root = upsert_updates(
         update_aux,
         root.get(),
-        {make_update(kv[1].first, kv[1].second, true), // 0x11111111
-         make_update(kv[3].first, kv[3].second)}); // 0x11111111aacd
+        make_update(kv[1].first, kv[1].second, true), // 0x11111111
+        make_update(kv[3].first, kv[3].second)); // 0x11111111aacd
     EXPECT_EQ(
         find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
         kv[0].second);

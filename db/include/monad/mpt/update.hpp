@@ -10,23 +10,17 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct UpdateBase
+struct Update;
+using UpdateList = boost::intrusive::slist<Update>;
+
+struct Update
+    : public boost::intrusive::slist_base_hook<
+          boost::intrusive::link_mode<boost::intrusive::normal_link>>
 {
     byte_string_view key{};
     std::optional<byte_string_view> value{std::nullopt};
-    void *next{nullptr};
     bool incarnation{false};
-};
-
-static_assert(sizeof(UpdateBase) == 56);
-static_assert(alignof(UpdateBase) == 8);
-
-using UpdateMemberHook = boost::intrusive::slist_member_hook<
-    boost::intrusive::link_mode<boost::intrusive::normal_link>>;
-
-struct Update : UpdateBase
-{
-    UpdateMemberHook hook_;
+    std::optional<UpdateList> next;
 
     constexpr bool is_deletion() const noexcept
     {
@@ -34,16 +28,8 @@ struct Update : UpdateBase
     }
 };
 
-static_assert(sizeof(Update) == 64);
+static_assert(sizeof(Update) == 80);
 static_assert(alignof(Update) == 8);
-
-using UpdateList = boost::intrusive::slist<
-    Update,
-    boost::intrusive::member_hook<Update, UpdateMemberHook, &Update::hook_>,
-    boost::intrusive::constant_time_size<true>>;
-
-static_assert(sizeof(UpdateList) == 16);
-static_assert(alignof(UpdateList) == 8);
 
 // An update can mean
 // 1. underlying trie updates: when opt is empty, next is set
@@ -51,28 +37,35 @@ static_assert(alignof(UpdateList) == 8);
 // 3. leaf erase: when opt is empty, next = nullptr
 inline Update make_update(
     monad::byte_string_view const key, monad::byte_string_view const value,
-    bool incarnation = false, UpdateList *next = nullptr) noexcept
+    bool incarnation = false,
+    std::optional<UpdateList> &&next = std::nullopt) noexcept
 {
     return Update{
-        {key,
-         std::optional<byte_string_view>{value},
-         (void *)next,
-         incarnation},
-        UpdateMemberHook{}};
+        .key = key,
+        .value = value,
+        .incarnation = incarnation,
+        .next = std::move(next)};
 }
 
 // When updates in the nested list but not in this key value pair itself
-inline Update
-make_update(monad::byte_string_view const key, UpdateList *next) noexcept
+inline Update make_update(
+    monad::byte_string_view const key,
+    std::optional<UpdateList> &&next) noexcept
 {
     return Update{
-        {key, std::nullopt, (void *)next, /*incarnation*/ false},
-        UpdateMemberHook{}};
+        .key = key,
+        .value = std::nullopt,
+        .incarnation = false,
+        .next = std::move(next)};
 }
 
 inline Update make_erase(monad::byte_string_view const key) noexcept
 {
-    return Update{{key, std::nullopt}, UpdateMemberHook{}};
+    return Update{
+        .key = key,
+        .value = std::nullopt,
+        .incarnation = false,
+        .next = std::nullopt};
 }
 
 MONAD_MPT_NAMESPACE_END
