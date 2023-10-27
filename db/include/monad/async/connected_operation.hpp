@@ -82,7 +82,7 @@ namespace detail
     struct connected_operation_void_completed_implementation : public Base
     {
         using Base::Base;
-        static constexpr bool _void_completed_enabled = false;
+        static constexpr bool void_completed_enabled_ = false;
     };
     template <
         class Base, sender Sender, receiver Receiver,
@@ -99,7 +99,7 @@ namespace detail
     struct connected_operation_bytes_completed_implementation : public Base
     {
         using Base::Base;
-        static constexpr bool _bytes_completed_enabled = false;
+        static constexpr bool bytes_completed_enabled_ = false;
     };
 
     template <class Base, sender Sender, receiver Receiver>
@@ -107,28 +107,28 @@ namespace detail
         Base, Sender, Receiver, true> : public Base
     {
         using Base::Base;
-        static constexpr bool _void_completed_enabled = true;
+        static constexpr bool void_completed_enabled_ = true;
 
     private:
         // These will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<void> res) override final
         {
-            this->_being_executed = false;
+            this->being_executed_ = false;
             auto *thisio = this->executor();
             if (thisio != nullptr) {
-                thisio->_notify_operation_completed(this, res);
+                thisio->notify_operation_completed_(this, res);
             }
             if constexpr (requires(Sender x) {
                               x.completed(this, std::move(res));
                           }) {
-                auto r = this->_sender.completed(this, std::move(res));
+                auto r = this->sender_.completed(this, std::move(res));
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
                     // Completions are allowed to be triggered from threads
                     // different to initiation, but if completion then
                     // reinitiates, this operation state needs a new owner
-                    this->_io.store(
+                    this->io_.store(
                         detail::AsyncIO_thread_instance(),
                         std::memory_order_release);
                     // Also, it is permitted for the completion to completely
@@ -138,11 +138,11 @@ namespace detail
                     std::launder(this)->initiate();
                 }
                 else {
-                    this->_receiver.set_value(this, std::move(r));
+                    this->receiver_.set_value(this, std::move(r));
                 }
             }
             else {
-                this->_receiver.set_value(this, std::move(res));
+                this->receiver_.set_value(this, std::move(res));
             }
         }
     };
@@ -151,29 +151,29 @@ namespace detail
         Base, Sender, Receiver, true> : public Base
     {
         using Base::Base;
-        static constexpr bool _bytes_completed_enabled = true;
+        static constexpr bool bytes_completed_enabled_ = true;
 
     private:
         // This will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<size_t> bytes_transferred) override final
         {
-            this->_being_executed = false;
+            this->being_executed_ = false;
             auto *thisio = this->executor();
             if (thisio != nullptr) {
-                thisio->_notify_operation_completed(this, bytes_transferred);
+                thisio->notify_operation_completed_(this, bytes_transferred);
             }
             if constexpr (requires(Sender x) {
                               x.completed(this, std::move(bytes_transferred));
                           }) {
                 auto r =
-                    this->_sender.completed(this, std::move(bytes_transferred));
+                    this->sender_.completed(this, std::move(bytes_transferred));
                 [[unlikely]] if (
                     !r && r.assume_error() ==
                               sender_errc::operation_must_be_reinitiated) {
                     // Completions are allowed to be triggered from threads
                     // different to initiation, but if completion then
                     // reinitiates, this operation state needs a new owner
-                    this->_io.store(
+                    this->io_.store(
                         detail::AsyncIO_thread_instance(),
                         std::memory_order_release);
                     // Also, it is permitted for the completion to completely
@@ -183,11 +183,11 @@ namespace detail
                     std::launder(this)->initiate();
                 }
                 else {
-                    this->_receiver.set_value(this, std::move(r));
+                    this->receiver_.set_value(this, std::move(r));
                 }
             }
             else {
-                this->_receiver.set_value(this, std::move(bytes_transferred));
+                this->receiver_.set_value(this, std::move(bytes_transferred));
             }
         }
     };
@@ -215,21 +215,21 @@ class connected_operation final
               Sender, Receiver>,
           Sender, Receiver>
 {
-    using _base = detail::connected_operation_void_completed_implementation<
+    using base_ = detail::connected_operation_void_completed_implementation<
         detail::connected_operation_bytes_completed_implementation<
             detail::connected_operation_storage<
                 erased_connected_operation, Sender, Receiver>,
             Sender, Receiver>,
         Sender, Receiver>;
     static_assert(
-        _base::_void_completed_enabled || _base::_bytes_completed_enabled,
+        base_::void_completed_enabled_ || base_::bytes_completed_enabled_,
         "If Sender's result_type is neither result<void> nor "
         "result<size_t>, it must provide a completed(result<void>) or "
         "completed(result<size_t>) to transform a completion into the "
         "appropriate result_type value for the Receiver.");
 
 public:
-    using _base::_base;
+    using base_::base_;
 
     // This is an immovable in memory object
     connected_operation(connected_operation const &) = delete;

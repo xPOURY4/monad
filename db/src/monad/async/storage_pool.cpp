@@ -27,7 +27,7 @@ std::filesystem::path storage_pool::device::current_path() const
     auto *out = const_cast<char *>(ret.data());
     // Linux keeps a symlink at /proc/self/fd/n
     char in[64];
-    snprintf(in, sizeof(in), "/proc/self/fd/%d", _readfd);
+    snprintf(in, sizeof(in), "/proc/self/fd/%d", readfd_);
     ssize_t len;
     if ((len = ::readlink(in, out, 32768)) == -1) {
         throw std::system_error(errno, std::system_category());
@@ -47,35 +47,35 @@ size_t storage_pool::device::chunks() const
     if (is_zoned_device()) {
         throw std::runtime_error("zonefs support isn't implemented yet");
     }
-    return _metadata->chunks(_size_of_file);
+    return metadata_->chunks(size_of_file_);
 }
 
 std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
 {
-    switch (_type) {
-    case device::_type_t::file: {
+    switch (type_) {
+    case device::type_t_::file: {
         struct stat stat;
-        if (-1 == ::fstat(_readfd, &stat)) {
+        if (-1 == ::fstat(readfd_, &stat)) {
             throw std::system_error(errno, std::system_category());
         }
         return {
             file_offset_t(stat.st_size), file_offset_t(stat.st_blocks) * 512};
     }
-    case device::_type_t::block_device: {
+    case device::type_t_::block_device: {
         file_offset_t capacity, used = round_up_align<CPU_PAGE_BITS>(
-                                    _metadata->total_size(_size_of_file));
+                                    metadata_->total_size(size_of_file_));
         if (ioctl(
-                _readfd, _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/, &capacity)) {
+                readfd_, _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/, &capacity)) {
             throw std::system_error(errno, std::system_category());
         }
         auto const chunks = this->chunks();
-        auto const useds = _metadata->chunk_bytes_used(_size_of_file);
+        auto const useds = metadata_->chunk_bytes_used(size_of_file_);
         for (size_t n = 0; n < chunks; n++) {
             used += useds[n].load(std::memory_order_acquire);
         }
         return {capacity, used};
     }
-    case device::_type_t::zoned_device:
+    case device::type_t_::zoned_device:
         throw std::runtime_error("zonefs support isn't implemented yet");
     default:
         abort();
@@ -86,17 +86,17 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
 
 storage_pool::chunk::chunk::~chunk()
 {
-    if (_owns_readfd || _owns_writefd) {
-        auto fd = _read_fd;
-        if (_owns_readfd && _read_fd != -1) {
-            (void)::close(_read_fd);
-            _read_fd = -1;
+    if (owns_readfd_ || owns_writefd_) {
+        auto fd = read_fd_;
+        if (owns_readfd_ && read_fd_ != -1) {
+            (void)::close(read_fd_);
+            read_fd_ = -1;
         }
-        if (_owns_writefd && _write_fd != -1) {
-            if (_write_fd != fd) {
-                (void)::close(_write_fd);
+        if (owns_writefd_ && write_fd_ != -1) {
+            if (write_fd_ != fd) {
+                (void)::close(write_fd_);
             }
-            _write_fd = -1;
+            write_fd_ = -1;
         }
     }
 }
@@ -105,9 +105,9 @@ std::pair<int, file_offset_t>
 storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
 {
     if (device().is_file() || device().is_block_device()) {
-        auto *metadata = device()._metadata;
+        auto *metadata = device().metadata_;
         auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device()._size_of_file);
+            metadata->chunk_bytes_used(device().size_of_file_);
         MONAD_DEBUG_ASSERT(
             bytes_which_shall_be_written <=
             std::numeric_limits<uint32_t>::max());
@@ -120,7 +120,7 @@ storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
                       std::memory_order_acquire);
         MONAD_ASSERT(
             size + bytes_which_shall_be_written <= metadata->chunk_capacity);
-        return std::pair<int, file_offset_t>{_write_fd, _offset + size};
+        return std::pair<int, file_offset_t>{write_fd_, offset_ + size};
     }
     MONAD_ASSERT("zonefs support isn't implemented yet" == nullptr);
 }
@@ -128,9 +128,9 @@ storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
 file_offset_t storage_pool::chunk::size() const
 {
     if (device().is_file() || device().is_block_device()) {
-        auto *metadata = device()._metadata;
+        auto *metadata = device().metadata_;
         auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device()._size_of_file);
+            metadata->chunk_bytes_used(device().size_of_file_);
         return chunk_bytes_used[device_zone_id()].load(
             std::memory_order_acquire);
     }
@@ -140,29 +140,29 @@ file_offset_t storage_pool::chunk::size() const
 void storage_pool::chunk::destroy_contents()
 {
     if (device().is_file()) {
-        MONAD_DEBUG_ASSERT(_capacity <= std::numeric_limits<off_t>::max());
-        MONAD_DEBUG_ASSERT(_offset <= std::numeric_limits<off_t>::max());
+        MONAD_DEBUG_ASSERT(capacity_ <= std::numeric_limits<off_t>::max());
+        MONAD_DEBUG_ASSERT(offset_ <= std::numeric_limits<off_t>::max());
         if (-1 == ::fallocate(
-                      _write_fd,
+                      write_fd_,
                       FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
-                      static_cast<off_t>(_offset),
-                      static_cast<off_t>(_capacity))) {
+                      static_cast<off_t>(offset_),
+                      static_cast<off_t>(capacity_))) {
             throw std::system_error(errno, std::system_category());
         }
-        auto *metadata = device()._metadata;
+        auto *metadata = device().metadata_;
         auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device()._size_of_file);
+            metadata->chunk_bytes_used(device().size_of_file_);
         chunk_bytes_used[device_zone_id()].store(0, std::memory_order_release);
         return;
     }
     if (device().is_block_device()) {
-        uint64_t range[2] = {_offset, _capacity};
-        if (ioctl(_write_fd, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
+        uint64_t range[2] = {offset_, capacity_};
+        if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
             throw std::system_error(errno, std::system_category());
         }
-        auto *metadata = device()._metadata;
+        auto *metadata = device().metadata_;
         auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device()._size_of_file);
+            metadata->chunk_bytes_used(device().size_of_file_);
         chunk_bytes_used[device_zone_id()].store(0, std::memory_order_release);
         return;
     }
@@ -171,8 +171,8 @@ void storage_pool::chunk::destroy_contents()
 
 /***************************************************************************/
 
-storage_pool::device storage_pool::_make_device(
-    mode op, device::_type_t type, std::filesystem::path const &path, int fd,
+storage_pool::device storage_pool::make_device_(
+    mode op, device::type_t_ type, std::filesystem::path const &path, int fd,
     size_t chunk_capacity)
 {
     int readfd = fd, writefd = fd;
@@ -194,12 +194,12 @@ storage_pool::device storage_pool::_make_device(
     struct stat stat;
     memset(&stat, 0, sizeof(stat));
     switch (type) {
-    case device::_type_t::file:
+    case device::type_t_::file:
         if (-1 == ::fstat(writefd, &stat)) {
             throw std::system_error(errno, std::system_category());
         }
         break;
-    case device::_type_t::block_device:
+    case device::type_t_::block_device:
         if (ioctl(
                 writefd,
                 _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/,
@@ -207,7 +207,7 @@ storage_pool::device storage_pool::_make_device(
             throw std::system_error(errno, std::system_category());
         }
         break;
-    case device::_type_t::zoned_device:
+    case device::type_t_::zoned_device:
         throw std::runtime_error("zonefs support isn't implemented yet");
     default:
         abort();
@@ -256,7 +256,7 @@ storage_pool::device storage_pool::_make_device(
             }
             // Throw away all contents
             switch (type) {
-            case device::_type_t::file:
+            case device::type_t_::file:
                 if (-1 == ::ftruncate(writefd, 0)) {
                     throw std::system_error(errno, std::system_category());
                 }
@@ -264,14 +264,14 @@ storage_pool::device storage_pool::_make_device(
                     throw std::system_error(errno, std::system_category());
                 }
                 break;
-            case device::_type_t::block_device: {
+            case device::type_t_::block_device: {
                 uint64_t range[2] = {0, uint64_t(stat.st_size)};
                 if (ioctl(writefd, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
                     throw std::system_error(errno, std::system_category());
                 }
                 break;
             }
-            case device::_type_t::zoned_device:
+            case device::type_t_::zoned_device:
                 throw std::runtime_error(
                     "zonefs support isn't implemented yet");
             default:
@@ -313,14 +313,14 @@ storage_pool::device storage_pool::_make_device(
         readfd, writefd, type, static_cast<size_t>(stat.st_size), metadata);
 }
 
-void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
+void storage_pool::fill_chunks_(bool interleavechunks__evenly)
 {
     auto hashshouldbe = fnv1a_hash<uint32_t>::begin();
-    fnv1a_hash<uint32_t>::add(hashshouldbe, 1 + interleave_chunks_evenly);
+    fnv1a_hash<uint32_t>::add(hashshouldbe, 1 + interleavechunks__evenly);
     std::vector<size_t> chunks;
     size_t total = 0;
-    chunks.reserve(_devices.size());
-    for (auto &device : _devices) {
+    chunks.reserve(devices_.size());
+    for (auto &device : devices_) {
         if (device.is_file() || device.is_block_device()) {
             auto const devicechunks = device.chunks();
             MONAD_ASSERT(devicechunks > 0);
@@ -333,17 +333,17 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
             fnv1a_hash<uint32_t>::add(
                 hashshouldbe, static_cast<uint32_t>(devicechunks));
             fnv1a_hash<uint32_t>::add(
-                hashshouldbe, device._metadata->chunk_capacity);
+                hashshouldbe, device.metadata_->chunk_capacity);
         }
         else {
             throw std::runtime_error("zonefs support isn't implemented yet");
         }
     }
-    for (auto &device : _devices) {
-        if (device._metadata->config_hash == 0) {
-            device._metadata->config_hash = uint32_t(hashshouldbe);
+    for (auto &device : devices_) {
+        if (device.metadata_->config_hash == 0) {
+            device.metadata_->config_hash = uint32_t(hashshouldbe);
         }
-        else if (device._metadata->config_hash != uint32_t(hashshouldbe)) {
+        else if (device.metadata_->config_hash != uint32_t(hashshouldbe)) {
             std::stringstream str;
             str << "Storage pool source " << device.current_path()
                 << " was initialised with a configuration different to this "
@@ -353,12 +353,12 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
     }
     // First block of each device goes to conventional, remainder go to
     // sequential
-    _chunks[cnv].reserve(_devices.size());
-    for (auto &device : _devices) {
-        _chunks[cnv].emplace_back(std::weak_ptr<class chunk>{}, device, 0);
+    chunks_[cnv].reserve(devices_.size());
+    for (auto &device : devices_) {
+        chunks_[cnv].emplace_back(std::weak_ptr<class chunk>{}, device, 0);
     }
-    _chunks[seq].reserve(total);
-    if (interleave_chunks_evenly) {
+    chunks_[seq].reserve(total);
+    if (interleavechunks__evenly) {
         // We now need to evenly spread the sequential chunks such that if
         // device A has 20, device B has 10 and device C has 5, the interleaving
         // would be ABACABA i.e. a ratio of 4:2:1
@@ -369,14 +369,14 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
             chunkcounts[n] = chunkratios[n];
             chunks[n] = 1;
         }
-        while (_chunks[seq].size() < _chunks[seq].capacity()) {
+        while (chunks_[seq].size() < chunks_[seq].capacity()) {
             for (size_t n = 0; n < chunks.size(); n++) {
                 chunkcounts[n] -= 1.0;
                 if (chunkcounts[n] < 0) {
-                    _chunks[seq].emplace_back(
-                        std::weak_ptr<class chunk>{}, _devices[n], chunks[n]++);
+                    chunks_[seq].emplace_back(
+                        std::weak_ptr<class chunk>{}, devices_[n], chunks[n]++);
                     chunkcounts[n] += chunkratios[n];
-                    if (_chunks[seq].size() == _chunks[seq].capacity()) {
+                    if (chunks_[seq].size() == chunks_[seq].capacity()) {
                         break;
                     }
                 }
@@ -384,7 +384,7 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
         }
 #ifndef NDEBUG
         for (size_t n = 0; n < chunks.size(); n++) {
-            auto devicechunks = _devices[n].chunks();
+            auto devicechunks = devices_[n].chunks();
             assert(chunks[n] == devicechunks);
         }
 #endif
@@ -392,8 +392,8 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
     else {
         for (size_t deviceidx = 0; deviceidx < chunks.size(); deviceidx++) {
             for (size_t n = 1; n <= chunks[deviceidx]; n++) {
-                _chunks[seq].emplace_back(
-                    std::weak_ptr<class chunk>{}, _devices[deviceidx], n);
+                chunks_[seq].emplace_back(
+                    std::weak_ptr<class chunk>{}, devices_[deviceidx], n);
             }
         }
     }
@@ -401,11 +401,11 @@ void storage_pool::_fill_chunks(bool interleave_chunks_evenly)
 
 storage_pool::storage_pool(
     std::span<std::filesystem::path> sources, mode mode,
-    bool interleave_chunks_evenly)
+    bool interleavechunks__evenly)
 {
-    _devices.reserve(sources.size());
+    devices_.reserve(sources.size());
     for (auto &source : sources) {
-        _devices.push_back([&] {
+        devices_.push_back([&] {
             int fd = ::open(source.c_str(), O_PATH | O_CLOEXEC);
             if (-1 == fd) {
                 throw std::system_error(errno, std::system_category());
@@ -424,12 +424,12 @@ storage_pool::storage_pool(
                 throw std::system_error(errno, std::system_category());
             }
             if ((stat.st_mode & S_IFMT) == S_IFBLK) {
-                return _make_device(
-                    mode, device::_type_t::block_device, source.c_str(), fd);
+                return make_device_(
+                    mode, device::type_t_::block_device, source.c_str(), fd);
             }
             if ((stat.st_mode & S_IFMT) == S_IFREG) {
-                return _make_device(
-                    mode, device::_type_t::file, source.c_str(), fd);
+                return make_device_(
+                    mode, device::type_t_::file, source.c_str(), fd);
             }
             std::stringstream str;
             str << "Storage pool source " << source
@@ -437,7 +437,7 @@ storage_pool::storage_pool(
             throw std::runtime_error(std::move(str).str());
         }());
     }
-    _fill_chunks(interleave_chunks_evenly);
+    fill_chunks_(interleavechunks__evenly);
 }
 
 storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
@@ -448,63 +448,63 @@ storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
         ::ftruncate(fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
         throw std::system_error(errno, std::system_category());
     }
-    _devices.push_back(_make_device(
-        mode::truncate, device::_type_t::file, {}, fd, chunk_capacity));
+    devices_.push_back(make_device_(
+        mode::truncate, device::type_t_::file, {}, fd, chunk_capacity));
     unfd.release();
-    _fill_chunks(false);
+    fill_chunks_(false);
 }
 
 storage_pool::~storage_pool()
 {
-    auto cleanup_chunks = [&](chunk_type which) {
-        for (auto &chunk_ : _chunks[which]) {
+    auto cleanupchunks_ = [&](chunk_type which) {
+        for (auto &chunk_ : chunks_[which]) {
             auto chunk(chunk_.chunk.lock());
-            if (chunk && (chunk->_owns_readfd || chunk->_owns_writefd)) {
-                auto fd = chunk->_read_fd;
-                if (chunk->_owns_readfd && chunk->_read_fd != -1) {
-                    (void)::close(chunk->_read_fd);
-                    chunk->_read_fd = -1;
+            if (chunk && (chunk->owns_readfd_ || chunk->owns_writefd_)) {
+                auto fd = chunk->read_fd_;
+                if (chunk->owns_readfd_ && chunk->read_fd_ != -1) {
+                    (void)::close(chunk->read_fd_);
+                    chunk->read_fd_ = -1;
                 }
-                if (chunk->_owns_writefd && chunk->_write_fd != -1) {
-                    if (chunk->_write_fd != fd) {
-                        (void)::close(chunk->_write_fd);
+                if (chunk->owns_writefd_ && chunk->write_fd_ != -1) {
+                    if (chunk->write_fd_ != fd) {
+                        (void)::close(chunk->write_fd_);
                     }
-                    chunk->_write_fd = -1;
+                    chunk->write_fd_ = -1;
                 }
             }
         }
-        _chunks[which].clear();
+        chunks_[which].clear();
     };
-    cleanup_chunks(cnv);
-    cleanup_chunks(seq);
-    for (auto &device : _devices) {
-        if (device._metadata != nullptr) {
+    cleanupchunks_(cnv);
+    cleanupchunks_(seq);
+    for (auto &device : devices_) {
+        if (device.metadata_ != nullptr) {
             auto total_size =
-                device._metadata->total_size(device._size_of_file);
+                device.metadata_->total_size(device.size_of_file_);
             ::munmap(
                 (void *)round_down_align<CPU_PAGE_BITS>(
-                    (uintptr_t)device._metadata + sizeof(device::metadata_t) -
+                    (uintptr_t)device.metadata_ + sizeof(device::metadata_t) -
                     total_size),
                 total_size);
         }
-        if (device._readfd != -1) {
-            (void)::close(device._readfd);
+        if (device.readfd_ != -1) {
+            (void)::close(device.readfd_);
         }
-        if (device._writefd != -1) {
-            (void)::close(device._writefd);
+        if (device.writefd_ != -1) {
+            (void)::close(device.writefd_);
         }
-        if (device._writefd2 != -1) {
-            (void)::close(device._writefd2);
+        if (device.writefd2_ != -1) {
+            (void)::close(device.writefd2_);
         }
     }
-    _devices.clear();
+    devices_.clear();
 }
 
 size_t storage_pool::currently_active_chunks(chunk_type which) const noexcept
 {
-    std::unique_lock g(_lock);
+    std::unique_lock g(lock_);
     size_t ret = 0;
-    for (auto &i : _chunks[which]) {
+    for (auto &i : chunks_[which]) {
         if (!i.chunk.expired()) {
             ret++;
         }
@@ -515,22 +515,22 @@ size_t storage_pool::currently_active_chunks(chunk_type which) const noexcept
 std::shared_ptr<class storage_pool::chunk>
 storage_pool::chunk(chunk_type which, uint32_t id) const
 {
-    std::unique_lock g(_lock);
-    if (id >= _chunks[which].size()) {
+    std::unique_lock g(lock_);
+    if (id >= chunks_[which].size()) {
         throw std::runtime_error("Requested chunk which does not exist");
     }
-    return _chunks[which][id].chunk.lock();
+    return chunks_[which][id].chunk.lock();
 }
 
 std::shared_ptr<class storage_pool::chunk>
-storage_pool::activate_chunk(const chunk_type which, const uint32_t id)
+storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
 {
-    std::unique_lock g(_lock);
-    if (id >= _chunks[which].size()) {
+    std::unique_lock g(lock_);
+    if (id >= chunks_[which].size()) {
         throw std::runtime_error(
             "Requested to activate chunk which does not exist");
     }
-    auto ret = _chunks[which][id].chunk.lock();
+    auto ret = chunks_[which][id].chunk.lock();
     if (ret) {
         return ret;
     }
@@ -538,39 +538,39 @@ storage_pool::activate_chunk(const chunk_type which, const uint32_t id)
     switch (which) {
     case chunk_type::cnv:
         ret = std::shared_ptr<cnv_chunk>(new cnv_chunk(
-            _devices[id],
-            _devices[id]._readfd,
-            _devices[id]._writefd,
+            devices_[id],
+            devices_[id].readfd_,
+            devices_[id].writefd_,
             0,
-            _devices[id]._metadata->chunk_capacity,
+            devices_[id].metadata_->chunk_capacity,
             id,
             false,
             false,
             false));
         break;
     case chunk_type::seq: {
-        auto &chunkinfo = _chunks[chunk_type::seq][id];
-        int directfd = chunkinfo.device._writefd2;
+        auto &chunkinfo = chunks_[chunk_type::seq][id];
+        int directfd = chunkinfo.device.writefd2_;
         if (-1 == directfd) {
             auto devicepath = chunkinfo.device.current_path();
             if (!devicepath.empty()) {
-                directfd = chunkinfo.device._writefd2 =
+                directfd = chunkinfo.device.writefd2_ =
                     ::open(devicepath.c_str(), O_WRONLY | O_DIRECT | O_CLOEXEC);
                 if (-1 == directfd) {
                     throw std::system_error(errno, std::system_category());
                 }
             }
             else {
-                directfd = chunkinfo.device._writefd;
+                directfd = chunkinfo.device.writefd_;
             }
         }
         ret = std::shared_ptr<seq_chunk>(new seq_chunk(
             chunkinfo.device,
-            chunkinfo.device._readfd,
+            chunkinfo.device.readfd_,
             directfd,
             file_offset_t(chunkinfo.zone_id) *
-                chunkinfo.device._metadata->chunk_capacity,
-            chunkinfo.device._metadata->chunk_capacity,
+                chunkinfo.device.metadata_->chunk_capacity,
+            chunkinfo.device.metadata_->chunk_capacity,
             chunkinfo.zone_id,
             false,
             false,
@@ -583,11 +583,11 @@ storage_pool::activate_chunk(const chunk_type which, const uint32_t id)
         throw std::runtime_error("zonefs support isn't implemented yet");
     }
     g.lock();
-    auto ret2 = _chunks[which][id].chunk.lock();
+    auto ret2 = chunks_[which][id].chunk.lock();
     if (ret2) {
         return ret2;
     }
-    _chunks[which][id].chunk = ret;
+    chunks_[which][id].chunk = ret;
     return ret;
 }
 

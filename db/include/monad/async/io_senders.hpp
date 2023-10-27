@@ -20,36 +20,36 @@ public:
     using result_type = result<const_buffer_type>;
 
 private:
-    chunk_offset_t _offset;
-    buffer_type _buffer;
+    chunk_offset_t offset_;
+    buffer_type buffer_;
 
 public:
     constexpr read_single_buffer_sender(
         chunk_offset_t offset, buffer_type buffer)
-        : _offset(offset)
-        , _buffer(buffer)
+        : offset_(offset)
+        , buffer_(buffer)
     {
     }
     constexpr chunk_offset_t offset() const noexcept
     {
-        return _offset;
+        return offset_;
     }
     constexpr buffer_type buffer() const noexcept
     {
-        return _buffer;
+        return buffer_;
     }
     void reset(chunk_offset_t offset, buffer_type buffer)
     {
-        _offset = offset;
-        _buffer = buffer;
+        offset_ = offset;
+        buffer_ = buffer;
     }
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
         if (io_state->executor()->submit_read_request(
-                _buffer, _offset, io_state)) {
+                buffer_, offset_, io_state)) {
             // It completed early
             return make_status_code(
-                sender_errc::initiation_immediately_completed, _buffer.size());
+                sender_errc::initiation_immediately_completed, buffer_.size());
         }
         return success();
     }
@@ -58,7 +58,7 @@ public:
         result<size_t> bytes_transferred) const noexcept
     {
         BOOST_OUTCOME_TRY(auto &&count, std::move(bytes_transferred));
-        return {_buffer.data(), count};
+        return {buffer_.data(), count};
     }
 };
 static_assert(sizeof(read_single_buffer_sender) == 24);
@@ -77,36 +77,36 @@ public:
     using result_type = result<const_buffer_type>;
 
 private:
-    chunk_offset_t _offset;
-    buffer_type _buffer;
-    std::byte *_append;
+    chunk_offset_t offset_;
+    buffer_type buffer_;
+    std::byte *append_;
 
 public:
     explicit constexpr write_single_buffer_sender(
         chunk_offset_t offset, buffer_type buffer)
-        : _offset(offset)
-        , _buffer(buffer)
-        , _append(const_cast<std::byte *>(buffer.data()))
+        : offset_(offset)
+        , buffer_(buffer)
+        , append_(const_cast<std::byte *>(buffer.data()))
     {
     }
     constexpr chunk_offset_t offset() const noexcept
     {
-        return _offset;
+        return offset_;
     }
     constexpr buffer_type buffer() const noexcept
     {
-        return _buffer;
+        return buffer_;
     }
     void reset(chunk_offset_t offset, buffer_type buffer)
     {
-        _offset = offset;
-        _buffer = buffer;
-        _append = const_cast<std::byte *>(buffer.data());
+        offset_ = offset;
+        buffer_ = buffer;
+        append_ = const_cast<std::byte *>(buffer.data());
     }
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
-        _buffer = {_buffer.data(), _append};
-        io_state->executor()->submit_write_request(_buffer, _offset, io_state);
+        buffer_ = {buffer_.data(), append_};
+        io_state->executor()->submit_write_request(buffer_, offset_, io_state);
         return success();
     }
     result_type completed(
@@ -125,26 +125,26 @@ public:
                 bytes_transferred.assume_error().message().c_str());
         }
         BOOST_OUTCOME_TRY(auto &&count, std::move(bytes_transferred));
-        return {_buffer.data(), count};
+        return {buffer_.data(), count};
     }
     constexpr size_t written_buffer_bytes() const noexcept
     {
-        MONAD_DEBUG_ASSERT(_buffer.data() <= _append);
-        return static_cast<size_t>(_append - _buffer.data());
+        MONAD_DEBUG_ASSERT(buffer_.data() <= append_);
+        return static_cast<size_t>(append_ - buffer_.data());
     }
     constexpr size_t remaining_buffer_bytes() const noexcept
     {
-        auto const *end = _buffer.data() + _buffer.size();
-        MONAD_DEBUG_ASSERT(end >= _append);
-        return static_cast<size_t>(end - _append);
+        auto const *end = buffer_.data() + buffer_.size();
+        MONAD_DEBUG_ASSERT(end >= append_);
+        return static_cast<size_t>(end - append_);
     }
     constexpr std::byte *advance_buffer_append(size_t bytes) noexcept
     {
         if (bytes > remaining_buffer_bytes()) {
             return nullptr;
         }
-        auto *ret = _append;
-        _append += bytes;
+        auto *ret = append_;
+        append_ += bytes;
         return ret;
     }
 };
@@ -166,18 +166,18 @@ Benchmarking timed_delay_sender with a zero timeout ...
 */
 class timed_delay_sender
 {
-    AsyncIO::timed_invocation_state _state;
+    AsyncIO::timed_invocation_state state_;
 
     template <class Rep, class Period>
     static __kernel_timespec
-    _to_timespec(std::chrono::duration<Rep, Period> rel)
+    to_timespec_(std::chrono::duration<Rep, Period> rel)
     {
         auto const ns =
             std::chrono::duration_cast<std::chrono::nanoseconds>(rel).count();
         return __kernel_timespec{ns / 1000000000, ns % 1000000000};
     }
     static __kernel_timespec
-    _to_timespec(std::chrono::steady_clock::time_point dle)
+    to_timespec_(std::chrono::steady_clock::time_point dle)
     {
         auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                             dle.time_since_epoch())
@@ -185,7 +185,7 @@ class timed_delay_sender
         return __kernel_timespec{ns / 1000000000, ns % 1000000000};
     }
     static __kernel_timespec
-    _to_timespec(std::chrono::system_clock::time_point dle)
+    to_timespec_(std::chrono::system_clock::time_point dle)
     {
         auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                             dle.time_since_epoch())
@@ -204,8 +204,8 @@ public:
     template <class Rep, class Period>
     explicit constexpr timed_delay_sender(
         std::chrono::duration<Rep, Period> rel)
-        : _state{
-              .ts = _to_timespec(rel),
+        : state_{
+              .ts = to_timespec_(rel),
               .timespec_is_absolute = false,
               .timespec_is_utc_clock = false}
     {
@@ -214,8 +214,8 @@ public:
     //! invariant to system sleep)
     explicit constexpr timed_delay_sender(
         std::chrono::steady_clock::time_point dle)
-        : _state{
-              .ts = _to_timespec(dle),
+        : state_{
+              .ts = to_timespec_(dle),
               .timespec_is_absolute = true,
               .timespec_is_utc_clock = false}
     {
@@ -223,8 +223,8 @@ public:
     //! Complete when this future point in time passes (UTC date time clock)
     explicit constexpr timed_delay_sender(
         std::chrono::system_clock::time_point dle)
-        : _state{
-              .ts = _to_timespec(dle),
+        : state_{
+              .ts = to_timespec_(dle),
               .timespec_is_absolute = true,
               .timespec_is_utc_clock = true}
     {
@@ -232,20 +232,20 @@ public:
     template <class Rep, class Period>
     void reset(std::chrono::duration<Rep, Period> rel)
     {
-        _state.ts = _to_timespec(rel);
+        state_.ts = to_timespec_(rel);
     }
     void reset(std::chrono::steady_clock::time_point dle)
     {
-        _state.ts = _to_timespec(dle);
+        state_.ts = to_timespec_(dle);
     }
     void reset(std::chrono::system_clock::time_point dle)
     {
-        _state.ts = _to_timespec(dle);
+        state_.ts = to_timespec_(dle);
     }
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
         io_state->executor()->submit_timed_invocation_request(
-            &_state, io_state);
+            &state_, io_state);
         return success();
     }
     result_type

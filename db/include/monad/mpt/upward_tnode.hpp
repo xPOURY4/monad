@@ -35,16 +35,16 @@ struct UpwardTreeNode
     // void *done_value_{nullptr};
 
     void init(
-        uint16_t const _mask, unsigned const _pi,
-        std::optional<byte_string_view> const _opt_leaf_data = std::nullopt)
+        uint16_t const mask_, unsigned const pi_,
+        std::optional<byte_string_view> const opt_leaf_data_ = std::nullopt)
     {
-        unsigned const n = bitmask_count(_mask);
-        mask = _mask;
-        orig_mask = _mask;
+        unsigned const n = bitmask_count(mask_);
+        mask = mask_;
+        orig_mask = mask_;
         npending = n;
-        pi = static_cast<uint8_t>(_pi);
+        pi = static_cast<uint8_t>(pi_);
         children = allocators::owning_span<ChildData>(n);
-        opt_leaf_data = _opt_leaf_data;
+        opt_leaf_data = opt_leaf_data_;
     }
 
     void link_parent(

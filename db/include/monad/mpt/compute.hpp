@@ -85,7 +85,7 @@ namespace detail
             if (children.size() == 1) {
                 // TODO: not size() == 1 but #valid child = 1
                 // special case, the node to be created has only one branch
-                return _compute_hash_with_extra_nibble_to_state(children[0]);
+                return compute_hash_with_extra_nibble_to_state_(children[0]);
             }
 
             unsigned char branch_str_rlp[544];
@@ -183,7 +183,7 @@ namespace detail
         compute(unsigned char *const buffer, Node *const node) override
         {
             if (node->is_leaf()) {
-                return _encode_two_pieces(
+                return encode_two_pieces_(
                     buffer,
                     node->path_nibble_view(),
                     TComputeLeafData::compute(node),
@@ -193,7 +193,7 @@ namespace detail
             if (node->has_relpath()) {
                 unsigned char hash[32];
                 unsigned len = compute_branch(hash, node);
-                return _encode_two_pieces(
+                return encode_two_pieces_(
                     buffer, node->path_nibble_view(), {hash, len});
             }
             return compute_branch(buffer, node);
@@ -206,7 +206,7 @@ namespace detail
             unsigned len{0};
         } state{};
 
-        unsigned _encode_two_pieces(
+        unsigned encode_two_pieces_(
             unsigned char *const dest, NibblesView const relpath,
             byte_string_view const second, bool const is_leaf = false)
         {
@@ -240,12 +240,12 @@ namespace detail
         }
 
         unsigned
-        _compute_hash_with_extra_nibble_to_state(ChildData &single_child)
+        compute_hash_with_extra_nibble_to_state_(ChildData &single_child)
         {
             state.len = 0;
             Node *const node = single_child.ptr;
 
-            return state.len = _encode_two_pieces(
+            return state.len = encode_two_pieces_(
                    state.buffer,
                    concat2(single_child.branch, node->path_nibble_view()),
                    (node->is_leaf()

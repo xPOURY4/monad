@@ -60,7 +60,7 @@ namespace detail
                     if (pending_initiations.first == nullptr) {
                         pending_initiations.last = nullptr;
                     }
-                    op->_do_possibly_deferred_initiate(true);
+                    op->do_possibly_deferred_initiate_(true);
                     if (op == original_last) {
                         // Prevent infinite loops caused by initiations adding
                         // more stuff to pending initiations
@@ -113,11 +113,11 @@ namespace detail
         };
 
     protected:
-        Sender _sender;
-        Receiver _receiver;
+        Sender sender_;
+        Receiver receiver_;
 
         // Deduce what kind of connected operation we are
-        static constexpr operation_type _operation_type = []() constexpr {
+        static constexpr operation_type operation_type_ = []() constexpr {
             if constexpr (requires { Sender::my_operation_type; }) {
                 return Sender::my_operation_type;
             }
@@ -134,21 +134,21 @@ namespace detail
         }();
 
         virtual initiation_result
-        _do_possibly_deferred_initiate(bool never_defer) noexcept override
+        do_possibly_deferred_initiate_(bool never_defer) noexcept override
         {
-            this->_being_executed = true;
-            // Prevent compiler reordering write of _being_executed after this
+            this->being_executed_ = true;
+            // Prevent compiler reordering write of being_executed_ after this
             // point without using actual atomics.
             std::atomic_signal_fence(std::memory_order_release);
-            auto *thisio = this->_io.load(std::memory_order_acquire);
+            auto *thisio = this->io_.load(std::memory_order_acquire);
             if (!never_defer &&
                 AsyncIO_per_thread_state()
                     .if_within_completions_add_to_pending_initiations(this)) {
                 return initiation_result::deferred;
             }
-            auto r = _sender(this);
+            auto r = sender_(this);
             if (!r) {
-                this->_being_executed = false;
+                this->being_executed_ = false;
                 if (r.assume_error() == MONAD_ASYNC_NAMESPACE::sender_errc::
                                             initiation_immediately_completed) {
                     sender_errc_code sec(std::move(r).assume_error());
@@ -162,7 +162,7 @@ namespace detail
                 }
             }
             if (thisio != nullptr) {
-                thisio->_notify_operation_initiation_success(this);
+                thisio->notify_operation_initiation_success_(this);
             }
             return initiation_result::initiation_success;
         }
@@ -171,25 +171,25 @@ namespace detail
         connected_operation_storage() = default;
         connected_operation_storage(
             sender_type &&sender, receiver_type &&receiver)
-            : _sender(static_cast<Sender &&>(sender))
-            , _receiver(static_cast<Receiver &&>(receiver))
+            : sender_(static_cast<Sender &&>(sender))
+            , receiver_(static_cast<Receiver &&>(receiver))
         {
         }
         connected_operation_storage(
             AsyncIO &io, bool lifetime_managed_internally, sender_type &&sender,
             receiver_type &&receiver)
             : erased_connected_operation(
-                  _operation_type, io, lifetime_managed_internally)
-            , _sender(static_cast<Sender &&>(sender))
-            , _receiver(static_cast<Receiver &&>(receiver))
+                  operation_type_, io, lifetime_managed_internally)
+            , sender_(static_cast<Sender &&>(sender))
+            , receiver_(static_cast<Receiver &&>(receiver))
         {
         }
         template <class... SenderArgs, class... ReceiverArgs>
         connected_operation_storage(
             std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
-            : _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
-            , _receiver(
+            : sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
+            , receiver_(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
         {
         }
@@ -199,9 +199,9 @@ namespace detail
             std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
             : erased_connected_operation(
-                  _operation_type, io, lifetime_managed_internally)
-            , _sender(std::make_from_tuple<Sender>(std::move(sender_args)))
-            , _receiver(
+                  operation_type_, io, lifetime_managed_internally)
+            , sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
+            , receiver_(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
         {
         }
@@ -217,52 +217,52 @@ namespace detail
 
         sender_type &sender() & noexcept
         {
-            return _sender;
+            return sender_;
         }
         const sender_type &sender() const & noexcept
         {
-            return _sender;
+            return sender_;
         }
         sender_type sender() && noexcept
         {
-            return static_cast<sender_type &&>(_sender);
+            return static_cast<sender_type &&>(sender_);
         }
         const sender_type sender() const && noexcept
         {
-            return static_cast<sender_type &&>(_sender);
+            return static_cast<sender_type &&>(sender_);
         }
         const receiver_type &receiver() const & noexcept
         {
-            return _receiver;
+            return receiver_;
         }
         receiver_type &receiver() & noexcept
         {
-            return _receiver;
+            return receiver_;
         }
         receiver_type receiver() && noexcept
         {
-            return static_cast<receiver_type &&>(_receiver);
+            return static_cast<receiver_type &&>(receiver_);
         }
         const receiver_type receiver() const && noexcept
         {
-            return static_cast<const receiver_type &&>(_receiver);
+            return static_cast<const receiver_type &&>(receiver_);
         }
 
         static constexpr bool is_unknown_operation_type() noexcept
         {
-            return _operation_type == operation_type::unknown;
+            return operation_type_ == operation_type::unknown;
         }
         static constexpr bool is_read() noexcept
         {
-            return _operation_type == operation_type::read;
+            return operation_type_ == operation_type::read;
         }
         static constexpr bool is_write() noexcept
         {
-            return _operation_type == operation_type::write;
+            return operation_type_ == operation_type::write;
         }
         static constexpr bool is_timeout() noexcept
         {
-            return _operation_type == operation_type::timeout;
+            return operation_type_ == operation_type::timeout;
         }
 
         //! Initiates the operation, calling the Receiver with any failure,
@@ -281,7 +281,7 @@ namespace detail
                 thisio->owning_thread_id() == gettid());
             // The threadsafe op is special, it isn't for this AsyncIO instance
             // and therefore never needs deferring
-            return this->_do_possibly_deferred_initiate(
+            return this->do_possibly_deferred_initiate_(
                 this->is_threadsafeop());
         }
 
@@ -293,17 +293,17 @@ namespace detail
             std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
         {
-            MONAD_ASSERT(!this->_being_executed);
+            MONAD_ASSERT(!this->being_executed_);
             erased_connected_operation::reset();
             std::apply(
-                [this](auto &&...args) { _sender.reset(std::move(args)...); },
+                [this](auto &&...args) { sender_.reset(std::move(args)...); },
                 std::move(sender_args));
             std::apply(
-                [this](auto &&...args) { _receiver.reset(std::move(args)...); },
+                [this](auto &&...args) { receiver_.reset(std::move(args)...); },
                 std::move(receiver_args));
             auto *thisio = this->executor();
             if (thisio != nullptr) {
-                thisio->_notify_operation_reset(this);
+                thisio->notify_operation_reset_(this);
             }
         }
     };

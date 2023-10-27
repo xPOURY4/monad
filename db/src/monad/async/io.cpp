@@ -21,8 +21,8 @@ namespace detail
     struct AsyncIO_per_thread_state_t::within_completions_holder
     {
         AsyncIO_per_thread_state_t *parent;
-        within_completions_holder(AsyncIO_per_thread_state_t *_parent)
-            : parent(_parent)
+        within_completions_holder(AsyncIO_per_thread_state_t *parent_)
+            : parent(parent_)
         {
             parent->within_completions_count++;
         }
@@ -85,7 +85,7 @@ AsyncIO::AsyncIO(monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
     , rd_pool_(monad::io::BufferPool(rwbuf, true))
     , wr_pool_(monad::io::BufferPool(rwbuf, false))
 {
-    _extant_write_operations::init_header(&_extant_write_operations_header);
+    extant_write_operations_::init_header(&extant_write_operations_header_);
 
     auto &ts = detail::AsyncIO_per_thread_state();
     MONAD_ASSERT(ts.instance == nullptr); // currently cannot create more than
@@ -106,7 +106,7 @@ AsyncIO::AsyncIO(monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
     MONAD_ASSERT(io_uring_submit(ring) >= 0);
 }
 
-void AsyncIO::_init(std::span<int> fds)
+void AsyncIO::init_(std::span<int> fds)
 {
     // register files
     for (auto fd : fds) {
@@ -174,7 +174,7 @@ AsyncIO::AsyncIO(
         fd.second = idx++;
         fds.push_back(fd.first);
     }
-    _init(fds);
+    init_(fds);
     auto replace_fds_with_iouring_fds = [&](auto &p) {
         auto it = fd_to_iouring_map.find(p.io_uring_read_fd);
         MONAD_ASSERT(it != fd_to_iouring_map.end());
@@ -209,7 +209,7 @@ AsyncIO::~AsyncIO()
     ::close(fds_.msgwrite);
 }
 
-void AsyncIO::_submit_request(
+void AsyncIO::submit_request_(
     std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
@@ -219,7 +219,7 @@ void AsyncIO::_submit_request(
     memset(buffer.data(), 0xff, buffer.size());
 #endif
 
-    _poll_uring_while_submission_queue_full();
+    poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
@@ -238,14 +238,14 @@ void AsyncIO::_submit_request(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
-void AsyncIO::_submit_request(
+void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
     assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     assert(buffer.size() <= WRITE_BUFFER_SIZE);
 
-    _poll_uring_while_submission_queue_full();
+    poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
@@ -268,9 +268,9 @@ void AsyncIO::_submit_request(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
-void AsyncIO::_submit_request(timed_invocation_state *state, void *uring_data)
+void AsyncIO::submit_request_(timed_invocation_state *state, void *uring_data)
 {
-    _poll_uring_while_submission_queue_full();
+    poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
@@ -294,13 +294,13 @@ void AsyncIO::_submit_request(timed_invocation_state *state, void *uring_data)
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
 
-void AsyncIO::_poll_uring_while_submission_queue_full()
+void AsyncIO::poll_uring_while_submission_queue_full_()
 {
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     // if completions is getting close to full, drain some to prevent
     // completions getting dropped, which would break everything.
     while (io_uring_cq_ready(ring) > (*ring->cq.kring_entries >> 1)) {
-        if (!_poll_uring(false)) {
+        if (!poll_uring_(false)) {
             break;
         }
     }
@@ -312,7 +312,7 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
         // Sometimes io_uring_sq_space_left can be zero at the same
         // time as there is no i/o in flight, in this situation don't
         // sleep waiting for completions which will never come.
-        _poll_uring(io_in_flight() > 0);
+        poll_uring_(io_in_flight() > 0);
         // Rarely io_uring_sq_space_left stays stuck at zero, almost
         // as if the kernel thread went to sleep or disappeared. This
         // function doesn't do anything if io_uring_sq_space_left is
@@ -322,7 +322,7 @@ void AsyncIO::_poll_uring_while_submission_queue_full()
     }
 }
 
-bool AsyncIO::_poll_uring(bool blocking)
+bool AsyncIO::poll_uring_(bool blocking)
 {
     auto h = detail::AsyncIO_per_thread_state().enter_completions();
     MONAD_DEBUG_ASSERT(owning_tid_ == gettid());

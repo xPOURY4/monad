@@ -12,14 +12,14 @@ namespace detail
 #ifndef __clang__
     constexpr bool bitfield_layout_check()
     {
-        /* Make sure _reserved0 definitely lives at offset +3
+        /* Make sure reserved0_ definitely lives at offset +3
          */
         constexpr struct
         {
             uint32_t chunk_info_count : 20;
-            uint32_t _unused0 : 4;
-            uint32_t _reserved0 : 8;
-        } v{._reserved0 = 1};
+            uint32_t unused0_ : 4;
+            uint32_t reserved0_ : 8;
+        } v{.reserved0_ = 1};
         struct type
         {
             uint8_t x[sizeof(v)];
@@ -36,8 +36,8 @@ namespace detail
 
         char magic[4]; // "MND0"
         uint32_t chunk_info_count : 20; // items in chunk_info below
-        uint32_t _unused0 : 4; // next item MUST be on a byte boundary
-        uint32_t _reserved_for_is_dirty : 8; // for is_dirty below
+        uint32_t unused0_ : 4; // next item MUST be on a byte boundary
+        uint32_t reserved_for_is_dirty_ : 8; // for is_dirty below
         // DO NOT INSERT ANYTHING IN HERE
         uint64_t capacity_in_free_list; // used to detect when free space is
                                         // running low
@@ -65,11 +65,11 @@ namespace detail
             uint64_t prev_chunk_id : 20; // same bits as from chunk_offset_t
             uint64_t in_fast_list : 1;
             uint64_t in_slow_list : 1;
-            uint64_t _insertion_count0 : 10; // align next to 8 bit boundary to
+            uint64_t insertion_count0_ : 10; // align next to 8 bit boundary to
                                              // aid codegen
             uint64_t next_chunk_id : 20; // same bits as from chunk_offset_t
-            uint64_t _unused0 : 2;
-            uint64_t _insertion_count1 : 10;
+            uint64_t unused0_ : 2;
+            uint64_t insertion_count1_ : 10;
 
             uint32_t index(db_metadata const *parent) const noexcept
             {
@@ -79,8 +79,8 @@ namespace detail
             }
             uint32_t insertion_count() const noexcept
             {
-                return uint32_t(_insertion_count1 << 10) |
-                       uint32_t(_insertion_count0);
+                return uint32_t(insertion_count1_ << 10) |
+                       uint32_t(insertion_count0_);
             }
             chunk_info_t const *prev(db_metadata const *parent) const noexcept
             {
@@ -202,17 +202,17 @@ namespace detail
         }
 
     private:
-        chunk_info_t *_at(uint32_t idx) noexcept
+        chunk_info_t *at_(uint32_t idx) noexcept
         {
             assert(idx < chunk_info_count);
             return &chunk_info[idx];
         }
-        void _append(id_pair &list, chunk_info_t *i) noexcept
+        void append_(id_pair &list, chunk_info_t *i) noexcept
         {
             auto g = hold_dirty();
             i->in_fast_list = (&list == &fast_list);
             i->in_slow_list = (&list == &slow_list);
-            i->_insertion_count0 = i->_insertion_count1 = 0;
+            i->insertion_count0_ = i->insertion_count1_ = 0;
             i->next_chunk_id = chunk_info_t::INVALID_CHUNK_ID;
             if (list.end == UINT32_MAX) {
                 assert(list.begin == UINT32_MAX);
@@ -222,19 +222,19 @@ namespace detail
             }
             assert((list.end & ~0xfffffU) == 0);
             i->prev_chunk_id = list.end & 0xfffffU;
-            auto *tail = _at(list.end);
+            auto *tail = at_(list.end);
             auto const insertion_count = tail->insertion_count() + 1;
             assert(tail->next_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
-            i->_insertion_count0 = (insertion_count & 0x3ff);
-            i->_insertion_count1 = ((insertion_count >> 10) & 0x3ff);
+            i->insertion_count0_ = (insertion_count & 0x3ff);
+            i->insertion_count1_ = ((insertion_count >> 10) & 0x3ff);
             list.end = tail->next_chunk_id = i->index(this) & 0xfffffU;
         }
-        void _prepend(id_pair &list, chunk_info_t *i) noexcept
+        void prepend_(id_pair &list, chunk_info_t *i) noexcept
         {
             auto g = hold_dirty();
             i->in_fast_list = (&list == &fast_list);
             i->in_slow_list = (&list == &slow_list);
-            i->_insertion_count0 = i->_insertion_count1 = 0;
+            i->insertion_count0_ = i->insertion_count1_ = 0;
             i->prev_chunk_id = chunk_info_t::INVALID_CHUNK_ID;
             if (list.begin == UINT32_MAX) {
                 assert(list.end == UINT32_MAX);
@@ -244,14 +244,14 @@ namespace detail
             }
             assert((list.begin & ~0xfffffU) == 0);
             i->next_chunk_id = list.begin & 0xfffffU;
-            auto *head = _at(list.begin);
+            auto *head = at_(list.begin);
             auto const insertion_count = head->insertion_count() + 1;
             assert(head->prev_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
-            i->_insertion_count0 = (insertion_count & 0x3ff);
-            i->_insertion_count1 = ((insertion_count >> 10) & 0x3ff);
+            i->insertion_count0_ = (insertion_count & 0x3ff);
+            i->insertion_count1_ = ((insertion_count >> 10) & 0x3ff);
             list.begin = head->prev_chunk_id = i->index(this) & 0xfffff;
         }
-        void _remove(chunk_info_t *i) noexcept
+        void remove_(chunk_info_t *i) noexcept
         {
             auto get_list = [&]() -> id_pair & {
                 if (i->in_fast_list) {
@@ -277,7 +277,7 @@ namespace detail
             if (i->prev_chunk_id == chunk_info_t::INVALID_CHUNK_ID) {
                 id_pair &list = get_list();
                 assert(list.begin == i->index(this));
-                auto *next = _at(i->next_chunk_id);
+                auto *next = at_(i->next_chunk_id);
                 next->prev_chunk_id = chunk_info_t::INVALID_CHUNK_ID;
                 list.begin = next->index(this);
 #ifndef NDEBUG
@@ -289,7 +289,7 @@ namespace detail
             if (i->next_chunk_id == chunk_info_t::INVALID_CHUNK_ID) {
                 id_pair &list = get_list();
                 assert(list.end == i->index(this));
-                auto *prev = _at(i->prev_chunk_id);
+                auto *prev = at_(i->prev_chunk_id);
                 prev->next_chunk_id = chunk_info_t::INVALID_CHUNK_ID;
                 list.end = prev->index(this);
 #ifndef NDEBUG
@@ -298,8 +298,8 @@ namespace detail
 #endif
                 return;
             }
-            auto *prev = _at(i->prev_chunk_id);
-            auto *next = _at(i->next_chunk_id);
+            auto *prev = at_(i->prev_chunk_id);
+            auto *next = at_(i->next_chunk_id);
             prev->next_chunk_id = next->index(this) & 0xfffffU;
             next->prev_chunk_id = prev->index(this) & 0xfffffU;
 #ifndef NDEBUG
@@ -308,12 +308,12 @@ namespace detail
                 chunk_info_t::INVALID_CHUNK_ID;
 #endif
         }
-        void _free_capacity_add(uint64_t bytes) noexcept
+        void free_capacity_add_(uint64_t bytes) noexcept
         {
             auto g = hold_dirty();
             capacity_in_free_list += bytes;
         }
-        void _free_capacity_sub(uint64_t bytes) noexcept
+        void free_capacity_sub_(uint64_t bytes) noexcept
         {
             auto g = hold_dirty();
             capacity_in_free_list -= bytes;

@@ -25,13 +25,13 @@ struct find_receiver
     unsigned const branch_j;
 
     find_receiver(
-        AsyncIO &_io, inflight_map_t &_inflights, Node *const _parent,
-        unsigned char const _branch)
+        AsyncIO &_io, inflight_map_t &inflights_, Node *const parent_,
+        unsigned char const branch_)
         : io(&_io)
-        , inflights(_inflights)
-        , parent(_parent)
+        , inflights(inflights_)
+        , parent(parent_)
         , rd_offset(0, 0)
-        , branch_j(parent->to_j(_branch))
+        , branch_j(parent->to_j(branch_))
     {
         chunk_offset_t offset = parent->fnext_j(branch_j);
         auto const num_pages_to_load_node =
@@ -49,10 +49,10 @@ struct find_receiver
     //! notify a list of requests pending on this node
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        result<std::span<const std::byte>> _buffer)
+        result<std::span<const std::byte>> buffer_)
     {
-        MONAD_ASSERT(_buffer);
-        std::span<const std::byte> buffer = std::move(_buffer).assume_value();
+        MONAD_ASSERT(buffer_);
+        std::span<const std::byte> buffer = std::move(buffer_).assume_value();
         MONAD_ASSERT(parent->next_j(branch_j) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off)

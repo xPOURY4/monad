@@ -41,13 +41,13 @@ struct chunk_offset_t
         return {max_id, max_offset};
     }
 
-    constexpr chunk_offset_t(uint32_t _id, file_offset_t _offset)
-        : offset(_offset & max_offset)
-        , id(_id & max_id)
+    constexpr chunk_offset_t(uint32_t id_, file_offset_t offset_)
+        : offset(offset_ & max_offset)
+        , id(id_ & max_id)
         , spare{0xffff}
     {
-        assert(_id <= max_id);
-        assert(_offset <= max_offset);
+        assert(id_ <= max_id);
+        assert(offset_ <= max_offset);
     }
     constexpr bool operator==(chunk_offset_t const &o) const noexcept
     {
@@ -64,12 +64,12 @@ struct chunk_offset_t
         return std::weak_ordering::greater;
     }
 
-    constexpr chunk_offset_t add_to_offset(file_offset_t _offset) const noexcept
+    constexpr chunk_offset_t add_to_offset(file_offset_t offset_) const noexcept
     {
         chunk_offset_t ret(*this);
-        _offset += ret.offset;
-        assert(_offset <= max_offset);
-        ret.offset = _offset & max_offset;
+        offset_ += ret.offset;
+        assert(offset_ <= max_offset);
+        ret.offset = offset_ & max_offset;
         return ret;
     }
     constexpr file_offset_t raw() const noexcept

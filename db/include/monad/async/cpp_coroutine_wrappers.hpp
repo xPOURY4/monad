@@ -45,7 +45,7 @@ namespace detail
     template <
         sender Sender, receiver Receiver,
         bool = is_io_internal_buffer_sender_type<Sender>::value>
-    struct connected_state_impl
+    struct connected_stateimpl_
     {
         using connected_state_type = decltype(connect(
             std::declval<AsyncIO &>(), std::declval<Sender>(),
@@ -72,7 +72,7 @@ namespace detail
         }
     };
     template <sender Sender, receiver Receiver>
-    struct connected_state_impl<Sender, Receiver, true>
+    struct connected_stateimpl_<Sender, Receiver, true>
     {
         using connected_state_type =
             AsyncIO::connected_operation_unique_ptr_type<Sender, Receiver>;
@@ -103,12 +103,12 @@ namespace detail
     template <sender Sender>
     class awaitable
     {
-        using _result_type = typename Sender::result_type;
-        class _receiver_t
+        using result_type_ = typename Sender::result_type;
+        class receiver_t_
         {
             friend class awaitable;
-            std::optional<_result_type> _result;
-            std::coroutine_handle<> _cont;
+            std::optional<result_type_> result_;
+            std::coroutine_handle<> cont_;
 
         public:
             // We need AsyncIO to not recycle the i/o state until the future
@@ -119,60 +119,60 @@ namespace detail
             };
 
             // The receiver machinery
-            void set_value(erased_connected_operation *, _result_type res)
+            void set_value(erased_connected_operation *, result_type_ res)
             {
-                assert(!_result.has_value());
-                _result.emplace(std::move(res));
-                if (_cont) {
+                assert(!result_.has_value());
+                result_.emplace(std::move(res));
+                if (cont_) {
                     MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
                         this << " receiver resumes coroutine "
-                             << _cont.address());
-                    _cont.resume();
+                             << cont_.address());
+                    cont_.resume();
                 }
             }
             void reset()
             {
-                _result = {};
-                _cont = {};
+                result_ = {};
+                cont_ = {};
             }
         };
-        using _impl = detail::connected_state_impl<Sender, _receiver_t>;
-        using _connected_state_type = typename _impl::connected_state_type;
+        using impl_ = detail::connected_stateimpl_<Sender, receiver_t_>;
+        using connected_state_type_ = typename impl_::connected_state_type;
 
-        _connected_state_type _state;
+        connected_state_type_ state_;
 
     public:
         template <class... Args>
         awaitable(Args &&...args)
-            : _state(_impl::make(std::forward<Args>(args)...))
+            : state_(impl_::make(std::forward<Args>(args)...))
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
-                &_impl::access(_state).receiver() << " initiates operation");
-            _impl::access(_state).initiate();
+                &impl_::access(state_).receiver() << " initiates operation");
+            impl_::access(state_).initiate();
         }
 
         bool await_ready() const noexcept
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
-                &_impl::access(_state).receiver()
+                &impl_::access(state_).receiver()
                 << " await_ready = "
-                << _impl::access(_state).receiver()._result.has_value());
-            return _impl::access(_state).receiver()._result.has_value();
+                << impl_::access(state_).receiver().result_.has_value());
+            return impl_::access(state_).receiver().result_.has_value();
         }
         void await_suspend(std::coroutine_handle<> cont)
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
-                &_impl::access(_state).receiver()
+                &impl_::access(state_).receiver()
                 << " await_suspend coroutine " << cont.address());
-            assert(_impl::access(_state).receiver()._cont == nullptr);
-            _impl::access(_state).receiver()._cont = cont;
+            assert(impl_::access(state_).receiver().cont_ == nullptr);
+            impl_::access(state_).receiver().cont_ = cont;
         }
-        _result_type await_resume()
+        result_type_ await_resume()
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
-                &_impl::access(_state).receiver() << " await_resume");
+                &impl_::access(state_).receiver() << " await_resume");
             assert(await_ready());
-            return std::move(*_impl::access(_state).receiver()._result);
+            return std::move(*impl_::access(state_).receiver().result_);
         }
     };
 }
@@ -249,12 +249,12 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
 {
     class awaitable
     {
-        class _receiver_t
+        class receiver_t_
         {
             friend class awaitable;
-            std::atomic<bool> _ready{false};
-            std::optional<result<void>> _result;
-            std::coroutine_handle<> _cont;
+            std::atomic<bool> ready_{false};
+            std::optional<result<void>> result_;
+            std::coroutine_handle<> cont_;
 
         public:
             // We need AsyncIO to not recycle the i/o state until the future
@@ -267,46 +267,46 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
             // The receiver machinery
             void set_value(erased_connected_operation *, result<void> res)
             {
-                assert(!_result.has_value());
-                _result.emplace(std::move(res));
-                _ready.store(true, std::memory_order_release);
-                if (_cont) {
-                    _cont.resume();
+                assert(!result_.has_value());
+                result_.emplace(std::move(res));
+                ready_.store(true, std::memory_order_release);
+                if (cont_) {
+                    cont_.resume();
                 }
             }
             void reset()
             {
-                _result = {};
-                _cont = {};
+                result_ = {};
+                cont_ = {};
             }
         };
-        using _impl =
-            detail::connected_state_impl<threadsafe_sender, _receiver_t>;
-        using _connected_state_type = typename _impl::connected_state_type;
+        using impl_ =
+            detail::connected_stateimpl_<threadsafe_sender, receiver_t_>;
+        using connected_state_type_ = typename impl_::connected_state_type;
 
-        _connected_state_type _state;
+        connected_state_type_ state_;
 
     public:
         awaitable(AsyncIO &io)
-            : _state(_impl::make(io, std::piecewise_construct, std::tuple{}))
+            : state_(impl_::make(io, std::piecewise_construct, std::tuple{}))
         {
         }
 
         bool await_ready() const noexcept
         {
-            return _impl::access(_state).receiver()._ready.load(
+            return impl_::access(state_).receiver().ready_.load(
                 std::memory_order_acquire);
         }
         void await_suspend(std::coroutine_handle<> cont)
         {
-            assert(_impl::access(_state).receiver()._cont == nullptr);
-            _impl::access(_state).receiver()._cont = cont;
-            _impl::access(_state).initiate();
+            assert(impl_::access(state_).receiver().cont_ == nullptr);
+            impl_::access(state_).receiver().cont_ = cont;
+            impl_::access(state_).initiate();
         }
         result<void> await_resume()
         {
             assert(await_ready());
-            return std::move(*_impl::access(_state).receiver()._result);
+            return std::move(*impl_::access(state_).receiver().result_);
         }
     };
     return awaitable{io};

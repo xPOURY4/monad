@@ -58,69 +58,69 @@ namespace
     }();
     monad::small_prng test_rand;
 
-    struct read_single_buffer_operation_states_base
+    struct read_single_buffer_operationstates__base
     {
         virtual bool reinitiate(
             erased_connected_operation *i,
             std::span<std::byte const> buffer) = 0;
     };
     template <receiver Receiver>
-    class read_single_buffer_operation_states final
-        : public read_single_buffer_operation_states_base
+    class read_single_buffer_operationstates_ final
+        : public read_single_buffer_operationstates__base
     {
-        using _io_state_type = AsyncIO::connected_operation_unique_ptr_type<
+        using io_state_type_ = AsyncIO::connected_operation_unique_ptr_type<
             read_single_buffer_sender, Receiver>;
-        std::vector<_io_state_type> _states;
-        bool _test_is_done{false};
-        unsigned _op_count{0};
+        std::vector<io_state_type_> states_;
+        bool test_is_done_{false};
+        unsigned op_count_{0};
 
     public:
         template <class... Args>
-        explicit read_single_buffer_operation_states(
+        explicit read_single_buffer_operationstates_(
             size_t total, Args &&...args)
         {
-            _states.reserve(total);
+            states_.reserve(total);
             for (size_t n = 0; n < total; n++) {
                 chunk_offset_t offset(
                     0,
                     round_down_align<DISK_PAGE_BITS>(
                         test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
-                _states.push_back(testio->make_connected(
+                states_.push_back(testio->make_connected(
                     read_single_buffer_sender(
                         offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
                     Receiver{this, std::forward<Args>(args)...}));
             }
         }
-        ~read_single_buffer_operation_states()
+        ~read_single_buffer_operationstates_()
         {
             stop();
         }
         unsigned count() const noexcept
         {
-            return _op_count;
+            return op_count_;
         }
         void initiate()
         {
-            _test_is_done = false;
-            for (auto &i : _states) {
+            test_is_done_ = false;
+            for (auto &i : states_) {
                 i->initiate();
             }
-            _op_count = static_cast<unsigned int>(_states.size());
+            op_count_ = static_cast<unsigned int>(states_.size());
         }
         void stop()
         {
-            _test_is_done = true;
+            test_is_done_ = true;
             testio->wait_until_done();
         }
         virtual bool reinitiate(
             erased_connected_operation *i,
             std::span<std::byte const> buffer) override final
         {
-            auto *state = static_cast<typename _io_state_type::pointer>(i);
+            auto *state = static_cast<typename io_state_type_::pointer>(i);
             EXPECT_EQ(
                 buffer.front(),
                 testfilecontents[state->sender().offset().offset]);
-            if (!_test_is_done) {
+            if (!test_is_done_) {
                 chunk_offset_t offset(
                     0,
                     round_down_align<DISK_PAGE_BITS>(
@@ -128,18 +128,18 @@ namespace
                 state->reset(
                     std::tuple{offset, state->sender().buffer()}, std::tuple{});
                 state->initiate();
-                _op_count++;
+                op_count_++;
                 return true;
             }
             return false;
         }
         read_single_buffer_sender &sender(size_t idx) noexcept
         {
-            return _states[idx]->sender();
+            return states_[idx]->sender();
         }
         Receiver &receiver(size_t idx) noexcept
         {
-            return _states[idx]->receiver();
+            return states_[idx]->receiver();
         }
     };
 
@@ -385,10 +385,10 @@ namespace
     {
         static constexpr bool lifetime_managed_internally = false;
 
-        read_single_buffer_operation_states_base *state;
+        read_single_buffer_operationstates__base *state;
 
         explicit completion_handler_io_receiver(
-            read_single_buffer_operation_states_base *s)
+            read_single_buffer_operationstates__base *s)
             : state(s)
         {
         }
@@ -404,7 +404,7 @@ namespace
 
     TEST(AsyncIO, completion_handler_sender_receiver)
     {
-        read_single_buffer_operation_states<completion_handler_io_receiver>
+        read_single_buffer_operationstates_<completion_handler_io_receiver>
             states(MAX_CONCURRENCY);
         auto begin = std::chrono::steady_clock::now(), end = begin;
         states.initiate();
@@ -439,7 +439,7 @@ namespace
         std::optional<result_type> res;
 
         explicit cpp_suspend_resume_io_receiver(
-            read_single_buffer_operation_states_base *)
+            read_single_buffer_operationstates__base *)
         {
         }
         void set_value(
@@ -481,7 +481,7 @@ namespace
 
     TEST(AsyncIO, cpp_coroutine_sender_receiver)
     {
-        read_single_buffer_operation_states<cpp_suspend_resume_io_receiver>
+        read_single_buffer_operationstates_<cpp_suspend_resume_io_receiver>
             states(MAX_CONCURRENCY);
         auto begin = std::chrono::steady_clock::now(), end = begin;
         auto coroutine = [&](cpp_suspend_resume_io_receiver &receiver)
@@ -532,7 +532,7 @@ namespace
         boost::fibers::promise<result_type> promise;
 
         explicit fiber_suspend_resume_io_receiver(
-            read_single_buffer_operation_states_base *)
+            read_single_buffer_operationstates__base *)
         {
         }
         void set_value(
@@ -549,7 +549,7 @@ namespace
 
     TEST(AsyncIO, fiber_sender_receiver)
     {
-        read_single_buffer_operation_states<fiber_suspend_resume_io_receiver>
+        read_single_buffer_operationstates_<fiber_suspend_resume_io_receiver>
             states(MAX_CONCURRENCY);
         auto begin = std::chrono::steady_clock::now(), end = begin;
         auto fiber = [&](fiber_suspend_resume_io_receiver *receiver) {
@@ -636,7 +636,7 @@ namespace
                 }
                 void reset() {}
             };
-            read_single_buffer_operation_states_base *state1;
+            read_single_buffer_operationstates__base *state1;
             std::unique_ptr<connected_operation<
                 threadsafe_sender, controller_initiating_io_receiver>>
                 state2; // used to have worker thread invoke controlling thread
@@ -647,7 +647,7 @@ namespace
             std::span<std::byte const> original_buffer;
 
             explicit controller_notifying_io_receiver(
-                read_single_buffer_operation_states_base *s)
+                read_single_buffer_operationstates__base *s)
                 : state1(s)
                 , state2(new connected_operation<
                          threadsafe_sender, controller_initiating_io_receiver>(
@@ -700,7 +700,7 @@ namespace
         while (latch != 0) {
             std::this_thread::yield();
         }
-        read_single_buffer_operation_states<controller_notifying_io_receiver>
+        read_single_buffer_operationstates_<controller_notifying_io_receiver>
             states(MAX_CONCURRENCY);
         auto begin = std::chrono::steady_clock::now(), end = begin;
         states.initiate();

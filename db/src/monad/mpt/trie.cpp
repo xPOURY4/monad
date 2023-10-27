@@ -21,19 +21,19 @@ using namespace MONAD_ASYNC_NAMESPACE;
 std::pair<UpdateAux::chunk_list, uint32_t>
 UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
 {
-    auto const *ci = _db_metadata[0]->at(idx);
+    auto const *ci = db_metadata_[0]->at(idx);
     std::pair<chunk_list, uint32_t> ret(
         chunk_list::free, ci->insertion_count());
     if (ci->in_fast_list) {
         ret.first = chunk_list::fast;
-        ret.second -= _db_metadata[0]->fast_list_begin()->insertion_count();
+        ret.second -= db_metadata_[0]->fast_list_begin()->insertion_count();
     }
     else if (ci->in_slow_list) {
         ret.first = chunk_list::slow;
-        ret.second -= _db_metadata[0]->slow_list_begin()->insertion_count();
+        ret.second -= db_metadata_[0]->slow_list_begin()->insertion_count();
     }
     else {
-        ret.second -= _db_metadata[0]->free_list_begin()->insertion_count();
+        ret.second -= db_metadata_[0]->free_list_begin()->insertion_count();
     }
     ret.second &= 0xfffff;
     return ret;
@@ -44,25 +44,25 @@ void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
     auto do_ = [&](detail::db_metadata *m) {
         switch (list) {
         case chunk_list::free:
-            m->_append(m->free_list, m->_at(idx));
+            m->append_(m->free_list, m->at_(idx));
             break;
         case chunk_list::fast:
-            m->_append(m->fast_list, m->_at(idx));
+            m->append_(m->fast_list, m->at_(idx));
             break;
         case chunk_list::slow:
-            m->_append(m->slow_list, m->_at(idx));
+            m->append_(m->slow_list, m->at_(idx));
             break;
         }
     };
-    do_(_db_metadata[0]);
-    do_(_db_metadata[1]);
+    do_(db_metadata_[0]);
+    do_(db_metadata_[1]);
     if (list == chunk_list::free) {
         auto chunk = io->storage_pool().chunk(
             MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
         auto capacity = chunk->capacity();
         assert(chunk->size() == 0);
-        _db_metadata[0]->_free_capacity_add(capacity);
-        _db_metadata[1]->_free_capacity_add(capacity);
+        db_metadata_[0]->free_capacity_add_(capacity);
+        db_metadata_[1]->free_capacity_add_(capacity);
     }
 }
 
@@ -71,68 +71,68 @@ void UpdateAux::prepend(chunk_list list, uint32_t idx) noexcept
     auto do_ = [&](detail::db_metadata *m) {
         switch (list) {
         case chunk_list::free:
-            m->_prepend(m->free_list, m->_at(idx));
+            m->prepend_(m->free_list, m->at_(idx));
             break;
         case chunk_list::fast:
-            m->_prepend(m->fast_list, m->_at(idx));
+            m->prepend_(m->fast_list, m->at_(idx));
             break;
         case chunk_list::slow:
-            m->_prepend(m->slow_list, m->_at(idx));
+            m->prepend_(m->slow_list, m->at_(idx));
             break;
         }
     };
-    do_(_db_metadata[0]);
-    do_(_db_metadata[1]);
+    do_(db_metadata_[0]);
+    do_(db_metadata_[1]);
     if (list == chunk_list::free) {
         auto chunk = io->storage_pool().chunk(
             MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
         auto capacity = chunk->capacity();
         assert(chunk->size() == 0);
-        _db_metadata[0]->_free_capacity_add(capacity);
-        _db_metadata[1]->_free_capacity_add(capacity);
+        db_metadata_[0]->free_capacity_add_(capacity);
+        db_metadata_[1]->free_capacity_add_(capacity);
     }
 }
 
 void UpdateAux::remove(uint32_t idx) noexcept
 {
     bool const is_free_list =
-        (!_db_metadata[0]->_at(idx)->in_fast_list &&
-         !_db_metadata[0]->_at(idx)->in_slow_list);
-    auto do_ = [&](detail::db_metadata *m) { m->_remove(m->_at(idx)); };
-    do_(_db_metadata[0]);
-    do_(_db_metadata[1]);
+        (!db_metadata_[0]->at_(idx)->in_fast_list &&
+         !db_metadata_[0]->at_(idx)->in_slow_list);
+    auto do_ = [&](detail::db_metadata *m) { m->remove_(m->at_(idx)); };
+    do_(db_metadata_[0]);
+    do_(db_metadata_[1]);
     if (is_free_list) {
         auto chunk = io->storage_pool().chunk(
             MONAD_ASYNC_NAMESPACE::storage_pool::seq, idx);
         auto capacity = chunk->capacity();
         assert(chunk->size() == 0);
-        _db_metadata[0]->_free_capacity_sub(capacity);
-        _db_metadata[1]->_free_capacity_sub(capacity);
+        db_metadata_[0]->free_capacity_sub_(capacity);
+        db_metadata_[1]->free_capacity_sub_(capacity);
     }
 }
 
 void UpdateAux::rewind_root_offset_to(chunk_offset_t offset)
 {
     // TODO FIXME: We need to also adjust the slow list
-    auto *ci = _db_metadata[0]->fast_list_begin();
-    for (; ci != nullptr && offset.id != ci->index(_db_metadata[0]);
-         ci = ci->next(_db_metadata[0])) {
+    auto *ci = db_metadata_[0]->fast_list_begin();
+    for (; ci != nullptr && offset.id != ci->index(db_metadata_[0]);
+         ci = ci->next(db_metadata_[0])) {
     }
     // If this trips, the supplied root offset is not in the fast list
     MONAD_ASSERT(ci != nullptr);
-    while (ci != _db_metadata[0]->fast_list_end()) {
-        auto const idx = _db_metadata[0]->fast_list.end;
+    while (ci != db_metadata_[0]->fast_list_end()) {
+        auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
         io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
         prepend(chunk_list::free, idx);
     }
     {
-        auto g = _db_metadata[0]->hold_dirty();
-        _db_metadata[0]->root_offset = offset;
+        auto g = db_metadata_[0]->hold_dirty();
+        db_metadata_[0]->root_offset = offset;
     }
     {
-        auto g = _db_metadata[1]->hold_dirty();
-        _db_metadata[1]->root_offset = offset;
+        auto g = db_metadata_[1]->hold_dirty();
+        db_metadata_[1]->root_offset = offset;
     }
 }
 
@@ -143,8 +143,8 @@ UpdateAux::~UpdateAux()
         auto const map_size =
             sizeof(detail::db_metadata) +
             chunk_count * sizeof(detail::db_metadata::chunk_info_t);
-        (void)::munmap(_db_metadata[0], map_size);
-        (void)::munmap(_db_metadata[1], map_size);
+        (void)::munmap(db_metadata_[0], map_size);
+        (void)::munmap(db_metadata_[1], map_size);
     }
 }
 
@@ -161,66 +161,66 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
         chunk_count * sizeof(detail::db_metadata::chunk_info_t);
     auto cnv_chunk = io->storage_pool().activate_chunk(storage_pool::cnv, 0);
     auto fd = cnv_chunk->write_fd(0);
-    _db_metadata[0] = start_lifetime_as<detail::db_metadata>(::mmap(
+    db_metadata_[0] = start_lifetime_as<detail::db_metadata>(::mmap(
         nullptr,
         map_size,
         PROT_READ | PROT_WRITE,
         MAP_SHARED,
         fd.first,
         off_t(fd.second)));
-    MONAD_ASSERT(_db_metadata[0] != MAP_FAILED);
-    _db_metadata[1] = start_lifetime_as<detail::db_metadata>(::mmap(
+    MONAD_ASSERT(db_metadata_[0] != MAP_FAILED);
+    db_metadata_[1] = start_lifetime_as<detail::db_metadata>(::mmap(
         nullptr,
         map_size,
         PROT_READ | PROT_WRITE,
         MAP_SHARED,
         fd.first,
         off_t(fd.second + cnv_chunk->capacity() / 2)));
-    MONAD_ASSERT(_db_metadata[1] != MAP_FAILED);
+    MONAD_ASSERT(db_metadata_[1] != MAP_FAILED);
     // If the front copy vanished for some reason ...
-    if (0 != memcmp(_db_metadata[0]->magic, "MND0", 4)) {
-        if (0 == memcmp(_db_metadata[1]->magic, "MND0", 4)) {
-            memcpy(_db_metadata[0], _db_metadata[1], map_size);
+    if (0 != memcmp(db_metadata_[0]->magic, "MND0", 4)) {
+        if (0 == memcmp(db_metadata_[1]->magic, "MND0", 4)) {
+            memcpy(db_metadata_[0], db_metadata_[1], map_size);
         }
     }
     // Replace any dirty copy with the non-dirty copy
-    if (0 == memcmp(_db_metadata[0]->magic, "MND0", 4) &&
-        0 == memcmp(_db_metadata[1]->magic, "MND0", 4)) {
+    if (0 == memcmp(db_metadata_[0]->magic, "MND0", 4) &&
+        0 == memcmp(db_metadata_[1]->magic, "MND0", 4)) {
         MONAD_ASSERT(
-            !_db_metadata[0]->is_dirty().load(std::memory_order_acquire) ||
-            !_db_metadata[1]->is_dirty().load(std::memory_order_acquire));
-        if (_db_metadata[0]->is_dirty().load(std::memory_order_acquire)) {
-            memcpy(_db_metadata[0], _db_metadata[1], map_size);
+            !db_metadata_[0]->is_dirty().load(std::memory_order_acquire) ||
+            !db_metadata_[1]->is_dirty().load(std::memory_order_acquire));
+        if (db_metadata_[0]->is_dirty().load(std::memory_order_acquire)) {
+            memcpy(db_metadata_[0], db_metadata_[1], map_size);
         }
-        else if (_db_metadata[1]->is_dirty().load(std::memory_order_acquire)) {
-            memcpy(_db_metadata[1], _db_metadata[0], map_size);
+        else if (db_metadata_[1]->is_dirty().load(std::memory_order_acquire)) {
+            memcpy(db_metadata_[1], db_metadata_[0], map_size);
         }
     }
-    if (0 != memcmp(_db_metadata[0]->magic, "MND0", 4)) {
-        memset(_db_metadata[0], 0, map_size);
+    if (0 != memcmp(db_metadata_[0]->magic, "MND0", 4)) {
+        memset(db_metadata_[0], 0, map_size);
         assert((chunk_count & ~0xfffffU) == 0);
-        _db_metadata[0]->chunk_info_count = chunk_count & 0xfffffU;
+        db_metadata_[0]->chunk_info_count = chunk_count & 0xfffffU;
         memset(
-            &_db_metadata[0]->free_list,
+            &db_metadata_[0]->free_list,
             0xff,
-            sizeof(_db_metadata[0]->free_list));
+            sizeof(db_metadata_[0]->free_list));
         memset(
-            &_db_metadata[0]->fast_list,
+            &db_metadata_[0]->fast_list,
             0xff,
-            sizeof(_db_metadata[0]->fast_list));
+            sizeof(db_metadata_[0]->fast_list));
         memset(
-            &_db_metadata[0]->slow_list,
+            &db_metadata_[0]->slow_list,
             0xff,
-            sizeof(_db_metadata[0]->slow_list));
+            sizeof(db_metadata_[0]->slow_list));
         auto *chunk_info =
             start_lifetime_as_array<detail::db_metadata::chunk_info_t>(
-                _db_metadata[0]->chunk_info, chunk_count);
+                db_metadata_[0]->chunk_info, chunk_count);
         for (size_t n = 0; n < chunk_count; n++) {
             auto &ci = chunk_info[n];
             ci.prev_chunk_id = ci.next_chunk_id =
                 detail::db_metadata::chunk_info_t::INVALID_CHUNK_ID;
         }
-        memcpy(_db_metadata[1], _db_metadata[0], map_size);
+        memcpy(db_metadata_[1], db_metadata_[0], map_size);
 
         // Insert all chunks into the free list
         std::vector<uint32_t> chunks;
@@ -251,15 +251,15 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
         }
 
         // Mark as done
-        _db_metadata[0]->root_offset = root_offset;
-        _db_metadata[1]->root_offset = root_offset;
+        db_metadata_[0]->root_offset = root_offset;
+        db_metadata_[1]->root_offset = root_offset;
         std::atomic_signal_fence(
             std::memory_order_seq_cst); // no compiler reordering here
-        memcpy(_db_metadata[0]->magic, "MND0", 4);
-        memcpy(_db_metadata[1]->magic, "MND0", 4);
+        memcpy(db_metadata_[0]->magic, "MND0", 4);
+        memcpy(db_metadata_[1]->magic, "MND0", 4);
     }
     // If the pool has changed since we configured the metadata, this will fail
-    MONAD_ASSERT(_db_metadata[0]->chunk_info_count == chunk_count);
+    MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
     // Make sure the root offset points into a block in use as a sanity check
     auto const root_offset = get_root_offset();
     auto chunk = io->storage_pool().chunk(storage_pool::seq, root_offset.id);
@@ -268,7 +268,7 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
     We simply ignore it, it'll get compacted at some later point.
     */
     chunk_offset_t node_writer_offset(root_offset);
-    auto *last_chunk_info = _db_metadata[0]->fast_list_end();
+    auto *last_chunk_info = db_metadata_[0]->fast_list_end();
     if (last_chunk_info != nullptr &&
         last_chunk_info->index(db_metadata()) != node_writer_offset.id) {
         node_writer_offset.id =
@@ -301,22 +301,22 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
  `old_pi` is nibble index of relpath in previous node - old.
  `*psi` is the starting nibble index in current function frame
 */
-bool _dispatch_updates(
+bool dispatch_updates_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     Requests &requests, unsigned pi);
 
-bool _mismatch_handler(
+bool mismatch_handler_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     Requests &requests, unsigned const old_pi, unsigned const pi);
 
 Node *
-_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi = 0);
+create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi = 0);
 
-Node *_create_new_trie_from_requests(
+Node *create_new_trie_from_requests_(
     UpdateAux &update_aux, Requests &requests, NibblesView const relpath,
     unsigned const pi, std::optional<byte_string_view> const opt_leaf_data);
 
-bool _upsert(
+bool upsert_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     chunk_offset_t const old_offset, UpdateList &&updates, unsigned pi = 0,
     unsigned old_pi = 0);
@@ -333,10 +333,10 @@ node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
     update_aux.sm->reset();
     auto root_tnode = make_tnode(update_aux.trie_section());
     if (!old) {
-        root_tnode->node = _create_new_trie(update_aux, std::move(updates));
+        root_tnode->node = create_new_trie_(update_aux, std::move(updates));
     }
     else {
-        if (!_upsert(
+        if (!upsert_(
                 update_aux,
                 old,
                 root_tnode.get(),
@@ -403,12 +403,12 @@ struct update_receiver
     unsigned bytes_to_read;
 
     update_receiver(
-        UpdateAux *_update_aux, chunk_offset_t offset, UpdateList &&_updates,
-        UpwardTreeNode *_tnode)
-        : update_aux(_update_aux)
+        UpdateAux *update_aux_, chunk_offset_t offset, UpdateList &&updates_,
+        UpwardTreeNode *tnode_)
+        : update_aux(update_aux_)
         , rd_offset(round_down_align<DISK_PAGE_BITS>(offset))
-        , updates(std::move(_updates))
-        , tnode(_tnode)
+        , updates(std::move(updates_))
+        , tnode(tnode_)
     {
         // prep uring data
         rd_offset.spare = 0;
@@ -422,16 +422,16 @@ struct update_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<std::byte const>> _buffer)
+        result<std::span<std::byte const>> buffer_)
     {
-        MONAD_ASSERT(_buffer);
-        std::span<std::byte const> buffer = std::move(_buffer).assume_value();
+        MONAD_ASSERT(buffer_);
+        std::span<std::byte const> buffer = std::move(buffer_).assume_value();
         // tnode owns the deserialized old node
         node_ptr old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
         Node *old_node = old.get();
         update_aux->sm->reset(tnode->trie_section);
-        if (!_upsert(
+        if (!upsert_(
                 *update_aux,
                 old_node,
                 tnode,
@@ -461,12 +461,12 @@ struct create_node_receiver
     uint8_t j;
 
     create_node_receiver(
-        UpdateAux *const _update_aux, UpwardTreeNode *const _tnode,
-        uint8_t const _j)
-        : update_aux(_update_aux)
+        UpdateAux *const update_aux_, UpwardTreeNode *const tnode_,
+        uint8_t const j_)
+        : update_aux(update_aux_)
         , rd_offset(0, 0)
-        , tnode(_tnode)
-        , j(_j)
+        , tnode(tnode_)
+        , j(j_)
     {
         // prep uring data
         auto offset = tnode->children[j].offset;
@@ -482,10 +482,10 @@ struct create_node_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<std::byte const>> _buffer)
+        result<std::span<std::byte const>> buffer_)
     {
-        MONAD_ASSERT(_buffer);
-        std::span<std::byte const> buffer = std::move(_buffer).assume_value();
+        MONAD_ASSERT(buffer_);
+        std::span<std::byte const> buffer = std::move(buffer_).assume_value();
         // load node from read buffer
         tnode->node = create_coalesced_node_with_prefix(
             tnode->children[j].branch,
@@ -589,7 +589,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
 }
 
 //! update leaf data of old, old can have branches
-bool _update_leaf_data(
+bool update_leaf_data_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     Update &update)
 {
@@ -605,11 +605,11 @@ bool _update_leaf_data(
         requests.split_into_sublists(std::move(update.next.value()), 0);
         bool finished = true;
         if (update.incarnation) {
-            tnode->node = _create_new_trie_from_requests(
+            tnode->node = create_new_trie_from_requests_(
                 update_aux, requests, relpath, 0, update.value);
         }
         else {
-            finished = _dispatch_updates(update_aux, old, tnode, requests, 0);
+            finished = dispatch_updates_(update_aux, old, tnode, requests, 0);
         }
         update_aux.sm->backward();
         return finished;
@@ -625,7 +625,7 @@ bool _update_leaf_data(
 }
 
 // create a new trie from a list of updates, won't have incarnation
-Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
+Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
 {
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
@@ -639,7 +639,7 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
             Requests requests;
             requests.split_into_sublists(std::move(update.next.value()), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
-            auto ret = _create_new_trie_from_requests(
+            auto ret = create_new_trie_from_requests_(
                 update_aux, requests, relpath, 0, update.value);
             update_aux.sm->backward();
             return ret;
@@ -653,7 +653,7 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         updates = std::move(requests).first_and_only_list();
         ++pi;
     }
-    return _create_new_trie_from_requests(
+    return create_new_trie_from_requests_(
         update_aux,
         requests,
         NibblesView{psi, pi, requests.get_first_path()},
@@ -661,7 +661,7 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         requests.opt_leaf.and_then(&Update::value));
 }
 
-Node *_create_new_trie_from_requests(
+Node *create_new_trie_from_requests_(
     UpdateAux &update_aux, Requests &requests, NibblesView const relpath,
     unsigned const pi, std::optional<byte_string_view> const opt_leaf_data)
 {
@@ -672,7 +672,7 @@ Node *_create_new_trie_from_requests(
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             auto node =
-                _create_new_trie(update_aux, std::move(requests)[i], pi + 1);
+                create_new_trie_(update_aux, std::move(requests)[i], pi + 1);
             auto &entry = children[j++];
             entry.branch = static_cast<uint8_t>(i);
             entry.ptr = node;
@@ -691,7 +691,7 @@ Node *_create_new_trie_from_requests(
         opt_leaf_data);
 }
 
-bool _upsert(
+bool upsert_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     chunk_offset_t const offset, UpdateList &&updates, unsigned pi,
     unsigned old_pi)
@@ -710,12 +710,12 @@ bool _upsert(
     while (true) {
         tnode->relpath = NibblesView{old_psi, old_pi, old->path_data()};
         if (updates.size() == 1 && pi == updates.front().key.size() * 2) {
-            return _update_leaf_data(update_aux, old, tnode, updates.front());
+            return update_leaf_data_(update_aux, old, tnode, updates.front());
         }
         unsigned const n = requests.split_into_sublists(std::move(updates), pi);
         MONAD_DEBUG_ASSERT(n);
         if (old_pi == old->path_nibble_index_end) {
-            return _dispatch_updates(update_aux, old, tnode, requests, pi);
+            return dispatch_updates_(update_aux, old, tnode, requests, pi);
         }
         if (auto old_nibble = get_nibble(old->path_data(), old_pi);
             n == 1 && requests.get_first_branch() == old_nibble) {
@@ -725,14 +725,14 @@ bool _upsert(
             continue;
         }
         // meet a mismatch or split, not till the end of old path
-        return _mismatch_handler(update_aux, old, tnode, requests, old_pi, pi);
+        return mismatch_handler_(update_aux, old, tnode, requests, old_pi, pi);
     }
 }
 
 //! dispatch updates at the end of old node's path
 //! old node can have leaf data, there might be update to that leaf
 //! return a new node
-bool _dispatch_updates(
+bool dispatch_updates_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     Requests &requests, unsigned pi)
 {
@@ -740,7 +740,7 @@ bool _dispatch_updates(
     if (opt_leaf.has_value() && opt_leaf.value().incarnation) {
         // incranation = 1, also have new children longer than curr update's key
         MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
-        tnode->node = _create_new_trie_from_requests(
+        tnode->node = create_new_trie_from_requests_(
             update_aux, requests, tnode->relpath, pi, opt_leaf.value().value);
         return true;
     }
@@ -760,7 +760,7 @@ bool _dispatch_updates(
             if (bit & old->mask) {
                 node_ptr next_ = old->next_ptr(i);
                 auto next_tnode = make_tnode(update_aux.trie_section());
-                if (!_upsert(
+                if (!upsert_(
                         update_aux,
                         next_.get(),
                         next_tnode.get(),
@@ -781,7 +781,7 @@ bool _dispatch_updates(
                 node = next_tnode->node;
             }
             else {
-                node = _create_new_trie(
+                node = create_new_trie_(
                     update_aux, std::move(requests)[i], pi + 1);
             }
             if (node) {
@@ -827,7 +827,7 @@ bool _dispatch_updates(
 
 //! split old at old_pi, updates at pi
 //! requests can have 1 or more sublists
-bool _mismatch_handler(
+bool mismatch_handler_(
     UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
     Requests &requests, unsigned const old_pi, unsigned const pi)
 {
@@ -844,7 +844,7 @@ bool _mismatch_handler(
             Node *node = nullptr;
             if (i == old_nibble) {
                 auto next_tnode = make_tnode(update_aux.trie_section());
-                if (!_upsert(
+                if (!upsert_(
                         update_aux,
                         old,
                         next_tnode.get(),
@@ -863,7 +863,7 @@ bool _mismatch_handler(
                 node = next_tnode->node;
             }
             else {
-                node = _create_new_trie(
+                node = create_new_trie_(
                     update_aux, std::move(requests)[i], pi + 1);
             }
             if (node) {

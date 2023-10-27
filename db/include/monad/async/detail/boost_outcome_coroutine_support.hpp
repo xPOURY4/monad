@@ -122,7 +122,7 @@ namespace awaitables
                 use_atomic, std::atomic<bool>, fake_atomic<bool>>;
             union
             {
-                BOOST_OUTCOME_V2_NAMESPACE::detail::empty_type _default{};
+                BOOST_OUTCOME_V2_NAMESPACE::detail::empty_type default_{};
                 container_type result;
             };
             result_set_type result_set{false},

@@ -77,18 +77,18 @@ private:
     IORecord records_;
 
     AsyncIO(monad::io::Ring &ring, monad::io::Buffers &rwbuf);
-    void _init(std::span<int> fds);
+    void init_(std::span<int> fds);
 
-    void _submit_request(
+    void submit_request_(
         std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
         void *uring_data);
-    void _submit_request(
+    void submit_request_(
         std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
         void *uring_data);
-    void _submit_request(timed_invocation_state *state, void *uring_data);
+    void submit_request_(timed_invocation_state *state, void *uring_data);
 
-    void _poll_uring_while_submission_queue_full();
-    bool _poll_uring(bool blocking);
+    void poll_uring_while_submission_queue_full_();
+    bool poll_uring_(bool blocking);
 
 public:
     AsyncIO(
@@ -165,7 +165,7 @@ public:
     {
         size_t n = 0;
         for (; n < count; n++) {
-            if (!_poll_uring(n == 0)) {
+            if (!poll_uring_(n == 0)) {
                 break;
             }
         }
@@ -177,7 +177,7 @@ public:
     {
         size_t n = 0;
         for (; n < count; n++) {
-            if (!_poll_uring(false)) {
+            if (!poll_uring_(false)) {
                 break;
             }
         }
@@ -202,7 +202,7 @@ public:
         std::span<std::byte> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
-        _submit_request(buffer, offset, uring_data);
+        submit_request_(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;
         return false;
@@ -212,7 +212,7 @@ public:
         std::span<std::byte const> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
-        _submit_request(buffer, offset, uring_data);
+        submit_request_(buffer, offset, uring_data);
         ++records_.inflight_wr;
     }
 
@@ -229,7 +229,7 @@ public:
     void submit_timed_invocation_request(
         timed_invocation_state *info, erased_connected_operation *uring_data)
     {
-        _submit_request(info, uring_data);
+        submit_request_(info, uring_data);
         ++records_.inflight_tm;
     }
 
@@ -297,7 +297,7 @@ public:
 
 private:
     template <bool is_write, class buffer_value_type, class F>
-    auto _make_connected_impl(F &&connect)
+    auto make_connected_impl_(F &&connect)
     {
         using connected_type = decltype(connect());
         static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
@@ -339,7 +339,7 @@ public:
     {
         using buffer_value_type = typename Sender::buffer_type::element_type;
         constexpr bool is_write = std::is_const_v<buffer_value_type>;
-        return _make_connected_impl<is_write, buffer_value_type>([&] {
+        return make_connected_impl_<is_write, buffer_value_type>([&] {
             return connect(*this, std::move(sender), std::move(receiver));
         });
     }
@@ -362,14 +362,14 @@ public:
     {
         using buffer_value_type = typename Sender::buffer_type::element_type;
         constexpr bool is_write = std::is_const_v<buffer_value_type>;
-        return _make_connected_impl<is_write, buffer_value_type>([&] {
+        return make_connected_impl_<is_write, buffer_value_type>([&] {
             return connect<Sender, Receiver>(
                 *this, _, std::move(sender_args), std::move(receiver_args));
         });
     }
 
     template <class Base, sender Sender, receiver Receiver>
-    void _notify_operation_initiation_success(
+    void notify_operation_initiation_success_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state)
     {
         if constexpr (detail::connected_operation_storage<
@@ -382,7 +382,7 @@ public:
             erased_connected_operation::rbtree_node_traits::set_key(
                 p, state->sender().offset().raw());
             assert(p->key == state->sender().offset().raw());
-            _extant_write_operations::init(p);
+            extant_write_operations_::init(p);
             auto pred = [](auto const *a, auto const *b) {
                 auto get_key = [](const auto *a) {
                     return erased_connected_operation::rbtree_node_traits::
@@ -390,18 +390,18 @@ public:
                 };
                 return get_key(a) > get_key(b);
             };
-            _extant_write_operations::insert_equal_lower_bound(
-                &_extant_write_operations_header, p, pred);
+            extant_write_operations_::insert_equal_lower_bound(
+                &extant_write_operations_header_, p, pred);
         }
     }
     template <class Base, sender Sender, receiver Receiver>
-    void _notify_operation_reset(
+    void notify_operation_reset_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state)
     {
         (void)state;
     }
     template <class Base, sender Sender, receiver Receiver, class T>
-    void _notify_operation_completed(
+    void notify_operation_completed_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state,
         result<T> &res)
     {
@@ -409,8 +409,8 @@ public:
                           Base,
                           Sender,
                           Receiver>::is_write()) {
-            _extant_write_operations::erase(
-                &_extant_write_operations_header,
+            extant_write_operations_::erase(
+                &extant_write_operations_header_,
                 erased_connected_operation::rbtree_node_traits::to_node_ptr(
                     state));
         }
@@ -430,10 +430,10 @@ public:
     }
 
 private:
-    using _extant_write_operations = ::boost::intrusive::rbtree_algorithms<
+    using extant_write_operations_ = ::boost::intrusive::rbtree_algorithms<
         erased_connected_operation::rbtree_node_traits>;
     erased_connected_operation::rbtree_node_traits::node
-        _extant_write_operations_header;
+        extant_write_operations_header_;
 };
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;

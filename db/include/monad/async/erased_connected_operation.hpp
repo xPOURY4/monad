@@ -50,14 +50,14 @@ public:
     };
 
 protected:
-    operation_type _operation_type{operation_type::unknown};
-    bool _being_executed{false};
-    bool _lifetime_managed_internally{
+    operation_type operation_type_{operation_type::unknown};
+    bool being_executed_{false};
+    bool lifetime_managed_internally_{
         false}; // some factory classes may deallocate states on their own
-    std::atomic<AsyncIO *> _io{
+    std::atomic<AsyncIO *> io_{
         nullptr}; // set at construction if associated with an AsyncIO instance,
                   // which isn't mandatory
-    struct _rbtree_t
+    struct rbtree_t_
     {
         /* Users of these fields:
 
@@ -70,22 +70,22 @@ protected:
         */
         union
         {
-            _rbtree_t *parent{nullptr};
+            rbtree_t_ *parent{nullptr};
             erased_connected_operation *parent_;
         };
-        _rbtree_t *left{nullptr}, *right{nullptr};
+        rbtree_t_ *left{nullptr}, *right{nullptr};
         file_offset_t key : 63 {0};
         file_offset_t color : 1 {false};
-    } _rbtree;
+    } rbtree_;
 
     constexpr erased_connected_operation() {}
 
     constexpr erased_connected_operation(
         operation_type operation_type, AsyncIO &io,
         bool lifetime_managed_internally)
-        : _operation_type(operation_type)
-        , _lifetime_managed_internally(lifetime_managed_internally)
-        , _io(&io)
+        : operation_type_(operation_type)
+        , lifetime_managed_internally_(lifetime_managed_internally)
+        , io_(&io)
     {
 #ifndef __clang__
         assert(&io != nullptr);
@@ -93,14 +93,14 @@ protected:
     }
 
     virtual initiation_result
-    _do_possibly_deferred_initiate(bool never_defer) noexcept = 0;
+    do_possibly_deferred_initiate_(bool never_defer) noexcept = 0;
 
 public:
     struct rbtree_node_traits
     {
-        using node = _rbtree_t;
-        using node_ptr = _rbtree_t *;
-        using const_node_ptr = _rbtree_t const *;
+        using node = rbtree_t_;
+        using node_ptr = rbtree_t_ *;
+        using const_node_ptr = rbtree_t_ const *;
         using color = bool;
         static node_ptr get_parent(const_node_ptr n)
         {
@@ -156,31 +156,31 @@ public:
         static erased_connected_operation *
         get_parent(erased_connected_operation const *n)
         {
-            return n->_rbtree.parent_;
+            return n->rbtree_.parent_;
         }
         static void set_parent(
             erased_connected_operation *n, erased_connected_operation *parent)
         {
-            n->_rbtree.parent_ = parent;
+            n->rbtree_.parent_ = parent;
         }
         static file_offset_t get_key(erased_connected_operation const *n)
         {
-            return n->_rbtree.key;
+            return n->rbtree_.key;
         }
         static void set_key(erased_connected_operation *n, file_offset_t v)
         {
             static constexpr file_offset_t max_key = (1ULL << 63) - 1;
             MONAD_DEBUG_ASSERT(v <= max_key);
-            n->_rbtree.key = v & max_key;
-            assert(n->_rbtree.key == v);
+            n->rbtree_.key = v & max_key;
+            assert(n->rbtree_.key == v);
         }
         static node_ptr to_node_ptr(erased_connected_operation *n)
         {
-            return &n->_rbtree;
+            return &n->rbtree_;
         }
         static const_node_ptr to_node_ptr(erased_connected_operation const *n)
         {
-            return &n->_rbtree;
+            return &n->rbtree_;
         }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored                                                 \
@@ -189,14 +189,14 @@ public:
         to_erased_connected_operation(node_ptr n)
         {
             return reinterpret_cast<erased_connected_operation *>(
-                ((char *)n) - offsetof(erased_connected_operation, _rbtree));
+                ((char *)n) - offsetof(erased_connected_operation, rbtree_));
         }
         static erased_connected_operation const *
         to_erased_connected_operation(const_node_ptr n)
         {
             return reinterpret_cast<erased_connected_operation const *>(
                 ((char const *)n) -
-                offsetof(erased_connected_operation, _rbtree));
+                offsetof(erased_connected_operation, rbtree_));
         }
 #pragma GCC diagnostic pop
     };
@@ -204,40 +204,40 @@ public:
 
     virtual ~erased_connected_operation()
     {
-        MONAD_ASSERT(!_being_executed);
+        MONAD_ASSERT(!being_executed_);
     }
     bool is_unknown_operation_type() const noexcept
     {
-        return _operation_type == operation_type::unknown;
+        return operation_type_ == operation_type::unknown;
     }
     bool is_read() const noexcept
     {
-        return _operation_type == operation_type::read;
+        return operation_type_ == operation_type::read;
     }
     bool is_write() const noexcept
     {
-        return _operation_type == operation_type::write;
+        return operation_type_ == operation_type::write;
     }
     bool is_timeout() const noexcept
     {
-        return _operation_type == operation_type::timeout;
+        return operation_type_ == operation_type::timeout;
     }
     bool is_threadsafeop() const noexcept
     {
-        return _operation_type == operation_type::threadsafeop;
+        return operation_type_ == operation_type::threadsafeop;
     }
     bool is_currently_being_executed() const noexcept
     {
-        return _being_executed;
+        return being_executed_;
     }
     bool lifetime_is_managed_internally() const noexcept
     {
-        return _lifetime_managed_internally;
+        return lifetime_managed_internally_;
     }
     //! The executor instance being used, which may be none.
     AsyncIO *executor() noexcept
     {
-        return _io.load(std::memory_order_acquire);
+        return io_.load(std::memory_order_acquire);
     }
     //! Invoke completion. The Sender will send the value to the Receiver. If
     //! the Receiver expects bytes transferred and the Sender does not send a
@@ -256,7 +256,7 @@ public:
     //! Invoke initiation, sending any failure to the receiver
     initiation_result initiate() noexcept
     {
-        return _do_possibly_deferred_initiate(false);
+        return do_possibly_deferred_initiate_(false);
     }
     void reset() {}
 };

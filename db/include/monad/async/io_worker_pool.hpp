@@ -35,7 +35,7 @@ namespace detail
         //! pool.
         AsyncIO &master_controller() noexcept
         {
-            return _parent_io;
+            return parent_io_;
         }
 
         struct customisation_points
@@ -53,8 +53,8 @@ namespace detail
         //! spin looping.
         bool try_initiate_other_work(bool io_is_pending)
         {
-            if (_customisation_points) {
-                return _customisation_points->try_initiate_other_work(
+            if (customisation_points_) {
+                return customisation_points_->try_initiate_other_work(
                     io_is_pending);
             }
             return false;
@@ -66,14 +66,14 @@ namespace detail
         AsyncReadIoWorkerPoolBase(
             AsyncIO &parent_io,
             std::unique_ptr<customisation_points> customisation_points_)
-            : _parent_io(parent_io)
-            , _customisation_points(std::move(customisation_points_))
+            : parent_io_(parent_io)
+            , customisation_points_(std::move(customisation_points_))
         {
         }
 
     private:
-        AsyncIO &_parent_io;
-        std::unique_ptr<customisation_points> _customisation_points;
+        AsyncIO &parent_io_;
+        std::unique_ptr<customisation_points> customisation_points_;
     };
 
     template <class T, class QueueOptions>
@@ -98,7 +98,7 @@ namespace detail
             idle_io_pending,
             working
         };
-        struct _worker_t
+        struct worker_t_
         {
             struct thread_state_t
             {
@@ -136,7 +136,7 @@ namespace detail
                             status.store(
                                 thread_status::sleeping,
                                 std::memory_order_release);
-                            parent_pool._enqueued_workitems_count.acquire();
+                            parent_pool.enqueued_workitems_count_.acquire();
                             pls_take_item = true;
                         }
                         else {
@@ -144,18 +144,18 @@ namespace detail
                                 thread_status::idle_io_pending,
                                 std::memory_order_release);
                             pls_take_item =
-                                parent_pool._enqueued_workitems_count
+                                parent_pool.enqueued_workitems_count_
                                     .try_acquire();
                         }
                         if (pls_take_item) {
                             erased_connected_operation *workitem = nullptr;
-                            if (parent_pool._enqueued_workitems.pop(workitem)) {
+                            if (parent_pool.enqueued_workitems_.pop(workitem)) {
                                 status.store(
                                     thread_status::working,
                                     std::memory_order_release);
                                 std::atomic_thread_fence(
                                     std::memory_order_acquire);
-                                workitem->_io.store(
+                                workitem->io_.store(
                                     &local_io, std::memory_order_release);
                                 workitem->initiate();
                             }
@@ -171,7 +171,7 @@ namespace detail
             std::jthread thread;
 
             template <class U, class V>
-            _worker_t(
+            worker_t_(
                 AsyncReadIoWorkerPoolImpl &parent_pool, U &&make_ring,
                 V &&make_buffers)
                 : thread([&](std::stop_token token) {
@@ -190,56 +190,56 @@ namespace detail
                 })
             {
             }
-            _worker_t(_worker_t const &) = delete;
-            _worker_t(_worker_t &&o) noexcept
+            worker_t_(const worker_t_ &) = delete;
+            worker_t_(worker_t_ &&o) noexcept
                 : thread_state(o.thread_state.exchange(
                       nullptr, std::memory_order_acq_rel))
                 , thread(std::move(o.thread))
             {
             }
-            _worker_t &operator=(_worker_t const &) = delete;
-            _worker_t &operator=(_worker_t &&o) noexcept
+            worker_t_ &operator=(const worker_t_ &) = delete;
+            worker_t_ &operator=(worker_t_ &&o) noexcept
             {
                 if (this != &o) {
-                    this->~_worker_t();
-                    new (this) _worker_t(std::move(o));
+                    this->~worker_t_();
+                    new (this) worker_t_(std::move(o));
                 }
                 return *this;
             }
-            ~_worker_t()
+            ~worker_t_()
             {
                 delete thread_state.load(std::memory_order_acquire);
             }
         };
-        friend struct _worker_t::thread_state_t;
-        using _boost_lockfree_queue_type = typename BoostLockfreeQueueFactory<
+        friend struct worker_t_::thread_state_t;
+        using boost_lockfree_queue_type_ = typename BoostLockfreeQueueFactory<
             erased_connected_operation *, QueueOptions>::type;
 
         // Safe to access without locking
-        std::binary_semaphore _enqueued_workitems_count{0};
-        _boost_lockfree_queue_type _enqueued_workitems{[] {
+        std::binary_semaphore enqueued_workitems_count_{0};
+        boost_lockfree_queue_type_ enqueued_workitems_{[] {
             if constexpr (BoostLockfreeQueueFactory<
                               erased_connected_operation *,
                               QueueOptions>::has_capacity) {
-                return _boost_lockfree_queue_type{}; // default constructor to
+                return boost_lockfree_queue_type_{}; // default constructor to
                                                      // be used for fixed
                                                      // capacity queues
             }
             else {
-                return _boost_lockfree_queue_type{16}; // initial free list
+                return boost_lockfree_queue_type_{16}; // initial free list
             }
         }()};
 
         // Unsafe to modify without locking
-        std::vector<_worker_t> _workers;
+        std::vector<worker_t_> workers_;
 
     protected:
         template <class U, class V>
-        void _initialise(size_t workers, U &&make_ring, V &&make_buffers)
+        void initialise_(size_t workers, U &&make_ring, V &&make_buffers)
         {
-            _workers.reserve(workers);
+            workers_.reserve(workers);
             for (size_t n = 0; n < workers; n++) {
-                _workers.emplace_back(
+                workers_.emplace_back(
                     *this,
                     std::forward<U>(make_ring),
                     std::forward<V>(make_buffers));
@@ -263,34 +263,34 @@ namespace detail
         ~AsyncReadIoWorkerPoolImpl()
         {
             MONAD_ASSERT(no_items_waiting());
-            for (auto &i : _workers) {
+            for (auto &i : workers_) {
                 i.thread.request_stop();
             }
-            _enqueued_workitems_count.release(
-                static_cast<ptrdiff_t>(_workers.size()));
-            for (auto &i : _workers) {
+            enqueued_workitems_count_.release(
+                static_cast<ptrdiff_t>(workers_.size()));
+            for (auto &i : workers_) {
                 i.thread.join();
             }
             std::atomic_thread_fence(std::memory_order_acq_rel);
-            _workers.clear();
+            workers_.clear();
         }
 
         //! Threadsafe. Returns the number of thread workers this pool has.
         [[nodiscard]] size_t workers() const noexcept
         {
-            return _workers.size();
+            return workers_.size();
         }
         //! Threadsafe. True if all submitted items are being worked upon, which
         //! includes no items
         [[nodiscard]] bool no_items_waiting() const noexcept
         {
-            return _enqueued_workitems.empty();
+            return enqueued_workitems_.empty();
         }
         //! Threadsafe but can be false positive and false negative. True if the
         //! worker pool is currently idle and has no work
         [[nodiscard]] bool currently_idle() const noexcept
         {
-            for (auto &i : _workers) {
+            for (auto &i : workers_) {
                 if (auto *ts = i.thread_state.load(std::memory_order_acquire);
                     ts != nullptr &&
                     ts->status.load(std::memory_order_acquire) !=
@@ -305,7 +305,7 @@ namespace detail
         [[nodiscard]] float busy_estimate() const noexcept
         {
             int ret = 0;
-            for (auto &i : _workers) {
+            for (auto &i : workers_) {
                 if (auto *ts = i.thread_state.load(std::memory_order_acquire);
                     ts != nullptr) {
                     switch (ts->status.load(std::memory_order_acquire)) {
@@ -320,7 +320,7 @@ namespace detail
                     }
                 }
             }
-            return float(ret) / static_cast<float>(_workers.size() * 2);
+            return float(ret) / static_cast<float>(workers_.size() * 2);
         }
 
         virtual bool
@@ -329,9 +329,9 @@ namespace detail
             // All writes to global state must be flushed before other threads
             // may acquire reads
             std::atomic_thread_fence(std::memory_order_release);
-            auto ret = _enqueued_workitems.push(item);
+            auto ret = enqueued_workitems_.push(item);
             if (ret) {
-                _enqueued_workitems_count.release();
+                enqueued_workitems_count_.release();
             }
             return ret;
         }
@@ -352,15 +352,15 @@ template <class QueueOptions = detail::EmptyTypeList<>>
 class AsyncReadIoWorkerPool final
     : public detail::AsyncReadIoWorkerPoolImpl<QueueOptions>
 {
-    using _base = detail::AsyncReadIoWorkerPoolImpl<QueueOptions>;
+    using base_ = detail::AsyncReadIoWorkerPoolImpl<QueueOptions>;
 
 public:
     template <class U, class V>
     AsyncReadIoWorkerPool(
         AsyncIO &parent, size_t workers, U &&make_ring, V &&make_buffers)
-        : _base(parent, {})
+        : base_(parent, {})
     {
-        _base::_initialise(
+        base_::initialise_(
             workers, std::forward<U>(make_ring), std::forward<V>(make_buffers));
     }
 };
@@ -405,15 +405,15 @@ public:
 
 private:
     static constexpr bool
-        _base_sender_completed_takes_result_bytes_transferred = requires(
+        base_sender_completed_takes_result_bytes_transferred_ = requires(
             Sender x, erased_connected_operation *y, result<size_t> z) {
             x.completed(y, std::move(z));
         };
-    using _completed_input_result_type = std::conditional_t<
-        _base_sender_completed_takes_result_bytes_transferred, result<size_t>,
+    using completed_input_result_type_ = std::conditional_t<
+        base_sender_completed_takes_result_bytes_transferred_, result<size_t>,
         result<void>>;
 
-    enum class _state_t
+    enum class state_t_
     {
         uninitiated,
         submitted,
@@ -421,18 +421,18 @@ private:
         completed_pre_defer,
         completed_post_defer
     };
-    struct _invoke_receiver_receiver
+    struct invoke_receiver_receiver_
     {
         static constexpr bool lifetime_managed_internally = false;
 
         execute_on_worker_pool *parent;
         erased_connected_operation *original_io_state;
-        _completed_input_result_type original_input_result;
+        completed_input_result_type_ original_input_result;
 
-        _invoke_receiver_receiver(
+        invoke_receiver_receiver_(
             execute_on_worker_pool *parent_,
             erased_connected_operation *original_io_state_,
-            _completed_input_result_type original_input_result_)
+            completed_input_result_type_ original_input_result_)
             : parent(parent_)
             , original_io_state(original_io_state_)
             , original_input_result(std::move(original_input_result_))
@@ -448,39 +448,39 @@ private:
         }
         void reset() {}
     };
-    friend struct _invoke_receiver_receiver;
-    using _defer_back_to_master_connected_state_type =
-        connected_operation<timed_delay_sender, _invoke_receiver_receiver>;
-    using _reschedule_back_to_master_connected_state_type =
-        connected_operation<threadsafe_sender, _invoke_receiver_receiver>;
+    friend struct invoke_receiver_receiver_;
+    using defer_back_to_master_connected_state_type_ =
+        connected_operation<timed_delay_sender, invoke_receiver_receiver_>;
+    using reschedule_back_to_master_connected_state_type_ =
+        connected_operation<threadsafe_sender, invoke_receiver_receiver_>;
 
-    detail::AsyncReadIoWorkerPoolBase *const _pool{nullptr};
-    pid_t const _initiating_tid{0};
-    std::atomic<_state_t> _state{_state_t::uninitiated};
+    detail::AsyncReadIoWorkerPoolBase *const pool_{nullptr};
+    pid_t const initiating_tid_{0};
+    std::atomic<state_t_> state_{state_t_::uninitiated};
     // Stop the connected state making this type immovable
-    union _reschedule_back_to_master_op_t
+    union reschedule_back_to_master_op_t_
     {
         static constexpr size_t storage_bytes =
-            (sizeof(_defer_back_to_master_connected_state_type) <
-             sizeof(_reschedule_back_to_master_connected_state_type))
-                ? sizeof(_reschedule_back_to_master_connected_state_type)
-                : sizeof(_defer_back_to_master_connected_state_type);
+            (sizeof(defer_back_to_master_connected_state_type_) <
+             sizeof(reschedule_back_to_master_connected_state_type_))
+                ? sizeof(reschedule_back_to_master_connected_state_type_)
+                : sizeof(defer_back_to_master_connected_state_type_);
         std::byte storage[storage_bytes];
-        _defer_back_to_master_connected_state_type defer_state;
-        _reschedule_back_to_master_connected_state_type reschedule_state;
-        _reschedule_back_to_master_op_t() {}
-        ~_reschedule_back_to_master_op_t() {}
+        defer_back_to_master_connected_state_type_ defer_state;
+        reschedule_back_to_master_connected_state_type_ reschedule_state;
+        reschedule_back_to_master_op_t_() {}
+        ~reschedule_back_to_master_op_t_() {}
         void destroy_defer_state()
         {
-            defer_state.~_defer_back_to_master_connected_state_type();
+            defer_state.~defer_back_to_master_connected_state_type_();
         }
         void destroy_reschedule_state()
         {
-            reschedule_state.~_reschedule_back_to_master_connected_state_type();
+            reschedule_state.~reschedule_back_to_master_connected_state_type_();
         }
-    } _reschedule_back_to_master_op;
+    } reschedule_back_to_master_op_;
 
-    using _initiation_result_type = decltype(std::declval<Sender>()(
+    using initiation_result_type_ = decltype(std::declval<Sender>()(
         std::declval<erased_connected_operation *>()));
 
 public:
@@ -490,19 +490,19 @@ public:
     execute_on_worker_pool(
         detail::AsyncReadIoWorkerPoolBase &pool, Args &&...args)
         : Sender(std::forward<Args>(args)...)
-        , _pool(&pool)
-        , _initiating_tid(gettid())
+        , pool_(&pool)
+        , initiating_tid_(gettid())
     {
     }
     execute_on_worker_pool(execute_on_worker_pool const &) = delete;
     execute_on_worker_pool(execute_on_worker_pool &&o) noexcept
         : Sender(std::move(o))
-        , _pool(o._pool)
-        , _initiating_tid(o._initiating_tid)
-        , _state(_state_t::uninitiated)
+        , pool_(o.pool_)
+        , initiating_tid_(o.initiating_tid_)
+        , state_(state_t_::uninitiated)
     {
         MONAD_ASSERT(
-            o._state.load(std::memory_order_acquire) == _state_t::uninitiated);
+            o.state_.load(std::memory_order_acquire) == state_t_::uninitiated);
     }
     execute_on_worker_pool &operator=(execute_on_worker_pool const &) = delete;
     execute_on_worker_pool &operator=(execute_on_worker_pool &&o) noexcept
@@ -515,12 +515,12 @@ public:
     }
     ~execute_on_worker_pool()
     {
-        switch (_state.load(std::memory_order_acquire)) {
-        case _state_t::completed_pre_defer:
-            _reschedule_back_to_master_op.destroy_defer_state();
+        switch (state_.load(std::memory_order_acquire)) {
+        case state_t_::completed_pre_defer:
+            reschedule_back_to_master_op_.destroy_defer_state();
             break;
-        case _state_t::completed_post_defer:
-            _reschedule_back_to_master_op.destroy_reschedule_state();
+        case state_t_::completed_post_defer:
+            reschedule_back_to_master_op_.destroy_reschedule_state();
             break;
         default:
             break;
@@ -545,38 +545,38 @@ public:
     equal to `errc::not_enough_memory` is possible. Your Receiver will be told
     of this.
     */
-    _initiation_result_type
+    initiation_result_type_
     operator()(erased_connected_operation *io_state) noexcept
     {
-        MONAD_ASSERT(_pool != nullptr);
+        MONAD_ASSERT(pool_ != nullptr);
         // We need to do an acquire-release to synchronise the whole of the
         // Sender's state across threads
-        switch (_state.load(std::memory_order_acquire)) {
-        case _state_t::uninitiated:
-            _state.store(_state_t::submitted, std::memory_order_release);
-            if (!_pool->try_submit_work_item(io_state)) {
-                _state.store(_state_t::uninitiated, std::memory_order_release);
+        switch (state_.load(std::memory_order_acquire)) {
+        case state_t_::uninitiated:
+            state_.store(state_t_::submitted, std::memory_order_release);
+            if (!pool_->try_submit_work_item(io_state)) {
+                state_.store(state_t_::uninitiated, std::memory_order_release);
                 return errc::resource_unavailable_try_again;
             }
             return success();
-        case _state_t::submitted:
+        case state_t_::submitted:
             // We are being initiated from within the worker thread
-            _state.store(_state_t::initiated, std::memory_order_release);
+            state_.store(state_t_::initiated, std::memory_order_release);
             return Sender::operator()(io_state);
-        case _state_t::initiated:
+        case state_t_::initiated:
             // The sender returned operation_must_be_reinitiated
             return Sender::operator()(io_state);
-        case _state_t::completed_pre_defer:
+        case state_t_::completed_pre_defer:
             // Our completed() override has returned
             // sender_errc::operation_must_be_reinitiated, so initiate
             // our deferment onto the current kernel thread
-            _reschedule_back_to_master_op.defer_state.initiate();
+            reschedule_back_to_master_op_.defer_state.initiate();
             return success();
-        case _state_t::completed_post_defer:
+        case state_t_::completed_post_defer:
             // Our completed() override has returned
             // sender_errc::operation_must_be_reinitiated, so initiate
             // our rescheduling onto the parent AsyncIO instance
-            _reschedule_back_to_master_op.reschedule_state.initiate();
+            reschedule_back_to_master_op_.reschedule_state.initiate();
             return success();
         default:
             abort(); // should never happen
@@ -586,42 +586,42 @@ public:
 
     result_type completed(
         erased_connected_operation *io_state,
-        _completed_input_result_type res) noexcept
+        completed_input_result_type_ res) noexcept
     {
-        switch (_state.load(std::memory_order_acquire)) {
-        case _state_t::initiated:
-            if (_initiating_tid ==
-                    _pool->master_controller().owning_thread_id() &&
+        switch (state_.load(std::memory_order_acquire)) {
+        case state_t_::initiated:
+            if (initiating_tid_ ==
+                    pool_->master_controller().owning_thread_id() &&
                 (res || res.assume_error() !=
                             sender_errc::operation_must_be_reinitiated)) {
                 // Have me called back after what completes has exited
-                new (&_reschedule_back_to_master_op.defer_state)
-                    _defer_back_to_master_connected_state_type(connect(
+                new (&reschedule_back_to_master_op_.defer_state)
+                    defer_back_to_master_connected_state_type_(connect(
                         *AsyncIO::thread_instance(),
                         timed_delay_sender{std::chrono::seconds(0) /* noop */},
-                        _invoke_receiver_receiver(
+                        invoke_receiver_receiver_(
                             this, io_state, std::move(res))));
-                _state.store(
-                    _state_t::completed_pre_defer, std::memory_order_release);
+                state_.store(
+                    state_t_::completed_pre_defer, std::memory_order_release);
                 // This will invoke operator() again
                 return sender_errc::operation_must_be_reinitiated;
             }
             [[fallthrough]];
-        case _state_t::completed_pre_defer:
-            if (_initiating_tid ==
-                    _pool->master_controller().owning_thread_id() &&
+        case state_t_::completed_pre_defer:
+            if (initiating_tid_ ==
+                    pool_->master_controller().owning_thread_id() &&
                 (res || res.assume_error() !=
                             sender_errc::operation_must_be_reinitiated)) {
                 // Resume execution on the master controller
-                _reschedule_back_to_master_op.destroy_defer_state();
-                new (&_reschedule_back_to_master_op.reschedule_state)
-                    _reschedule_back_to_master_connected_state_type(connect(
-                        _pool->master_controller(),
+                reschedule_back_to_master_op_.destroy_defer_state();
+                new (&reschedule_back_to_master_op_.reschedule_state)
+                    reschedule_back_to_master_connected_state_type_(connect(
+                        pool_->master_controller(),
                         threadsafe_sender{},
-                        _invoke_receiver_receiver(
+                        invoke_receiver_receiver_(
                             this, io_state, std::move(res))));
-                _state.store(
-                    _state_t::completed_post_defer, std::memory_order_release);
+                state_.store(
+                    state_t_::completed_post_defer, std::memory_order_release);
                 // This will invoke operator() again
                 return sender_errc::operation_must_be_reinitiated;
             }

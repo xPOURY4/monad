@@ -15,14 +15,14 @@ enum class sender_errc : uint8_t
                                      //!< immediately
 };
 
-class _sender_errc_code_domain;
+class sender_errc_code_domain_;
 using sender_errc_code = BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code<
-    _sender_errc_code_domain>;
-class _sender_errc_code_domain
+    sender_errc_code_domain_>;
+class sender_errc_code_domain_
     : public BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code_domain
 {
     friend sender_errc_code;
-    using _base = BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code_domain;
+    using base_ = BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code_domain;
 
 public:
     struct value_type
@@ -40,33 +40,33 @@ public:
             , value(0)
         {
         }
-        constexpr value_type(sender_errc _code) noexcept
-            : code(uint8_t(_code))
+        constexpr value_type(sender_errc code_) noexcept
+            : code(uint8_t(code_))
             , value(0)
         {
         }
-        constexpr value_type(sender_errc _code, uintptr_t _value) noexcept
-            : code(uint8_t(_code))
-            , value(_value & max_value)
+        constexpr value_type(sender_errc code_, uintptr_t value_) noexcept
+            : code(uint8_t(code_))
+            , value(value_ & max_value)
         {
-            assert(_value <= max_value);
+            assert(value_ <= max_value);
         }
     };
-    using _base::string_ref;
+    using base_::string_ref;
 
-    constexpr explicit _sender_errc_code_domain(
-        typename _base::unique_id_type id = 0xa88a5a64a7d218d8) noexcept
-        : _base(id)
+    constexpr explicit sender_errc_code_domain_(
+        typename base_::unique_id_type id = 0xa88a5a64a7d218d8) noexcept
+        : base_(id)
     {
     }
-    _sender_errc_code_domain(_sender_errc_code_domain const &) = default;
-    _sender_errc_code_domain(_sender_errc_code_domain &&) = default;
-    _sender_errc_code_domain &
-    operator=(_sender_errc_code_domain const &) = default;
-    _sender_errc_code_domain &operator=(_sender_errc_code_domain &&) = default;
-    ~_sender_errc_code_domain() = default;
+    sender_errc_code_domain_(const sender_errc_code_domain_ &) = default;
+    sender_errc_code_domain_(sender_errc_code_domain_ &&) = default;
+    sender_errc_code_domain_ &
+    operator=(const sender_errc_code_domain_ &) = default;
+    sender_errc_code_domain_ &operator=(sender_errc_code_domain_ &&) = default;
+    ~sender_errc_code_domain_() = default;
 
-    static inline constexpr _sender_errc_code_domain const &get();
+    static inline constexpr const sender_errc_code_domain_ &get();
 
     virtual string_ref name() const noexcept override
     {
@@ -77,7 +77,7 @@ public:
     (BOOST_OUTCOME_VERSION_MAJOR == 2 && BOOST_OUTCOME_VERSION_MINOR > 2) ||   \
     (BOOST_OUTCOME_VERSION_MAJOR == 2 && BOOST_OUTCOME_VERSION_MAJOR == 2 &&   \
      BOOST_OUTCOME_VERSION_PATCH > 2)
-    virtual _base::payload_info_t payload_info() const noexcept override
+    virtual base_::payload_info_t payload_info() const noexcept override
     {
         return {
             sizeof(value_type),
@@ -139,13 +139,13 @@ protected:
         const override
     {
         assert(code.domain() == *this);
-        auto const &c = static_cast<sender_errc_code const &>(code);
+        const auto &c = static_cast<const sender_errc_code &>(code);
         throw BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_error<
-            _sender_errc_code_domain>(c);
+            sender_errc_code_domain_>(c);
     }
 };
-constexpr _sender_errc_code_domain sender_errc_code_domain;
-inline constexpr _sender_errc_code_domain const &_sender_errc_code_domain::get()
+constexpr sender_errc_code_domain_ sender_errc_code_domain;
+inline constexpr const sender_errc_code_domain_ &sender_errc_code_domain_::get()
 {
     return sender_errc_code_domain;
 }
@@ -157,12 +157,12 @@ static_assert(
 // enum when comparing to status codes.
 inline constexpr sender_errc_code make_status_code(sender_errc c)
 {
-    return sender_errc_code(_sender_errc_code_domain::value_type{c});
+    return sender_errc_code(sender_errc_code_domain_::value_type{c});
 }
 inline constexpr sender_errc_code
 make_status_code(sender_errc c, uintptr_t value)
 {
-    return sender_errc_code(_sender_errc_code_domain::value_type{c, value});
+    return sender_errc_code(sender_errc_code_domain_::value_type{c, value});
 }
 
 MONAD_ASYNC_NAMESPACE_END

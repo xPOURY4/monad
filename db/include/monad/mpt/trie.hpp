@@ -27,7 +27,7 @@ struct write_operation_io_receiver
     // Node *parent{nullptr};
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        MONAD_ASYNC_NAMESPACE::result<std::span<const std::byte>> res)
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> res)
     {
         MONAD_ASSERT(res);
         // TODO: when adding upsert_sender
@@ -67,7 +67,7 @@ async_write_node_result async_write_node(UpdateAux &, Node *);
 // \class Auxiliaries for triedb update
 class UpdateAux
 {
-    detail::db_metadata *_db_metadata[2]{
+    detail::db_metadata *db_metadata_[2]{
         nullptr, nullptr}; // two copies, to prevent sudden process
                            // exits making the DB irretrievable
 
@@ -79,9 +79,9 @@ public:
         slow
     };
 
-    const detail::db_metadata *db_metadata() const noexcept
+    detail::db_metadata const *db_metadata() const noexcept
     {
-        return _db_metadata[0];
+        return db_metadata_[0];
     }
     std::pair<chunk_list, uint32_t>
     chunk_list_and_age(uint32_t idx) const noexcept;
@@ -92,8 +92,8 @@ public:
     void advance_root_offset(chunk_offset_t offset) noexcept
     {
         auto do_ = [&](detail::db_metadata *m) { m->root_offset = offset; };
-        do_(_db_metadata[0]);
-        do_(_db_metadata[1]);
+        do_(db_metadata_[0]);
+        do_(db_metadata_[1]);
     }
     // WARNING: This is destructive
     void rewind_root_offset_to(chunk_offset_t offset);
@@ -130,13 +130,13 @@ public:
     chunk_offset_t get_root_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return _db_metadata[0]->root_offset;
+        return db_metadata_[0]->root_offset;
     }
 
     file_offset_t get_lower_bound_free_space() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return _db_metadata[0]->capacity_in_free_list;
+        return db_metadata_[0]->capacity_in_free_list;
     }
 
     constexpr Compute &comp() const noexcept

@@ -58,22 +58,22 @@ public:
     {
         friend class storage_pool;
 
-        int const _readfd; // O_DIRECT shared by chunks for random read i/o
-        int const _writefd; // used for the device memory map of its metadata
-        int _writefd2; // may or may not be an O_DIRECT shared by chunks for
+        int const readfd_; // O_DIRECT shared by chunks for random read i/o
+        int const writefd_; // used for the device memory map of its metadata
+        int writefd2_; // may or may not be an O_DIRECT shared by chunks for
                        // append i/o
-        const enum class _type_t : uint8_t {
+        const enum class type_t_ : uint8_t {
             unknown,
             file,
             block_device,
             zoned_device
-        } _type;
-        file_offset_t const _size_of_file;
+        } type_;
+        const file_offset_t size_of_file_;
         struct metadata_t
         {
             // Preceding this is an array of uint32_t of chunk bytes used
 
-            uint32_t _spare0; // set aside for flags later
+            uint32_t spare0_; // set aside for flags later
             uint32_t config_hash; // hash of this configuration
             uint32_t chunk_capacity;
             uint8_t magic[4]; // "MND0" for v1 of this metadata
@@ -110,17 +110,17 @@ public:
                 auto count = chunks(end_of_this_offset);
                 return sizeof(metadata_t) + count * sizeof(uint32_t);
             }
-        } *const _metadata;
+        } *const metadata_;
 
         constexpr device(
-            int readfd, int writefd, _type_t type, file_offset_t size_of_file,
+            int readfd, int writefd, type_t_ type, file_offset_t size_of_file,
             metadata_t *metadata)
-            : _readfd(readfd)
-            , _writefd(writefd)
-            , _writefd2(-1)
-            , _type(type)
-            , _size_of_file(size_of_file)
-            , _metadata(metadata)
+            : readfd_(readfd)
+            , writefd_(writefd)
+            , writefd2_(-1)
+            , type_(type)
+            , size_of_file_(size_of_file)
+            , metadata_(metadata)
         {
         }
 
@@ -130,17 +130,17 @@ public:
         //! Returns if this device is a file on a filesystem
         bool is_file() const noexcept
         {
-            return _type == _type_t::file;
+            return type_ == type_t_::file;
         }
         //! Returns if this device is a block device e.g. a raw partition
         bool is_block_device() const noexcept
         {
-            return _type == _type_t::block_device;
+            return type_ == type_t_::block_device;
         }
         //! Returns if this device is a zonefs mount
         bool is_zoned_device() const noexcept
         {
-            return _type == _type_t::zoned_device;
+            return type_ == type_t_::zoned_device;
         }
         //! Returns the number of chunks on this device
         size_t chunks() const;
@@ -157,27 +157,27 @@ public:
         friend class storage_pool;
 
     protected:
-        class device &_device;
-        int _read_fd{-1}, _write_fd{-1};
-        file_offset_t const _offset{file_offset_t(-1)},
-            _capacity{file_offset_t(-1)};
-        uint32_t _chunkid{uint32_t(-1)};
-        bool const _owns_readfd{false}, _owns_writefd{false},
-            _append_only{false};
+        class device &device_;
+        int read_fd_{-1}, write_fd_{-1};
+        const file_offset_t offset_{file_offset_t(-1)},
+            capacity_{file_offset_t(-1)};
+        uint32_t chunkid_{uint32_t(-1)};
+        const bool owns_readfd_{false}, owns_writefd_{false},
+            append_only_{false};
 
         constexpr chunk(
             class device &device, int read_fd, int write_fd,
             file_offset_t offset, file_offset_t capacity, uint32_t chunkid,
             bool owns_readfd, bool owns_writefd, bool append_only)
-            : _device(device)
-            , _read_fd(read_fd)
-            , _write_fd(write_fd)
-            , _offset(offset)
-            , _capacity(capacity)
-            , _chunkid(chunkid)
-            , _owns_readfd(owns_readfd)
-            , _owns_writefd(owns_writefd)
-            , _append_only(append_only)
+            : device_(device)
+            , read_fd_(read_fd)
+            , write_fd_(write_fd)
+            , offset_(offset)
+            , capacity_(capacity)
+            , chunkid_(chunkid)
+            , owns_readfd_(owns_readfd)
+            , owns_writefd_(owns_writefd)
+            , append_only_(append_only)
         {
         }
 
@@ -189,28 +189,28 @@ public:
         //! \brief Returns the storage device this chunk is stored upon
         class device &device() noexcept
         {
-            return _device;
+            return device_;
         }
         //! \brief Returns the storage device this chunk is stored upon
         const class device &device() const noexcept
         {
-            return _device;
+            return device_;
         }
         //! \brief Returns whether this chunk is a conventional write chunk
         bool is_conventional_write() const noexcept
         {
-            return !_append_only;
+            return !append_only_;
         }
         //! \brief Returns whether this chunk is a sequential write chunk
         bool is_sequential_write() const noexcept
         {
-            return _append_only;
+            return append_only_;
         }
         //! \brief Returns a file descriptor able to read from the chunk, along
         //! with any offset which needs to be added to any i/o performed with it
         std::pair<int, file_offset_t> read_fd() const noexcept
         {
-            return {_read_fd, _offset};
+            return {read_fd_, offset_};
         }
         //! \brief Returns a file descriptor able to write to the chunk, along
         //! with any offset which needs to be added to any i/o performed with it
@@ -219,12 +219,12 @@ public:
         //! \brief Returns the capacity of the zone
         file_offset_t capacity() const noexcept
         {
-            return _capacity;
+            return capacity_;
         }
         //! \brief Returns the chunk id of this zone on its device
         uint32_t device_zone_id() const noexcept
         {
-            return _chunkid;
+            return chunkid_;
         }
         //! \brief Returns the current amount of the zone filled with data (note
         //! the OS syscall can sometimes lag reality for a few milliseconds)
@@ -285,23 +285,23 @@ public:
     using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
 
 private:
-    std::vector<device> _devices;
+    std::vector<device> devices_;
 
     // Lock protects everything below this
-    mutable std::mutex _lock;
-    struct _chunk_info
+    mutable std::mutex lock_;
+    struct chunk_info_
     {
         std::weak_ptr<class chunk> chunk;
         class device &device;
         uint32_t const zone_id;
     };
-    std::vector<_chunk_info> _chunks[2];
+    std::vector<chunk_info_> chunks_[2];
 
-    device _make_device(
-        mode op, device::_type_t type, std::filesystem::path const &path,
+    device make_device_(
+        mode op, device::type_t_ type, const std::filesystem::path &path,
         int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
 
-    void _fill_chunks(bool interleave_chunks_evenly);
+    void fill_chunks_(bool interleave_chunks_evenly);
 
 public:
     enum chunk_type
@@ -324,12 +324,12 @@ public:
     //! \brief Returns a list of the backing storage devices
     std::span<device const> devices() const noexcept
     {
-        return {_devices};
+        return {devices_};
     }
     //! \brief Returns the number of chunks for the specified type
     size_t chunks(chunk_type which) const noexcept
     {
-        return _chunks[which].size();
+        return chunks_[which].size();
     }
     //! \brief Returns the number of currently active chunks for the specified
     //! type

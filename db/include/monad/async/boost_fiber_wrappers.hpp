@@ -66,14 +66,14 @@ namespace boost_fibers
         class future_with_connected_state
             : public ::boost::fibers::future<result_type>
         {
-            connected_state_ptr_type _state;
+            connected_state_ptr_type state_;
 
             explicit future_with_connected_state(connected_state_ptr_type state)
                 : ::boost::fibers::future<result_type>(
                       state->receiver().promise.get_future())
-                , _state(std::move(state))
+                , state_(std::move(state))
             {
-                _state->initiate();
+                state_->initiate();
             }
 
         public:

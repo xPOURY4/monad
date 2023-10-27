@@ -4,7 +4,7 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Node *_read_node_blocking(
+Node *read_node_blocking_(
     MONAD_ASYNC_NAMESPACE::storage_pool &pool, Node *parent,
     unsigned char branch)
 {
@@ -37,7 +37,7 @@ find_result_type find_blocking(
             if (!node->next(nibble)) { // read node if not yet in mem
                 MONAD_ASSERT(pool != nullptr);
                 node->set_next(
-                    nibble, _read_node_blocking(*pool, node, nibble));
+                    nibble, read_node_blocking_(*pool, node, nibble));
             }
             node = node->next(nibble);
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory

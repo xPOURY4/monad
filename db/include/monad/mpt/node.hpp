@@ -73,7 +73,7 @@ to retrieve child data.
 */
 class Node
 {
-    struct _prevent_public_construction_tag
+    struct prevent_public_construction_tag_
     {
     };
 
@@ -182,7 +182,7 @@ public:
         Node, allocators::unique_ptr_aliasing_allocator_deleter<
                   type_allocator, raw_bytes_allocator, &Node::pool,
                   &Node::get_deallocate_count>>;
-    constexpr Node(_prevent_public_construction_tag) {}
+    constexpr Node(prevent_public_construction_tag_) {}
     Node(Node const &) = delete;
     Node(Node &&) = default;
     inline ~Node();
@@ -459,7 +459,7 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
         &Node::pool,
         &Node::get_deallocate_count>(
         Node::get_allocated_count(storagebytes),
-        _prevent_public_construction_tag{});
+        prevent_public_construction_tag_{});
 }
 
 struct Compute;

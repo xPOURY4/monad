@@ -55,19 +55,19 @@ namespace monad
     namespace detail
     {
         template <class T, bool v = noexcept(std::declval<T>()())>
-        constexpr inline bool _is_nothrow_invocable(int) noexcept
+        constexpr inline bool is_nothrow_invocable_(int) noexcept
         {
             return v;
         }
         template <class T>
-        constexpr inline bool _is_nothrow_invocable(...) noexcept
+        constexpr inline bool is_nothrow_invocable_(...) noexcept
         {
             return false;
         }
         template <class T>
         constexpr inline bool is_nothrow_invocable() noexcept
         {
-            return _is_nothrow_invocable<typename std::decay<T>::type>(5);
+            return is_nothrow_invocable_<typename std::decay<T>::type>(5);
         }
 
         enum class scope_impl_kind
@@ -80,9 +80,9 @@ namespace monad
         class scope_impl
         {
             EF _f;
-            bool _released{false};
+            bool released_{false};
     #if __cplusplus >= 201700 || _HAS_CXX17
-            int _uncaught_exceptions;
+            int uncaught_exceptions_;
     #endif
 
         public:
@@ -94,9 +94,9 @@ namespace monad
             constexpr scope_impl(scope_impl &&o) noexcept(
                 std::is_nothrow_move_constructible<EF>::value)
                 : _f(static_cast<EF &&>(o._f))
-                , _released(o._released)
+                , released_(o._released)
     #if __cplusplus >= 201700 || _HAS_CXX17
-                , _uncaught_exceptions(o._uncaught_exceptions)
+                , uncaught_exceptions_(o._uncaught_exceptions)
     #endif
             {
                 o._released = true;
@@ -116,7 +116,7 @@ namespace monad
                 std::is_nothrow_constructible<EF, T>::value)
                 : _f(static_cast<T &&>(f))
     #if __cplusplus >= 201700 || _HAS_CXX17
-                , _uncaught_exceptions(std::uncaught_exceptions())
+                , uncaught_exceptions_(std::uncaught_exceptions())
     #endif
             {
             }
@@ -126,14 +126,14 @@ namespace monad
     #endif
             ~scope_impl()
             {
-                if (!_released) {
+                if (!released_) {
                     if (scope_impl_kind::exit == kind) {
                         _f();
                         return;
                     }
     #if __cplusplus >= 201700 || _HAS_CXX17
                     bool unwind_is_due_to_throw =
-                        (std::uncaught_exceptions() > _uncaught_exceptions);
+                        (std::uncaught_exceptions() > uncaught_exceptions_);
     #else
                     bool unwind_is_due_to_throw = std::uncaught_exception();
     #endif
@@ -154,7 +154,7 @@ namespace monad
     #endif
             constexpr void release() noexcept
             {
-                _released = true;
+                released_ = true;
             }
         };
     } // namespace detail
