@@ -10,15 +10,10 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-using Data = byte_string_view;
-
-static_assert(sizeof(std::optional<Data>) == 24);
-static_assert(alignof(std::optional<Data>) == 8);
-
 struct UpdateBase
 {
     byte_string_view key{};
-    std::optional<Data> opt{std::nullopt};
+    std::optional<byte_string_view> value{std::nullopt};
     void *next{nullptr};
     bool incarnation{false};
 };
@@ -35,7 +30,7 @@ struct Update : UpdateBase
 
     constexpr bool is_deletion() const noexcept
     {
-        return !opt.has_value() && !next;
+        return !value.has_value() && !next;
     }
 };
 
@@ -59,7 +54,10 @@ inline Update make_update(
     bool incarnation = false, UpdateList *next = nullptr) noexcept
 {
     return Update{
-        {key, std::optional<Data>{value}, (void *)next, incarnation},
+        {key,
+         std::optional<byte_string_view>{value},
+         (void *)next,
+         incarnation},
         UpdateMemberHook{}};
 }
 

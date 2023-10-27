@@ -307,8 +307,8 @@ std::optional<byte_string_view> _get_leaf_data(
     std::optional<Update> opt_update,
     std::optional<byte_string_view> const old_leaf = std::nullopt)
 {
-    if (opt_update.has_value() && opt_update.value().opt.has_value()) {
-        return opt_update.value().opt;
+    if (opt_update.has_value() && opt_update.value().value.has_value()) {
+        return opt_update.value().value;
     }
     return old_leaf;
 }
@@ -339,7 +339,7 @@ bool _update_leaf_data(
         return finished;
     }
     tnode->node = u.incarnation
-                      ? create_leaf(u.opt.value().data(), relpath)
+                      ? create_leaf(u.value.value().data(), relpath)
                       : update_node_diff_path_leaf(
                             old, relpath, _get_leaf_data(u, old->opt_leaf()));
     return true;
@@ -351,20 +351,20 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
         Update &u = updates.front();
-        MONAD_DEBUG_ASSERT(u.incarnation == false && u.opt.has_value());
+        MONAD_DEBUG_ASSERT(u.incarnation == false && u.value.has_value());
         NibblesView const relpath{
             pi, (uint8_t)(2 * u.key.size()), u.key.data()};
         if (u.next) {
             update_aux.current_list_dim++;
             Requests requests;
             requests.split_into_sublists(std::move(*(UpdateList *)u.next), 0);
-            MONAD_DEBUG_ASSERT(u.opt.has_value());
+            MONAD_DEBUG_ASSERT(u.value.has_value());
             auto ret = _create_new_trie_from_requests(
                 update_aux, requests, relpath, 0, _get_leaf_data(u));
             update_aux.current_list_dim--;
             return ret;
         }
-        return create_leaf(u.opt.value(), relpath);
+        return create_leaf(u.value.value(), relpath);
     }
     Requests requests;
     uint8_t const psi = pi;
