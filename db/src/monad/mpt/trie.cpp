@@ -299,22 +299,23 @@ bool create_node_from_children_if_any_possibly_ondisk(
 
 //! update leaf data of old, old can have branches
 bool _update_leaf_data(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode, Update &u)
+    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
+    Update &update)
 {
     auto const &relpath = tnode->relpath;
-    if (u.is_deletion()) {
+    if (update.is_deletion()) {
         tnode->node = nullptr;
         return true;
     }
-    if (u.next.has_value()) {
+    if (update.next.has_value()) {
         update_aux.sm->forward();
         tnode->trie_section = update_aux.trie_section();
         Requests requests;
-        requests.split_into_sublists(std::move(u.next.value()), 0);
+        requests.split_into_sublists(std::move(update.next.value()), 0);
         bool finished = true;
-        if (u.incarnation) {
+        if (update.incarnation) {
             tnode->node = _create_new_trie_from_requests(
-                update_aux, requests, relpath, 0, u.value);
+                update_aux, requests, relpath, 0, update.value);
         }
         else {
             finished = _dispatch_updates(update_aux, old, tnode, requests, 0);
@@ -322,12 +323,13 @@ bool _update_leaf_data(
         update_aux.sm->backward();
         return finished;
     }
-    tnode->node = u.incarnation
-                      ? create_leaf(u.value.value().data(), relpath)
-                      : update_node_diff_path_leaf(
-                            old,
-                            relpath,
-                            u.value.has_value() ? u.value : old->opt_leaf());
+    tnode->node =
+        update.incarnation
+            ? create_leaf(update.value.value().data(), relpath)
+            : update_node_diff_path_leaf(
+                  old,
+                  relpath,
+                  update.value.has_value() ? update.value : old->opt_leaf());
     return true;
 }
 
@@ -336,21 +338,22 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
 {
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
-        Update &u = updates.front();
-        MONAD_DEBUG_ASSERT(u.incarnation == false && u.value.has_value());
+        Update &update = updates.front();
+        MONAD_DEBUG_ASSERT(
+            update.incarnation == false && update.value.has_value());
         NibblesView const relpath{
-            pi, (uint8_t)(2 * u.key.size()), u.key.data()};
-        if (u.next.has_value()) {
+            pi, (uint8_t)(2 * update.key.size()), update.key.data()};
+        if (update.next.has_value()) {
             update_aux.sm->forward();
             Requests requests;
-            requests.split_into_sublists(std::move(u.next.value()), 0);
-            MONAD_DEBUG_ASSERT(u.value.has_value());
+            requests.split_into_sublists(std::move(update.next.value()), 0);
+            MONAD_DEBUG_ASSERT(update.value.has_value());
             auto ret = _create_new_trie_from_requests(
-                update_aux, requests, relpath, 0, u.value);
+                update_aux, requests, relpath, 0, update.value);
             update_aux.sm->backward();
             return ret;
         }
-        return create_leaf(u.value.value(), relpath);
+        return create_leaf(update.value.value(), relpath);
     }
     Requests requests;
     uint8_t const psi = pi;
@@ -597,7 +600,7 @@ node_writer_unique_ptr_type replace_node_writer(
               bytes_yet_to_be_appended_to_existing;
     offset_of_next_block.offset = offset;
     auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
-    const auto chunk_capacity = io.chunk_capacity(offset_of_next_block.id);
+    auto const chunk_capacity = io.chunk_capacity(offset_of_next_block.id);
     assert(offset <= chunk_capacity);
     if (offset == chunk_capacity) {
         offset_of_next_block.id++;
@@ -614,7 +617,7 @@ node_writer_unique_ptr_type replace_node_writer(
         block_size);*/
     auto ret = io.make_connected(
         write_single_buffer_sender{
-            offset_of_next_block, {(const std::byte *)nullptr, block_size}},
+            offset_of_next_block, {(std::byte const *)nullptr, block_size}},
         write_operation_io_receiver{});
     return ret;
 }
@@ -674,7 +677,7 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
     auto *sender = &node_writer->sender();
     auto written = sender->written_buffer_bytes();
     auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
-    const auto tozerobytes = paddedup - written;
+    auto const tozerobytes = paddedup - written;
     auto *tozero = sender->advance_buffer_append(tozerobytes);
     assert(tozero != nullptr);
     memset(tozero, 0, tozerobytes);
