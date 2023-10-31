@@ -737,12 +737,23 @@ bool dispatch_updates_(
     Requests &requests, unsigned pi)
 {
     auto const &opt_leaf = requests.opt_leaf;
-    if (opt_leaf.has_value() && opt_leaf.value().incarnation) {
-        // incranation = 1, also have new children longer than curr update's key
-        MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
-        tnode->node = create_new_trie_from_requests_(
-            update_aux, requests, tnode->relpath, pi, opt_leaf.value().value);
-        return true;
+    if (opt_leaf.has_value()) {
+        if (opt_leaf.value().incarnation) {
+            // incarnation = 1, also have new children longer than curr update's
+            // key
+            MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
+            tnode->node = create_new_trie_from_requests_(
+                update_aux,
+                requests,
+                tnode->relpath,
+                pi,
+                opt_leaf.value().value);
+            return true;
+        }
+        else if (opt_leaf.value().is_deletion()) {
+            tnode->node = nullptr;
+            return true;
+        }
     }
     tnode->init(
         (old->mask | requests.mask),

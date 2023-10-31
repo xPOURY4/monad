@@ -394,7 +394,11 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
 
     // erase whole first account (kv[0])
     this->root = upsert_updates(
-        this->update_aux, this->root.get(), make_erase(kv[0].first));
+        this->update_aux,
+        this->root.get(),
+        make_erase(kv[0].first),
+        make_update(kv[3].first, kv[3].second), /*the following are ignored*/
+        make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
         this->root_hash(),
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
