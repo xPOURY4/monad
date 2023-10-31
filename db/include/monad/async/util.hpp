@@ -3,6 +3,7 @@
 #include "config.hpp"
 
 #include <concepts>
+#include <filesystem>
 #include <type_traits>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
@@ -39,6 +40,9 @@ inline constexpr chunk_offset_t round_down_align(chunk_offset_t x) noexcept
     x.offset = x.offset & mask;
     return x;
 }
+
+//! Returns a temporary directory in which `O_DIRECT` files definitely work
+extern const std::filesystem::path &working_temporary_directory();
 
 //! Creates already deleted file so no need to clean it up
 //! after

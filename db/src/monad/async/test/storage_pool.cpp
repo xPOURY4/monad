@@ -206,7 +206,7 @@ namespace
         auto create_temp_file =
             [](file_offset_t length) -> std::filesystem::path {
             std::filesystem::path ret(
-                std::filesystem::temp_directory_path() /
+                working_temporary_directory() /
                 "monad_storage_pool_test_XXXXXX");
             int fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
@@ -290,7 +290,7 @@ namespace
         auto create_temp_file =
             [](file_offset_t length) -> std::filesystem::path {
             std::filesystem::path ret(
-                std::filesystem::temp_directory_path() /
+                working_temporary_directory() /
                 "monad_storage_pool_test_XXXXXX");
             int fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
