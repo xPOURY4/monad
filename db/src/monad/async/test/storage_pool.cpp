@@ -11,7 +11,7 @@ namespace
 {
     using namespace MONAD_ASYNC_NAMESPACE;
 
-    inline void print_pool_statistics(const storage_pool &pool)
+    inline void print_pool_statistics(storage_pool const &pool)
     {
         std::cout << "Pool has " << pool.devices().size() << " devices:";
         for (size_t n = 0; n < pool.devices().size(); n++) {
@@ -60,7 +60,8 @@ namespace
                   << (pool.chunks(storage_pool::seq) - 1) << ") ..."
                   << std::endl;
         auto chunk3 = pool.activate_chunk(
-            storage_pool::seq, pool.chunks(storage_pool::seq) - 1);
+            storage_pool::seq,
+            static_cast<uint32_t>(pool.chunks(storage_pool::seq) - 1));
         print_pool_statistics(pool);
 
         std::vector<std::byte> buffer(1024 * 1024);
@@ -68,13 +69,21 @@ namespace
         std::cout << "\n\nWriting to conventional chunk ..." << std::endl;
         auto fd = chunk1->write_fd(buffer.size());
         EXPECT_EQ(fd.second, 0);
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk1->size(), buffer.size());
 
         memset(buffer.data(), 0xaa, buffer.size());
         fd = chunk1->write_fd(buffer.size());
         EXPECT_EQ(fd.second, buffer.size());
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk1->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
@@ -82,14 +91,22 @@ namespace
         std::cout << "\n\nWriting to first sequential chunk ..." << std::endl;
         fd = chunk2->write_fd(buffer.size());
         EXPECT_EQ(fd.second, chunk1->capacity());
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk2->size(), buffer.size());
         print_pool_statistics(pool);
 
         memset(buffer.data(), 0x55, buffer.size());
         fd = chunk2->write_fd(buffer.size());
         EXPECT_EQ(fd.second, chunk1->capacity() + buffer.size());
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk2->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
@@ -100,7 +117,11 @@ namespace
             fd.second,
             chunk1->capacity() * pool.chunks(storage_pool::seq) /
                 pool.devices().size());
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk3->size(), buffer.size());
         print_pool_statistics(pool);
 
@@ -111,21 +132,29 @@ namespace
             chunk1->capacity() * pool.chunks(storage_pool::seq) /
                     pool.devices().size() +
                 buffer.size());
-        ::pwrite(fd.first, buffer.data(), buffer.size(), fd.second);
+        ::pwrite(
+            fd.first,
+            buffer.data(),
+            buffer.size(),
+            static_cast<off_t>(fd.second));
         EXPECT_EQ(chunk3->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
         std::vector<std::byte> buffer2(buffer.size());
-        auto check = [&](auto &chunk, char a, char b) {
+        auto check = [&](auto &chunk, int a, int b) {
             auto fd = chunk->read_fd();
-            ::pread(fd.first, buffer2.data(), buffer2.size(), fd.second + 0);
+            ::pread(
+                fd.first,
+                buffer2.data(),
+                buffer2.size(),
+                static_cast<off_t>(fd.second) + 0);
             memset(buffer.data(), a, buffer.size());
             EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
             ::pread(
                 fd.first,
                 buffer2.data(),
                 buffer2.size(),
-                fd.second + buffer.size());
+                static_cast<off_t>(fd.second + buffer.size()));
             memset(buffer.data(), b, buffer.size());
             EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
         };
@@ -194,7 +223,7 @@ namespace
             storage_pool pool(devs);
             run_tests(pool);
         }
-        catch (const std::system_error &e) {
+        catch (std::system_error const &e) {
             if (e.code() != std::errc::no_such_file_or_directory) {
                 throw;
             }
@@ -210,7 +239,7 @@ namespace
                 "monad_storage_pool_test_XXXXXX");
             int fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
-            ::ftruncate(fd, length + 16384);
+            ::ftruncate(fd, static_cast<off_t>(length + 16384));
             ::close(fd);
             return ret;
         };
@@ -228,8 +257,10 @@ namespace
         std::array<size_t, 3> counts{0, 0, 0};
         std::array<std::vector<size_t>, 3> indices;
         for (size_t n = 0; n < pool.chunks(storage_pool::seq); n++) {
-            auto p = pool.activate_chunk(storage_pool::seq, n);
-            auto device_idx = &p->device() - pool.devices().data();
+            auto p = pool.activate_chunk(
+                storage_pool::seq, static_cast<uint32_t>(n));
+            auto const device_idx = static_cast<unsigned long>(
+                &p->device() - pool.devices().data());
             counts[device_idx]++;
             indices[device_idx].push_back(n);
         }
@@ -262,22 +293,22 @@ namespace
             }
         }
         std::cout << "\n";
-        auto print_stddev = [](size_t devid, const std::vector<size_t> &vals) {
+        auto print_stddev = [](size_t devid, std::vector<size_t> const &vals) {
             double mean = 0;
             for (auto &i : vals) {
-                mean += i;
+                mean += static_cast<double>(i);
             }
-            mean /= vals.size();
+            mean /= static_cast<double>(vals.size());
             double variance = 0;
             for (auto &i : vals) {
-                variance += pow(i - mean, 2);
+                variance += pow(static_cast<double>(i) - mean, 2);
             }
-            variance /= vals.size();
+            variance /= static_cast<double>(vals.size());
             std::cout << "\n   Device " << devid
                       << " incidence gap mean = " << mean
                       << " stddev = " << sqrt(variance)
                       << " 95% confidence interval = +/- "
-                      << (1.96 * sqrt(variance) / sqrt(vals.size()));
+                      << (1.96 * sqrt(variance) / std::sqrt(vals.size()));
         };
         print_stddev(0, gaps[0]);
         print_stddev(1, gaps[1]);
@@ -294,7 +325,7 @@ namespace
                 "monad_storage_pool_test_XXXXXX");
             int fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
-            ::ftruncate(fd, length + 16384);
+            ::ftruncate(fd, static_cast<off_t>(length + 16384));
             ::close(fd);
             return ret;
         };

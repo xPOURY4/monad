@@ -12,7 +12,7 @@ namespace
             auto chunk = pool.activate_chunk(pool.seq, 0);
             auto fd = chunk->write_fd(1);
             char c = 5;
-            ::pwrite(fd.first, &c, 1, fd.second);
+            ::pwrite(fd.first, &c, 1, static_cast<off_t>(fd.second));
         }
         monad::io::Ring testring(1, 0);
         monad::io::Buffers testrwbuf{testring, 1, 1, 1UL << 13};
@@ -21,7 +21,7 @@ namespace
             testio.dump_fd_to(0, "hardlink_fd_to_testname");
             EXPECT_TRUE(std::filesystem::exists("hardlink_fd_to_testname"));
         }
-        catch (const std::system_error &e) {
+        catch (std::system_error const &e) {
             // If cross_device_link occurs, we are on a kernel before 5.3 which
             // doesn't suppose cross-filesystem copy_file_range()
             if (e.code() != std::errc::cross_device_link) {

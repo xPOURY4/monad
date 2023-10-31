@@ -49,9 +49,11 @@ namespace
         auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
                       ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
-            TEST_FILE_SIZE ==
-            ::pwrite(
-                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
+            TEST_FILE_SIZE == ::pwrite(
+                                  fd.first,
+                                  testfilecontents.data(),
+                                  TEST_FILE_SIZE,
+                                  static_cast<off_t>(fd.second)));
         return ret;
     }();
     monad::small_prng test_rand;
@@ -103,7 +105,7 @@ namespace
             for (auto &i : _states) {
                 i->initiate();
             }
-            _op_count = _states.size();
+            _op_count = static_cast<unsigned int>(_states.size());
         }
         void stop()
         {
@@ -167,12 +169,14 @@ namespace
                 testio->poll_blocking(1);
             }
             auto end = get_now();
-            std::cout << "      io_uring waited for "
-                      << (std::chrono::duration_cast<std::chrono::microseconds>(
-                              end - begin)
-                              .count() /
-                          1000.0)
-                      << " ms." << std::endl;
+            std::cout
+                << "      io_uring waited for "
+                << (static_cast<double>(
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            end - begin)
+                            .count()) /
+                    1000.0)
+                << " ms." << std::endl;
             if constexpr (requires { timeout.count(); }) {
                 auto diff = end - begin;
                 EXPECT_GE(diff, timeout);
@@ -278,7 +282,9 @@ namespace
             end = std::chrono::steady_clock::now();
             auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
                 end - begin);
-            std::cout << "   Did " << (1000.0 * count / diff.count())
+            std::cout << "   Did "
+                      << (1000.0 * static_cast<double>(count) /
+                          static_cast<double>(diff.count()))
                       << " completions per second" << std::endl;
         };
         auto thepast = std::chrono::steady_clock::now();
@@ -410,7 +416,9 @@ namespace
         end = std::chrono::steady_clock::now();
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+        std::cout << "Did "
+                  << (1000.0 * states.count() /
+                      static_cast<double>(diff.count()))
                   << " random single byte reads per second from file length "
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
@@ -506,7 +514,9 @@ namespace
         end = std::chrono::steady_clock::now();
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+        std::cout << "Did "
+                  << (1000.0 * static_cast<double>(states.count()) /
+                      static_cast<double>(diff.count()))
                   << " random single byte reads per second from file length "
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
@@ -572,7 +582,9 @@ namespace
         end = std::chrono::steady_clock::now();
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+        std::cout << "Did "
+                  << (1000.0 * static_cast<double>(states.count()) /
+                      static_cast<double>(diff.count()))
                   << " random single byte reads per second from file length "
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
@@ -706,7 +718,9 @@ namespace
         controller.join();
         auto diff =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did " << (1000.0 * states.count() / diff.count())
+        std::cout << "Did "
+                  << (1000.0 * static_cast<double>(states.count()) /
+                      static_cast<double>(diff.count()))
                   << " random single byte reads per second from file length "
                   << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
     }
