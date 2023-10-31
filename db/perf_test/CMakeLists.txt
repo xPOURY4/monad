@@ -1,12 +1,8 @@
-include_directories(
-    PUBLIC "${PROJECT_SOURCE_DIR}/include"
-)
+include_directories(PUBLIC "${PROJECT_SOURCE_DIR}/include")
 find_package(CLI11 REQUIRED)
 
 # monad trie perf test
-add_executable(monad_trie_test
-    "monad_trie_test.cpp"
-)
-monad_compile_options(monad_trie_test)
+add_executable(monad_trie_test "monad_trie_test.cpp")
+monad_core_compile_options(monad_trie_test)
 
 target_link_libraries(monad_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie)
