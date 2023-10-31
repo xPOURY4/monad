@@ -65,7 +65,7 @@ struct bytes
     {
         memcpy(v, &x, sizeof(x));
     }
-    bool operator==(const bytes &o) const noexcept
+    bool operator==(bytes const &o) const noexcept
     {
         return 0 == memcmp(v, o.v, count);
     }
@@ -73,7 +73,7 @@ struct bytes
 struct hasher
 {
     template <class T>
-    size_t operator()(const T &v) const noexcept
+    size_t operator()(T const &v) const noexcept
     {
         return MONAD_NAMESPACE::hash_bytes(v.v, sizeof(v.v));
     }
@@ -93,7 +93,7 @@ TEST(UnorderedSets, DISABLED_quick_comparative_benchmark)
     for (auto &i : values) {
         i = rand();
     }
-    auto do_test = [&](auto tag1, const char *desc) {
+    auto do_test = [&](auto tag1, char const *desc) {
         using T = typename decltype(tag1)::type;
         auto do_cont = [&](auto tag2, const char *desc2) {
             using cont = typename decltype(tag2)::type;
@@ -113,10 +113,12 @@ TEST(UnorderedSets, DISABLED_quick_comparative_benchmark)
                 }
             }
             auto end = std::chrono::steady_clock::now();
-            auto diff = std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - begin)
-                            .count() /
-                        1000000.0;
+            auto diff =
+                static_cast<double>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - begin)
+                        .count()) /
+                1000000.0;
             std::cout << diff << std::endl;
         };
         do_cont(tag<std::unordered_set<T, hasher>>{}, "std::unordered_set");

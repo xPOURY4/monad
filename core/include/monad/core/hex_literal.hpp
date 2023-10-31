@@ -7,16 +7,16 @@
 
 MONAD_NAMESPACE_BEGIN
 
-inline constexpr unsigned char from_hex_digit(const char h)
+inline constexpr unsigned char from_hex_digit(char const h)
 {
     if (h >= '0' && h <= '9') {
-        return h - '0';
+        return static_cast<unsigned char>(h - '0');
     }
     else if (h >= 'a' && h <= 'f') {
-        return h - 'a' + 10;
+        return static_cast<unsigned char>(h - 'a' + 10);
     }
     else if (h >= 'A' && h <= 'F') {
-        return h - 'A' + 10;
+        return static_cast<unsigned char>(h - 'A' + 10);
     }
     else {
         return 0xff;
@@ -39,13 +39,13 @@ inline constexpr byte_string from_hex(std::string_view s)
     unsigned char hi_nibble;
 
     for (; in < s.size(); ++in) {
-        const int v = from_hex_digit(s[in]);
+        auto const v = from_hex_digit(s[in]);
         if (v == 0xff) {
             // invalid input, return empty
             return {};
         }
         if (odd) {
-            hi_nibble = v << 4;
+            hi_nibble = static_cast<unsigned char>(v << 4);
         }
         else {
             r[out++] = hi_nibble | v;
@@ -59,7 +59,7 @@ inline constexpr byte_string from_hex(std::string_view s)
 
 namespace literals
 {
-    constexpr byte_string operator""_hex(const char *s) noexcept
+    constexpr byte_string operator""_hex(char const *s) noexcept
     {
         return from_hex(s);
     }

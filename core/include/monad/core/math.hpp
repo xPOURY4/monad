@@ -2,12 +2,14 @@
 
 #include <monad/config.hpp>
 
+#include <concepts>
+
 MONAD_NAMESPACE_BEGIN
 
 /**
  * returns smallest z such that z % y == 0 and z >= x
  */
-template <class T>
+template <std::unsigned_integral T>
 constexpr T round_up(T const x, T const y)
 {
     T z = x + (y - 1);

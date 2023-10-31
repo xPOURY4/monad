@@ -1,13 +1,16 @@
-#include <gtest/gtest.h>
 #include <monad/mem/dynamic_allocator.hpp>
+
+#include <gtest/gtest.h>
+
 #include <linux/mman.h>
 #include <sys/mman.h>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 
 // The fixture for testing class DynamicAllocator.
-class AllocatorTest : public ::testing::TestWithParam<int>
+class AllocatorTest : public ::testing::TestWithParam<size_t>
 {
     void SetUp() override
     {
@@ -39,7 +42,7 @@ protected:
 TEST_P(AllocatorTest, TestOneSlot)
 {
     int N = 250;
-    size_t size = GetParam();
+    size_t const size = GetParam();
     void *pointers[N];
     for (int i = 0; i < N; i++) // will go over two page sizes
     {
@@ -63,11 +66,12 @@ TEST_P(AllocatorTest, FullAllocation)
     // allocate till run out of space
     uintptr_t ptr;
     size_t k = 0;
-    size_t size = GetParam();
+    size_t const size = GetParam();
     while ((ptr = (uintptr_t)(allocator->alloc(size))) != (uintptr_t) nullptr) {
         k++;
     }
-    size_t total_size = (1 << size_bit) - sizeof(monad::DynamicAllocator<8, 11, 4, 13>);
+    size_t total_size =
+        (1 << size_bit) - sizeof(monad::DynamicAllocator<8, 11, 4, 13>);
     size_t page_size = 1 << 13;
     size_t n_pages = (total_size) / page_size;
     size_t n_blocks = (page_size - 48) / ((size - 1) / 16 * 16 + 16);
@@ -82,7 +86,7 @@ INSTANTIATE_TEST_SUITE_P(
  */
 TEST_F(AllocatorTest, DifferentSizes)
 {
-    //large size shouldn't be allowed
+    // large size shouldn't be allowed
     EXPECT_EQ(allocator->alloc(5000), nullptr);
 
     for (size_t t = 50; t <= 500; t++) {

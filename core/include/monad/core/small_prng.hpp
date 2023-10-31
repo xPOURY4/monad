@@ -57,7 +57,7 @@ public:
 //! \brief A thread safe small prng seeded with the thread id
 inline small_prng &thread_local_prng()
 {
-    static thread_local small_prng v(gettid());
+    static thread_local small_prng v(static_cast<uint32_t>(gettid()));
     return v;
 }
 

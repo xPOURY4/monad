@@ -16,7 +16,7 @@ namespace impl
 {
     constexpr size_t length_length(size_t const n)
     {
-        size_t const lz_bits = std::countl_zero(n);
+        size_t const lz_bits = static_cast<size_t>(std::countl_zero(n));
         size_t const lz_bytes = lz_bits / 8;
         return sizeof(size_t) - lz_bytes;
     }
@@ -27,7 +27,7 @@ namespace impl
     constexpr std::span<unsigned char>
     encode_length(std::span<unsigned char> d, size_t n)
     {
-        size_t const lz_bits = std::countl_zero(n);
+        size_t const lz_bits = static_cast<size_t>(std::countl_zero(n));
         size_t const lz_bytes = lz_bits / 8;
         n <<= lz_bytes * 8;
         union
@@ -77,7 +77,7 @@ encode_string(std::span<unsigned char> d, byte_string_view const s)
         d = d.subspan(1);
     }
     else if (s.size() <= 55) {
-        d[0] = 0x80 + s.size();
+        d[0] = 0x80 + static_cast<unsigned char>(s.size());
         d = d.subspan(1);
         if (d.size() < s.size()) {
 #ifdef NDEBUG
@@ -90,7 +90,7 @@ encode_string(std::span<unsigned char> d, byte_string_view const s)
         d = d.subspan(s.size());
     }
     else {
-        d[0] = 0xB7 + impl::length_length(s.size());
+        d[0] = 0xB7 + static_cast<unsigned char>(impl::length_length(s.size()));
         d = d.subspan(1);
         d = impl::encode_length(d, s.size());
         if (d.size() < s.size()) {
@@ -123,7 +123,7 @@ constexpr std::span<unsigned char>
 encode_list(std::span<unsigned char> d, byte_string_view const s)
 {
     if (s.size() <= 55) {
-        d[0] = 0xC0 + s.size();
+        d[0] = 0xC0 + static_cast<unsigned char>(s.size());
         d = d.subspan(1);
         if (d.size() < s.size()) {
 #ifdef NDEBUG
@@ -136,7 +136,7 @@ encode_list(std::span<unsigned char> d, byte_string_view const s)
         d = d.subspan(s.size());
     }
     else {
-        d[0] = 0xF7 + impl::length_length(s.size());
+        d[0] = 0xF7 + static_cast<unsigned char>(impl::length_length(s.size()));
         d = d.subspan(1);
         d = impl::encode_length(d, s.size());
         if (d.size() < s.size()) {

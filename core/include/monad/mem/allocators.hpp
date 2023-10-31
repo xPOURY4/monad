@@ -85,7 +85,7 @@ namespace allocators
     struct malloc_free_allocator
     {
         using value_type = T;
-        [[nodiscard]] constexpr T *allocate(const size_t no)
+        [[nodiscard]] constexpr T *allocate(size_t const no)
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             if constexpr (alignof(T) > alignof(max_align_t)) {
@@ -95,7 +95,7 @@ namespace allocators
             return reinterpret_cast<T *>(std::malloc(no * sizeof(T)));
         }
         template <class U>
-        [[nodiscard]] constexpr T *allocate_overaligned(const size_t no)
+        [[nodiscard]] constexpr T *allocate_overaligned(size_t const no)
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             if constexpr (alignof(U) > alignof(max_align_t)) {
@@ -104,7 +104,7 @@ namespace allocators
             }
             return reinterpret_cast<T *>(std::malloc(no * sizeof(T)));
         }
-        constexpr void deallocate(T *const p, const size_t)
+        constexpr void deallocate(T *const p, size_t const)
         {
             std::free(p);
         }
@@ -116,7 +116,7 @@ namespace allocators
     struct calloc_free_allocator
     {
         using value_type = T;
-        [[nodiscard]] constexpr T *allocate(const size_t no)
+        [[nodiscard]] constexpr T *allocate(size_t const no)
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             if constexpr (alignof(T) > alignof(max_align_t)) {
@@ -128,7 +128,7 @@ namespace allocators
             return reinterpret_cast<T *>(std::calloc(no, sizeof(T)));
         }
         template <class U>
-        [[nodiscard]] constexpr T *allocate_overaligned(const size_t no)
+        [[nodiscard]] constexpr T *allocate_overaligned(size_t const no)
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             if constexpr (alignof(U) > alignof(max_align_t)) {
@@ -139,7 +139,7 @@ namespace allocators
             }
             return reinterpret_cast<T *>(std::calloc(no, sizeof(T)));
         }
-        constexpr void deallocate(T *const p, const size_t)
+        constexpr void deallocate(T *const p, size_t const)
         {
             std::free(p);
         }
@@ -211,7 +211,8 @@ namespace allocators
             using allocator2_traits = std::allocator_traits<RawAlloc>;
             // Use all bits one for the number of items to deallocate in
             // order to trap use of unsuitable user supplied allocators
-            typename allocator2_traits::size_type no(-1);
+            using size_type2 = allocator2_traits::size_type;
+            auto no = static_cast<size_type2>(-1);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored                                                 \
     "-Waddress" // warns about GetSize never being null
@@ -230,7 +231,7 @@ namespace allocators
     //! aware `unique_ptr`.
     template <allocator Alloc, Alloc &(*GetAllocator)(), class... Args>
         requires(std::is_constructible_v<typename Alloc::value_type, Args...>)
-    constexpr inline std::unique_ptr<
+    inline constexpr std::unique_ptr<
         typename Alloc::value_type,
         unique_ptr_allocator_deleter<Alloc, GetAllocator>>
     allocate_unique(Args &&...args)
@@ -265,11 +266,11 @@ namespace allocators
         requires(
             std::is_same_v<typename RawAlloc::value_type, std::byte> &&
             std::is_constructible_v<typename TypeAlloc::value_type, Args...>)
-    constexpr inline std::unique_ptr<
+    inline constexpr std::unique_ptr<
         typename TypeAlloc::value_type,
         unique_ptr_aliasing_allocator_deleter<
             TypeAlloc, RawAlloc, GetAllocator, GetSize>>
-    allocate_aliasing_unique(const size_t storagebytes, Args &&...args)
+    allocate_aliasing_unique(size_t const storagebytes, Args &&...args)
     {
         MONAD_ASSERT(storagebytes >= sizeof(typename TypeAlloc::value_type));
         using allocator1_traits = std::allocator_traits<TypeAlloc>;
@@ -314,11 +315,11 @@ namespace allocators
     //! \brief A unique ptr whose storage is larger than its type, using
     //! `std::allocator`.
     template <class T, class... Args>
-    constexpr inline std::unique_ptr<
+    inline constexpr std::unique_ptr<
         T, unique_ptr_aliasing_allocator_deleter<
                std::allocator<T>, malloc_free_allocator<std::byte>,
                detail::GetStdAllocatorPair<T>, nullptr>>
-    make_aliasing_unique(const size_t storagebytes, Args &&...args)
+    make_aliasing_unique(size_t const storagebytes, Args &&...args)
     {
         return allocate_aliasing_unique<
             std::allocator<T>,
@@ -361,18 +362,18 @@ namespace allocators
     class resizeable_unique_ptr;
     template <class T>
         requires(detail::is_array_v<T> && std::is_trivially_copyable_v<T>)
-    constexpr inline resizeable_unique_ptr<T>
+    inline constexpr resizeable_unique_ptr<T>
     make_resizeable_unique_for_overwrite(size_t no);
     template <class T>
     class resizeable_unique_ptr<T[]>
         : protected std::unique_ptr<T[], unique_ptr_free_deleter>
     {
         friend constexpr resizeable_unique_ptr<T[]>
-        make_resizeable_unique_for_overwrite<T[]>(const size_t no);
+        make_resizeable_unique_for_overwrite<T[]>(size_t const no);
 
         using _base = std::unique_ptr<T[], unique_ptr_free_deleter>;
 
-        explicit constexpr resizeable_unique_ptr(const size_t no)
+        explicit constexpr resizeable_unique_ptr(size_t const no)
             : _base([no] {
                 MONAD_ASSERT(no < size_t(-1) / sizeof(T));
                 calloc_free_allocator_if_opted_in<T> alloc;
@@ -387,10 +388,10 @@ namespace allocators
 
     public:
         resizeable_unique_ptr() = default;
-        resizeable_unique_ptr(const resizeable_unique_ptr &) = delete;
+        resizeable_unique_ptr(resizeable_unique_ptr const &) = delete;
         resizeable_unique_ptr(resizeable_unique_ptr &&) = default;
         resizeable_unique_ptr &
-        operator=(const resizeable_unique_ptr &) = delete;
+        operator=(resizeable_unique_ptr const &) = delete;
         resizeable_unique_ptr &operator=(resizeable_unique_ptr &&o) noexcept
         {
             if (this != &o) {
@@ -420,7 +421,7 @@ namespace allocators
             }
             _base::reset(ptr);
         }
-        void reset(const std::nullptr_t = nullptr) noexcept
+        void reset(std::nullptr_t const = nullptr) noexcept
         {
             if (_base::get() != nullptr) {
                 std::free(_base::get());
@@ -432,7 +433,7 @@ namespace allocators
             _base::swap(o);
         }
         //! Try to resize the pointee, returning false if was unable
-        bool try_resize(const size_t no) noexcept
+        bool try_resize(size_t const no) noexcept
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             auto *ret = (T *)std::realloc(_base::get(), no * sizeof(T));
@@ -445,7 +446,7 @@ namespace allocators
         }
         //! Resize the pointer, throwing `bad_alloc` if failed. Returns true if
         //! pointee moved in memory.
-        bool resize(const size_t no)
+        bool resize(size_t const no)
         {
             MONAD_ASSERT(no < size_t(-1) / sizeof(T));
             auto *ret = (T *)std::realloc(_base::get(), no * sizeof(T));
@@ -465,8 +466,8 @@ namespace allocators
     //! \brief Use this function to create a `resizeable_unique_ptr<T>`.
     template <class T>
         requires(detail::is_array_v<T> && std::is_trivially_copyable_v<T>)
-    constexpr inline resizeable_unique_ptr<T>
-    make_resizeable_unique_for_overwrite(const size_t no)
+    inline constexpr resizeable_unique_ptr<T>
+    make_resizeable_unique_for_overwrite(size_t const no)
     {
         return resizeable_unique_ptr<T>(no);
     }
@@ -482,7 +483,7 @@ namespace allocators
         [[no_unique_address]] Alloc _alloc;
 
         template <class... Args>
-        static _base _allocate(Alloc alloc, const _size_type no, Args &&...args)
+        static _base _allocate(Alloc alloc, _size_type const no, Args &&...args)
         {
             using allocator_traits = std::allocator_traits<Alloc>;
             auto *p = allocator_traits::allocate(alloc, no);
@@ -508,23 +509,23 @@ namespace allocators
     public:
         using size_type = _size_type;
         owning_span() = default;
-        constexpr explicit owning_span(const Alloc &alloc)
+        constexpr explicit owning_span(Alloc const &alloc)
             : _alloc(alloc)
         {
         }
         constexpr explicit owning_span(
-            size_type no, const T &v, const Alloc &alloc = Alloc())
+            size_type no, T const &v, Alloc const &alloc = Alloc())
             : _base(_allocate(alloc, no, v))
             , _alloc(alloc)
         {
         }
-        constexpr owning_span(const size_type no, const Alloc &alloc = Alloc())
+        constexpr owning_span(size_type const no, Alloc const &alloc = Alloc())
             : _base(_allocate(alloc, no))
             , _alloc(alloc)
         {
         }
-        owning_span(const owning_span &) = delete;
-        owning_span &operator=(const owning_span &) = delete;
+        owning_span(owning_span const &) = delete;
+        owning_span &operator=(owning_span const &) = delete;
         owning_span(owning_span &&o) noexcept
             : _base(static_cast<_base &&>(o))
             , _alloc(static_cast<Alloc &&>(o._alloc))
@@ -588,11 +589,11 @@ namespace allocators
             _ptrs.reserve(256);
         }
         thread_local_delayed_unique_ptr_resetter(
-            const thread_local_delayed_unique_ptr_resetter &) = delete;
+            thread_local_delayed_unique_ptr_resetter const &) = delete;
         thread_local_delayed_unique_ptr_resetter(
             thread_local_delayed_unique_ptr_resetter &&) = delete;
         thread_local_delayed_unique_ptr_resetter &
-        operator=(const thread_local_delayed_unique_ptr_resetter &) = delete;
+        operator=(thread_local_delayed_unique_ptr_resetter const &) = delete;
         thread_local_delayed_unique_ptr_resetter &
         operator=(thread_local_delayed_unique_ptr_resetter &&) = delete;
         ~thread_local_delayed_unique_ptr_resetter()
@@ -641,11 +642,11 @@ namespace allocators
         using difference_type = typename _impl_type::difference_type;
 
         boost_ordered_pool_allocator(
-            const size_type nnext_size = 32, const size_type nmax_size = 0)
+            size_type const nnext_size = 32, size_type const nmax_size = 0)
             : _impl(sizeof(T), nnext_size, nmax_size)
         {
         }
-        [[nodiscard]] T *allocate(const size_t n)
+        [[nodiscard]] T *allocate(size_t const n)
         {
     #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
             auto *ret = (T *)std::aligned_alloc(alignof(T), sizeof(T));
@@ -657,7 +658,7 @@ namespace allocators
             }
             return ret;
         }
-        void deallocate(T *const p, const size_t n) noexcept
+        void deallocate(T *const p, size_t const n) noexcept
         {
     #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
             (void)n;
@@ -695,11 +696,11 @@ namespace allocators
         using difference_type = typename _impl_type::difference_type;
 
         boost_unordered_pool_allocator(
-            const size_type nnext_size = 32, const size_type nmax_size = 0)
+            size_type const nnext_size = 32, size_type const nmax_size = 0)
             : _impl(sizeof(T), nnext_size, nmax_size)
         {
         }
-        [[nodiscard]] T *allocate(const size_t n)
+        [[nodiscard]] T *allocate(size_t const n)
         {
             if (n != 1) {
                 throw std::invalid_argument("only supports n = 1");
@@ -714,7 +715,7 @@ namespace allocators
             }
             return ret;
         }
-        void deallocate(T *const p, const size_t n) noexcept
+        void deallocate(T *const p, size_t const n) noexcept
         {
             if (n != 1) {
                 std::terminate();
@@ -774,7 +775,7 @@ namespace allocators
             less_than_lower_bound;
 
         array_of_boost_pools_allocator(
-            const size_type nnext_size = 32, const size_type nmax_size = 0)
+            size_type const nnext_size = 32, size_type const nmax_size = 0)
         {
             auto _pools = this->_pools();
             for (size_t n = 0; n < _pools.size(); n++) {
@@ -785,12 +786,12 @@ namespace allocators
                 new (&_pools[n]) _impl_type(itemsize, nnext_size, nmax_size);
             }
         }
-        array_of_boost_pools_allocator(const array_of_boost_pools_allocator &) =
+        array_of_boost_pools_allocator(array_of_boost_pools_allocator const &) =
             delete;
         array_of_boost_pools_allocator(array_of_boost_pools_allocator &&) =
             delete;
         array_of_boost_pools_allocator &
-        operator=(const array_of_boost_pools_allocator &) = delete;
+        operator=(array_of_boost_pools_allocator const &) = delete;
         array_of_boost_pools_allocator &
         operator=(array_of_boost_pools_allocator &&) = delete;
         ~array_of_boost_pools_allocator()
@@ -800,7 +801,7 @@ namespace allocators
             }
         }
 
-        [[nodiscard]] value_type *allocate(const size_t n)
+        [[nodiscard]] value_type *allocate(size_t const n)
         {
             if (n >= upper_bound) {
                 throw std::invalid_argument(
@@ -818,7 +819,7 @@ namespace allocators
             }
     #ifndef NDEBUG
             if (n >= lower_bound) {
-                const size_t idx = (n - lower_bound) / divisor;
+                size_t const idx = (n - lower_bound) / divisor;
                 assert(idx * divisor + lower_bound == n);
             }
     #endif
@@ -836,7 +837,7 @@ namespace allocators
             }
             return ret;
         }
-        void deallocate(value_type *const p, const size_t n) noexcept
+        void deallocate(value_type *const p, size_t const n) noexcept
         {
             MONAD_ASSERT(n < upper_bound);
             MONAD_ASSERT(less_than_lower_bound != 0 || n >= lower_bound);

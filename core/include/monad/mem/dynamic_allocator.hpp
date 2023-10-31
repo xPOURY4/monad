@@ -44,12 +44,12 @@ class DynamicAllocator
     uintptr_t mem_start_;
     size_t size_; ///< size of memory
 
-    static int size_to_slot(size_t const size)
+    static size_t size_to_slot(size_t const size)
     {
         return (size < MIN_SIZE) ? 0 : (size - MIN_SIZE + ALIGN - 1) / ALIGN;
     }
 
-    static size_t slot_to_size(int const slot_num)
+    static size_t slot_to_size(size_t const slot_num)
     {
         return slot_num * ALIGN + MIN_SIZE;
     }
@@ -119,7 +119,7 @@ DynamicAllocator<MIN_ALLOC_BITS, MAX_ALLOC_BITS, ALLIGN_BITS, PAGE_BITS>::alloc(
     if (size > MAX_SIZE) {
         return nullptr;
     }
-    int slot_num = size_to_slot(size);
+    size_t const slot_num = size_to_slot(size);
     if (pages_[slot_num] == nullptr) {
         if (empty_pages_ == nullptr) { // run out of pages
             return nullptr;

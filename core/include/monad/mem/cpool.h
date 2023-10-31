@@ -44,7 +44,7 @@
             m_next = p->next & ((1u << BITS) - 1);                             \
         }                                                                      \
         if (MONAD_UNLIKELY(m_next < sizeof(cpool_##BITS##_t))) {               \
-            p->next += sizeof(cpool_##BITS##_t) - m_next;                      \
+            p->next += (uint32_t)sizeof(cpool_##BITS##_t) - m_next;            \
         }                                                                      \
         return p->next;                                                        \
     }                                                                          \

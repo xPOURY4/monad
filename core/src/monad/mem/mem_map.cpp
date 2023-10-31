@@ -1,6 +1,7 @@
 #include <monad/mem/mem_map.hpp>
 
 #include <monad/core/assert.h>
+#include <monad/core/math.hpp>
 
 #include <unistd.h>
 
@@ -13,16 +14,6 @@ MONAD_NAMESPACE_BEGIN
 
 namespace
 {
-    size_t round_up(size_t size, unsigned const bits)
-    {
-        size_t const mask = (1UL << bits) - 1;
-        bool const rem = size & mask;
-        size >>= bits;
-        size += rem;
-        size <<= bits;
-        return size;
-    }
-
     size_t getpagesize()
     {
         static size_t const pagesize = [] {
@@ -46,7 +37,7 @@ MemMap::MemMap(size_t const size, size_t pagesize)
     , data_{[this, pagesize] {
         int huge_flags = 0;
         if (pagesize > getpagesize()) {
-            size_t const pagebits = std::countr_zero(pagesize);
+            int const pagebits = std::countr_zero(pagesize);
             huge_flags |= MAP_HUGETLB;
             huge_flags |= pagebits << MAP_HUGE_SHIFT;
         }

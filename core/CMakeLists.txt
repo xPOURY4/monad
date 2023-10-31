@@ -47,12 +47,14 @@ target_include_directories(openssl_sha3_asm INTERFACE "third_party/openssl")
 # libs
 # ##############################################################################
 
-function(monad_compile_options target)
+function(monad_core_compile_options target)
   set_property(TARGET ${target} PROPERTY C_STANDARD 23)
   set_property(TARGET ${target} PROPERTY C_STANDARD_REQUIRED ON)
   set_property(TARGET ${target} PROPERTY CXX_STANDARD 23)
   set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
-  target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
+
+  target_compile_options(${target} PRIVATE -Wall -Wextra -Wconversion -Werror)
+
   target_compile_options(
     ${target} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 endfunction()
@@ -110,7 +112,7 @@ add_library(
   "include/monad/rlp/config.hpp"
   "include/monad/rlp/encode.hpp")
 target_include_directories(monad_core PUBLIC "include" "c/include")
-monad_compile_options(monad_core)
+monad_core_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 check_cxx_symbol_exists("_GLIBCXX_HAVE_STACKTRACE" "stacktrace" HAVE_STACKTRACE)
 if(HAVE_STACKTRACE)
@@ -121,7 +123,7 @@ add_library(
   monad_core_disas SHARED
   "src/monad/core/math_disas.cpp" "src/monad/core/offset_disas.cpp"
   "src/monad/mem/cpool_disas.c" "src/monad/rlp/encode_disas.cpp")
-monad_compile_options(monad_core_disas)
+monad_core_compile_options(monad_core_disas)
 target_link_libraries(monad_core_disas PUBLIC monad_core)
 
 # ##############################################################################
