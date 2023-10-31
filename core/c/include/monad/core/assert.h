@@ -10,7 +10,7 @@ void __attribute__((noreturn)) monad_assertion_failed(
     }                                                                          \
     else {                                                                     \
         monad_assertion_failed(                                                \
-            #expr, __PRETTY_FUNCTION__, __FILE__, __LINE__);                   \
+            #expr, __extension__ __PRETTY_FUNCTION__, __FILE__, __LINE__);     \
     }
 
 #ifdef NDEBUG

@@ -6,7 +6,7 @@ extern "C"
 #endif
 
 void keccak256(
-    const unsigned char *in, unsigned long len, unsigned char out[32]);
+    unsigned char const *in, unsigned long len, unsigned char out[32]);
 
 #ifdef __cplusplus
 }

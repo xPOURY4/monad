@@ -41,7 +41,7 @@ protected:
  */
 TEST_P(AllocatorTest, TestOneSlot)
 {
-    int N = 250;
+    constexpr int N = 250;
     size_t const size = GetParam();
     void *pointers[N];
     for (int i = 0; i < N; i++) // will go over two page sizes

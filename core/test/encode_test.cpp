@@ -76,19 +76,19 @@ TEST(rlp, string_length)
 {
     size_t result;
 
-    result = monad::rlp::string_length(
-        monad::to_byte_string_view((unsigned char[]){1}));
+    constexpr unsigned char a1[] = {1};
+    result = monad::rlp::string_length(monad::to_byte_string_view(a1));
     EXPECT_EQ(result, 1);
 
-    result = monad::rlp::string_length(
-        monad::to_byte_string_view((unsigned char[]){128}));
+    constexpr unsigned char a2[] = {128};
+    result = monad::rlp::string_length(monad::to_byte_string_view(a2));
     EXPECT_EQ(result, 2);
 
     result = monad::rlp::string_length({});
     EXPECT_EQ(result, 1);
 
-    result = monad::rlp::string_length(
-        monad::to_byte_string_view((unsigned char[]){1, 2}));
+    constexpr unsigned char a3[] = {1, 2};
+    result = monad::rlp::string_length(monad::to_byte_string_view(a3));
     EXPECT_EQ(result, 3);
 
     result = monad::rlp::string_length(byte_string(55, 1));
