@@ -42,9 +42,11 @@ namespace
         auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
                       ->write_fd(TEST_FILE_SIZE);
         MONAD_ASSERT(
-            TEST_FILE_SIZE ==
-            ::pwrite(
-                fd.first, testfilecontents.data(), TEST_FILE_SIZE, fd.second));
+            TEST_FILE_SIZE == ::pwrite(
+                                  fd.first,
+                                  testfilecontents.data(),
+                                  TEST_FILE_SIZE,
+                                  static_cast<off_t>(fd.second)));
         return ret;
     }();
     monad::small_prng test_rand;

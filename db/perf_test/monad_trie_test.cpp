@@ -99,9 +99,10 @@ inline node_ptr batch_upsert_commit(
     auto ts_before = std::chrono::steady_clock::now();
     node_ptr new_root = upsert(update_aux, prev_root.get(), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
-    tm_ram = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                 ts_after - ts_before)
-                 .count() /
+    tm_ram = static_cast<double>(
+                 std::chrono::duration_cast<std::chrono::nanoseconds>(
+                     ts_after - ts_before)
+                     .count()) /
              1000000000.0;
 
     auto [state_root, res] = find_blocking(
@@ -142,11 +143,11 @@ void prepare_keccak(
         // assign keccak256 on i to key
         key = i + key_offset;
         keccak_keys[i].resize(32);
-        keccak256((const unsigned char *)&key, 8, keccak_keys[i].data());
+        keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
 
         val = key * 2;
         keccak_values[i].resize(32);
-        keccak256((const unsigned char *)&val, 8, keccak_values[i].data());
+        keccak256((unsigned char const *)&val, 8, keccak_values[i].data());
     }
 }
 
@@ -392,10 +393,12 @@ int main(int argc, char *argv[])
         }
 
         auto end_test = std::chrono::steady_clock::now();
-        auto test_secs = std::chrono::duration_cast<std::chrono::microseconds>(
-                             end_test - begin_test)
-                             .count() /
-                         1000000.0;
+        auto test_secs =
+            static_cast<double>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    end_test - begin_test)
+                    .count()) /
+            1000000.0;
         printf("\nTotal test time: %f secs.\n", test_secs);
         if (csv_writer) {
             csv_writer << "\n\"Total test time:\"," << test_secs << std::endl;
@@ -404,7 +407,7 @@ int main(int argc, char *argv[])
     catch (const CLI::CallForHelp &e) {
         std::cout << cli.help() << std::flush;
     }
-    catch (const std::exception &e) {
+    catch (std::exception const &e) {
         std::cerr << "FATAL: " << e.what() << std::endl;
         return 1;
     }

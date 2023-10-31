@@ -40,7 +40,7 @@ namespace
 
             state_t()
             {
-                size_t current_chunk_idx = 0;
+                uint32_t current_chunk_idx = 0;
                 auto lastchunk = pool.activate_chunk(pool.seq, CHUNKS_TO_FILL),
                      current_chunk =
                          pool.activate_chunk(pool.seq, current_chunk_idx);
@@ -74,7 +74,7 @@ namespace
                           << "\n   Storage pool capacity = " << v.first
                           << " consumed = " << v.second
                           << " chunks = " << pool.chunks(pool.seq) << std::endl;
-                for (size_t n = 0; n <= CHUNKS_TO_FILL; n++) {
+                for (uint32_t n = 0; n <= CHUNKS_TO_FILL; n++) {
                     auto chunk = pool.activate_chunk(pool.seq, n);
                     std::cout << "\n      Chunk " << n
                               << " has capacity = " << chunk->capacity()
@@ -123,7 +123,7 @@ namespace
                   << " consumed = " << v.second
                   << " chunks = " << state()->pool.chunks(state()->pool.seq)
                   << std::endl;
-        for (size_t n = 0; n <= CHUNKS_TO_FILL; n++) {
+        for (uint32_t n = 0; n <= CHUNKS_TO_FILL; n++) {
             auto chunk = state()->pool.activate_chunk(state()->pool.seq, n);
             std::cout << "\n      Chunk " << n
                       << " has capacity = " << chunk->capacity()

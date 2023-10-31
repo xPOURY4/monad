@@ -46,13 +46,13 @@ namespace
         channel_t chan{2};
         AsyncIO &io = *this->update_aux.io;
         // randomize the order of find requests
-        std::vector<int> rand_idx(100);
+        std::vector<size_t> rand_idx(100);
         std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
         auto rng = std::minstd_rand{};
         std::shuffle(std::begin(rand_idx), std::end(rand_idx), rng);
         // fiber that push one request to chan
         auto push_request_impl =
-            [&](int i) -> result<std::optional<monad::byte_string>> {
+            [&](size_t i) -> result<std::optional<monad::byte_string>> {
             ::boost::fibers::promise<monad::mpt::find_result_type> p;
             find_request_t req{
                 &p, this->root.get(), one_hundred_updates[i].first};
@@ -72,7 +72,7 @@ namespace
         std::vector<
             ::boost::fibers::future<result<std::optional<monad::byte_string>>>>
             futures;
-        for (auto i = 0; i < 100; ++i) {
+        for (size_t i = 0; i < 100; ++i) {
             futures.emplace_back(
                 ::boost::fibers::async(push_request_impl, rand_idx[i]));
         }
@@ -122,8 +122,8 @@ namespace
         typedef boost::fibers::buffered_channel<find_request_t> channel_t;
         channel_t chan{2};
         // randomize the order of find requests
-        int nreq = 1000;
-        std::vector<int> rand_idx(nreq);
+        size_t const nreq = 1000;
+        std::vector<size_t> rand_idx(nreq);
         std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
         auto rng = std::minstd_rand{};
         std::shuffle(std::begin(rand_idx), std::end(rand_idx), rng);
@@ -152,7 +152,7 @@ namespace
         typedef std::pair<monad::byte_string, monad::mpt::find_result>
             fiber_result;
 
-        auto push_request_impl = [&](int i) -> result<fiber_result> {
+        auto push_request_impl = [&](size_t i) -> result<fiber_result> {
             ::boost::fibers::promise<monad::mpt::find_result_type> p;
             find_request_t req{
                 &p, this->root.get(), one_hundred_updates[i].first};
@@ -169,7 +169,7 @@ namespace
 
         // Launch fiber tasks
         std::vector<::boost::fibers::future<result<fiber_result>>> futures;
-        for (auto i = 0; i < nreq; ++i) {
+        for (size_t i = 0; i < nreq; ++i) {
             futures.emplace_back(
                 ::boost::fibers::async(push_request_impl, rand_idx[i] % 100));
         }
