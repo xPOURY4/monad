@@ -32,7 +32,7 @@ struct Requests
 
     constexpr unsigned get_first_branch() const noexcept
     {
-        return std::countr_zero(mask);
+        return static_cast<unsigned>(std::countr_zero(mask));
     }
 
     constexpr UpdateList &&first_and_only_list() && noexcept
@@ -41,7 +41,7 @@ struct Requests
         return std::move(sublists[get_first_branch()]);
     }
 
-    constexpr unsigned const char *get_first_path() const noexcept
+    constexpr unsigned char const *get_first_path() const noexcept
     {
         return sublists[get_first_branch()].front().key.data();
     }
@@ -71,7 +71,8 @@ struct Requests
             }
             sublists[branch].push_front(req);
         }
-        prefix_len = pi;
+        MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
+        prefix_len = static_cast<uint8_t>(pi);
         return n;
     }
 };

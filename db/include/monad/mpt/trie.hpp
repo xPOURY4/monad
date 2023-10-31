@@ -92,7 +92,7 @@ struct UpdateAux
             io ? io->make_connected(
                      MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
                          round_up_align<DISK_PAGE_BITS>(write_block_offset),
-                         {(const std::byte *)nullptr,
+                         {(std::byte const *)nullptr,
                           MONAD_ASYNC_NAMESPACE::AsyncIO::WRITE_BUFFER_SIZE}},
                      write_operation_io_receiver{})
                : node_writer_unique_ptr_type{};
@@ -212,8 +212,8 @@ find_result_type find_blocking(
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
 {
-    auto rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
-    bytes += offset - rd_offset;
+    auto const rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
+    bytes += static_cast<unsigned>(offset - rd_offset);
     return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
 }
 

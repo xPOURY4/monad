@@ -22,7 +22,7 @@ struct find_receiver
     chunk_offset_t rd_offset; // required for sender
     unsigned bytes_to_read; // required for sender too
     uint16_t buffer_off;
-    unsigned char const branch_j;
+    unsigned const branch_j;
 
     find_receiver(
         AsyncIO &_io, inflight_map_t &_inflights, Node *const _parent,
@@ -37,9 +37,12 @@ struct find_receiver
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
-        bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
+        bytes_to_read =
+            static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset = offset;
-        rd_offset.offset = round_down_align<DISK_PAGE_BITS>(offset.offset);
+        auto const new_offset = round_down_align<DISK_PAGE_BITS>(offset.offset);
+        MONAD_DEBUG_ASSERT(new_offset <= chunk_offset_t::max_offset);
+        rd_offset.offset = new_offset & chunk_offset_t::max_offset;
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
     }
 
@@ -96,7 +99,8 @@ void find_recursive(
     }
     MONAD_ASSERT(pi < key.nibble_size());
     if (unsigned char const branch = key[pi]; node->mask & (1u << branch)) {
-        auto const next_key = key.suffix(pi + 1);
+        MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
+        auto const next_key = key.suffix(static_cast<unsigned char>(pi + 1));
         if (node->next(branch) != nullptr) {
             find_recursive(
                 io, inflights, promise, node->next(branch), next_key);

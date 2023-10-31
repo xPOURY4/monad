@@ -2,21 +2,25 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
 
+#include <limits>
 #include <optional>
 #include <span>
+#include <vector>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
 Node *create_leaf(byte_string_view const data, NibblesView const relpath)
 {
-    unsigned const bytes = sizeof(Node) + relpath.size() + data.size();
-    node_ptr node = Node::make_node(bytes);
+    auto const bytes = sizeof(Node) + relpath.size() + data.size();
+    MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned int>::max());
+    node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->data);
     if (relpath.size()) {
         node->set_path(relpath);
     }
-    node->set_params(0, true, data.size(), 0);
+    MONAD_DEBUG_ASSERT(data.size() <= std::numeric_limits<uint8_t>::max());
+    node->set_params(0, true, static_cast<uint8_t>(data.size()), 0);
     node->set_leaf(data);
     node->disk_size = node->get_disk_size();
     assert(node->disk_size < 1024);
@@ -64,25 +68,34 @@ Node *create_node(
     unsigned const n = bitmask_count(mask);
     // any node with child will have hash data
     bool const is_leaf = leaf_data.has_value();
-    uint8_t const leaf_len = is_leaf ? leaf_data.value().size() : 0,
-                  hash_len = is_leaf ? comp.compute_len(children) : 0;
-    unsigned bytes = sizeof(Node) + leaf_len + hash_len +
-                     n * (sizeof(Node *) + sizeof(Node::data_off_t) +
-                          sizeof(file_offset_t)) +
-                     relpath.size();
-    Node::data_off_t offsets[n];
+    uint8_t const leaf_len =
+                      is_leaf ? static_cast<uint8_t>(leaf_data.value().size())
+                              : 0,
+                  hash_len =
+                      is_leaf ? static_cast<uint8_t>(comp.compute_len(children))
+                              : 0;
+    auto bytes = sizeof(Node) + leaf_len + hash_len +
+                 n * (sizeof(Node *) + sizeof(Node::data_off_t) +
+                      sizeof(file_offset_t)) +
+                 relpath.size();
+    std::vector<Node::data_off_t> offsets(n);
     unsigned data_len = 0;
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
             data_len += child.len;
-            offsets[j++] = data_len;
+            MONAD_DEBUG_ASSERT(
+                data_len <= std::numeric_limits<Node::data_off_t>::max());
+            offsets[j++] = static_cast<Node::data_off_t>(data_len);
         }
     }
     bytes += data_len;
-    node_ptr node =
-        Node::make_node(bytes); // zero initialized in Node but not tail
+    node_ptr node = Node::make_node(static_cast<unsigned int>(
+        bytes)); // zero initialized in Node but not tail
     node->set_params(mask, is_leaf, leaf_len, hash_len);
-    std::memcpy(node->child_off_data(), offsets, n * sizeof(Node::data_off_t));
+    std::memcpy(
+        node->child_off_data(),
+        offsets.data(),
+        offsets.size() * sizeof(Node::data_off_t));
     // order is enforced, must set path first
     if (relpath.size()) {
         node->set_path(relpath);
@@ -111,19 +124,19 @@ Node *update_node_diff_path_leaf(
     std::optional<byte_string_view> const leaf_data)
 {
     bool const is_leaf = leaf_data.has_value();
-    unsigned const leaf_len =
-        leaf_data.has_value() ? leaf_data.value().size() : 0;
+    auto const leaf_len = leaf_data.has_value() ? leaf_data.value().size() : 0;
     MONAD_ASSERT(leaf_len < 255); // or uint8_t will overflow
 
-    unsigned bytes = old->get_mem_size() + leaf_len - old->leaf_len +
-                     relpath.size() - old->path_bytes();
-    node_ptr node = Node::make_node(bytes);
+    auto const bytes = old->get_mem_size() + leaf_len - old->leaf_len +
+                       relpath.size() - old->path_bytes();
+    MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned>::max());
+    node_ptr node = Node::make_node(static_cast<unsigned>(bytes));
     // copy Node, fnexts and data_off array
     std::memcpy(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->leaf_len = leaf_len;
+    node->leaf_len = static_cast<uint8_t>(leaf_len);
     node->bitpacked.is_leaf = is_leaf;
     // assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first

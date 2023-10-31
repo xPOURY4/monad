@@ -34,10 +34,15 @@ node_ptr copy_node(
             }
             // add a branch = nibble to new_node
             new_node = [&]() -> Node * {
+                MONAD_DEBUG_ASSERT(
+                    pi < std::numeric_limits<unsigned char>::max());
                 Node *leaf = update_node_diff_path_leaf(
-                    src_leaf, dest.suffix(pi + 1), src_leaf->leaf_view());
+                    src_leaf,
+                    dest.suffix(static_cast<unsigned char>(pi + 1)),
+                    src_leaf->leaf_view());
                 // create a node, with no leaf data
-                uint16_t const mask = node->mask | (1u << nibble);
+                uint16_t const mask =
+                    static_cast<uint16_t>(node->mask | (1u << nibble));
                 Node *ret = create_node_nodata(mask, node->path_nibble_view());
                 for (unsigned i = 0, j = 0, old_j = 0, bit = 1; j < ret->n();
                      ++i, bit <<= 1) {
@@ -69,8 +74,11 @@ node_ptr copy_node(
         // mismatch: split node's path: turn node to a branch node with two
         // children
         new_node = [&]() -> Node * {
+            MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
             Node *dest_leaf = update_node_diff_path_leaf(
-                src_leaf, dest.suffix(pi + 1), src_leaf->leaf_view());
+                src_leaf,
+                dest.suffix(static_cast<unsigned char>(pi + 1)),
+                src_leaf->leaf_view());
             Node *node_latter_half = update_node_diff_path_leaf(
                 node,
                 NibblesView{
@@ -78,7 +86,8 @@ node_ptr copy_node(
                     node->path_nibble_index_end,
                     node->path_data()},
                 node->leaf_view());
-            uint16_t const mask = (1u << nibble) | (1u << node_nibble);
+            uint16_t const mask =
+                static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
             Node *ret = create_node_nodata(
                 mask,
                 NibblesView{
@@ -97,8 +106,11 @@ node_ptr copy_node(
                                update_aux.node_writer,
                                node_latter_half)
                                .offset_written_to;
-                off.spare =
+                auto const pages =
                     num_pages(off.offset, node_latter_half->get_disk_size());
+                MONAD_DEBUG_ASSERT(
+                    pages <= std::numeric_limits<uint16_t>::max());
+                off.spare = static_cast<uint16_t>(pages);
                 ret->fnext_j(leaf_first ? 1 : 0) = off;
                 node_ptr{node_latter_half}.reset();
             }

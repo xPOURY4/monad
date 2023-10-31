@@ -96,10 +96,13 @@ void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode)
             auto &entry = parent_tnode->children[tnode->child_j()];
             entry.branch = tnode->child_branch_bit;
             entry.ptr = tnode->node;
-            entry.len = update_aux.comp().compute(entry.data, entry.ptr);
+            auto const len = update_aux.comp().compute(entry.data, entry.ptr);
+            MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+            entry.len = static_cast<uint8_t>(len);
         }
         else { // node ends up being removed by erase updates
-            parent_tnode->mask &= ~(1u << tnode->child_branch_bit);
+            parent_tnode->mask &=
+                static_cast<uint16_t>(~(1u << tnode->child_branch_bit));
         }
         --parent_tnode->npending;
         UpwardTreeNode *p = parent_tnode;
@@ -131,7 +134,8 @@ struct update_receiver
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
-        bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
+        bytes_to_read =
+            static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
     }
 
     void set_value(
@@ -190,7 +194,8 @@ struct create_node_receiver
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
-        bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
+        bytes_to_read =
+            static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
     }
 
     void set_value(
@@ -237,7 +242,8 @@ Node *create_node_from_children_if_any(
                                      : nullptr;
     }
     else if (n == 1 && !leaf_data.has_value()) {
-        unsigned j = bitmask_index(orig_mask, std::countr_zero(mask));
+        auto const j = bitmask_index(
+            orig_mask, static_cast<unsigned>(std::countr_zero(mask)));
         assert(children[j].ptr);
         return create_coalesced_node_with_prefix(
             children[j].branch, node_ptr{children[j].ptr}, relpath);
@@ -252,8 +258,11 @@ Node *create_node_from_children_if_any(
                     async_write_node(
                         *update_aux.io, update_aux.node_writer, child.ptr)
                         .offset_written_to;
-                child.offset.spare =
+                auto const pages =
                     num_pages(child.offset.offset, child.ptr->get_disk_size());
+                MONAD_DEBUG_ASSERT(
+                    pages <= std::numeric_limits<uint16_t>::max());
+                child.offset.spare = static_cast<uint16_t>(pages);
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
@@ -277,11 +286,14 @@ bool create_node_from_children_if_any_possibly_ondisk(
 {
     unsigned const n = bitmask_count(tnode->mask);
     if (n == 1 && !tnode->opt_leaf_data.has_value()) {
-        unsigned const j =
-            bitmask_index(tnode->orig_mask, std::countr_zero(tnode->mask));
+        auto const j = bitmask_index(
+            tnode->orig_mask,
+            static_cast<unsigned>(std::countr_zero(tnode->mask)));
         if (!tnode->children[j].ptr) {
-            tnode->pi = pi;
-            create_node_receiver receiver(&update_aux, tnode, j);
+            MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
+            tnode->pi = static_cast<uint8_t>(pi);
+            create_node_receiver receiver(
+                &update_aux, tnode, static_cast<uint8_t>(j));
             async_read(update_aux, std::move(receiver));
             return false;
         }
@@ -356,7 +368,7 @@ Node *_create_new_trie(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         return create_leaf(update.value.value(), relpath);
     }
     Requests requests;
-    uint8_t const psi = pi;
+    auto const psi = pi;
     while (requests.split_into_sublists(std::move(updates), pi) == 1 &&
            !requests.opt_leaf) {
         updates = std::move(requests).first_and_only_list();
@@ -377,19 +389,27 @@ Node *_create_new_trie_from_requests(
     unsigned const n = bitmask_count(requests.mask);
     uint16_t const mask = requests.mask;
     MONAD_DEBUG_ASSERT(n > 0);
-    ChildData children[n];
+    std::vector<ChildData> children(n);
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
             auto node =
                 _create_new_trie(update_aux, std::move(requests)[i], pi + 1);
             auto &entry = children[j++];
-            entry.branch = i;
+            entry.branch = static_cast<uint8_t>(i);
             entry.ptr = node;
-            entry.len = update_aux.comp().compute(entry.data, entry.ptr);
+            auto const len = update_aux.comp().compute(entry.data, entry.ptr);
+            MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+            entry.len = static_cast<uint8_t>(len);
         }
     }
     return create_node_from_children_if_any(
-        update_aux, mask, mask, {children, n}, pi, relpath, opt_leaf_data);
+        update_aux,
+        mask,
+        mask,
+        std::span{children},
+        pi,
+        relpath,
+        opt_leaf_data);
 }
 
 bool _upsert(
@@ -398,7 +418,8 @@ bool _upsert(
     unsigned old_pi)
 {
     if (!old) {
-        tnode->pi = pi;
+        MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
+        tnode->pi = static_cast<uint8_t>(pi);
         update_receiver receiver(
             &update_aux, offset, std::move(updates), tnode);
         async_read(update_aux, std::move(receiver));
@@ -454,6 +475,7 @@ bool _dispatch_updates(
 
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         auto &child = tnode->children[j];
+        MONAD_DEBUG_ASSERT(i <= std::numeric_limits<uint8_t>::max());
         if (bit & requests.mask) {
             Node *node = nullptr;
             if (bit & old->mask) {
@@ -472,7 +494,7 @@ bool _dispatch_updates(
                     if (next_tnode->opt_leaf_data.has_value()) {
                         next_tnode->old = std::move(next_);
                     }
-                    next_tnode->link_parent(tnode, i);
+                    next_tnode->link_parent(tnode, static_cast<uint8_t>(i));
                     next_tnode.release();
                     ++j;
                     continue;
@@ -485,11 +507,14 @@ bool _dispatch_updates(
             }
             if (node) {
                 child.ptr = node;
-                child.branch = i;
-                child.len = update_aux.comp().compute(child.data, child.ptr);
+                child.branch = static_cast<uint8_t>(i);
+                auto const len =
+                    update_aux.comp().compute(child.data, child.ptr);
+                MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+                child.len = static_cast<uint8_t>(len);
             }
             else {
-                tnode->mask &= ~bit;
+                tnode->mask &= static_cast<uint16_t>(~bit);
             }
             --tnode->npending;
             ++j;
@@ -500,8 +525,10 @@ bool _dispatch_updates(
             }
             auto const data = old->child_data_view(i);
             memcpy(&child.data, data.data(), data.size());
-            child.len = data.size();
-            child.branch = i;
+            MONAD_DEBUG_ASSERT(
+                data.size() <= std::numeric_limits<uint8_t>::max());
+            child.len = static_cast<uint8_t>(data.size());
+            child.branch = static_cast<uint8_t>(i);
             child.offset = old->fnext(i);
             --tnode->npending;
             ++j;
@@ -529,7 +556,7 @@ bool _mismatch_handler(
     // Note: no leaf can be created at an existing non-leaf node
     MONAD_DEBUG_ASSERT(!requests.opt_leaf.has_value());
     unsigned char const old_nibble = get_nibble(old->path_data(), old_pi);
-    tnode->init((1u << old_nibble | requests.mask), pi);
+    tnode->init(static_cast<uint16_t>(1u << old_nibble | requests.mask), pi);
     unsigned const n = tnode->npending;
     MONAD_DEBUG_ASSERT(n > 1);
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
@@ -547,7 +574,9 @@ bool _mismatch_handler(
                         pi + 1,
                         old_pi + 1)) {
                     MONAD_ASSERT(next_tnode->npending);
-                    next_tnode->link_parent(tnode, i);
+                    MONAD_DEBUG_ASSERT(
+                        i <= std::numeric_limits<uint8_t>::max());
+                    next_tnode->link_parent(tnode, static_cast<uint8_t>(i));
                     next_tnode.release();
                     ++j;
                     continue;
@@ -560,11 +589,14 @@ bool _mismatch_handler(
             }
             if (node) {
                 child.ptr = node;
-                child.branch = i;
-                child.len = update_aux.comp().compute(child.data, child.ptr);
+                child.branch = static_cast<uint8_t>(i);
+                auto const len =
+                    update_aux.comp().compute(child.data, child.ptr);
+                MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+                child.len = static_cast<uint8_t>(len);
             }
             else {
-                tnode->mask &= ~bit;
+                tnode->mask &= static_cast<uint16_t>(~bit);
             }
             --tnode->npending;
             ++j;
@@ -576,8 +608,10 @@ bool _mismatch_handler(
             // compute node hash
             child.ptr =
                 update_node_diff_path_leaf(old, relpath, old->opt_leaf());
-            child.branch = i;
-            child.len = update_aux.comp().compute(child.data, child.ptr);
+            child.branch = static_cast<uint8_t>(i);
+            auto const len = update_aux.comp().compute(child.data, child.ptr);
+            MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+            child.len = static_cast<uint8_t>(len);
             --tnode->npending;
             ++j;
         }
@@ -598,7 +632,8 @@ node_writer_unique_ptr_type replace_node_writer(
     file_offset_t offset = offset_of_next_block.offset;
     offset += node_writer->sender().written_buffer_bytes() +
               bytes_yet_to_be_appended_to_existing;
-    offset_of_next_block.offset = offset;
+    MONAD_DEBUG_ASSERT(offset <= chunk_offset_t::max_offset);
+    offset_of_next_block.offset = offset & chunk_offset_t::max_offset;
     auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
     auto const chunk_capacity = io.chunk_capacity(offset_of_next_block.id);
     assert(offset <= chunk_capacity);

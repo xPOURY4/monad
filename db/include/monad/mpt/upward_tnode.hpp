@@ -27,7 +27,7 @@ struct UpwardTreeNode
     uint16_t mask{0};
     uint16_t orig_mask{0};
     uint8_t child_branch_bit{INVALID_BRANCH};
-    int8_t npending{0};
+    unsigned npending{0};
     uint8_t trie_section{0}; // max 255 diff sections in trie
     uint8_t pi{0};
 
@@ -57,7 +57,8 @@ struct UpwardTreeNode
     constexpr uint8_t child_j() const noexcept
     {
         MONAD_ASSERT(parent != nullptr);
-        return bitmask_index(parent->orig_mask, child_branch_bit);
+        return static_cast<uint8_t>(
+            bitmask_index(parent->orig_mask, child_branch_bit));
     }
     using allocator_type =
         allocators::boost_unordered_pool_allocator<UpwardTreeNode>;
@@ -85,7 +86,7 @@ make_tnode(uint8_t const trie_section = 0, node_ptr old = {})
         UpwardTreeNode{.old = std::move(old), .trie_section = trie_section});
 }
 
-static_assert(sizeof(UpwardTreeNode) == 88);
+static_assert(sizeof(UpwardTreeNode) == 96);
 static_assert(alignof(UpwardTreeNode) == 8);
 
 MONAD_MPT_NAMESPACE_END

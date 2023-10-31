@@ -12,8 +12,9 @@ Node *_read_node_blocking(
     // top 2 bits are for no_pages
     auto const num_pages_to_load_node = offset.spare;
     assert(num_pages_to_load_node <= 3);
-    unsigned bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
-    return read_node_blocking(pool, offset, bytes_to_read);
+    auto const bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
+    return read_node_blocking(
+        pool, offset, static_cast<unsigned int>(bytes_to_read));
 }
 
 find_result_type find_blocking(

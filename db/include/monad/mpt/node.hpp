@@ -183,7 +183,7 @@ public:
                   type_allocator, raw_bytes_allocator, &Node::pool,
                   &Node::get_deallocate_count>>;
     constexpr Node(_prevent_public_construction_tag) {}
-    Node(const Node &) = delete;
+    Node(Node const &) = delete;
     Node(Node &&) = default;
     inline ~Node();
     static inline unique_ptr_type make_node(unsigned size);
@@ -427,12 +427,15 @@ public:
     //! node size in memory
     constexpr unsigned get_mem_size() noexcept
     {
-        return next_data() + sizeof(Node *) * n() - (unsigned char *)this;
+        auto const *const end = next_data() + sizeof(Node *) * n();
+        MONAD_DEBUG_ASSERT(end >= (unsigned char *)this);
+        return static_cast<unsigned>(end - (unsigned char *)this);
     }
 
     constexpr uint16_t get_disk_size() noexcept
     {
-        return next_data() - (unsigned char *)this;
+        MONAD_DEBUG_ASSERT(next_data() >= (unsigned char *)this);
+        return static_cast<uint16_t>(next_data() - (unsigned char *)this);
     }
 };
 
@@ -487,12 +490,12 @@ Node *update_node_diff_path_leaf(
 inline Node *create_node_nodata(
     uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
 {
-    unsigned const n = bitmask_count(mask);
-    unsigned const bytes =
+    auto const n = bitmask_count(mask);
+    auto const bytes =
         sizeof(Node) + relpath.size() +
         n * (sizeof(Node *) + sizeof(file_offset_t) + sizeof(Node::data_off_t));
 
-    node_ptr node = Node::make_node(bytes);
+    node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
     node->set_params(mask, is_leaf, /*leaf_len*/ 0, /*hash_len*/ 0);
@@ -515,7 +518,8 @@ inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
     uint16_t const mask = unaligned_load<uint16_t>(read_pos);
     unsigned const n = bitmask_count(mask);
     uint16_t const disk_size = unaligned_load<uint16_t>(read_pos + 6),
-                   alloc_size = disk_size + n * sizeof(Node *);
+                   alloc_size =
+                       static_cast<uint16_t>(disk_size + n * sizeof(Node *));
     node_ptr node = Node::make_node(alloc_size);
     memcpy((unsigned char *)node.get(), read_pos, disk_size);
     memset(node->next_data(), 0, n * sizeof(Node *));
@@ -535,8 +539,11 @@ inline Node *read_node_blocking(
 
     auto chunk = pool.activate_chunk(pool.seq, node_offset.id);
     auto fd = chunk->read_fd();
-    ssize_t bytes_read =
-        pread(fd.first, buffer, bytes_to_read, fd.second + rd_offset);
+    ssize_t bytes_read = pread(
+        fd.first,
+        buffer,
+        bytes_to_read,
+        static_cast<off_t>(fd.second + rd_offset));
     if (bytes_read < 0) {
         fprintf(
             stderr,

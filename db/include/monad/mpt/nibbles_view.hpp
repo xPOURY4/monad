@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <type_traits>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -78,13 +79,15 @@ struct NibblesView
 
     // constructor from byte_string_view
     constexpr NibblesView(byte_string_view const &s) noexcept
-        : NibblesView(false, 2 * s.size(), s.data())
+        : NibblesView(false, static_cast<uint8_t>(2 * s.size()), s.data())
     {
+        MONAD_DEBUG_ASSERT(
+            (s.size() * 2) <= std::numeric_limits<uint8_t>::max());
     }
 
     // constructor from byte_string
     constexpr NibblesView(byte_string const &s) noexcept
-        : NibblesView(false, 2 * s.size(), s.data())
+        : NibblesView(byte_string_view{s})
     {
     }
 
