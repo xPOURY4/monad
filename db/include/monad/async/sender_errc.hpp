@@ -27,8 +27,13 @@ class _sender_errc_code_domain
 public:
     struct value_type
     {
+        static constexpr auto value_bits = (8 * sizeof(uintptr_t) - 8);
+        static_assert(value_bits == 56);
+
         uintptr_t code : 8; // sender_errc
-        uintptr_t value : (8 * sizeof(uintptr_t) - 8);
+        uintptr_t value : value_bits;
+
+        static constexpr uintptr_t max_value = (1ULL << value_bits) - 1;
 
         constexpr value_type() noexcept
             : code(0)
@@ -42,9 +47,9 @@ public:
         }
         constexpr value_type(sender_errc _code, uintptr_t _value) noexcept
             : code(uint8_t(_code))
-            , value(_value)
+            , value(_value & max_value)
         {
-            assert((_value >> 56) == 0);
+            assert(_value <= max_value);
         }
     };
     using _base::string_ref;
@@ -54,14 +59,14 @@ public:
         : _base(id)
     {
     }
-    _sender_errc_code_domain(const _sender_errc_code_domain &) = default;
+    _sender_errc_code_domain(_sender_errc_code_domain const &) = default;
     _sender_errc_code_domain(_sender_errc_code_domain &&) = default;
     _sender_errc_code_domain &
-    operator=(const _sender_errc_code_domain &) = default;
+    operator=(_sender_errc_code_domain const &) = default;
     _sender_errc_code_domain &operator=(_sender_errc_code_domain &&) = default;
     ~_sender_errc_code_domain() = default;
 
-    static inline constexpr const _sender_errc_code_domain &get();
+    static inline constexpr _sender_errc_code_domain const &get();
 
     virtual string_ref name() const noexcept override
     {
@@ -98,9 +103,9 @@ protected:
         const noexcept override
     {
         assert(code1.domain() == *this);
-        const auto &c1 = static_cast<const sender_errc_code &>(code1);
+        auto const &c1 = static_cast<sender_errc_code const &>(code1);
         if (code2.domain() == *this) {
-            const auto &c2 = static_cast<const sender_errc_code &>(code2);
+            auto const &c2 = static_cast<sender_errc_code const &>(code2);
             return c1.value().code == c2.value().code;
         }
         return false;
@@ -118,7 +123,7 @@ protected:
         const noexcept override
     {
         assert(code.domain() == *this);
-        const auto &c = static_cast<const sender_errc_code &>(code);
+        auto const &c = static_cast<sender_errc_code const &>(code);
         switch (sender_errc(c.value().code)) {
         case sender_errc::initiation_immediately_completed:
             return string_ref("initiation_immediately_completed");
@@ -134,13 +139,13 @@ protected:
         const override
     {
         assert(code.domain() == *this);
-        const auto &c = static_cast<const sender_errc_code &>(code);
+        auto const &c = static_cast<sender_errc_code const &>(code);
         throw BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_error<
             _sender_errc_code_domain>(c);
     }
 };
 constexpr _sender_errc_code_domain sender_errc_code_domain;
-inline constexpr const _sender_errc_code_domain &_sender_errc_code_domain::get()
+inline constexpr _sender_errc_code_domain const &_sender_errc_code_domain::get()
 {
     return sender_errc_code_domain;
 }
@@ -150,11 +155,11 @@ static_assert(
 
 // ADL discovered customisation point, opts into being able to directly use the
 // enum when comparing to status codes.
-constexpr inline sender_errc_code make_status_code(sender_errc c)
+inline constexpr sender_errc_code make_status_code(sender_errc c)
 {
     return sender_errc_code(_sender_errc_code_domain::value_type{c});
 }
-constexpr inline sender_errc_code
+inline constexpr sender_errc_code
 make_status_code(sender_errc c, uintptr_t value)
 {
     return sender_errc_code(_sender_errc_code_domain::value_type{c, value});

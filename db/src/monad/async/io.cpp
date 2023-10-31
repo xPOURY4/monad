@@ -113,7 +113,9 @@ void AsyncIO::_init(std::span<int> fds)
         MONAD_ASSERT(fd != -1);
     }
     auto e = io_uring_register_files(
-        const_cast<io_uring *>(&uring_.get_ring()), fds.data(), fds.size());
+        const_cast<io_uring *>(&uring_.get_ring()),
+        fds.data(),
+        static_cast<unsigned int>(fds.size()));
     if (e) {
         fprintf(
             stderr,
@@ -146,7 +148,8 @@ AsyncIO::AsyncIO(
     for (size_t n = 0; n < count; n++) {
         seq_chunks_.emplace_back(
             std::static_pointer_cast<storage_pool::seq_chunk>(
-                pool.activate_chunk(storage_pool::seq, n)));
+                pool.activate_chunk(
+                    storage_pool::seq, static_cast<uint32_t>(n))));
         MONAD_ASSERT(
             seq_chunks_.back().ptr->capacity() >= MONAD_IO_BUFFERS_WRITE_SIZE);
         MONAD_ASSERT(
@@ -221,12 +224,12 @@ void AsyncIO::_submit_request(
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
-    const auto &ci = seq_chunks_[chunk_and_offset.id];
+    auto const &ci = seq_chunks_[chunk_and_offset.id];
     io_uring_prep_read_fixed(
         sqe,
         ci.io_uring_read_fd,
         buffer.data(),
-        buffer.size(),
+        static_cast<unsigned int>(buffer.size()),
         ci.ptr->read_fd().second + chunk_and_offset.offset,
         0);
     sqe->flags |= IOSQE_FIXED_FILE;
@@ -247,13 +250,18 @@ void AsyncIO::_submit_request(
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
-    const auto &ci = seq_chunks_[chunk_and_offset.id];
+    auto const &ci = seq_chunks_[chunk_and_offset.id];
     auto offset = ci.ptr->write_fd(buffer.size()).second;
     // Do sanity check to ensure they are appending where they are actually
     // appending
     MONAD_ASSERT((chunk_and_offset.offset & 0xffff) == (offset & 0xffff));
     io_uring_prep_write_fixed(
-        sqe, ci.io_uring_write_fd, buffer.data(), buffer.size(), offset, 1);
+        sqe,
+        ci.io_uring_write_fd,
+        buffer.data(),
+        static_cast<unsigned int>(buffer.size()),
+        offset,
+        1);
     sqe->flags |= IOSQE_FIXED_FILE;
 
     io_uring_sqe_set_data(sqe, uring_data);
@@ -410,7 +418,7 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
     return !ts.empty() && !ts.am_within_completions();
 }
 
-void AsyncIO::dump_fd_to(int which, const std::filesystem::path &path)
+void AsyncIO::dump_fd_to(size_t which, std::filesystem::path const &path)
 {
     int tofd = ::creat(path.c_str(), 0600);
     if (tofd == -1) {
@@ -418,7 +426,8 @@ void AsyncIO::dump_fd_to(int which, const std::filesystem::path &path)
     }
     auto untodfd = make_scope_exit([tofd]() noexcept { ::close(tofd); });
     auto fromfd = seq_chunks_[which].ptr->read_fd();
-    off64_t off_in = fromfd.second, off_out = 0;
+    MONAD_ASSERT(fromfd.second <= std::numeric_limits<off64_t>::max());
+    off64_t off_in = static_cast<off64_t>(fromfd.second), off_out = 0;
     auto copied = copy_file_range(
         fromfd.first,
         &off_in,

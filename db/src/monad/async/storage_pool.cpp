@@ -32,7 +32,7 @@ std::filesystem::path storage_pool::device::current_path() const
     if ((len = ::readlink(in, out, 32768)) == -1) {
         throw std::system_error(errno, std::system_category());
     }
-    ret.resize(len);
+    ret.resize(static_cast<size_t>(len));
     // Linux prepends or appends a " (deleted)" when a fd is nameless
     if (ret.size() >= 10 &&
         ((ret.compare(0, 10, " (deleted)") == 0) ||
@@ -68,8 +68,8 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
                 _readfd, _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/, &capacity)) {
             throw std::system_error(errno, std::system_category());
         }
-        const auto chunks = this->chunks();
-        const auto useds = _metadata->chunk_bytes_used(_size_of_file);
+        auto const chunks = this->chunks();
+        auto const useds = _metadata->chunk_bytes_used(_size_of_file);
         for (size_t n = 0; n < chunks; n++) {
             used += useds[n].load(std::memory_order_acquire);
         }
@@ -84,7 +84,7 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
 
 /***************************************************************************/
 
-storage_pool::chunk::~chunk()
+storage_pool::chunk::chunk::~chunk()
 {
     if (_owns_readfd || _owns_writefd) {
         auto fd = _read_fd;
@@ -108,10 +108,14 @@ storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
         auto *metadata = device()._metadata;
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device()._size_of_file);
+        MONAD_DEBUG_ASSERT(
+            bytes_which_shall_be_written <=
+            std::numeric_limits<uint32_t>::max());
         auto size =
             (bytes_which_shall_be_written > 0)
                 ? chunk_bytes_used[device_zone_id()].fetch_add(
-                      bytes_which_shall_be_written, std::memory_order_acq_rel)
+                      static_cast<uint32_t>(bytes_which_shall_be_written),
+                      std::memory_order_acq_rel)
                 : chunk_bytes_used[device_zone_id()].load(
                       std::memory_order_acquire);
         MONAD_ASSERT(
@@ -149,11 +153,13 @@ void storage_pool::chunk::reset_size(uint32_t size)
 void storage_pool::chunk::destroy_contents()
 {
     if (device().is_file()) {
+        MONAD_DEBUG_ASSERT(_capacity <= std::numeric_limits<off_t>::max());
+        MONAD_DEBUG_ASSERT(_offset <= std::numeric_limits<off_t>::max());
         if (-1 == ::fallocate(
                       _write_fd,
                       FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
-                      _offset,
-                      _capacity)) {
+                      static_cast<off_t>(_offset),
+                      static_cast<off_t>(_capacity))) {
             throw std::system_error(errno, std::system_category());
         }
         auto *metadata = device()._metadata;
@@ -179,7 +185,7 @@ void storage_pool::chunk::destroy_contents()
 /***************************************************************************/
 
 storage_pool::device storage_pool::_make_device(
-    mode op, device::_type_t type, const std::filesystem::path &path, int fd,
+    mode op, device::_type_t type, std::filesystem::path const &path, int fd,
     size_t chunk_capacity)
 {
     int readfd = fd, writefd = fd;
@@ -231,10 +237,15 @@ storage_pool::device storage_pool::_make_device(
         auto *buffer =
             (std::byte *)aligned_alloc(DISK_PAGE_SIZE, DISK_PAGE_SIZE * 2);
         auto unbuffer = make_scope_exit([&]() noexcept { ::free(buffer); });
-        const auto offset = round_down_align<DISK_PAGE_BITS>(
+        auto const offset = round_down_align<DISK_PAGE_BITS>(
             file_offset_t(stat.st_size) - sizeof(device::metadata_t));
-        const auto bytesread =
-            ::pread(readfd, buffer, stat.st_size - offset, offset);
+        MONAD_DEBUG_ASSERT(offset <= std::numeric_limits<off_t>::max());
+        MONAD_DEBUG_ASSERT(static_cast<size_t>(stat.st_size) > offset);
+        auto const bytesread = ::pread(
+            readfd,
+            buffer,
+            static_cast<size_t>(stat.st_size) - offset,
+            static_cast<off_t>(offset));
         if (-1 == bytesread) {
             throw std::system_error(errno, std::system_category());
         }
@@ -281,27 +292,38 @@ storage_pool::device storage_pool::_make_device(
             }
             memset(buffer, 0, DISK_PAGE_SIZE * 2);
             memcpy(metadata_footer->magic, "MND0", 4);
-            metadata_footer->chunk_capacity = chunk_capacity;
-            ::pwrite(writefd, buffer, bytesread, offset);
+            MONAD_DEBUG_ASSERT(
+                chunk_capacity <= std::numeric_limits<uint32_t>::max());
+            metadata_footer->chunk_capacity =
+                static_cast<uint32_t>(chunk_capacity);
+            ::pwrite(
+                writefd,
+                buffer,
+                static_cast<size_t>(bytesread),
+                static_cast<off_t>(offset));
         }
-        total_size = metadata_footer->total_size(stat.st_size);
+        total_size =
+            metadata_footer->total_size(static_cast<size_t>(stat.st_size));
     }
-    auto offset = round_down_align<CPU_PAGE_BITS>(stat.st_size - total_size);
-    auto bytestomap = round_up_align<CPU_PAGE_BITS>(stat.st_size - offset);
+    auto offset = round_down_align<CPU_PAGE_BITS>(
+        static_cast<size_t>(stat.st_size) - total_size);
+    auto bytestomap = round_up_align<CPU_PAGE_BITS>(
+        static_cast<size_t>(stat.st_size) - offset);
     auto *addr = ::mmap(
         nullptr,
         bytestomap,
         PROT_READ | PROT_WRITE,
         MAP_SHARED,
         writefd,
-        offset);
+        static_cast<off_t>(offset));
     if (MAP_FAILED == addr) {
         throw std::system_error(errno, std::system_category());
     }
     auto *metadata = start_lifetime_as<device::metadata_t>(
         (std::byte *)addr + stat.st_size - offset - sizeof(device::metadata_t));
     assert(0 == memcmp(metadata->magic, "MND0", 4));
-    return device(readfd, writefd, type, stat.st_size, metadata);
+    return device(
+        readfd, writefd, type, static_cast<size_t>(stat.st_size), metadata);
 }
 
 void storage_pool::_fill_chunks()
@@ -312,13 +334,16 @@ void storage_pool::_fill_chunks()
     chunks.reserve(_devices.size());
     for (auto &device : _devices) {
         if (device.is_file() || device.is_block_device()) {
-            auto devicechunks = device.chunks();
+            auto const devicechunks = device.chunks();
             MONAD_ASSERT(devicechunks > 0);
+            MONAD_DEBUG_ASSERT(
+                devicechunks <= std::numeric_limits<uint32_t>::max());
             if (devicechunks > 1) {
                 chunks.push_back(devicechunks - 1);
                 total += devicechunks - 1;
             }
-            fnv1a_hash<uint32_t>::add(hashshouldbe, devicechunks);
+            fnv1a_hash<uint32_t>::add(
+                hashshouldbe, static_cast<uint32_t>(devicechunks));
             fnv1a_hash<uint32_t>::add(
                 hashshouldbe, device._metadata->chunk_capacity);
         }
@@ -350,7 +375,7 @@ void storage_pool::_fill_chunks()
     _chunks[seq].reserve(total);
     std::vector<double> chunkratios(chunks.size()), chunkcounts(chunks.size());
     for (size_t n = 0; n < chunks.size(); n++) {
-        chunkratios[n] = double(total) / chunks[n];
+        chunkratios[n] = double(total) / static_cast<double>(chunks[n]);
         chunkcounts[n] = chunkratios[n];
         chunks[n] = 1;
     }

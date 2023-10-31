@@ -16,13 +16,13 @@ concept safely_roundable_type =
 template <unsigned bits, safely_roundable_type<bits> T>
 inline constexpr T round_up_align(T const x) noexcept
 {
-    T constexpr mask = (T(1) << bits) - 1;
+    constexpr T mask = (T(1) << bits) - 1;
     return (x + mask) & ~mask;
 }
 template <unsigned bits>
 inline constexpr chunk_offset_t round_up_align(chunk_offset_t x) noexcept
 {
-    file_offset_t constexpr mask = (file_offset_t(1) << bits) - 1;
+    constexpr file_offset_t mask = (file_offset_t(1) << bits) - 1;
     x.offset = (x.offset + mask) & ~mask;
     return x;
 }
@@ -30,14 +30,14 @@ inline constexpr chunk_offset_t round_up_align(chunk_offset_t x) noexcept
 template <unsigned bits, safely_roundable_type<bits> T>
 inline constexpr T round_down_align(T const x) noexcept
 {
-    T constexpr mask = ~((T(1) << bits) - 1);
+    constexpr T mask = ~((T(1) << bits) - 1);
     return x & mask;
 }
 template <unsigned bits>
 inline constexpr chunk_offset_t round_down_align(chunk_offset_t x) noexcept
 {
-    file_offset_t constexpr mask = ~((file_offset_t(1) << bits) - 1);
-    x.offset = x.offset & mask;
+    constexpr file_offset_t mask = ~((file_offset_t(1) << bits) - 1);
+    x.offset = x.offset & mask & chunk_offset_t::max_offset;
     return x;
 }
 

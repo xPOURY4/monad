@@ -129,11 +129,14 @@ public:
     }
     constexpr size_t written_buffer_bytes() const noexcept
     {
-        return _append - _buffer.data();
+        MONAD_DEBUG_ASSERT(_buffer.data() <= _append);
+        return static_cast<size_t>(_append - _buffer.data());
     }
     constexpr size_t remaining_buffer_bytes() const noexcept
     {
-        return _buffer.data() + _buffer.size() - _append;
+        auto const *end = _buffer.data() + _buffer.size();
+        MONAD_DEBUG_ASSERT(end >= _append);
+        return static_cast<size_t>(end - _append);
     }
     constexpr std::byte *advance_buffer_append(size_t bytes) noexcept
     {
@@ -169,14 +172,14 @@ class timed_delay_sender
     static __kernel_timespec
     _to_timespec(std::chrono::duration<Rep, Period> rel)
     {
-        const auto ns =
+        auto const ns =
             std::chrono::duration_cast<std::chrono::nanoseconds>(rel).count();
         return __kernel_timespec{ns / 1000000000, ns % 1000000000};
     }
     static __kernel_timespec
     _to_timespec(std::chrono::steady_clock::time_point dle)
     {
-        const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                             dle.time_since_epoch())
                             .count();
         return __kernel_timespec{ns / 1000000000, ns % 1000000000};
@@ -184,7 +187,7 @@ class timed_delay_sender
     static __kernel_timespec
     _to_timespec(std::chrono::system_clock::time_point dle)
     {
-        const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        auto const ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                             dle.time_since_epoch())
                             .count();
         return __kernel_timespec{ns / 1000000000, ns % 1000000000};

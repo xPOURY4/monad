@@ -126,7 +126,7 @@ namespace detail
                     status.store(
                         thread_status::working, std::memory_order_release);
                     if (0 == local_io.poll_nonblocking(1)) {
-                        const bool io_is_pending =
+                        bool const io_is_pending =
                                        (local_io.io_in_flight() > 0),
                                    do_not_sleep =
                                        parent_pool.try_initiate_other_work(
@@ -190,14 +190,14 @@ namespace detail
                 })
             {
             }
-            _worker_t(const _worker_t &) = delete;
+            _worker_t(_worker_t const &) = delete;
             _worker_t(_worker_t &&o) noexcept
                 : thread_state(o.thread_state.exchange(
                       nullptr, std::memory_order_acq_rel))
                 , thread(std::move(o.thread))
             {
             }
-            _worker_t &operator=(const _worker_t &) = delete;
+            _worker_t &operator=(_worker_t const &) = delete;
             _worker_t &operator=(_worker_t &&o) noexcept
             {
                 if (this != &o) {
@@ -266,7 +266,8 @@ namespace detail
             for (auto &i : _workers) {
                 i.thread.request_stop();
             }
-            _enqueued_workitems_count.release(_workers.size());
+            _enqueued_workitems_count.release(
+                static_cast<ptrdiff_t>(_workers.size()));
             for (auto &i : _workers) {
                 i.thread.join();
             }
@@ -319,7 +320,7 @@ namespace detail
                     }
                 }
             }
-            return float(ret) / (_workers.size() * 2);
+            return float(ret) / static_cast<float>(_workers.size() * 2);
         }
 
         virtual bool

@@ -151,7 +151,9 @@ public:
         }
         static void set_key(node_ptr n, file_offset_t v)
         {
-            n->key = v;
+            static constexpr file_offset_t max_key = (1ULL << 63) - 1;
+            MONAD_DEBUG_ASSERT(v <= max_key);
+            n->key = v & max_key;
             assert(n->key == v);
         }
         static erased_connected_operation *
@@ -170,7 +172,9 @@ public:
         }
         static void set_key(erased_connected_operation *n, file_offset_t v)
         {
-            n->_rbtree.key = v;
+            static constexpr file_offset_t max_key = (1ULL << 63) - 1;
+            MONAD_DEBUG_ASSERT(v <= max_key);
+            n->_rbtree.key = v & max_key;
             assert(n->_rbtree.key == v);
         }
         static node_ptr to_node_ptr(erased_connected_operation *n)

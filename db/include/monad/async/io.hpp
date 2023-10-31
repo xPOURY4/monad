@@ -153,7 +153,7 @@ public:
     }
 
     // Useful for taking a copy of anonymous inode files used by the unit tests
-    void dump_fd_to(int which, const std::filesystem::path &path);
+    void dump_fd_to(size_t which, std::filesystem::path const &path);
 
     // Blocks until at least one completion is processed, returning number
     // of completions processed.
@@ -490,7 +490,8 @@ public:
             auto *p =
                 erased_connected_operation::rbtree_node_traits::to_node_ptr(
                     state);
-            p->key = state->sender().offset().raw();
+            erased_connected_operation::rbtree_node_traits::set_key(
+                p, state->sender().offset().raw());
             assert(p->key == state->sender().offset().raw());
             _extant_write_operations::init(p);
             auto pred = [](auto const *a, auto const *b) {

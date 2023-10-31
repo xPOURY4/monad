@@ -33,24 +33,27 @@ struct chunk_offset_t
                            //!< maximum addressable storage is 256Tb
     file_offset_t spare : 16;
 
+    static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
+    static constexpr file_offset_t max_id = (1U << 20) - 1;
+
     static constexpr chunk_offset_t invalid_value() noexcept
     {
-        return {UINT32_MAX & ((1 << 20) - 1), UINT64_MAX & ((1ULL << 28) - 1)};
+        return {max_id, max_offset};
     }
 
     constexpr chunk_offset_t(uint32_t _id, file_offset_t _offset)
-        : offset(_offset)
-        , id(_id)
+        : offset(_offset & max_offset)
+        , id(_id & max_id)
         , spare{0xffff}
     {
-        assert(_id < (1U << 20));
-        assert(_offset < (1ULL << 28));
+        assert(_id <= max_id);
+        assert(_offset <= max_offset);
     }
-    constexpr bool operator==(const chunk_offset_t &o) const noexcept
+    constexpr bool operator==(chunk_offset_t const &o) const noexcept
     {
         return offset == o.offset && id == o.id;
     }
-    constexpr auto operator<=>(const chunk_offset_t &o) const noexcept
+    constexpr auto operator<=>(chunk_offset_t const &o) const noexcept
     {
         if (offset == o.offset && id == o.id) {
             return std::weak_ordering::equivalent;
@@ -65,8 +68,8 @@ struct chunk_offset_t
     {
         chunk_offset_t ret(*this);
         _offset += ret.offset;
-        assert(_offset < (1ULL << 28));
-        ret.offset = _offset;
+        assert(_offset <= max_offset);
+        ret.offset = _offset & max_offset;
         return ret;
     }
     constexpr file_offset_t raw() const noexcept

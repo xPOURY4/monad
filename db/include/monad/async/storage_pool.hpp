@@ -58,7 +58,7 @@ public:
     {
         friend class storage_pool;
 
-        const int _readfd, _writefd;
+        int const _readfd, _writefd;
         const enum class _type_t : uint8_t {
             unknown,
             file,
@@ -164,7 +164,7 @@ public:
         const file_offset_t _offset{file_offset_t(-1)},
             _capacity{file_offset_t(-1)};
         uint32_t _chunkid{uint32_t(-1)};
-        const bool _owns_readfd{false}, _owns_writefd{false},
+        bool const _owns_readfd{false}, _owns_writefd{false},
             _append_only{false};
 
         constexpr chunk(
@@ -184,7 +184,7 @@ public:
         }
 
     public:
-        chunk(const chunk &) = delete;
+        chunk(chunk const &) = delete;
         chunk(chunk &&) = delete;
         virtual ~chunk();
 
@@ -304,7 +304,7 @@ private:
     std::vector<_chunk_info> _chunks[2];
 
     device _make_device(
-        mode op, device::_type_t type, const std::filesystem::path &path,
+        mode op, device::_type_t type, std::filesystem::path const &path,
         int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
 
     void _fill_chunks();
@@ -327,7 +327,7 @@ public:
     ~storage_pool();
 
     //! \brief Returns a list of the backing storage devices
-    std::span<const device> devices() const noexcept
+    std::span<device const> devices() const noexcept
     {
         return {_devices};
     }
