@@ -29,7 +29,8 @@ struct trie_fuzzer_fixture
         for (auto &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
         }
-        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        this->root = upsert_vector(
+            this->update_aux, this->root.get(), std::move(updates));
 
         EXPECT_EQ(
             root_hash(),
@@ -44,7 +45,8 @@ struct trie_fuzzer_fixture
         }
         auto rng = std::minstd_rand{seed};
         std::shuffle(updates.begin(), updates.end(), rng);
-        this->root = upsert_vector(this->update_aux, this->root.get(), updates);
+        this->root = upsert_vector(
+            this->update_aux, this->root.get(), std::move(updates));
 
         EXPECT_EQ(
             root_hash(),
@@ -68,8 +70,8 @@ struct trie_fuzzer_fixture
                     one_hundred_updates[i].first,
                     one_hundred_updates[i].second));
             }
-            this->root =
-                upsert_vector(this->update_aux, this->root.get(), correct);
+            this->root = upsert_vector(
+                this->update_aux, this->root.get(), std::move(correct));
         }
         EXPECT_EQ(
             root_hash(),
@@ -106,8 +108,8 @@ struct trie_fuzzer_fixture
         }
 
         if (!updates.empty()) {
-            this->root =
-                upsert_vector(this->update_aux, this->root.get(), updates);
+            this->root = upsert_vector(
+                this->update_aux, this->root.get(), std::move(updates));
         }
         EXPECT_EQ(root_hash(), NULL_ROOT);
     }
@@ -119,7 +121,8 @@ struct trie_fuzzer_fixture
     {
         MONAD_ASSERT(groups.size() == kv.size());
 
-        std::map<size_t, std::vector<Update>> inputs = {{kv.size(), {}}};
+        std::map<size_t, std::vector<Update>> inputs;
+        inputs.emplace(kv.size(), std::vector<Update>{});
 
         for (size_t i = 0; i < groups.size(); ++i) {
             inputs[groups[i]].emplace_back(
@@ -155,8 +158,8 @@ struct trie_fuzzer_fixture
         size_t count = 0;
         for (auto &[_, input] : inputs) {
             count += input.size();
-            this->root =
-                upsert_vector(this->update_aux, this->root.get(), input);
+            this->root = upsert_vector(
+                this->update_aux, this->root.get(), std::move(input));
         }
         MONAD_ASSERT(count >= 100);
     }
