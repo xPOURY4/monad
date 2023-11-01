@@ -74,6 +74,7 @@ add_library(
   "include/monad/core/byte_string.hpp"
   "include/monad/core/cmemory.hpp"
   "include/monad/core/endian.hpp"
+  "include/monad/core/hash.hpp"
   "include/monad/core/hex_literal.hpp"
   "include/monad/core/keccak.h"
   "include/monad/core/math.hpp"

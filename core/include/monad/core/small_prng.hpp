@@ -30,6 +30,17 @@ public:
     //! The type produced by the small prng
     using value_type = uint32_t;
 
+    // To make this directly usable with `std::shuffle()`
+    using result_type = uint32_t;
+    static constexpr result_type min()
+    {
+        return 0;
+    }
+    static constexpr result_type max()
+    {
+        return UINT32_MAX;
+    }
+
     //! Construct an instance with `seed`
     explicit constexpr small_prng(uint32_t seed = 0xdeadbeef) noexcept
         : a{0xf1ea5eed}
@@ -45,7 +56,7 @@ public:
     //! Return `value_type` of pseudo-randomness
     constexpr uint32_t operator()() noexcept
     {
-        uint32_t e = a - rot(b, 27);
+        uint32_t const e = a - rot(b, 27);
         a = b ^ rot(c, 17);
         b = c + d;
         c = d + e;
