@@ -32,9 +32,8 @@ namespace
             AsyncIO io{pool, ring, rwbuf};
             MerkleCompute comp;
             node_ptr root;
-            UpdateAux aux{
-                std::make_unique<StateMachineWithBlockNo>(1),
-                &io}; // trie section starts from account
+            StateMachineWithBlockNo sm{1};
+            UpdateAux aux{&io}; // trie section starts from account
             monad::small_prng rand;
             std::vector<std::pair<monad::byte_string, size_t>> keys;
 
@@ -59,7 +58,7 @@ namespace
                             make_update(keys.back().first, keys.back().first));
                         update_ls.push_front(updates.back());
                     }
-                    root = upsert(aux, root.get(), std::move(update_ls));
+                    root = upsert(aux, sm, root.get(), std::move(update_ls));
                     size_t count = 0;
                     for (auto *ci = aux.db_metadata()->fast_list_begin();
                          ci != nullptr;
@@ -134,8 +133,11 @@ namespace
         for (auto &i : updates) {
             update_ls.push_front(i);
         }
-        state()->root =
-            upsert(state()->aux, state()->root.get(), std::move(update_ls));
+        state()->root = upsert(
+            state()->aux,
+            state()->sm,
+            state()->root.get(),
+            std::move(update_ls));
         std::cout << "\nBefore compaction:";
         state()->print(std::cout);
         // TODO DO COMPACTION

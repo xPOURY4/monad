@@ -99,15 +99,11 @@ public:
     void rewind_root_offset_to(chunk_offset_t offset);
 
 public:
-    std::unique_ptr<TrieStateMachine> sm;
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
     node_writer_unique_ptr_type node_writer{};
 
-    UpdateAux(
-        std::unique_ptr<TrieStateMachine> &&sm_,
-        MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
-        : sm(std::move(sm_))
-        , node_writer(node_writer_unique_ptr_type{})
+    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+        : node_writer(node_writer_unique_ptr_type{})
     {
         if (io_) {
             set_io(io_);
@@ -138,22 +134,12 @@ public:
         MONAD_ASSERT(this->is_on_disk());
         return db_metadata_[0]->capacity_in_free_list;
     }
-
-    constexpr Compute &comp() const noexcept
-    {
-        return sm->get_compute();
-    }
-
-    constexpr uint8_t trie_section() const noexcept
-    {
-        return sm->get_state();
-    }
 };
-static_assert(sizeof(UpdateAux) == 40);
+static_assert(sizeof(UpdateAux) == 32);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
-node_ptr upsert(UpdateAux &, Node *old, UpdateList &&);
+node_ptr upsert(UpdateAux &, TrieStateMachine &, Node *old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 

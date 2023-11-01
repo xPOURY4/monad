@@ -33,6 +33,7 @@ struct Compute
 struct TrieStateMachine
 {
     virtual ~TrieStateMachine(){};
+    virtual std::unique_ptr<TrieStateMachine> clone() const = 0;
     //! reset state to default
     virtual void reset(std::optional<uint8_t> sec = std::nullopt) = 0;
     //! forward transition down the trie, with a possible input value
@@ -300,6 +301,12 @@ public:
         : default_section_(static_cast<TrieSection>(sec))
         , curr_section_(default_section_)
     {
+    }
+
+    virtual std::unique_ptr<TrieStateMachine> clone() const override
+    {
+        return std::make_unique<StateMachineWithBlockNo>(
+            static_cast<uint8_t>(default_section_));
     }
 
     virtual void reset(std::optional<uint8_t> sec) override

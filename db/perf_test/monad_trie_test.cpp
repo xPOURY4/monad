@@ -70,7 +70,7 @@ inline node_ptr batch_upsert_commit(
     uint64_t key_offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_root, UpdateAux &aux)
+    node_ptr prev_root, UpdateAux &aux, TrieStateMachine &sm)
 {
     auto const block_no = serialise_as_big_endian<6>(block_id);
     if (block_id != 0) {
@@ -97,7 +97,7 @@ inline node_ptr batch_upsert_commit(
     updates.push_front(u);
 
     auto ts_before = std::chrono::steady_clock::now();
-    node_ptr new_root = upsert(aux, prev_root.get(), std::move(updates));
+    node_ptr new_root = upsert(aux, sm, prev_root.get(), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = static_cast<double>(
                  std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -286,7 +286,8 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
-        UpdateAux aux{std::make_unique<StateMachineWithBlockNo>(), nullptr};
+        UpdateAux aux{};
+        StateMachineWithBlockNo sm{};
         if (!in_memory) {
             aux.set_io(&io);
         }
@@ -338,7 +339,8 @@ int main(int argc, char *argv[])
                 keccak_values,
                 false,
                 std::move(state_root),
-                aux);
+                aux,
+                sm);
 
             if (erase && (iter & 1) != 0) {
                 fprintf(stdout, "> erase iter = %lu\n", iter);
@@ -353,7 +355,8 @@ int main(int argc, char *argv[])
                     keccak_values,
                     true,
                     std::move(state_root),
-                    aux);
+                    aux,
+                    sm);
 
                 fprintf(stdout, "> dup batch iter = %lu\n", iter);
 
@@ -367,7 +370,8 @@ int main(int argc, char *argv[])
                     keccak_values,
                     false,
                     std::move(state_root),
-                    aux);
+                    aux,
+                    sm);
             }
         }
 
