@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(monad_trie)
 enable_testing()
 
-option(MONAD_FUZZTEST "Enable the fuzz tests" OFF)
+option(MONAD_FUZZTEST "Enable the fuzz tests" ON)
 
 # ##############################################################################
 # deps
@@ -39,7 +39,6 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
-
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/cache_option.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
@@ -48,7 +47,6 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/trie.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
-
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/copy_node.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find.cpp"
@@ -72,7 +70,7 @@ add_subdirectory("src/monad/mpt/test")
 add_subdirectory("src/monad/async/test")
 add_subdirectory("perf_test")
 
-if(MONAD_FUZZTEST)
+if(MONAD_FUZZTEST AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(FUZZTEST_FUZZING_MODE
       ON
       CACHE INTERNAL "enable fuzzing" FORCE)
