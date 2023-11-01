@@ -96,11 +96,16 @@ node_ptr copy_node(
                     node->path_data()});
             bool const leaf_first = nibble < node_nibble;
             ret->set_next_j(leaf_first ? 0 : 1, dest_leaf);
+            ret->set_next_j(leaf_first ? 1 : 0, node_latter_half);
             if (aux.is_on_disk()) {
-                // Request a write for the modified node, not necessarily
-                // land on disk immediately, but it's queued until the
-                // buffer is full or a root node is written in the next
-                // batch update.
+                // Request a write for the modified node, async_write_node()
+                // serialize nodes to buffer but it's not guaranteed to land on
+                // disk immediately because the buffer will only be flushed to
+                // disk when full or close to full. To avoid reading from offset
+                // that is still pending on write, we always cache
+                // `node_latter_half` in memory here. TODO once we enable the
+                // write back cache, we can unpin the node from memory no
+                // problem.
                 auto off =
                     async_write_node(aux, node_latter_half).offset_written_to;
                 auto const pages =
@@ -109,10 +114,6 @@ node_ptr copy_node(
                     pages <= std::numeric_limits<uint16_t>::max());
                 off.spare = static_cast<uint16_t>(pages);
                 ret->fnext_j(leaf_first ? 1 : 0) = off;
-                node_ptr{node_latter_half}.reset();
-            }
-            else {
-                ret->set_next_j(leaf_first ? 1 : 0, node_latter_half);
             }
             return ret;
         }();

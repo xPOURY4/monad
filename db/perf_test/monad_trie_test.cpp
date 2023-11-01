@@ -27,7 +27,7 @@
 #include <ctime>
 #include <iostream>
 
-#define SLICE_LEN 100000
+#define SLICE_LEN 100
 
 using namespace monad::mpt;
 
@@ -74,11 +74,17 @@ inline node_ptr batch_upsert_commit(
 {
     auto const block_no = serialise_as_big_endian<6>(block_id);
     if (block_id != 0) {
+        auto old_block_no = serialise_as_big_endian<6>(block_id - 1);
         prev_root = monad::mpt::copy_node(
-            aux,
-            std::move(prev_root),
-            serialise_as_big_endian<6>(block_id - 1),
-            block_no);
+            aux, std::move(prev_root), old_block_no, block_no);
+        // For test purpose only: verify that earlier blocks are valid, no
+        // change in db
+        auto [state_root, res] = find_blocking(
+            aux.is_on_disk() ? &aux.io->storage_pool() : nullptr,
+            prev_root.get(),
+            old_block_no);
+        MONAD_ASSERT(res == find_result::success);
+        MONAD_ASSERT(state_root->hash_len == 32);
     }
 
     double tm_ram;
