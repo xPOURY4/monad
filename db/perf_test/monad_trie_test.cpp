@@ -27,7 +27,7 @@
 #include <ctime>
 #include <iostream>
 
-#define SLICE_LEN 100
+#define SLICE_LEN 100000
 
 using namespace monad::mpt;
 
