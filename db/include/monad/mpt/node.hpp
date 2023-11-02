@@ -293,17 +293,6 @@ public:
             path_nibble_index_end,
             path_data()};
     }
-    void set_path(NibblesView const relpath)
-    {
-        // TODO: a possible case isn't handled is that when si and ei are all
-        // odd, should shift leaf one nibble, however this introduces more
-        // memcpy. Might be worth doing in the serialization step.
-        bitpacked.path_nibble_index_start = relpath.begin_nibble_;
-        path_nibble_index_end = relpath.end_nibble_;
-        if (relpath.size()) {
-            std::memcpy(path_data(), relpath.data_, relpath.size());
-        }
-    }
 
     //! leaf
     constexpr unsigned char *leaf_data() noexcept
@@ -500,7 +489,7 @@ inline Node *create_node_nodata(
 
     node->set_params(mask, is_leaf, /*leaf_len*/ 0, /*hash_len*/ 0);
     if (relpath.size()) {
-        node->set_path(relpath);
+        serialize_to_node(relpath, *node);
     }
     node->disk_size = node->get_disk_size();
     return node.release();

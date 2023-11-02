@@ -21,7 +21,7 @@ node_ptr copy_node(
     // Insert `dest` to trie, the node created will need to have the same
     // children as node at `src`
     while (pi < dest.nibble_size()) {
-        unsigned char const nibble = dest[pi];
+        unsigned char const nibble = dest.get(pi);
         if (node->path_nibble_index_end == node_pi) {
             if (node->mask & (1u << nibble) && node->next(nibble) != nullptr) {
                 // go to node's matched child

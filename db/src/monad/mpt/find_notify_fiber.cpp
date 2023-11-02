@@ -88,7 +88,7 @@ void find_recursive(
                 {nullptr, find_result::key_ends_ealier_than_node_failure});
             return;
         }
-        if (key[pi] != get_nibble(node->path_data(), node_pi)) {
+        if (key.get(pi) != get_nibble(node->path_data(), node_pi)) {
             promise.set_value({nullptr, find_result::key_mismatch_failure});
             return;
         }
@@ -98,7 +98,7 @@ void find_recursive(
         return;
     }
     MONAD_ASSERT(pi < key.nibble_size());
-    if (unsigned char const branch = key[pi]; node->mask & (1u << branch)) {
+    if (unsigned char const branch = key.get(pi); node->mask & (1u << branch)) {
         MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
         auto const next_key = key.suffix(static_cast<unsigned char>(pi + 1));
         if (node->next(branch) != nullptr) {

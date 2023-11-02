@@ -17,7 +17,7 @@ Node *create_leaf(byte_string_view const data, NibblesView const relpath)
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->data);
     if (relpath.size()) {
-        node->set_path(relpath);
+        serialize_to_node(relpath, *node);
     }
     MONAD_DEBUG_ASSERT(data.size() <= std::numeric_limits<uint8_t>::max());
     node->set_params(0, true, static_cast<uint8_t>(data.size()), 0);
@@ -31,7 +31,7 @@ Node *create_coalesced_node_with_prefix(
     uint8_t const branch, node_ptr prev, NibblesView const prefix)
 {
     // Note that prev may be a leaf
-    Nibbles relpath = concat3(prefix, branch, prev->path_nibble_view());
+    Nibbles const relpath = concat3(prefix, branch, prev->path_nibble_view());
     unsigned size = prev->get_mem_size() + relpath.size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, fnexts, data_off
@@ -40,7 +40,7 @@ Node *create_coalesced_node_with_prefix(
         (unsigned char *)prev.get(),
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
 
-    node->set_path(relpath);
+    serialize_to_node(NibblesView{relpath}, *node);
     node->set_leaf(prev->leaf_view());
     // hash and data arr
     std::memcpy(
@@ -98,7 +98,7 @@ Node *create_node(
         offsets.size() * sizeof(Node::data_off_t));
     // order is enforced, must set path first
     if (relpath.size()) {
-        node->set_path(relpath);
+        serialize_to_node(relpath, *node);
     }
     if (is_leaf) {
         node->set_leaf(leaf_data.value());
@@ -140,7 +140,7 @@ Node *update_node_diff_path_leaf(
     node->bitpacked.is_leaf = is_leaf;
     // assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first
-    node->set_path(relpath); // overwrite old path
+    serialize_to_node(relpath, *node); // overwrite old path
     if (is_leaf) {
         node->set_leaf(leaf_data.value());
     }
@@ -161,6 +161,18 @@ Node *update_node_diff_path_leaf(
     node->disk_size = node->get_disk_size();
     assert(node->disk_size < 1024);
     return node.release();
+}
+
+void serialize_to_node(NibblesView const nibbles, Node &node)
+{
+    // TODO: optimization opportunity when si and ei are all
+    // odd, should shift leaf one nibble, however this introduces more
+    // memcpy. Might be worth doing in the serialization step.
+    node.bitpacked.path_nibble_index_start = nibbles.begin_nibble_;
+    node.path_nibble_index_end = nibbles.end_nibble_;
+    if (nibbles.size()) {
+        std::memcpy(node.path_data(), nibbles.data_, nibbles.size());
+    }
 }
 
 MONAD_MPT_NAMESPACE_END

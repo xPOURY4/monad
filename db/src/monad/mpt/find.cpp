@@ -28,7 +28,7 @@ find_result_type find_blocking(
                                    ? opt_node_pi.value()
                                    : node->bitpacked.path_nibble_index_start;
     while (pi < key.nibble_size()) {
-        unsigned char nibble = key[pi];
+        unsigned char nibble = key.get(pi);
         if (node->path_nibble_index_end == node_pi) {
             if (!(node->mask & (1u << nibble))) {
                 return {nullptr, find_result::branch_not_exist_failure};

@@ -8,21 +8,20 @@ using namespace monad::literals;
 
 TEST(NibblesViewTest, nibbles_view)
 {
-    auto path =
+    auto const path =
         0x1234567812345678123456781234567812345678123456781234567812345678_hex;
 
-    NibblesView a{12, 12, path.data()};
+    NibblesView const a{12, 12, path.data()};
     EXPECT_EQ(a.size(), 0);
-    EXPECT_EQ(a.data_, nullptr);
+    EXPECT_EQ(a, NibblesView{});
 
-    NibblesView b{12, 16, path.data()}, c{20, 24, path.data()};
-    EXPECT_EQ(b.begin_nibble_, false);
-    EXPECT_EQ(b.end_nibble_, 4);
+    NibblesView const b{12, 16, path.data()}, c{20, 24, path.data()};
     EXPECT_EQ(b, c);
 
-    NibblesView d{15, 18, path.data()};
-    EXPECT_EQ(d.begin_nibble_, true);
-    EXPECT_EQ(d.end_nibble_, 4);
+    NibblesView const d{15, 18, path.data()};
+    auto const expected_bytes = 0x8120_hex;
+    auto const expected = NibblesView{0, 3, expected_bytes.data()};
+    EXPECT_EQ(d, expected);
 }
 
 TEST(NibblesTest, concat_nibbles)

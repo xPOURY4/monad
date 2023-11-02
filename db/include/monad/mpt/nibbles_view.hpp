@@ -14,14 +14,19 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct NibblesView;
-struct Nibbles
+class NibblesView;
+class Node;
+
+class Nibbles
 {
+private:
+    friend class NibblesView;
     using size_type = uint8_t; // max length support is 255 nibbles
     std::unique_ptr<unsigned char[]> data_;
     bool begin_nibble_{false};
     size_type end_nibble_{0};
 
+public:
     constexpr Nibbles() = default;
 
     Nibbles(unsigned const end_nibble)
@@ -40,17 +45,29 @@ struct Nibbles
                    ? 0
                    : ((end_nibble_ + 1) / 2);
     }
+
+    constexpr void set(unsigned const i, unsigned char const value)
+    {
+        MONAD_DEBUG_ASSERT(value <= 0xF);
+        MONAD_DEBUG_ASSERT(
+            i < static_cast<unsigned>(
+                    end_nibble_ - static_cast<size_type>(begin_nibble_)));
+        ::set_nibble(data_.get(), begin_nibble_ + i, value);
+    }
 };
 static_assert(sizeof(Nibbles) == 16);
 static_assert(alignof(Nibbles) == 8);
 
-struct NibblesView
+class NibblesView
 {
+private:
+    friend class Nibbles;
     using size_type = Nibbles::size_type;
     unsigned char const *data_{nullptr};
     bool begin_nibble_{false};
     size_type end_nibble_{0};
 
+public:
     constexpr NibblesView() = default;
     constexpr NibblesView(NibblesView const &) = default;
     NibblesView &operator=(NibblesView const &) = default;
@@ -116,27 +133,29 @@ struct NibblesView
         if (this == &other) {
             return true;
         }
-        if (begin_nibble_ != other.begin_nibble_ ||
-            end_nibble_ != other.end_nibble_) {
+
+        if (nibble_size() != other.nibble_size()) {
             return false;
         }
-        if (end_nibble_ == 0) {
-            return true;
-        }
-        MONAD_DEBUG_ASSERT(data_ && other.data_);
 
-        for (unsigned i = begin_nibble_; i < end_nibble_; ++i) {
-            if (get_nibble(data_, i) != get_nibble(other.data_, i)) {
-                return false;
+        if (nibble_size()) {
+            MONAD_DEBUG_ASSERT(data_ && other.data_);
+            for (auto i = 0u; i < nibble_size(); ++i) {
+                if (get(i) != other.get(i)) {
+                    return false;
+                }
             }
         }
         return true;
     }
 
-    unsigned char operator[](unsigned i) const
+    [[nodiscard]] unsigned char get(unsigned const i) const
     {
+        MONAD_ASSERT(i < nibble_size());
         return get_nibble(data_, begin_nibble_ + i);
     }
+
+    friend void serialize_to_node(NibblesView const, Node &);
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
@@ -146,16 +165,10 @@ inline Nibbles &Nibbles::operator=(NibblesView const &n)
 {
     begin_nibble_ = n.begin_nibble_;
     end_nibble_ = n.end_nibble_;
-    MONAD_DEBUG_ASSERT(
-        begin_nibble_ <= end_nibble_ &&
-        end_nibble_ <= std::numeric_limits<size_type>::max());
+    data_.reset();
     if (begin_nibble_ != end_nibble_) {
-        auto const alloc_size = n.size();
-        data_ = std::make_unique<unsigned char[]>(alloc_size);
-        std::memcpy(data_.get(), n.data_, alloc_size);
-    }
-    else {
-        data_.reset();
+        data_ = std::make_unique<unsigned char[]>(n.size());
+        std::memcpy(data_.get(), n.data_, n.size());
     }
     return *this;
 }
@@ -164,29 +177,23 @@ inline Nibbles concat3(
     NibblesView const prefix, unsigned char const nibble,
     NibblesView const suffix)
 {
-    // calculate bytes
-    unsigned end_nibble = prefix.end_nibble_ - prefix.begin_nibble_ + 1 +
-                          suffix.end_nibble_ - suffix.begin_nibble_;
-    Nibbles res{end_nibble};
-    unsigned j = 0;
-    for (unsigned i = prefix.begin_nibble_; i < prefix.end_nibble_; ++i, ++j) {
-        set_nibble(res.data_.get(), j, get_nibble(prefix.data_, i));
+    Nibbles res{prefix.nibble_size() + 1u + suffix.nibble_size()};
+    for (auto i = 0u; i < prefix.nibble_size(); ++i) {
+        res.set(i, prefix.get(i));
     }
-    set_nibble(res.data_.get(), j++, nibble);
-    for (unsigned i = suffix.begin_nibble_; i < suffix.end_nibble_; ++i, ++j) {
-        set_nibble(res.data_.get(), j, get_nibble(suffix.data_, i));
+    res.set(prefix.nibble_size(), nibble);
+    for (auto i = 0u; i < suffix.nibble_size(); ++i) {
+        res.set(i + prefix.nibble_size() + 1u, suffix.get(i));
     }
     return res;
 }
 
 inline Nibbles concat2(unsigned char const nibble, NibblesView const suffix)
 {
-    unsigned end_nibble = suffix.end_nibble_ - suffix.begin_nibble_ + 1;
-    Nibbles res{end_nibble};
-    unsigned j = 0;
-    set_nibble(res.data_.get(), j++, nibble);
-    for (unsigned i = suffix.begin_nibble_; i < suffix.end_nibble_; ++i, ++j) {
-        set_nibble(res.data_.get(), j, get_nibble(suffix.data_, i));
+    Nibbles res{1u + suffix.nibble_size()};
+    res.set(0u, nibble);
+    for (auto i = 0u; i < suffix.nibble_size(); ++i) {
+        res.set(i + 1u, suffix.get(i));
     }
     return res;
 }
