@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <type_traits>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -19,7 +20,7 @@ struct Nibbles
     using size_type = uint8_t; // max length support is 255 nibbles
     bool si{false};
     size_type ei{0};
-    unsigned char *data{nullptr};
+    std::unique_ptr<unsigned char[]> data;
 
     constexpr Nibbles() = default;
 
@@ -29,24 +30,12 @@ struct Nibbles
         , data((si_ == ei_) ? nullptr : ([&] {
             MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
             unsigned const alloc_size = (ei + 1) / 2;
-            void *ret = std::malloc(alloc_size);
-            if (ret == nullptr) {
-                throw std::bad_alloc();
-            }
-            std::memset(ret, 0, alloc_size);
-            return static_cast<unsigned char *>(ret);
+            return std::make_unique<unsigned char[]>(alloc_size);
         }()))
     {
     }
 
     Nibbles &operator=(NibblesView const &other);
-
-    ~Nibbles()
-    {
-        if (data) {
-            std::free(data);
-        }
-    }
 
     constexpr unsigned size() const noexcept
     {
@@ -93,7 +82,7 @@ struct NibblesView
 
     // construct from Nibbles
     constexpr NibblesView(Nibbles const &n) noexcept
-        : NibblesView{n.si, n.ei, n.data}
+        : NibblesView{n.si, n.ei, n.data.get()}
     {
     }
 
@@ -146,22 +135,16 @@ static_assert(std::is_trivially_copyable_v<NibblesView> == true);
 
 inline Nibbles &Nibbles::operator=(NibblesView const &n)
 {
-    if (data) {
-        free(data);
-    }
     si = n.si;
     ei = n.ei;
+    data.reset();
     MONAD_DEBUG_ASSERT(si <= ei && ei <= 255);
     if (si == ei) {
         return *this;
     }
-    unsigned const alloc_size = n.size();
-    void *ret = std::malloc(alloc_size);
-    if (ret == nullptr) {
-        throw std::bad_alloc();
-    }
-    memcpy(ret, n.data, n.size());
-    data = static_cast<unsigned char *>(ret);
+    auto const alloc_size = n.size();
+    data = std::make_unique<unsigned char[]>(alloc_size);
+    std::memcpy(data.get(), n.data, n.size());
     return *this;
 }
 
@@ -174,11 +157,11 @@ inline Nibbles concat3(
     Nibbles res{0, ei};
     unsigned j = 0;
     for (unsigned i = prefix.si; i < prefix.ei; ++i, ++j) {
-        set_nibble(res.data, j, get_nibble(prefix.data, i));
+        set_nibble(res.data.get(), j, get_nibble(prefix.data, i));
     }
-    set_nibble(res.data, j++, nibble);
+    set_nibble(res.data.get(), j++, nibble);
     for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
-        set_nibble(res.data, j, get_nibble(suffix.data, i));
+        set_nibble(res.data.get(), j, get_nibble(suffix.data, i));
     }
     return res;
 }
@@ -188,9 +171,9 @@ inline Nibbles concat2(unsigned char const nibble, NibblesView const suffix)
     unsigned ei = suffix.ei - suffix.si + 1;
     Nibbles res{0, ei};
     unsigned j = 0;
-    set_nibble(res.data, j++, nibble);
+    set_nibble(res.data.get(), j++, nibble);
     for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
-        set_nibble(res.data, j, get_nibble(suffix.data, i));
+        set_nibble(res.data.get(), j, get_nibble(suffix.data, i));
     }
     return res;
 }
