@@ -18,28 +18,27 @@ struct NibblesView;
 struct Nibbles
 {
     using size_type = uint8_t; // max length support is 255 nibbles
-    bool si{false};
-    size_type ei{0};
-    std::unique_ptr<unsigned char[]> data;
+    std::unique_ptr<unsigned char[]> data_;
+    bool begin_nibble_{false};
+    size_type end_nibble_{0};
 
     constexpr Nibbles() = default;
 
-    Nibbles(unsigned const si_, unsigned const ei_)
-        : si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : static_cast<size_type>(ei_ - si_ + si))
-        , data((si_ == ei_) ? nullptr : ([&] {
-            MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
-            unsigned const alloc_size = (ei + 1) / 2;
-            return std::make_unique<unsigned char[]>(alloc_size);
-        }()))
+    Nibbles(unsigned const end_nibble)
+        : data_(std::make_unique<unsigned char[]>((end_nibble + 1) / 2))
+        , begin_nibble_(false)
+        , end_nibble_(static_cast<size_type>(end_nibble))
     {
+        MONAD_DEBUG_ASSERT(end_nibble <= std::numeric_limits<size_type>::max());
     }
 
     Nibbles &operator=(NibblesView const &other);
 
     constexpr unsigned size() const noexcept
     {
-        return ((size_type)si == ei) ? 0 : ((ei + 1) / 2);
+        return ((size_type)begin_nibble_ == end_nibble_)
+                   ? 0
+                   : ((end_nibble_ + 1) / 2);
     }
 };
 static_assert(sizeof(Nibbles) == 16);
@@ -47,23 +46,30 @@ static_assert(alignof(Nibbles) == 8);
 
 struct NibblesView
 {
-    using size_type = uint8_t; // max length support is 255 nibbles
-    unsigned char const *data{nullptr};
-    bool si{false};
-    size_type ei{0};
+    using size_type = Nibbles::size_type;
+    unsigned char const *data_{nullptr};
+    bool begin_nibble_{false};
+    size_type end_nibble_{0};
 
     constexpr NibblesView() = default;
     constexpr NibblesView(NibblesView const &) = default;
     NibblesView &operator=(NibblesView const &) = default;
 
     constexpr explicit NibblesView(
-        unsigned const si_, unsigned const ei_,
-        unsigned char const *const data_) noexcept
-        : data((si_ == ei_) ? nullptr : (data_ + si_ / 2))
-        , si((si_ == ei_) ? false : (si_ & 1))
-        , ei((si_ == ei_) ? 0 : static_cast<size_type>(ei_ - si_ + si))
+        unsigned const begin_nibble, unsigned const end_nibble,
+        unsigned char const *const data) noexcept
+        : data_(
+              (begin_nibble == end_nibble) ? nullptr
+                                           : (data + begin_nibble / 2))
+        , begin_nibble_(data_ == nullptr ? false : (begin_nibble & 1))
+        , end_nibble_(
+              data_ == nullptr ? 0
+                               : static_cast<size_type>(
+                                     end_nibble - begin_nibble + begin_nibble_))
     {
-        MONAD_DEBUG_ASSERT(si_ <= ei_ && ei_ <= 255);
+        MONAD_DEBUG_ASSERT(
+            begin_nibble <= end_nibble &&
+            end_nibble <= std::numeric_limits<size_type>::max());
     }
 
     // constructor from byte_string_view
@@ -71,7 +77,7 @@ struct NibblesView
         : NibblesView(false, static_cast<uint8_t>(2 * s.size()), s.data())
     {
         MONAD_DEBUG_ASSERT(
-            (s.size() * 2) <= std::numeric_limits<uint8_t>::max());
+            (s.size() * 2) <= std::numeric_limits<size_type>::max());
     }
 
     // constructor from byte_string
@@ -82,25 +88,27 @@ struct NibblesView
 
     // construct from Nibbles
     constexpr NibblesView(Nibbles const &n) noexcept
-        : NibblesView{n.si, n.ei, n.data.get()}
+        : NibblesView{n.begin_nibble_, n.end_nibble_, n.data_.get()}
     {
     }
 
     constexpr size_type nibble_size() const
     {
-        return ei - static_cast<size_type>(si);
+        return end_nibble_ - static_cast<size_type>(begin_nibble_);
     }
 
     // size of data in bytes
     constexpr unsigned size() const
     {
-        return (static_cast<size_type>(si) == ei) ? 0 : ((ei + 1) / 2);
+        return (static_cast<size_type>(begin_nibble_) == end_nibble_)
+                   ? 0
+                   : ((end_nibble_ + 1) / 2);
     }
 
     constexpr NibblesView suffix(size_type pos) const
     {
         return NibblesView{
-            static_cast<unsigned>(this->si + pos), this->ei, this->data};
+            static_cast<unsigned>(begin_nibble_ + pos), end_nibble_, data_};
     }
 
     constexpr bool operator==(NibblesView const &other) const
@@ -108,16 +116,17 @@ struct NibblesView
         if (this == &other) {
             return true;
         }
-        if (si != other.si || ei != other.ei) {
+        if (begin_nibble_ != other.begin_nibble_ ||
+            end_nibble_ != other.end_nibble_) {
             return false;
         }
-        if (ei == 0) {
+        if (end_nibble_ == 0) {
             return true;
         }
-        MONAD_DEBUG_ASSERT(data && other.data);
+        MONAD_DEBUG_ASSERT(data_ && other.data_);
 
-        for (unsigned i = si; i < ei; ++i) {
-            if (get_nibble(data, i) != get_nibble(other.data, i)) {
+        for (unsigned i = begin_nibble_; i < end_nibble_; ++i) {
+            if (get_nibble(data_, i) != get_nibble(other.data_, i)) {
                 return false;
             }
         }
@@ -126,7 +135,7 @@ struct NibblesView
 
     unsigned char operator[](unsigned i) const
     {
-        return get_nibble(data, si + i);
+        return get_nibble(data_, begin_nibble_ + i);
     }
 };
 static_assert(sizeof(NibblesView) == 16);
@@ -135,16 +144,19 @@ static_assert(std::is_trivially_copyable_v<NibblesView> == true);
 
 inline Nibbles &Nibbles::operator=(NibblesView const &n)
 {
-    si = n.si;
-    ei = n.ei;
-    data.reset();
-    MONAD_DEBUG_ASSERT(si <= ei && ei <= 255);
-    if (si == ei) {
-        return *this;
+    begin_nibble_ = n.begin_nibble_;
+    end_nibble_ = n.end_nibble_;
+    MONAD_DEBUG_ASSERT(
+        begin_nibble_ <= end_nibble_ &&
+        end_nibble_ <= std::numeric_limits<size_type>::max());
+    if (begin_nibble_ != end_nibble_) {
+        auto const alloc_size = n.size();
+        data_ = std::make_unique<unsigned char[]>(alloc_size);
+        std::memcpy(data_.get(), n.data_, alloc_size);
     }
-    auto const alloc_size = n.size();
-    data = std::make_unique<unsigned char[]>(alloc_size);
-    std::memcpy(data.get(), n.data, n.size());
+    else {
+        data_.reset();
+    }
     return *this;
 }
 
@@ -153,27 +165,28 @@ inline Nibbles concat3(
     NibblesView const suffix)
 {
     // calculate bytes
-    unsigned ei = prefix.ei - prefix.si + 1 + suffix.ei - suffix.si;
-    Nibbles res{0, ei};
+    unsigned end_nibble = prefix.end_nibble_ - prefix.begin_nibble_ + 1 +
+                          suffix.end_nibble_ - suffix.begin_nibble_;
+    Nibbles res{end_nibble};
     unsigned j = 0;
-    for (unsigned i = prefix.si; i < prefix.ei; ++i, ++j) {
-        set_nibble(res.data.get(), j, get_nibble(prefix.data, i));
+    for (unsigned i = prefix.begin_nibble_; i < prefix.end_nibble_; ++i, ++j) {
+        set_nibble(res.data_.get(), j, get_nibble(prefix.data_, i));
     }
-    set_nibble(res.data.get(), j++, nibble);
-    for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
-        set_nibble(res.data.get(), j, get_nibble(suffix.data, i));
+    set_nibble(res.data_.get(), j++, nibble);
+    for (unsigned i = suffix.begin_nibble_; i < suffix.end_nibble_; ++i, ++j) {
+        set_nibble(res.data_.get(), j, get_nibble(suffix.data_, i));
     }
     return res;
 }
 
 inline Nibbles concat2(unsigned char const nibble, NibblesView const suffix)
 {
-    unsigned ei = suffix.ei - suffix.si + 1;
-    Nibbles res{0, ei};
+    unsigned end_nibble = suffix.end_nibble_ - suffix.begin_nibble_ + 1;
+    Nibbles res{end_nibble};
     unsigned j = 0;
-    set_nibble(res.data.get(), j++, nibble);
-    for (unsigned i = suffix.si; i < suffix.ei; ++i, ++j) {
-        set_nibble(res.data.get(), j, get_nibble(suffix.data, i));
+    set_nibble(res.data_.get(), j++, nibble);
+    for (unsigned i = suffix.begin_nibble_; i < suffix.end_nibble_; ++i, ++j) {
+        set_nibble(res.data_.get(), j, get_nibble(suffix.data_, i));
     }
     return res;
 }

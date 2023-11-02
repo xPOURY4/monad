@@ -26,15 +26,16 @@ inline constexpr byte_string_view compact_encode(
     unsigned char *const res, NibblesView const relpath,
     bool const terminating) noexcept
 {
-    unsigned const ei = relpath.ei, si = relpath.si;
-    unsigned char const *const path = relpath.data;
-    assert(ei >= si);
-    unsigned ci = si, path_len = ei - si;
+    unsigned const end_nibble = relpath.end_nibble_,
+                   begin_nibble = relpath.begin_nibble_;
+    unsigned char const *const path = relpath.data_;
+    assert(end_nibble >= begin_nibble);
+    unsigned ci = begin_nibble, path_len = end_nibble - begin_nibble;
     if (path_len == 0) {
         res[0] = 0x20;
         return byte_string_view(res, 1);
     }
-    const bool odd = (path_len & 1u) != 0;
+    bool const odd = (path_len & 1u) != 0;
     res[0] = terminating ? 0x20 : 0x00;
 
     if (odd) {
@@ -43,7 +44,7 @@ inline constexpr byte_string_view compact_encode(
         ++ci;
     }
     unsigned res_ci = 2;
-    while (ci != ei) {
+    while (ci != end_nibble) {
         set_nibble(res, res_ci++, get_nibble(path, ci++));
     }
     return byte_string_view{res, path_len / 2 + 1};

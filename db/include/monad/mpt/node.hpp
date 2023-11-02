@@ -298,10 +298,10 @@ public:
         // TODO: a possible case isn't handled is that when si and ei are all
         // odd, should shift leaf one nibble, however this introduces more
         // memcpy. Might be worth doing in the serialization step.
-        bitpacked.path_nibble_index_start = relpath.si;
-        path_nibble_index_end = relpath.ei;
+        bitpacked.path_nibble_index_start = relpath.begin_nibble_;
+        path_nibble_index_end = relpath.end_nibble_;
         if (relpath.size()) {
-            std::memcpy(path_data(), relpath.data, relpath.size());
+            std::memcpy(path_data(), relpath.data_, relpath.size());
         }
     }
 
