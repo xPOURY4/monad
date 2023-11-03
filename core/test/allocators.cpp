@@ -16,7 +16,7 @@ namespace
         {
             constructed++;
         }
-        Foo(const Foo &o)
+        Foo(Foo const &o)
             : x(o.x)
         {
             constructed++;
@@ -124,7 +124,7 @@ namespace
         {
             auto v = owning_span<int>(5, 2);
             ASSERT_EQ(v.size(), 5);
-            for (const auto &i : v) {
+            for (auto const &i : v) {
                 EXPECT_EQ(i, 2);
             }
         }
@@ -132,7 +132,7 @@ namespace
         {
             auto v = owning_span<Foo, custom_allocator>(5, Foo(2));
             ASSERT_EQ(v.size(), 5);
-            for (const auto &i : v) {
+            for (auto const &i : v) {
                 EXPECT_EQ(i.x, 2);
             }
         }
@@ -148,7 +148,7 @@ namespace
         reset();
         {
             using type = std::unique_ptr<Foo>;
-            thread_local_delayed_unique_ptr_resetter<type> resetter;
+            thread_local_delayed_unique_ptr_resetter<type> const resetter;
             {
                 type x = std::make_unique<Foo>();
                 EXPECT_EQ(constructed, 1);

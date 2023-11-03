@@ -70,11 +70,11 @@ TEST_P(AllocatorTest, FullAllocation)
     while ((ptr = (uintptr_t)(allocator->alloc(size))) != (uintptr_t) nullptr) {
         k++;
     }
-    size_t total_size =
+    size_t const total_size =
         (1 << size_bit) - sizeof(monad::DynamicAllocator<8, 11, 4, 13>);
-    size_t page_size = 1 << 13;
-    size_t n_pages = (total_size) / page_size;
-    size_t n_blocks = (page_size - 48) / ((size - 1) / 16 * 16 + 16);
+    size_t const page_size = 1 << 13;
+    size_t const n_pages = (total_size) / page_size;
+    size_t const n_blocks = (page_size - 48) / ((size - 1) / 16 * 16 + 16);
     EXPECT_EQ(n_pages * n_blocks, k);
 }
 

@@ -42,18 +42,18 @@ public:
                               m.lock_shared()
                           } -> std::convertible_to<void>;
                       }) {
-            std::shared_lock<TMutex> lock{mutex_};
+            std::shared_lock<TMutex> const lock{mutex_};
             return counter_;
         }
         else {
-            std::unique_lock<TMutex> lock{mutex_};
+            std::unique_lock<TMutex> const lock{mutex_};
             return counter_;
         }
     }
 
     [[nodiscard]] uint64_t increment()
     {
-        std::unique_lock<TMutex> lock{mutex_};
+        std::unique_lock<TMutex> const lock{mutex_};
         auto old = counter_;
         counter_++;
         return old;

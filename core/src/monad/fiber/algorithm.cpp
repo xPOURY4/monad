@@ -26,7 +26,7 @@ void shared_work::awakened(
     }
     else {
         ctx->detach();
-        std::unique_lock<std::mutex> lk{rqueue_mtx_};
+        std::unique_lock<std::mutex> const lk{rqueue_mtx_};
         auto it = rqueue_.begin();
         auto const end = rqueue_.end();
         for (; it != end; ++it) {
@@ -62,7 +62,7 @@ boost::fibers::context *shared_work::pick_next() noexcept
 
 bool shared_work::has_ready_fibers() const noexcept
 {
-    std::unique_lock<std::mutex> lk{rqueue_mtx_};
+    std::unique_lock<std::mutex> const lk{rqueue_mtx_};
     return !rqueue_.empty() || !lqueue_.empty();
 }
 

@@ -9,5 +9,5 @@ TEST(HugeMem, works)
 {
     using namespace MONAD_NAMESPACE;
     io::Ring ring(128, 0);
-    io::Buffers buffers(ring, 8, 8);
+    io::Buffers const buffers(ring, 8, 8);
 }
