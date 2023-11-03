@@ -1,6 +1,8 @@
-#include <gtest/gtest.h>
-
 #include <monad/mem/huge_mem.hpp>
+
+#include <monad/config.hpp>
+
+#include <gtest/gtest.h>
 
 #include <iostream>
 

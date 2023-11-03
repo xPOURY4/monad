@@ -1,3 +1,5 @@
+#include <monad/config.hpp>
+
 #include <monad/core/offset.hpp>
 
 #include <cstdint>

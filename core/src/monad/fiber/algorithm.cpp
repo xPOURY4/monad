@@ -2,10 +2,16 @@
 
 #include <monad/core/likely.h>
 
+#include <monad/fiber/config.hpp>
+#include <monad/fiber/properties.hpp>
+
 #include <boost/assert.hpp>
+#include <boost/fiber/context.hpp>
 #include <boost/fiber/type.hpp>
 
+#include <chrono>
 #include <cstdint>
+#include <mutex>
 
 MONAD_FIBER_NAMESPACE_BEGIN
 
@@ -13,7 +19,7 @@ shared_work::rqueue_type shared_work::rqueue_{};
 std::mutex shared_work::rqueue_mtx_{};
 
 shared_work::shared_work()
-    : lqueue_{}
+    : lqueue_{}  // NOLINT
 {
 }
 

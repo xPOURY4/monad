@@ -1,9 +1,13 @@
 #include <monad/mem/huge_mem.hpp>
 
+#include <monad/config.hpp>
+
 #include <monad/core/assert.h>
 
 #include <linux/mman.h>
 #include <sys/mman.h>
+
+#include <cstddef>
 
 MONAD_NAMESPACE_BEGIN
 

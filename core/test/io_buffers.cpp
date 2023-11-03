@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
-
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
-#include <iostream>
+#include <monad/config.hpp>
+
+#include <gtest/gtest.h>
 
 TEST(HugeMem, works)
 {

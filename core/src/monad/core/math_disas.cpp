@@ -1,3 +1,5 @@
+#include <monad/config.hpp>
+
 #include <monad/core/math.hpp>
 
 #include <cstddef>

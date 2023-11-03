@@ -1,13 +1,14 @@
 #include <monad/mem/mem_map.hpp>
 
+#include <monad/config.hpp>
+
 #include <monad/core/assert.h>
 #include <monad/core/math.hpp>
 
 #include <unistd.h>
-
-#include <linux/mman.h>
 #include <sys/mman.h>
 
+#include <cstddef>
 #include <bit>
 
 MONAD_NAMESPACE_BEGIN

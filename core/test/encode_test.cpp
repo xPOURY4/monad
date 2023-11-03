@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <span>
 
 using monad::byte_string;
 using monad::byte_string_view;

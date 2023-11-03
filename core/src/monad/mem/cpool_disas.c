@@ -1,5 +1,7 @@
 #include <monad/mem/cpool.h>
 
+#include <stdint.h>
+
 CPOOL_DEFINE(21)
 
 cpool_21_t *pool_init_disas(unsigned char *const mem)

@@ -1,6 +1,9 @@
 #include <monad/io/buffer_pool.hpp>
 
 #include <monad/io/buffers.hpp>
+#include <monad/io/config.hpp>
+
+#include <cstddef>
 
 MONAD_IO_NAMESPACE_BEGIN
 

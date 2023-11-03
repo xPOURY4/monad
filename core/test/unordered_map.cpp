@@ -1,13 +1,20 @@
-#include <gtest/gtest.h>
-
-#include <monad/core/small_prng.hpp>
 #include <monad/core/unordered_map.hpp>
 
-#include <chrono>
+#include <monad/config.hpp>
+
+#include <gtest/gtest.h>
+
+#include <cstdint>
 #include <cstdlib>
-#include <iostream>
-#include <unordered_set>
-#include <vector>
+
+#ifdef NDEBUG
+    #include <monad/core/small_prng.hpp>
+
+    #include <chrono>
+    #include <iostream>
+    #include <unordered_set>
+    #include <vector>
+#endif
 
 TEST(UnorderedNodeMap, works)
 {
@@ -61,7 +68,7 @@ template <size_t count>
 struct bytes
 {
     char v[count]{};
-    bytes(uint32_t x)
+    bytes(uint32_t x) // NOLINT
     {
         memcpy(v, &x, sizeof(x));
     }

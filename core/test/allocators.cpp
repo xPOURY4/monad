@@ -1,6 +1,13 @@
-#include "gtest/gtest.h"
+#include <monad/mem/allocators.hpp>
 
-#include "monad/mem/allocators.hpp"
+#include <monad/config.hpp>
+
+#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdlib>
+#include <memory>
+#include <utility>
 
 namespace
 {

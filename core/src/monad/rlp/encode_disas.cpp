@@ -1,5 +1,12 @@
 #include <monad/rlp/encode.hpp>
 
+#include <monad/rlp/config.hpp>
+
+#include <monad/core/byte_string.hpp>
+
+#include <cstddef>
+#include <span>
+
 MONAD_RLP_NAMESPACE_BEGIN
 
 namespace impl

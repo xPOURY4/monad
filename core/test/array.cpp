@@ -1,6 +1,10 @@
-#include "gtest/gtest.h"
+#include <monad/core/array.hpp>
 
-#include "monad/core/array.hpp"
+#include <monad/config.hpp>
+
+#include <gtest/gtest.h>
+
+#include <utility>
 
 namespace
 {

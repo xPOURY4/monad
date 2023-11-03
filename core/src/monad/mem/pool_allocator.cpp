@@ -1,5 +1,7 @@
 #include <monad/mem/pool_allocator.hpp>
 
+#include <monad/config.hpp>
+
 #include <mimalloc.h>
 
 MONAD_NAMESPACE_BEGIN

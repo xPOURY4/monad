@@ -2,12 +2,12 @@
 
 #include <gtest/gtest.h>
 
-#include <linux/mman.h>
 #include <sys/mman.h>
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 // The fixture for testing class DynamicAllocator.
 class AllocatorTest : public ::testing::TestWithParam<size_t>

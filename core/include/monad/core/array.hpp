@@ -3,6 +3,7 @@
 #include <monad/config.hpp>
 
 #include <array>
+#include <cstddef>
 
 MONAD_NAMESPACE_BEGIN
 
