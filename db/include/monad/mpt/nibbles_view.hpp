@@ -39,9 +39,9 @@ public:
 
     Nibbles &operator=(NibblesView const &other);
 
-    constexpr unsigned size() const noexcept
+    constexpr unsigned data_size() const noexcept
     {
-        return ((size_type)begin_nibble_ == end_nibble_)
+        return (static_cast<size_type>(begin_nibble_) == end_nibble_)
                    ? 0
                    : ((end_nibble_ + 1) / 2);
     }
@@ -115,7 +115,7 @@ public:
     }
 
     // size of data in bytes
-    constexpr unsigned size() const
+    constexpr unsigned data_size() const
     {
         return (static_cast<size_type>(begin_nibble_) == end_nibble_)
                    ? 0
@@ -167,8 +167,8 @@ inline Nibbles &Nibbles::operator=(NibblesView const &n)
     end_nibble_ = n.end_nibble_;
     data_.reset();
     if (begin_nibble_ != end_nibble_) {
-        data_ = std::make_unique<unsigned char[]>(n.size());
-        std::memcpy(data_.get(), n.data_, n.size());
+        data_ = std::make_unique<unsigned char[]>(n.data_size());
+        std::memcpy(data_.get(), n.data_, n.data_size());
     }
     return *this;
 }

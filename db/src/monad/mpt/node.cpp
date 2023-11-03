@@ -11,12 +11,12 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 Node *create_leaf(byte_string_view const data, NibblesView const relpath)
 {
-    auto const bytes = sizeof(Node) + relpath.size() + data.size();
+    auto const bytes = sizeof(Node) + relpath.data_size() + data.size();
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned int>::max());
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->data);
-    if (relpath.size()) {
+    if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }
     MONAD_DEBUG_ASSERT(data.size() <= std::numeric_limits<uint8_t>::max());
@@ -32,7 +32,8 @@ Node *create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     Nibbles const relpath = concat3(prefix, branch, prev->path_nibble_view());
-    unsigned size = prev->get_mem_size() + relpath.size() - prev->path_bytes();
+    unsigned size =
+        prev->get_mem_size() + relpath.data_size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, fnexts, data_off
     std::memcpy(
@@ -77,7 +78,7 @@ Node *create_node(
     auto bytes = sizeof(Node) + leaf_len + hash_len +
                  n * (sizeof(Node *) + sizeof(Node::data_off_t) +
                       sizeof(file_offset_t)) +
-                 relpath.size();
+                 relpath.data_size();
     std::vector<Node::data_off_t> offsets(n);
     unsigned data_len = 0;
     for (unsigned j = 0; auto &child : children) {
@@ -97,7 +98,7 @@ Node *create_node(
         offsets.data(),
         offsets.size() * sizeof(Node::data_off_t));
     // order is enforced, must set path first
-    if (relpath.size()) {
+    if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }
     if (is_leaf) {
@@ -128,7 +129,7 @@ Node *update_node_diff_path_leaf(
     MONAD_ASSERT(leaf_len < 255); // or uint8_t will overflow
 
     auto const bytes = old->get_mem_size() + leaf_len - old->leaf_len +
-                       relpath.size() - old->path_bytes();
+                       relpath.data_size() - old->path_bytes();
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned>::max());
     node_ptr node = Node::make_node(static_cast<unsigned>(bytes));
     // copy Node, fnexts and data_off array
@@ -170,8 +171,8 @@ void serialize_to_node(NibblesView const nibbles, Node &node)
     // memcpy. Might be worth doing in the serialization step.
     node.bitpacked.path_nibble_index_start = nibbles.begin_nibble_;
     node.path_nibble_index_end = nibbles.end_nibble_;
-    if (nibbles.size()) {
-        std::memcpy(node.path_data(), nibbles.data_, nibbles.size());
+    if (nibbles.data_size()) {
+        std::memcpy(node.path_data(), nibbles.data_, nibbles.data_size());
     }
 }
 

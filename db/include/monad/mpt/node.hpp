@@ -481,14 +481,14 @@ inline Node *create_node_nodata(
 {
     auto const n = bitmask_count(mask);
     auto const bytes =
-        sizeof(Node) + relpath.size() +
+        sizeof(Node) + relpath.data_size() +
         n * (sizeof(Node *) + sizeof(file_offset_t) + sizeof(Node::data_off_t));
 
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
     node->set_params(mask, is_leaf, /*leaf_len*/ 0, /*hash_len*/ 0);
-    if (relpath.size()) {
+    if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }
     node->disk_size = node->get_disk_size();

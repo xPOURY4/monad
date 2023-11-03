@@ -12,7 +12,7 @@ TEST(NibblesViewTest, nibbles_view)
         0x1234567812345678123456781234567812345678123456781234567812345678_hex;
 
     NibblesView const a{12, 12, path.data()};
-    EXPECT_EQ(a.size(), 0);
+    EXPECT_EQ(a.data_size(), 0);
     EXPECT_EQ(a, NibblesView{});
 
     NibblesView const b{12, 16, path.data()}, c{20, 24, path.data()};
