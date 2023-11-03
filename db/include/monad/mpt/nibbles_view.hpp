@@ -37,7 +37,7 @@ public:
         MONAD_DEBUG_ASSERT(end_nibble <= std::numeric_limits<size_type>::max());
     }
 
-    Nibbles &operator=(NibblesView const &other);
+    Nibbles(NibblesView other);
 
     constexpr unsigned data_size() const noexcept
     {
@@ -161,16 +161,14 @@ static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
 static_assert(std::is_trivially_copyable_v<NibblesView> == true);
 
-inline Nibbles &Nibbles::operator=(NibblesView const &n)
+inline Nibbles::Nibbles(NibblesView const nibbles)
 {
-    begin_nibble_ = n.begin_nibble_;
-    end_nibble_ = n.end_nibble_;
-    data_.reset();
+    begin_nibble_ = nibbles.begin_nibble_;
+    end_nibble_ = nibbles.end_nibble_;
     if (begin_nibble_ != end_nibble_) {
-        data_ = std::make_unique<unsigned char[]>(n.data_size());
-        std::memcpy(data_.get(), n.data_, n.data_size());
+        data_ = std::make_unique<unsigned char[]>(nibbles.data_size());
+        std::memcpy(data_.get(), nibbles.data_, nibbles.data_size());
     }
-    return *this;
 }
 
 inline Nibbles concat3(
