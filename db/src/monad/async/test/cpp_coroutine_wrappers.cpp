@@ -1,13 +1,42 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/cpp_coroutine_wrappers.hpp"
+#include <monad/async/cpp_coroutine_wrappers.hpp>
 
-#include "monad/core/small_prng.hpp"
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/detail/boost_outcome_coroutine_support.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
+#include <monad/async/io_senders.hpp>
+#include <monad/async/io_worker_pool.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/async/util.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/small_prng.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 
+#include <boost/lockfree/policies.hpp>
 #include <boost/lockfree/queue.hpp>
+#include <boost/outcome/try.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstring>
 #include <deque>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <ostream>
+#include <sched.h>
+#include <span>
+#include <stop_token>
 #include <thread>
+#include <type_traits>
+#include <unistd.h>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -114,7 +143,7 @@ namespace
         while (!aw.await_ready()) {
             testio->poll_blocking(1);
         }
-        std::chrono::steady_clock::duration res = aw.await_resume();
+        std::chrono::steady_clock::duration const res = aw.await_resume();
         EXPECT_GE(res, std::chrono::seconds(1));
     }
 
@@ -236,7 +265,7 @@ namespace
                 workerpool, chunk_offset_t(0, 0))));
         std::deque<std::unique_ptr<state_type>> states;
         for (size_t n = 0; n < 100; n++) {
-            chunk_offset_t offset(
+            chunk_offset_t const offset(
                 0,
                 round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE));
             states.emplace_back(new state_type(co_initiate(
@@ -263,9 +292,12 @@ namespace
         CppCoroutineWrappers,
         AsyncReadIoWorkerPool_coroutine_workers_can_do_read_io)
     {
-        AsyncReadIoWorkerPool workerpool(
-            *testio, MAX_CONCURRENCY, make_ring, make_buffers);
-        static ::boost::lockfree::queue<pid_t> thread_ids(100);
+        AsyncReadIoWorkerPool workerpool( // NOLINT
+            *testio,
+            MAX_CONCURRENCY,
+            make_ring,
+            make_buffers);
+        static ::boost::lockfree::queue<pid_t> thread_ids(100); // NOLINT
 
         auto task =
             [&](erased_connected_operation *io_state,
@@ -289,16 +321,16 @@ namespace
         using state_type = decltype(co_initiate(
             *testio,
             workerpool,
-            std::bind(task, std::placeholders::_1, chunk_offset_t(0, 0))));
-        std::deque<std::unique_ptr<state_type>> states;
-        for (size_t n = 0; n < 100; n++) {
-            chunk_offset_t offset(
+            std::bind(task, std::placeholders::_1, chunk_offset_t(0, 0)))); // NOLINT
+        std::deque<std::unique_ptr<state_type>> states; // NOLINT
+        for (size_t n = 0; n < 100; n++) { // NOLINT
+            chunk_offset_t const offset(
                 0,
                 round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE));
             std::unique_ptr<state_type> p(new auto(co_initiate(
                 *testio,
                 workerpool,
-                std::bind(task, std::placeholders::_1, offset))));
+                std::bind(task, std::placeholders::_1, offset)))); // NOLINT
             states.push_back(std::move(p));
             while (states.size() >= MAX_CONCURRENCY) {
                 testio->wait_until_done();

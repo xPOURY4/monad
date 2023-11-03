@@ -2,6 +2,7 @@
 
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/core/nibble.h>
 
 using namespace monad::mpt;
 using namespace monad::literals;
@@ -29,11 +30,11 @@ TEST(NibblesTest, concat_nibbles)
     auto path =
         0x1234567812345678123456781234567812345678123456781234567812345678_hex;
 
-    Nibbles a =
+    Nibbles const a =
         concat2(get_nibble(path.data(), 0), NibblesView{1, 12, path.data()});
     EXPECT_EQ(a, (NibblesView{0, 12, path.data()}));
 
-    Nibbles b = concat3(
+    Nibbles const b = concat3(
         NibblesView{12, 16, path.data()},
         get_nibble(path.data(), 16),
         NibblesView{17, 20, path.data()});

@@ -1,9 +1,27 @@
+#include <monad/async/config.hpp>
+
+#include <monad/async/concepts.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/nibble.h>
+#include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <boost/fiber/future/promise.hpp>
 #include <boost/fiber/future.hpp>
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <list>
+#include <optional>
+#include <span>
+#include <utility>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -33,7 +51,7 @@ struct find_receiver
         , rd_offset(0, 0)
         , branch_j(parent->to_j(branch_))
     {
-        chunk_offset_t offset = parent->fnext_j(branch_j);
+        chunk_offset_t const offset = parent->fnext_j(branch_j);
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
@@ -52,7 +70,8 @@ struct find_receiver
         result<std::span<const std::byte>> buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<const std::byte> buffer = std::move(buffer_).assume_value();
+        std::span<std::byte const> const buffer =
+            std::move(buffer_).assume_value();
         MONAD_ASSERT(parent->next_j(branch_j) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off)
@@ -108,7 +127,7 @@ void find_recursive(
         }
         chunk_offset_t const offset = node->fnext(branch);
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
-            lt->second.push_back({next_key, &promise});
+            lt->second.emplace_back(next_key, &promise);
             return;
         }
         inflights.emplace(

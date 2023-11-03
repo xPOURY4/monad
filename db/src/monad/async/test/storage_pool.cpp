@@ -1,11 +1,25 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/detail/scope_polyfill.hpp"
-#include "monad/async/storage_pool.hpp"
-#include "monad/core/assert.h"
+#include <monad/async/config.hpp>
+#include <monad/async/detail/scope_polyfill.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/async/util.hpp>
+#include <monad/core/assert.h>
 
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
 #include <iostream>
+#include <stdexcept>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+#include <stdlib.h>
+#include <unistd.h>
 
 namespace
 {
@@ -243,7 +257,7 @@ namespace
                 std::filesystem::path ret(
                     working_temporary_directory() /
                     "monad_storage_pool_test_XXXXXX");
-                int fd = ::mkstemp((char *)ret.native().data());
+                int const fd = ::mkstemp((char *)ret.native().data());
                 MONAD_ASSERT(fd != -1);
                 ::ftruncate(fd, static_cast<off_t>(length + 16384));
                 ::close(fd);
@@ -355,7 +369,7 @@ namespace
             std::filesystem::path ret(
                 working_temporary_directory() /
                 "monad_storage_pool_test_XXXXXX");
-            int fd = ::mkstemp((char *)ret.native().data());
+            int const fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
             ::ftruncate(fd, static_cast<off_t>(length + 16384));
             ::close(fd);
@@ -371,7 +385,9 @@ namespace
                 std::filesystem::remove(p);
             }
         });
-        storage_pool{devs};
+		{
+          storage_pool const _{devs};
+		}
         std::filesystem::path devs2[] = {devs[0], devs[1]};
         EXPECT_THROW(storage_pool{devs2}, std::runtime_error);
         storage_pool{devs2, storage_pool::mode::truncate};

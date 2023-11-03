@@ -1,11 +1,39 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/io_worker_pool.hpp"
-#include "monad/core/array.hpp"
-#include "monad/core/small_prng.hpp"
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/connected_operation.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
+#include <monad/async/io_senders.hpp>
+#include <monad/async/io_worker_pool.hpp>
+#include <monad/async/sender_errc.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/async/util.hpp>
+#include <monad/core/array.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/small_prng.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 
+#include <boost/lockfree/policies.hpp>
+#include <boost/lockfree/queue.hpp>
+
+#include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstring>
 #include <deque>
-#include <syncstream>
+#include <iostream>
+#include <memory>
+#include <ostream>
+#include <sched.h>
+#include <span>
+#include <thread>
+#include <unistd.h>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -54,7 +82,7 @@ namespace
 
     TEST(AsyncReadIoWorkerPool, construct_dynamic)
     {
-        AsyncReadIoWorkerPool workerpool(
+        AsyncReadIoWorkerPool const workerpool(
             *testio, MAX_CONCURRENCY, make_ring, make_buffers);
     }
 
@@ -62,7 +90,8 @@ namespace
     struct TypeList;
     TEST(AsyncReadIoWorkerPool, construct_fixed)
     {
-        static AsyncReadIoWorkerPool<TypeList<::boost::lockfree::capacity<16>>>
+        static AsyncReadIoWorkerPool<
+            TypeList<::boost::lockfree::capacity<16>>> const
             workerpool(*testio, MAX_CONCURRENCY, make_ring, make_buffers);
     }
 
@@ -258,7 +287,7 @@ namespace
             {
                 MONAD_ASSERT(thread_ids.push(gettid()));
                 for (auto &state : states) {
-                    state = std::unique_ptr<connected_state_type>(
+                    state = std::unique_ptr<connected_state_type>( // NOLINT
                         new connected_state_type(connect(
                             *st->executor(),
                             execute_on_worker_pool<sender2_t>{workerpool},
@@ -378,7 +407,7 @@ namespace
             receiver_t{}));
         std::deque<std::unique_ptr<state_type>> states;
         for (size_t n = 0; n < 100; n++) {
-            chunk_offset_t offset(
+            chunk_offset_t const offset(
                 0,
                 round_down_align<DISK_PAGE_BITS>(test_rand() % TEST_FILE_SIZE));
             states.emplace_back(new state_type(

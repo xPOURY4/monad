@@ -1,5 +1,13 @@
 #include "test_fixtures_fuzz.hpp"
 
+#include <monad/core/byte_string.hpp>
+
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <optional>
+#include <vector>
+
 inline constexpr auto MAX_VALUE_SIZE = 110u;
 inline constexpr auto GENERATED_SIZE = 100ul;
 

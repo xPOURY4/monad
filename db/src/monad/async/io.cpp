@@ -1,15 +1,41 @@
 #include <monad/async/io.hpp>
 
+#include <boost/outcome/experimental/status-code/config.hpp>
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/detail/connected_operation_storage.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
-
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/core/assert.h>
 #include <monad/core/unordered_map.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 
+#include <atomic>
 #include <cassert>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <ostream>
 #include <set>
+#include <span>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include <fcntl.h>
+#include <liburing.h>
+#include <liburing/io_uring.h>
 #include <poll.h>
 #include <sys/resource.h> // for setrlimit
+#include <unistd.h>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -22,7 +48,7 @@ namespace detail
     struct AsyncIO_per_thread_state_t::within_completions_holder
     {
         AsyncIO_per_thread_state_t *parent;
-        within_completions_holder(AsyncIO_per_thread_state_t *parent_)
+        explicit within_completions_holder(AsyncIO_per_thread_state_t *parent_)
             : parent(parent_)
         {
             parent->within_completions_count++;
@@ -39,7 +65,7 @@ namespace detail
     AsyncIO_per_thread_state_t::within_completions_holder
     AsyncIO_per_thread_state_t::enter_completions()
     {
-        return {this};
+        return within_completions_holder{this};
     }
     extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
     AsyncIO_per_thread_state()
@@ -443,7 +469,7 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
 
 void AsyncIO::dump_fd_to(size_t which, std::filesystem::path const &path)
 {
-    int tofd = ::creat(path.c_str(), 0600);
+    int const tofd = ::creat(path.c_str(), 0600);
     if (tofd == -1) {
         throw std::system_error(std::error_code(errno, std::system_category()));
     }

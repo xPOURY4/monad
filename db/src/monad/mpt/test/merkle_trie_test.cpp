@@ -1,9 +1,19 @@
 #include "gtest/gtest.h"
 
+#include "test_fixtures_base.hpp"
+#include "test_fixtures_gtest.hpp"
+
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
+#include <monad/mpt/compute.hpp>
+#include <monad/mpt/node.hpp>
+#include <monad/mpt/trie.hpp>
+#include <monad/mpt/update.hpp>
 
-#include "test_fixtures_gtest.hpp"
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <vector>
 
 using namespace ::monad::test;
 

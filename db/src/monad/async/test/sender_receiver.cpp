@@ -4,14 +4,35 @@
     #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
-#include "monad/async/io_senders.hpp"
-#include "monad/core/array.hpp"
-#include "monad/core/small_prng.hpp"
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/connected_operation.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/async/util.hpp>
+#include <monad/core/assert.h>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+#include <monad/async/io_senders.hpp>
+#include <monad/core/array.hpp>
+#include <monad/core/small_prng.hpp>
 
+#include <boost/fiber/future/promise.hpp>
+#include <boost/fiber/operations.hpp>
+#include <boost/outcome/config.hpp>
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future.hpp>
 #include <boost/outcome/coroutine_support.hpp>
 
+#include <cassert>
+#include <cstddef>
+#include <iostream>
+#include <memory>
+#include <ostream>
+#include <thread>
+#include <tuple>
+#include <utility>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -20,6 +41,8 @@
 #include <optional>
 #include <span>
 #include <vector>
+
+#include <unistd.h>
 
 namespace
 {
@@ -81,7 +104,7 @@ namespace
         {
             states_.reserve(total);
             for (size_t n = 0; n < total; n++) {
-                chunk_offset_t offset(
+                chunk_offset_t const offset(
                     0,
                     round_down_align<DISK_PAGE_BITS>(
                         test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
@@ -121,7 +144,7 @@ namespace
                 buffer.front(),
                 testfilecontents[state->sender().offset().offset]);
             if (!test_is_done_) {
-                chunk_offset_t offset(
+                chunk_offset_t const offset(
                     0,
                     round_down_align<DISK_PAGE_BITS>(
                         test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
@@ -565,8 +588,7 @@ namespace
         std::vector<boost::fibers::fiber> fibers;
         fibers.reserve(MAX_CONCURRENCY);
         for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
-            fibers.emplace_back(
-                boost::fibers::fiber(fiber, &states.receiver(n)));
+            fibers.emplace_back(fiber, &states.receiver(n));
         }
         states.initiate();
         for (; end - begin < std::chrono::seconds(5);

@@ -1,6 +1,17 @@
+#include <monad/async/config.hpp>
+
+#include <monad/async/storage_pool.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/nibble.h>
+#include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/util.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
+
+#include <cassert>
+#include <cstdint>
+#include <limits>
 
 MONAD_MPT_NAMESPACE_BEGIN
 

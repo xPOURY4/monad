@@ -1,6 +1,15 @@
-#include "monad/async/boost_fiber_wrappers.hpp"
+#include <monad/async/boost_fiber_wrappers.hpp>
 
+#include <monad/async/config.hpp>
+#include <monad/async/erased_connected_operation.hpp>
 #include <boost/fiber/buffered_channel.hpp>
+#include <boost/fiber/channel_op_status.hpp>
+#include <boost/fiber/condition_variable.hpp>
+#include <boost/fiber/context.hpp>
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/mutex.hpp>
+
+#include <mutex>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -37,7 +46,7 @@ namespace boost_fibers::detail
                 msg_t msg;
                 while (::boost::fibers::channel_op_status::success ==
                        channel.pop(msg)) {
-                    std::unique_lock g(*msg.mtx);
+                    std::unique_lock const g(*msg.mtx);
                     msg.context->detach();
                     // Initiate the thread transfer
                     msg.initiate->initiate();

@@ -1,12 +1,16 @@
-#include <monad/async/util.hpp>
+#include <monad/async/config.hpp>
 
+#include <monad/async/util.hpp>
 #include <monad/core/assert.h>
 
 #include <cerrno>
 #include <cstdlib> // for mkstemp
+#include <filesystem>
+#include <stdexcept>
+#include <string>
 
 #include <fcntl.h> // for open
-#include <pwd.h>
+#include <stdlib.h>
 #include <sys/user.h> // for PAGE_SIZE
 #include <unistd.h> // for unlink
 
@@ -19,7 +23,7 @@ MONAD_ASYNC_NAMESPACE_BEGIN
 
 const std::filesystem::path &working_temporary_directory()
 {
-    static std::filesystem::path v = [] {
+    static std::filesystem::path const v = [] {
         std::filesystem::path ret;
         auto test_path = [&](const std::filesystem::path path) -> bool {
             int fd = ::open(path.c_str(), O_RDWR | O_DIRECT | O_TMPFILE, 0600);

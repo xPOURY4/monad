@@ -5,13 +5,34 @@
 #include <monad/core/assert.h>
 #include <monad/core/hash.hpp>
 
+#include <monad/async/config.hpp>
+#include <monad/async/detail/start_lifetime_as_polyfill.hpp>
+#include <monad/async/util.hpp>
+
+#include <atomic>
+#include <bit>
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <limits>
+#include <memory>
 #include <cassert>
 #include <cstring>
+#include <mutex>
+#include <span>
 #include <sstream>
 #include <stdexcept>
+#include <stdlib.h>
 #include <system_error>
+#include <utility>
+#include <vector>
 
+#include <asm-generic/ioctl.h>
 #include <fcntl.h>
+#include <linux/falloc.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -403,7 +424,7 @@ storage_pool::storage_pool(
     devices_.reserve(sources.size());
     for (auto &source : sources) {
         devices_.push_back([&] {
-            int fd = ::open(source.c_str(), O_PATH | O_CLOEXEC);
+            int const fd = ::open(source.c_str(), O_PATH | O_CLOEXEC);
             if (-1 == fd) {
                 throw std::system_error(errno, std::system_category());
             }
@@ -439,7 +460,7 @@ storage_pool::storage_pool(
 
 storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
 {
-    int fd = make_temporary_inode();
+    int const fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
     if (-1 ==
         ::ftruncate(fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
@@ -499,7 +520,7 @@ storage_pool::~storage_pool()
 
 size_t storage_pool::currently_active_chunks(chunk_type which) const noexcept
 {
-    std::unique_lock g(lock_);
+    std::unique_lock const g(lock_);
     size_t ret = 0;
     for (auto &i : chunks_[which]) {
         if (!i.chunk.expired()) {
@@ -512,7 +533,7 @@ size_t storage_pool::currently_active_chunks(chunk_type which) const noexcept
 std::shared_ptr<class storage_pool::chunk>
 storage_pool::chunk(chunk_type which, uint32_t id) const
 {
-    std::unique_lock g(lock_);
+    std::unique_lock const g(lock_);
     if (id >= chunks_[which].size()) {
         throw std::runtime_error("Requested chunk which does not exist");
     }

@@ -1,3 +1,16 @@
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/detail/start_lifetime_as_polyfill.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io_senders.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/byte_string.hpp>
+#include <monad/core/nibble.h>
+#include <monad/mpt/cache_option.hpp>
+#include <monad/mpt/config.hpp>
+#include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
+#include <monad/core/small_prng.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
@@ -5,14 +18,22 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/upward_tnode.hpp>
 
-#include <monad/async/detail/scope_polyfill.hpp>
-
-#include <monad/core/small_prng.hpp>
-
+#include <algorithm>
+#include <atomic>
+#include <bit>
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <span>
+#include <utility>
 #include <vector>
 
 #include <sys/mman.h>
+#include <unistd.h>
 
 // Define to avoid randomisation of free list chunks on pool creation
 // This can be useful to discover bugs in code which assume chunks are
@@ -395,7 +416,9 @@ void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
         }
         --parent_tnode->npending;
         UpwardTreeNode *p = parent_tnode;
-        tnode_unique_ptr{tnode};
+		{
+          tnode_unique_ptr const _{tnode};
+		}
         tnode = p;
     }
 }
@@ -434,7 +457,8 @@ struct update_receiver
         result<std::span<std::byte const>> buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<std::byte const> buffer = std::move(buffer_).assume_value();
+        std::span<std::byte const> const buffer =
+            std::move(buffer_).assume_value();
         // tnode owns the deserialized old node
         node_ptr old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
@@ -497,7 +521,8 @@ struct create_node_receiver
         result<std::span<std::byte const>> buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<std::byte const> buffer = std::move(buffer_).assume_value();
+        std::span<std::byte const> const buffer =
+            std::move(buffer_).assume_value();
         // load node from read buffer
         tnode->node = create_coalesced_node_with_prefix(
             tnode->children[j].branch,
@@ -572,7 +597,9 @@ Node *create_node_from_children_if_any(
                      (cache_opt == CacheOption::ApplyLevelBasedCache &&
                       (pi + 1 + child.ptr->path_nibbles_len() >
                        CACHE_LEVEL)))) {
-                    node_ptr{child.ptr};
+					{
+                      node_ptr const _{child.ptr};
+					}
                     child.ptr = nullptr;
                 }
             }
@@ -930,7 +957,7 @@ bool mismatch_handler_(
         }
         else if (i == old_nibble) {
             // nexts[j] is a path-shortened old node, trim prefix
-            NibblesView relpath{
+            NibblesView const relpath{
                 old_pi + 1, old->path_nibble_index_end, old->path_data()};
             // compute node hash
             child.ptr =

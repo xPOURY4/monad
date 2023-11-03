@@ -1,6 +1,15 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/io_senders.hpp"
+#include <monad/async/config.hpp>
+#include <monad/async/io_senders.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+
+#include <filesystem>
+#include <system_error>
+
+#include <unistd.h>
 
 namespace
 {

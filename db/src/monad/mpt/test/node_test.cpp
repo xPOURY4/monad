@@ -1,8 +1,12 @@
 #include "gtest/gtest.h"
 
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
+
+#include <cstdint>
+#include <span>
 
 using namespace monad::mpt;
 using namespace monad::literals;
@@ -13,8 +17,8 @@ struct DummyCompute final : Compute
     virtual unsigned compute_len(std::span<ChildData> const children) override
     {
         unsigned len = 0;
-        for (unsigned i = 0; i < children.size(); ++i) {
-            len += children[i].len;
+        for (auto const &i : children) {
+            len += i.len;
         }
         return len >= 32 ? 32 : len;
     }
@@ -36,7 +40,7 @@ auto const path = 0xabcdabcdabcdabcd_hex;
 
 TEST(NodeTest, leaf)
 {
-    NibblesView relpath{1, 10, path.data()};
+    NibblesView const relpath{1, 10, path.data()};
     node_ptr node{create_leaf(data, relpath)};
 
     EXPECT_EQ(node->mask, 0);
@@ -49,7 +53,7 @@ TEST(NodeTest, leaf)
 TEST(NodeTest, leaf_single_branch)
 {
     DummyCompute comp{};
-    NibblesView relpath{12, 16, path.data()};
+    NibblesView const relpath{12, 16, path.data()};
     Node *child = create_leaf(data, relpath);
 
     ChildData children[1];
@@ -57,7 +61,7 @@ TEST(NodeTest, leaf_single_branch)
     children[0].data[0] = 0xa;
     children[0].branch = 0xc;
     children[0].ptr = child;
-    NibblesView relpath2{1, 10, path.data()};
+    NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = 1u << 0xc;
     node_ptr node{create_node(comp, mask, children, relpath2, data)};
 
@@ -71,7 +75,7 @@ TEST(NodeTest, leaf_single_branch)
 TEST(NodeTest, leaf_multiple_branches)
 {
     DummyCompute comp{};
-    NibblesView relpath{12, 16, path.data()};
+    NibblesView const relpath{12, 16, path.data()};
     Node *child1 = create_leaf(data, relpath);
     Node *child2 = create_leaf(data, relpath);
 
@@ -83,7 +87,7 @@ TEST(NodeTest, leaf_multiple_branches)
     children[1].branch = 0xc;
     children[0].ptr = child1;
     children[1].ptr = child2;
-    NibblesView relpath2{1, 10, path.data()};
+    NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2, data)};
 
@@ -97,7 +101,7 @@ TEST(NodeTest, leaf_multiple_branches)
 TEST(NodeTest, branch_node)
 {
     DummyCompute comp{};
-    NibblesView relpath{12, 16, path.data()};
+    NibblesView const relpath{12, 16, path.data()};
     Node *child1 = create_leaf(data, relpath);
     Node *child2 = create_leaf(data, relpath);
 
@@ -109,7 +113,7 @@ TEST(NodeTest, branch_node)
     children[1].branch = 0xc;
     children[0].ptr = child1;
     children[1].ptr = child2;
-    NibblesView relpath2{1, 1, path.data()}; // relpath2 is empty
+    NibblesView const relpath2{1, 1, path.data()}; // relpath2 is empty
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2)};
 
@@ -123,7 +127,7 @@ TEST(NodeTest, branch_node)
 TEST(NodeTest, extension_node)
 {
     DummyCompute comp{};
-    NibblesView relpath{12, 16, path.data()};
+    NibblesView const relpath{12, 16, path.data()};
     Node *child1 = create_leaf(data, relpath);
     Node *child2 = create_leaf(data, relpath);
 
@@ -135,7 +139,7 @@ TEST(NodeTest, extension_node)
     children[1].branch = 0xc;
     children[0].ptr = child1;
     children[1].ptr = child2;
-    NibblesView relpath2{1, 10, path.data()};
+    NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2)};
 

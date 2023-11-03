@@ -1,31 +1,44 @@
 #include <CLI/CLI.hpp>
-#include <cassert>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/syscall.h> // for SYS_gettid
-#include <unistd.h> // for syscall()
 
+#include <monad/async/config.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/core/assert.h>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+#include <monad/mpt/node.hpp>
+#include <monad/mpt/util.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
-
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
-
-#include <monad/mem/cpool.h>
-#include <monad/mem/huge_mem.hpp>
-
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
 #include <algorithm>
+#include <cassert>
+#include <cerrno>
 #include <chrono>
 #include <csignal>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <exception>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <system_error>
+#include <utility>
+#include <vector>
+
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/mman.h>
+#include <sys/syscall.h> // for SYS_gettid
+#include <unistd.h> // for syscall()
 
 #define SLICE_LEN 100000
 
@@ -226,7 +239,7 @@ int main(int argc, char *argv[])
                     pages.resize(TLB_ENTRIES);
                     for (size_t n = 0; n < TLB_ENTRIES; n++) {
                         pages[n] = (std::byte *)::mmap(
-                            0,
+                            nullptr,
                             4096,
                             PROT_READ | PROT_WRITE,
                             MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE,
@@ -260,7 +273,7 @@ int main(int argc, char *argv[])
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
         if (!std::filesystem::exists(dbname_path)) {
-            int fd =
+            int const fd =
                 ::open(dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
             if (-1 == fd) {
                 throw std::system_error(errno, std::system_category());
@@ -312,7 +325,7 @@ int main(int argc, char *argv[])
         }
 
         auto begin_test = std::chrono::steady_clock::now();
-        uint64_t max_key = n_slices * SLICE_LEN + key_offset;
+        uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
         /* start profiling upsert and commit */
         for (uint64_t iter = 0; iter < n_slices; ++iter) {
             // renew keccak values

@@ -1,10 +1,25 @@
 #include "gtest/gtest.h"
 
 #include <monad/core/small_prng.hpp>
-
+#include <monad/async/config.hpp>
+#include <monad/async/io.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/core/byte_string.hpp>
+#include <monad/core/hex_literal.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+#include <monad/mpt/config.hpp>
+#include <monad/mpt/node.hpp>
+#include <monad/mpt/update.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <optional>
+#include <ostream>
+#include <utility>
 #include <vector>
 
 namespace

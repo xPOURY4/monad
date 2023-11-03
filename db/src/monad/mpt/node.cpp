@@ -1,7 +1,15 @@
-#include <monad/core/assert.h>
-#include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
 
+#include <monad/core/assert.h>
+#include <monad/mpt/compute.hpp>
+#include <monad/core/byte_string.hpp>
+#include <monad/mpt/config.hpp>
+#include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/util.hpp>
+
+#include <cassert>
+#include <cstdint>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <span>
@@ -32,7 +40,7 @@ Node *create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     Nibbles const relpath = concat3(prefix, branch, prev->path_nibble_view());
-    unsigned size =
+    unsigned const size =
         prev->get_mem_size() + relpath.data_size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
     // copy node, fnexts, min_count, data_off

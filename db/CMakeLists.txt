@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.21)
 project(monad_trie)
 enable_testing()
 
+option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ##############################################################################
 # deps
 # ##############################################################################

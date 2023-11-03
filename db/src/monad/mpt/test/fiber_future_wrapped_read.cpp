@@ -1,9 +1,32 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/boost_fiber_wrappers.hpp"
+#include <monad/async/boost_fiber_wrappers.hpp>
+#include <monad/async/concepts.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
+#include <monad/async/storage_pool.hpp>
+#include <monad/async/util.hpp>
+#include <monad/core/assert.h>
+#include <monad/core/small_prng.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 
-#include "monad/core/small_prng.hpp"
+#include <boost/fiber/future/async.hpp>
+#include <boost/fiber/future/future.hpp>
+#include <boost/fiber/future/future_status.hpp>
+#include <boost/fiber/future/promise.hpp>
+#include <boost/outcome/try.hpp>
 
+#include <chrono>
+#include <cstddef>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <ostream>
+#include <span>
+#include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace
@@ -95,7 +118,7 @@ namespace
             // randomized offset
             using promise_result_t = std::span<std::byte const>;
 
-            chunk_offset_t offset(
+            chunk_offset_t const offset(
                 0,
                 round_down_align<DISK_PAGE_BITS>(
                     test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
@@ -142,7 +165,7 @@ namespace
         // Launch the fiber task
         std::vector<::boost::fibers::future<result<std::vector<std::byte>>>>
             futures;
-        int n_each = MAX_CONCURRENCY / 2;
+        int const n_each = MAX_CONCURRENCY / 2;
         futures.reserve(MAX_CONCURRENCY);
         for (int i = 0; i < n_each; ++i) {
             futures.emplace_back(::boost::fibers::async(impl_sender));

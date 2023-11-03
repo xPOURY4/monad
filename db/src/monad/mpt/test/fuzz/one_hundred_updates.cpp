@@ -1,5 +1,14 @@
 #include "test_fixtures_fuzz.hpp"
 
+#include "one_hundred_updates.hpp"
+#include <monad/core/byte_string.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <optional>
+
 inline constexpr auto MAX_VALUE_SIZE = 110u;
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t const *input, size_t bytes)
