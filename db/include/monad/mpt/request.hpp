@@ -41,9 +41,9 @@ struct Requests
         return std::move(sublists[get_first_branch()]);
     }
 
-    constexpr unsigned char const *get_first_path() const noexcept
+    constexpr NibblesView get_first_path() const noexcept
     {
-        return sublists[get_first_branch()].front().key.data();
+        return sublists[get_first_branch()].front().key;
     }
 
     //! return the number of sublists it splits into, equals #distinct_nibbles
@@ -60,11 +60,11 @@ struct Requests
         while (!updates.empty()) {
             Update &req = updates.front();
             updates.pop_front();
-            if (pi == req.key.size() * 2) {
+            if (pi == req.key.nibble_size()) {
                 opt_leaf = std::move(req);
                 continue;
             }
-            uint8_t branch = get_nibble(req.key.data(), pi);
+            auto const branch = req.key.get(pi);
             if (sublists[branch].empty()) {
                 mask |= uint16_t(1u << branch);
                 ++n;

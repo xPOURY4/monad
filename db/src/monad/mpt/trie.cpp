@@ -632,8 +632,7 @@ Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         Update &update = updates.front();
         MONAD_DEBUG_ASSERT(
             update.incarnation == false && update.value.has_value());
-        NibblesView const relpath{
-            pi, (uint8_t)(2 * update.key.size()), update.key.data()};
+        auto const relpath = update.key.substr(pi);
         if (update.next.has_value()) {
             update_aux.sm->forward();
             Requests requests;
@@ -656,7 +655,7 @@ Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
     return create_new_trie_from_requests_(
         update_aux,
         requests,
-        NibblesView{psi, pi, requests.get_first_path()},
+        requests.get_first_path().substr(psi, pi - psi),
         pi,
         requests.opt_leaf.and_then(&Update::value));
 }
@@ -709,7 +708,7 @@ bool upsert_(
     Requests requests;
     while (true) {
         tnode->relpath = NibblesView{old_psi, old_pi, old->path_data()};
-        if (updates.size() == 1 && pi == updates.front().key.size() * 2) {
+        if (updates.size() == 1 && pi == updates.front().key.nibble_size()) {
             return update_leaf_data_(update_aux, old, tnode, updates.front());
         }
         unsigned const n = requests.split_into_sublists(std::move(updates), pi);

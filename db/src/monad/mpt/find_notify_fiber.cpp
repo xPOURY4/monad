@@ -100,7 +100,7 @@ void find_recursive(
     MONAD_ASSERT(pi < key.nibble_size());
     if (unsigned char const branch = key.get(pi); node->mask & (1u << branch)) {
         MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
-        auto const next_key = key.suffix(static_cast<unsigned char>(pi + 1));
+        auto const next_key = key.substr(static_cast<unsigned char>(pi) + 1u);
         if (node->next(branch) != nullptr) {
             find_recursive(
                 io, inflights, promise, node->next(branch), next_key);

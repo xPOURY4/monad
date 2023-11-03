@@ -67,6 +67,8 @@ private:
     bool begin_nibble_{false};
     size_type end_nibble_{0};
 
+    static constexpr unsigned npos = std::numeric_limits<unsigned>::max();
+
 public:
     constexpr NibblesView() = default;
     constexpr NibblesView(NibblesView const &) = default;
@@ -122,10 +124,16 @@ public:
                    : ((end_nibble_ + 1) / 2);
     }
 
-    constexpr NibblesView suffix(size_type pos) const
+    constexpr NibblesView
+    substr(unsigned const pos, unsigned const count = npos) const
     {
+        auto const begin_nibble = static_cast<unsigned>(begin_nibble_) + pos;
+        MONAD_DEBUG_ASSERT(
+            count == npos || count <= (nibble_size() - begin_nibble));
         return NibblesView{
-            static_cast<unsigned>(begin_nibble_ + pos), end_nibble_, data_};
+            begin_nibble,
+            count == npos ? end_nibble_ : (begin_nibble + count),
+            data_};
     }
 
     constexpr bool operator==(NibblesView const &other) const

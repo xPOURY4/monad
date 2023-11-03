@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 
 #include <monad/core/byte_string.hpp>
 
@@ -17,7 +18,7 @@ struct Update
     : public boost::intrusive::slist_base_hook<
           boost::intrusive::link_mode<boost::intrusive::normal_link>>
 {
-    byte_string_view key{};
+    NibblesView key{};
     std::optional<byte_string_view> value{std::nullopt};
     bool incarnation{false};
     std::optional<UpdateList> next;

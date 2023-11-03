@@ -38,7 +38,7 @@ node_ptr copy_node(
                     pi < std::numeric_limits<unsigned char>::max());
                 Node *leaf = update_node_diff_path_leaf(
                     src_leaf,
-                    dest.suffix(static_cast<unsigned char>(pi + 1)),
+                    dest.substr(static_cast<unsigned char>(pi) + 1u),
                     src_leaf->leaf_view());
                 // create a node, with no leaf data
                 uint16_t const mask =
@@ -77,7 +77,7 @@ node_ptr copy_node(
             MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
             Node *dest_leaf = update_node_diff_path_leaf(
                 src_leaf,
-                dest.suffix(static_cast<unsigned char>(pi + 1)),
+                dest.substr(static_cast<unsigned char>(pi) + 1u),
                 src_leaf->leaf_view());
             Node *node_latter_half = update_node_diff_path_leaf(
                 node,
