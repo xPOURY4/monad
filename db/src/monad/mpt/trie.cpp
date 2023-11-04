@@ -924,7 +924,7 @@ node_writer_unique_ptr_type replace_node_writer(
     offset_of_next_block.offset = offset & chunk_offset_t::max_offset;
     auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
     auto const chunk_capacity = aux.io->chunk_capacity(offset_of_next_block.id);
-    assert(offset <= chunk_capacity);
+    MONAD_ASSERT(offset <= chunk_capacity);
     if (offset == chunk_capacity) {
         auto *ci_ = aux.db_metadata()->free_list_begin();
         MONAD_ASSERT(ci_ != nullptr); // we are out of free blocks!
@@ -971,7 +971,7 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
         auto new_node_writer = replace_node_writer(aux, remaining_bytes);
         auto to_initiate = std::move(node_writer);
         node_writer = std::move(new_node_writer);
-        sender = &node_writer->sender();
+        sender = &node_writer->sender(); // new sender
         auto *where_to_serialize = (unsigned char *)sender->buffer().data();
         assert(where_to_serialize != nullptr);
         serialize_node_to_buffer(where_to_serialize, node);
@@ -992,16 +992,15 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
         else {
             // Don't split nodes across storage chunks, this simplifies reads
             // greatly
+            MONAD_ASSERT(sender->written_buffer_bytes() == 0);
             ret = async_write_node_result{
-                sender->offset().add_to_offset(size), size, node_writer.get()};
+                sender->offset(), size, node_writer.get()};
+            sender->advance_buffer_append(size);
             // Pad buffer about to get initiated so it's O_DIRECT i/o aligned
-            auto written = to_initiate->sender().written_buffer_bytes();
-            auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
-            auto const tozerobytes = paddedup - written;
             auto *tozero =
-                to_initiate->sender().advance_buffer_append(tozerobytes);
+                to_initiate->sender().advance_buffer_append(remaining_bytes);
             assert(tozero != nullptr);
-            memset(tozero, 0, tozerobytes);
+            memset(tozero, 0, remaining_bytes);
         }
         to_initiate->initiate();
         // shall be recycled by the i/o receiver
