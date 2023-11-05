@@ -70,12 +70,12 @@ inline node_ptr batch_upsert_commit(
     uint64_t key_offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_root, UpdateAux &update_aux)
+    node_ptr prev_root, UpdateAux &aux)
 {
     auto const block_no = serialise_as_big_endian<6>(block_id);
     if (block_id != 0) {
         prev_root = monad::mpt::copy_node(
-            update_aux,
+            aux,
             std::move(prev_root),
             serialise_as_big_endian<6>(block_id - 1),
             block_no);
@@ -97,7 +97,7 @@ inline node_ptr batch_upsert_commit(
     updates.push_front(u);
 
     auto ts_before = std::chrono::steady_clock::now();
-    node_ptr new_root = upsert(update_aux, prev_root.get(), std::move(updates));
+    node_ptr new_root = upsert(aux, prev_root.get(), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = static_cast<double>(
                  std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -106,7 +106,7 @@ inline node_ptr batch_upsert_commit(
              1000000000.0;
 
     auto [state_root, res] = find_blocking(
-        update_aux.is_on_disk() ? &update_aux.io->storage_pool() : nullptr,
+        aux.is_on_disk() ? &aux.io->storage_pool() : nullptr,
         new_root.get(),
         block_no);
     MONAD_ASSERT(res == find_result::success);
@@ -286,15 +286,14 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
-        UpdateAux update_aux{
-            std::make_unique<StateMachineWithBlockNo>(), nullptr};
+        UpdateAux aux{std::make_unique<StateMachineWithBlockNo>(), nullptr};
         if (!in_memory) {
-            update_aux.set_io(&io);
+            aux.set_io(&io);
         }
 
         node_ptr state_root{};
         if (append) {
-            auto root_off = update_aux.get_root_offset();
+            auto root_off = aux.get_root_offset();
             Node *root = read_node_blocking(io.storage_pool(), root_off);
             state_root.reset(root);
 
@@ -302,7 +301,7 @@ int main(int argc, char *argv[])
             block_start = round_up_align<DISK_PAGE_BITS>(
                 root_off.add_to_offset(root->get_disk_size()));
             // destroy contents after block_start.id chunck
-            update_aux.rewind_root_offset_to(block_start);
+            aux.rewind_root_offset_to(block_start);
         }
 
         auto begin_test = std::chrono::steady_clock::now();
@@ -339,7 +338,7 @@ int main(int argc, char *argv[])
                 keccak_values,
                 false,
                 std::move(state_root),
-                update_aux);
+                aux);
 
             if (erase && (iter & 1) != 0) {
                 fprintf(stdout, "> erase iter = %lu\n", iter);
@@ -354,7 +353,7 @@ int main(int argc, char *argv[])
                     keccak_values,
                     true,
                     std::move(state_root),
-                    update_aux);
+                    aux);
 
                 fprintf(stdout, "> dup batch iter = %lu\n", iter);
 
@@ -368,7 +367,7 @@ int main(int argc, char *argv[])
                     keccak_values,
                     false,
                     std::move(state_root),
-                    update_aux);
+                    aux);
             }
         }
 

@@ -36,15 +36,15 @@ namespace
         for (auto const &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
         }
-        this->root = upsert_vector(
-            this->update_aux, this->root.get(), std::move(updates));
+        this->root =
+            upsert_vector(this->aux, this->root.get(), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
 
         typedef boost::fibers::buffered_channel<find_request_t> channel_t;
         channel_t chan{2};
-        AsyncIO &io = *this->update_aux.io;
+        AsyncIO &io = *this->aux.io;
         // randomize the order of find requests
         std::vector<size_t> rand_idx(100);
         std::iota(std::begin(rand_idx), std::end(rand_idx), 0);
@@ -111,8 +111,8 @@ namespace
         for (auto const &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
         }
-        this->root = upsert_vector(
-            this->update_aux, this->root.get(), std::move(updates));
+        this->root =
+            upsert_vector(this->aux, this->root.get(), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
@@ -133,7 +133,7 @@ namespace
             // create a new io instance of the same file name
             auto ring = make_ring();
             auto buf = make_buffers(ring);
-            auto &main_pool = this->update_aux.io->storage_pool();
+            auto &main_pool = this->aux.io->storage_pool();
             AsyncIO io(main_pool, ring, buf);
             // when nothing to pop, poll uring, when nothing to poll, pop from
             // chan

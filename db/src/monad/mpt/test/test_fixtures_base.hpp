@@ -12,23 +12,22 @@ namespace monad::test
     using namespace monad::literals;
 
     node_ptr upsert_vector(
-        UpdateAux &update_aux, Node *const old,
-        std::vector<Update> &&update_vec)
+        UpdateAux &aux, Node *const old, std::vector<Update> &&update_vec)
     {
         UpdateList update_ls;
         for (auto &it : update_vec) {
             update_ls.push_front(it);
         }
-        return upsert(update_aux, old, std::move(update_ls));
+        return upsert(aux, old, std::move(update_ls));
     }
 
     template <class... Updates>
     [[nodiscard]] constexpr node_ptr
-    upsert_updates(UpdateAux &update_aux, Node *const old, Updates... updates)
+    upsert_updates(UpdateAux &aux, Node *const old, Updates... updates)
     {
         UpdateList update_ls;
         (update_ls.push_front(updates), ...);
-        return upsert(update_aux, old, std::move(update_ls));
+        return upsert(aux, old, std::move(update_ls));
     }
 
     namespace fixed_updates
@@ -82,11 +81,11 @@ namespace monad::test
     {
     public:
         node_ptr root;
-        UpdateAux update_aux;
+        UpdateAux aux;
 
         InMemoryTrieBase()
             : root{}
-            , update_aux(std::make_unique<StateMachineWithBlockNo>(1), nullptr)
+            , aux(std::make_unique<StateMachineWithBlockNo>(1), nullptr)
         {
         }
 
@@ -99,7 +98,7 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->update_aux.comp().compute(res.data(), this->root.get());
+                this->aux.comp().compute(res.data(), this->root.get());
                 return res;
             }
             return empty_trie_hash;
@@ -107,7 +106,7 @@ namespace monad::test
 
         constexpr bool on_disk() const
         {
-            return update_aux.is_on_disk();
+            return aux.is_on_disk();
         }
 
         constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool() const
@@ -127,7 +126,7 @@ namespace monad::test
 
     public:
         node_ptr root;
-        UpdateAux update_aux;
+        UpdateAux aux;
 
         OnDiskTrieBase()
             : ring(monad::io::Ring(2, 0))
@@ -137,7 +136,7 @@ namespace monad::test
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)
             , io(pool, ring, rwbuf)
             , root{}
-            , update_aux(std::make_unique<StateMachineWithBlockNo>(1), &io)
+            , aux(std::make_unique<StateMachineWithBlockNo>(1), &io)
         {
         }
 
@@ -150,7 +149,7 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->update_aux.comp().compute(res.data(), this->root.get());
+                this->aux.comp().compute(res.data(), this->root.get());
                 return res;
             }
             return empty_trie_hash;
@@ -158,7 +157,7 @@ namespace monad::test
 
         constexpr bool on_disk() const
         {
-            return update_aux.is_on_disk();
+            return aux.is_on_disk();
         }
 
         constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool()
@@ -183,7 +182,7 @@ namespace monad::test
                     return make_update(k, v);
                 });
             this->root =
-                upsert_vector(this->update_aux, nullptr, std::move(update_vec));
+                upsert_vector(this->aux, nullptr, std::move(update_vec));
         }
     };
 

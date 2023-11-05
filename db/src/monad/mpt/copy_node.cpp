@@ -5,11 +5,11 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 node_ptr copy_node(
-    UpdateAux &update_aux, node_ptr root, NibblesView const src,
+    UpdateAux &aux, node_ptr root, NibblesView const src,
     NibblesView const dest)
 {
     MONAD_ASYNC_NAMESPACE::storage_pool *pool =
-        update_aux.is_on_disk() ? &update_aux.io->storage_pool() : nullptr;
+        aux.is_on_disk() ? &aux.io->storage_pool() : nullptr;
     auto [src_leaf, res] = find_blocking(pool, root.get(), src);
     MONAD_ASSERT(res == find_result::success);
 
@@ -51,11 +51,11 @@ node_ptr copy_node(
                     }
                     else if (mask & bit) {
                         // assume child has no data for now
-                        if (update_aux.is_on_disk()) {
+                        if (aux.is_on_disk()) {
                             ret->fnext_j(j++) = node->fnext_j(old_j);
                         }
                         // also clear node's child mem ptr
-                        update_aux.is_on_disk()
+                        aux.is_on_disk()
                             ? node->next_j_ptr(old_j++).reset()
                             : ret->set_next_j(
                                   j++, node->next_j_ptr(old_j++).release());
@@ -96,13 +96,13 @@ node_ptr copy_node(
                     node->path_data()});
             bool const leaf_first = nibble < node_nibble;
             ret->set_next_j(leaf_first ? 0 : 1, dest_leaf);
-            if (update_aux.is_on_disk()) {
+            if (aux.is_on_disk()) {
                 // Request a write for the modified node, not necessarily
                 // land on disk immediately, but it's queued until the
                 // buffer is full or a root node is written in the next
                 // batch update.
-                auto off = async_write_node(update_aux, node_latter_half)
-                               .offset_written_to;
+                auto off =
+                    async_write_node(aux, node_latter_half).offset_written_to;
                 auto const pages =
                     num_pages(off.offset, node_latter_half->get_disk_size());
                 MONAD_DEBUG_ASSERT(
@@ -126,7 +126,7 @@ node_ptr copy_node(
         new_node = update_node_diff_path_leaf(
             src_leaf, node->path_nibble_view(), src_leaf->leaf_view());
         // clear parent's children other than new_node
-        if (update_aux.is_on_disk()) {
+        if (aux.is_on_disk()) {
             for (unsigned j = 0; j < parent->n(); ++j) {
                 if (j != parent->to_j(branch_i)) {
                     parent->next_j_ptr(j).reset();

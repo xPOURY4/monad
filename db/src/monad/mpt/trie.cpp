@@ -295,81 +295,80 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
 
 // invoke at the end of each block upsert
 async_write_node_result
-write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode);
+write_new_root_node(UpdateAux &aux, tnode_unique_ptr &root_tnode);
 
 /* Names: `pi` is nibble index in prefix of an update,
  `old_pi` is nibble index of relpath in previous node - old.
  `*psi` is the starting nibble index in current function frame
 */
 bool dispatch_updates_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Requests &requests, unsigned pi);
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode, Requests &requests,
+    unsigned pi);
 
 bool mismatch_handler_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Requests &requests, unsigned const old_pi, unsigned const pi);
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode, Requests &requests,
+    unsigned const old_pi, unsigned const pi);
 
-Node *
-create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi = 0);
+Node *create_new_trie_(UpdateAux &aux, UpdateList &&updates, unsigned pi = 0);
 
 Node *create_new_trie_from_requests_(
-    UpdateAux &update_aux, Requests &requests, NibblesView const relpath,
+    UpdateAux &aux, Requests &requests, NibblesView const relpath,
     unsigned const pi, std::optional<byte_string_view> const opt_leaf_data);
 
 bool upsert_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode,
     chunk_offset_t const old_offset, UpdateList &&updates, unsigned pi = 0,
     unsigned old_pi = 0);
 
 void write_node_and_compute_hash(
-    ChildData &dest, UpdateAux &update_aux, Node *const node, uint8_t const i,
+    ChildData &dest, UpdateAux &aux, Node *const node, uint8_t const i,
     unsigned const parent_pi);
 
 bool create_node_from_children_if_any_possibly_ondisk(
-    UpdateAux &update_aux, UpwardTreeNode *tnode, unsigned const pi);
+    UpdateAux &aux, UpwardTreeNode *tnode, unsigned const pi);
 
-node_ptr upsert(UpdateAux &update_aux, Node *const old, UpdateList &&updates)
+node_ptr upsert(UpdateAux &aux, Node *const old, UpdateList &&updates)
 {
-    update_aux.sm->reset();
-    auto root_tnode = make_tnode(update_aux.trie_section());
+    aux.sm->reset();
+    auto root_tnode = make_tnode(aux.trie_section());
     if (!old) {
-        root_tnode->node = create_new_trie_(update_aux, std::move(updates));
+        root_tnode->node = create_new_trie_(aux, std::move(updates));
     }
     else {
         if (!upsert_(
-                update_aux,
+                aux,
                 old,
                 root_tnode.get(),
                 INVALID_OFFSET,
                 std::move(updates))) {
-            assert(update_aux.is_on_disk());
-            update_aux.io->flush();
+            assert(aux.is_on_disk());
+            aux.io->flush();
             MONAD_ASSERT(create_node_from_children_if_any_possibly_ondisk(
-                update_aux, root_tnode.get(), 0));
+                aux, root_tnode.get(), 0));
         }
         if (!root_tnode->node) {
             return {};
         }
     }
-    if (update_aux.is_on_disk()) {
-        write_new_root_node(update_aux, root_tnode);
+    if (aux.is_on_disk()) {
+        write_new_root_node(aux, root_tnode);
     }
     return node_ptr{root_tnode->node};
 }
 
-void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode)
+void upward_update(UpdateAux &aux, UpwardTreeNode *tnode)
 {
     bool beginning = true;
     while (!tnode->npending && tnode->parent) {
         auto parent_tnode = tnode->parent;
-        update_aux.sm->reset(tnode->trie_section);
+        aux.sm->reset(tnode->trie_section);
         if (beginning) {
             beginning = false;
         }
         else {
             MONAD_DEBUG_ASSERT(tnode->children.size()); // not a leaf
             if (!create_node_from_children_if_any_possibly_ondisk(
-                    update_aux, tnode, tnode->pi)) {
+                    aux, tnode, tnode->pi)) {
                 // create_node not finished, but issued an async read
                 return;
             }
@@ -378,7 +377,7 @@ void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode)
             auto &entry = parent_tnode->children[tnode->child_j()];
             entry.branch = tnode->child_branch_bit;
             entry.ptr = tnode->node;
-            auto const len = update_aux.comp().compute(entry.data, entry.ptr);
+            auto const len = aux.comp().compute(entry.data, entry.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
             entry.len = static_cast<uint8_t>(len);
         }
@@ -395,7 +394,7 @@ void upward_update(UpdateAux &update_aux, UpwardTreeNode *tnode)
 
 struct update_receiver
 {
-    UpdateAux *update_aux;
+    UpdateAux *aux;
     chunk_offset_t rd_offset;
     UpdateList updates;
     UpwardTreeNode *tnode;
@@ -403,9 +402,9 @@ struct update_receiver
     unsigned bytes_to_read;
 
     update_receiver(
-        UpdateAux *update_aux_, chunk_offset_t offset, UpdateList &&updates_,
+        UpdateAux *aux_, chunk_offset_t offset, UpdateList &&updates_,
         UpwardTreeNode *tnode_)
-        : update_aux(update_aux_)
+        : aux(aux_)
         , rd_offset(round_down_align<DISK_PAGE_BITS>(offset))
         , updates(std::move(updates_))
         , tnode(tnode_)
@@ -430,9 +429,9 @@ struct update_receiver
         node_ptr old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
         Node *old_node = old.get();
-        update_aux->sm->reset(tnode->trie_section);
+        aux->sm->reset(tnode->trie_section);
         if (!upsert_(
-                *update_aux,
+                *aux,
                 old_node,
                 tnode,
                 INVALID_OFFSET,
@@ -445,7 +444,7 @@ struct update_receiver
             return;
         }
         assert(tnode->npending == 0);
-        upward_update(*update_aux, tnode);
+        upward_update(*aux, tnode);
     }
 };
 static_assert(sizeof(update_receiver) == 48);
@@ -453,7 +452,7 @@ static_assert(alignof(update_receiver) == 8);
 
 struct create_node_receiver
 {
-    UpdateAux *update_aux;
+    UpdateAux *aux;
     chunk_offset_t rd_offset;
     UpwardTreeNode *tnode;
     unsigned bytes_to_read;
@@ -461,9 +460,8 @@ struct create_node_receiver
     uint8_t j;
 
     create_node_receiver(
-        UpdateAux *const update_aux_, UpwardTreeNode *const tnode_,
-        uint8_t const j_)
-        : update_aux(update_aux_)
+        UpdateAux *const aux_, UpwardTreeNode *const tnode_, uint8_t const j_)
+        : aux(aux_)
         , rd_offset(0, 0)
         , tnode(tnode_)
         , j(j_)
@@ -492,18 +490,18 @@ struct create_node_receiver
             deserialize_node_from_buffer(
                 (unsigned char *)buffer.data() + buffer_off),
             tnode->relpath);
-        upward_update(*update_aux, tnode);
+        upward_update(*aux, tnode);
     }
 };
 static_assert(sizeof(create_node_receiver) == 32);
 static_assert(alignof(create_node_receiver) == 8);
 
 template <receiver Receiver>
-void async_read(UpdateAux &update_aux, Receiver &&receiver)
+void async_read(UpdateAux &aux, Receiver &&receiver)
 {
     read_update_sender sender(receiver);
     auto iostate =
-        update_aux.io->make_connected(std::move(sender), std::move(receiver));
+        aux.io->make_connected(std::move(sender), std::move(receiver));
     iostate->initiate();
     // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
     // management until i/o completes
@@ -512,7 +510,7 @@ void async_read(UpdateAux &update_aux, Receiver &&receiver)
 
 // helpers
 Node *create_node_from_children_if_any(
-    UpdateAux &update_aux, uint16_t const orig_mask, uint16_t const mask,
+    UpdateAux &aux, uint16_t const orig_mask, uint16_t const mask,
     std::span<ChildData> children, unsigned const pi, NibblesView const relpath,
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
@@ -531,21 +529,21 @@ Node *create_node_from_children_if_any(
     }
     MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.has_value()));
     // write children to disk, free any if exceeds the cache level limit
-    if (update_aux.is_on_disk()) {
+    if (aux.is_on_disk()) {
         for (auto &child : children) {
             if (child.branch != INVALID_BRANCH &&
                 child.offset == INVALID_OFFSET) {
                 child.offset =
-                    async_write_node(update_aux, child.ptr).offset_written_to;
+                    async_write_node(aux, child.ptr).offset_written_to;
                 auto const pages =
                     num_pages(child.offset.offset, child.ptr->get_disk_size());
                 MONAD_DEBUG_ASSERT(
                     pages <= std::numeric_limits<uint16_t>::max());
                 child.offset.spare = static_cast<uint16_t>(pages);
                 // free node if path longer than CACHE_LEVEL
-                // do not free if n == 1, that's when parent is a leaf node with
-                // branches
-                auto cache_opt = update_aux.sm->cache_option();
+                // do not free if n == 1, that's when parent is a leaf node
+                // with branches
+                auto cache_opt = aux.sm->cache_option();
                 if (n > 1 && pi > 0 &&
                     (cache_opt == CacheOption::DisposeAll ||
                      (cache_opt == CacheOption::ApplyLevelBasedCache &&
@@ -557,11 +555,11 @@ Node *create_node_from_children_if_any(
             }
         }
     }
-    return create_node(update_aux.comp(), mask, children, relpath, leaf_data);
+    return create_node(aux.comp(), mask, children, relpath, leaf_data);
 }
 
 bool create_node_from_children_if_any_possibly_ondisk(
-    UpdateAux &update_aux, UpwardTreeNode *tnode, unsigned const pi)
+    UpdateAux &aux, UpwardTreeNode *tnode, unsigned const pi)
 {
     unsigned const n = bitmask_count(tnode->mask);
     if (n == 1 && !tnode->opt_leaf_data.has_value()) {
@@ -571,14 +569,13 @@ bool create_node_from_children_if_any_possibly_ondisk(
         if (!tnode->children[j].ptr) {
             MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
             tnode->pi = static_cast<uint8_t>(pi);
-            create_node_receiver receiver(
-                &update_aux, tnode, static_cast<uint8_t>(j));
-            async_read(update_aux, std::move(receiver));
+            create_node_receiver receiver(&aux, tnode, static_cast<uint8_t>(j));
+            async_read(aux, std::move(receiver));
             return false;
         }
     }
     tnode->node = create_node_from_children_if_any(
-        update_aux,
+        aux,
         tnode->orig_mask,
         tnode->mask,
         tnode->children,
@@ -590,8 +587,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
 
 //! update leaf data of old, old can have branches
 bool update_leaf_data_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Update &update)
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode, Update &update)
 {
     auto const &relpath = tnode->relpath;
     if (update.is_deletion()) {
@@ -599,19 +595,19 @@ bool update_leaf_data_(
         return true;
     }
     if (update.next.has_value()) {
-        update_aux.sm->forward();
-        tnode->trie_section = update_aux.trie_section();
+        aux.sm->forward();
+        tnode->trie_section = aux.trie_section();
         Requests requests;
         requests.split_into_sublists(std::move(update.next.value()), 0);
         bool finished = true;
         if (update.incarnation) {
             tnode->node = create_new_trie_from_requests_(
-                update_aux, requests, relpath, 0, update.value);
+                aux, requests, relpath, 0, update.value);
         }
         else {
-            finished = dispatch_updates_(update_aux, old, tnode, requests, 0);
+            finished = dispatch_updates_(aux, old, tnode, requests, 0);
         }
-        update_aux.sm->backward();
+        aux.sm->backward();
         return finished;
     }
     tnode->node =
@@ -625,7 +621,7 @@ bool update_leaf_data_(
 }
 
 // create a new trie from a list of updates, won't have incarnation
-Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
+Node *create_new_trie_(UpdateAux &aux, UpdateList &&updates, unsigned pi)
 {
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
@@ -634,13 +630,13 @@ Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
             update.incarnation == false && update.value.has_value());
         auto const relpath = update.key.substr(pi);
         if (update.next.has_value()) {
-            update_aux.sm->forward();
+            aux.sm->forward();
             Requests requests;
             requests.split_into_sublists(std::move(update.next.value()), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
             auto ret = create_new_trie_from_requests_(
-                update_aux, requests, relpath, 0, update.value);
-            update_aux.sm->backward();
+                aux, requests, relpath, 0, update.value);
+            aux.sm->backward();
             return ret;
         }
         return create_leaf(update.value.value(), relpath);
@@ -653,7 +649,7 @@ Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
         ++pi;
     }
     return create_new_trie_from_requests_(
-        update_aux,
+        aux,
         requests,
         requests.get_first_path().substr(psi, pi - psi),
         pi,
@@ -661,7 +657,7 @@ Node *create_new_trie_(UpdateAux &update_aux, UpdateList &&updates, unsigned pi)
 }
 
 Node *create_new_trie_from_requests_(
-    UpdateAux &update_aux, Requests &requests, NibblesView const relpath,
+    UpdateAux &aux, Requests &requests, NibblesView const relpath,
     unsigned const pi, std::optional<byte_string_view> const opt_leaf_data)
 {
     unsigned const n = bitmask_count(requests.mask);
@@ -670,37 +666,29 @@ Node *create_new_trie_from_requests_(
     std::vector<ChildData> children(n);
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         if (bit & requests.mask) {
-            auto node =
-                create_new_trie_(update_aux, std::move(requests)[i], pi + 1);
+            auto node = create_new_trie_(aux, std::move(requests)[i], pi + 1);
             auto &entry = children[j++];
             entry.branch = static_cast<uint8_t>(i);
             entry.ptr = node;
-            auto const len = update_aux.comp().compute(entry.data, entry.ptr);
+            auto const len = aux.comp().compute(entry.data, entry.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
             entry.len = static_cast<uint8_t>(len);
         }
     }
     return create_node_from_children_if_any(
-        update_aux,
-        mask,
-        mask,
-        std::span{children},
-        pi,
-        relpath,
-        opt_leaf_data);
+        aux, mask, mask, std::span{children}, pi, relpath, opt_leaf_data);
 }
 
 bool upsert_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode,
     chunk_offset_t const offset, UpdateList &&updates, unsigned pi,
     unsigned old_pi)
 {
     if (!old) {
         MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
         tnode->pi = static_cast<uint8_t>(pi);
-        update_receiver receiver(
-            &update_aux, offset, std::move(updates), tnode);
-        async_read(update_aux, std::move(receiver));
+        update_receiver receiver(&aux, offset, std::move(updates), tnode);
+        async_read(aux, std::move(receiver));
         return false;
     }
     assert(old_pi != INVALID_PATH_INDEX);
@@ -709,12 +697,12 @@ bool upsert_(
     while (true) {
         tnode->relpath = NibblesView{old_psi, old_pi, old->path_data()};
         if (updates.size() == 1 && pi == updates.front().key.nibble_size()) {
-            return update_leaf_data_(update_aux, old, tnode, updates.front());
+            return update_leaf_data_(aux, old, tnode, updates.front());
         }
         unsigned const n = requests.split_into_sublists(std::move(updates), pi);
         MONAD_DEBUG_ASSERT(n);
         if (old_pi == old->path_nibble_index_end) {
-            return dispatch_updates_(update_aux, old, tnode, requests, pi);
+            return dispatch_updates_(aux, old, tnode, requests, pi);
         }
         if (auto old_nibble = get_nibble(old->path_data(), old_pi);
             n == 1 && requests.get_first_branch() == old_nibble) {
@@ -724,7 +712,7 @@ bool upsert_(
             continue;
         }
         // meet a mismatch or split, not till the end of old path
-        return mismatch_handler_(update_aux, old, tnode, requests, old_pi, pi);
+        return mismatch_handler_(aux, old, tnode, requests, old_pi, pi);
     }
 }
 
@@ -732,21 +720,17 @@ bool upsert_(
 //! old node can have leaf data, there might be update to that leaf
 //! return a new node
 bool dispatch_updates_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Requests &requests, unsigned pi)
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode, Requests &requests,
+    unsigned pi)
 {
     auto const &opt_leaf = requests.opt_leaf;
     if (opt_leaf.has_value()) {
         if (opt_leaf.value().incarnation) {
-            // incarnation = 1, also have new children longer than curr update's
-            // key
+            // incarnation = 1, also have new children longer than curr
+            // update's key
             MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
             tnode->node = create_new_trie_from_requests_(
-                update_aux,
-                requests,
-                tnode->relpath,
-                pi,
-                opt_leaf.value().value);
+                aux, requests, tnode->relpath, pi, opt_leaf.value().value);
             return true;
         }
         else if (opt_leaf.value().is_deletion()) {
@@ -769,9 +753,9 @@ bool dispatch_updates_(
             Node *node = nullptr;
             if (bit & old->mask) {
                 node_ptr next_ = old->next_ptr(i);
-                auto next_tnode = make_tnode(update_aux.trie_section());
+                auto next_tnode = make_tnode(aux.trie_section());
                 if (!upsert_(
-                        update_aux,
+                        aux,
                         next_.get(),
                         next_tnode.get(),
                         old->fnext(i),
@@ -791,14 +775,12 @@ bool dispatch_updates_(
                 node = next_tnode->node;
             }
             else {
-                node = create_new_trie_(
-                    update_aux, std::move(requests)[i], pi + 1);
+                node = create_new_trie_(aux, std::move(requests)[i], pi + 1);
             }
             if (node) {
                 child.ptr = node;
                 child.branch = static_cast<uint8_t>(i);
-                auto const len =
-                    update_aux.comp().compute(child.data, child.ptr);
+                auto const len = aux.comp().compute(child.data, child.ptr);
                 MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
                 child.len = static_cast<uint8_t>(len);
             }
@@ -831,15 +813,14 @@ bool dispatch_updates_(
         return false;
     }
     // no incarnation and no erase at this point
-    return create_node_from_children_if_any_possibly_ondisk(
-        update_aux, tnode, pi);
+    return create_node_from_children_if_any_possibly_ondisk(aux, tnode, pi);
 }
 
 //! split old at old_pi, updates at pi
 //! requests can have 1 or more sublists
 bool mismatch_handler_(
-    UpdateAux &update_aux, Node *const old, UpwardTreeNode *tnode,
-    Requests &requests, unsigned const old_pi, unsigned const pi)
+    UpdateAux &aux, Node *const old, UpwardTreeNode *tnode, Requests &requests,
+    unsigned const old_pi, unsigned const pi)
 {
     MONAD_DEBUG_ASSERT(old->has_relpath());
     // Note: no leaf can be created at an existing non-leaf node
@@ -853,9 +834,9 @@ bool mismatch_handler_(
         if (bit & requests.mask) {
             Node *node = nullptr;
             if (i == old_nibble) {
-                auto next_tnode = make_tnode(update_aux.trie_section());
+                auto next_tnode = make_tnode(aux.trie_section());
                 if (!upsert_(
-                        update_aux,
+                        aux,
                         old,
                         next_tnode.get(),
                         {0, 0},
@@ -873,14 +854,12 @@ bool mismatch_handler_(
                 node = next_tnode->node;
             }
             else {
-                node = create_new_trie_(
-                    update_aux, std::move(requests)[i], pi + 1);
+                node = create_new_trie_(aux, std::move(requests)[i], pi + 1);
             }
             if (node) {
                 child.ptr = node;
                 child.branch = static_cast<uint8_t>(i);
-                auto const len =
-                    update_aux.comp().compute(child.data, child.ptr);
+                auto const len = aux.comp().compute(child.data, child.ptr);
                 MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
                 child.len = static_cast<uint8_t>(len);
             }
@@ -898,7 +877,7 @@ bool mismatch_handler_(
             child.ptr =
                 update_node_diff_path_leaf(old, relpath, old->opt_leaf());
             child.branch = static_cast<uint8_t>(i);
-            auto const len = update_aux.comp().compute(child.data, child.ptr);
+            auto const len = aux.comp().compute(child.data, child.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
             child.len = static_cast<uint8_t>(len);
             --tnode->npending;
@@ -908,15 +887,15 @@ bool mismatch_handler_(
     if (tnode->npending) {
         return false;
     }
-    return create_node_from_children_if_any_possibly_ondisk(
-        update_aux, tnode, pi);
+    return create_node_from_children_if_any_possibly_ondisk(aux, tnode, pi);
 }
 
 node_writer_unique_ptr_type replace_node_writer(
     UpdateAux &aux, size_t bytes_yet_to_be_appended_to_existing = 0)
 {
     node_writer_unique_ptr_type &node_writer = aux.node_writer;
-    // Can't use add_to_offset(), because it asserts if we go past the capacity
+    // Can't use add_to_offset(), because it asserts if we go past the
+    // capacity
     auto offset_of_next_block = node_writer->sender().offset();
     file_offset_t offset = offset_of_next_block.offset;
     offset += node_writer->sender().written_buffer_bytes() +
@@ -1015,12 +994,12 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
 }
 
 async_write_node_result
-write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
+write_new_root_node(UpdateAux &aux, tnode_unique_ptr &root_tnode)
 {
-    node_writer_unique_ptr_type &node_writer = update_aux.node_writer;
+    node_writer_unique_ptr_type &node_writer = aux.node_writer;
     assert(root_tnode->node);
 
-    auto const ret = async_write_node(update_aux, root_tnode->node);
+    auto const ret = async_write_node(aux, root_tnode->node);
     // Round up with all bits zero
     auto *sender = &node_writer->sender();
     auto written = sender->written_buffer_bytes();
@@ -1029,16 +1008,16 @@ write_new_root_node(UpdateAux &update_aux, tnode_unique_ptr &root_tnode)
     auto *tozero = sender->advance_buffer_append(tozerobytes);
     assert(tozero != nullptr);
     memset(tozero, 0, tozerobytes);
-    auto new_node_writer = replace_node_writer(update_aux);
+    auto new_node_writer = replace_node_writer(aux);
     auto to_initiate = std::move(node_writer);
     node_writer = std::move(new_node_writer);
     to_initiate->initiate();
     // shall be recycled by the i/o receiver
     to_initiate.release();
     // flush async write root
-    update_aux.io->flush();
+    aux.io->flush();
     // write new root offset to the front of disk
-    update_aux.advance_root_offset(ret.offset_written_to);
+    aux.advance_root_offset(ret.offset_written_to);
     return ret;
 }
 

@@ -58,12 +58,12 @@ public:
 TEST(InMemoryPlainTrie, var_length)
 {
     auto &kv = updates::kv;
-    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
+    UpdateAux aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert kv 0,1,2,3
     root = upsert_updates(
-        update_aux,
+        aux,
         nullptr,
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -117,7 +117,7 @@ TEST(InMemoryPlainTrie, var_length)
 
     // insert kv 4,5
     root = upsert_updates(
-        update_aux,
+        aux,
         root.get(),
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second));
@@ -153,7 +153,7 @@ TEST(InMemoryPlainTrie, var_length)
 
     // insert kv 6,7
     root = upsert_updates(
-        update_aux,
+        aux,
         root.get(),
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
@@ -190,7 +190,7 @@ TEST(InMemoryPlainTrie, mismatch)
         {0x123aabcd_hex, 0xbabe_hex}, // 4
     };
 
-    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
+    UpdateAux aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
     /* insert 12345678, 12346678, 12445678
             12
@@ -200,7 +200,7 @@ TEST(InMemoryPlainTrie, mismatch)
     5678  6678
     */
     root = upsert_updates(
-        update_aux,
+        aux,
         nullptr,
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -231,7 +231,7 @@ TEST(InMemoryPlainTrie, mismatch)
       5678 6678 7678
     */
     root = upsert_updates(
-        update_aux,
+        aux,
         root.get(),
         make_update(kv[3].first, kv[3].second),
         make_update(kv[4].first, kv[4].second));
@@ -268,12 +268,12 @@ TEST(InMemoryPlainTrie, mismatch)
 TEST(InMemoryPlainTrie, delete_wo_incarnation)
 {
     auto &kv = updates::kv;
-    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
+    UpdateAux aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert all
     root = upsert_updates(
-        update_aux,
+        aux,
         nullptr,
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -284,19 +284,19 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     // erase 0
-    root = upsert_updates(update_aux, root.get(), make_erase(kv[0].first));
+    root = upsert_updates(aux, root.get(), make_erase(kv[0].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
-    root = upsert_updates(update_aux, root.get(), make_erase(kv[5].first));
+    root = upsert_updates(aux, root.get(), make_erase(kv[5].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 1, consequently 2,3 are erased
-    root = upsert_updates(update_aux, root.get(), make_erase(kv[1].first));
+    root = upsert_updates(aux, root.get(), make_erase(kv[1].first));
     EXPECT_EQ(root->mask, 0);
     EXPECT_EQ(root->leaf_view(), kv[4].second);
     EXPECT_EQ(
@@ -308,12 +308,12 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     // upsert a bunch of var lengths kv
     auto &kv = updates::kv;
 
-    UpdateAux update_aux{std::make_unique<StateMachineAlwaysEmpty>()};
+    UpdateAux aux{std::make_unique<StateMachineAlwaysEmpty>()};
     node_ptr root;
 
     // insert
     root = upsert_updates(
-        update_aux,
+        aux,
         nullptr,
         make_update(kv[0].first, kv[0].second), // 0x01111111
         make_update(kv[1].first, kv[1].second), // 0x11111111
@@ -330,7 +330,7 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
 
     // upsert a bunch of new kvs, with incarnation flag set
     root = upsert_updates(
-        update_aux,
+        aux,
         root.get(),
         make_update(kv[1].first, kv[1].second, true), // 0x11111111
         make_update(kv[3].first, kv[3].second)); // 0x11111111aacd

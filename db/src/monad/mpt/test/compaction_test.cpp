@@ -32,7 +32,7 @@ namespace
             AsyncIO io{pool, ring, rwbuf};
             MerkleCompute comp;
             node_ptr root;
-            UpdateAux update_aux{
+            UpdateAux aux{
                 std::make_unique<StateMachineWithBlockNo>(1),
                 &io}; // trie section starts from account
             monad::small_prng rand;
@@ -53,18 +53,17 @@ namespace
                                 *(uint32_t *)(key.data() + n) = rand();
                             }
                             keys.emplace_back(
-                                std::move(key),
-                                update_aux.get_root_offset().id);
+                                std::move(key), aux.get_root_offset().id);
                         }
                         updates.push_back(
                             make_update(keys.back().first, keys.back().first));
                         update_ls.push_front(updates.back());
                     }
-                    root = upsert(update_aux, root.get(), std::move(update_ls));
+                    root = upsert(aux, root.get(), std::move(update_ls));
                     size_t count = 0;
-                    for (auto *ci = update_aux.db_metadata()->fast_list_begin();
+                    for (auto *ci = aux.db_metadata()->fast_list_begin();
                          ci != nullptr;
-                         count++, ci = ci->next(update_aux.db_metadata())) {
+                         count++, ci = ci->next(aux.db_metadata())) {
                     }
                     if (count >= CHUNKS_TO_FILL) {
                         break;
@@ -81,18 +80,18 @@ namespace
                           << " consumed = " << v.second
                           << " chunks = " << pool.chunks(pool.seq);
                 auto const diff =
-                    (int64_t(update_aux.get_lower_bound_free_space()) -
+                    (int64_t(aux.get_lower_bound_free_space()) -
                      int64_t(v.first - v.second));
                 std::cout << "\n   DB thinks there is a lower bound of "
-                          << update_aux.get_lower_bound_free_space()
+                          << aux.get_lower_bound_free_space()
                           << " bytes free whereas the syscall thinks there is "
                           << (v.first - v.second)
                           << " bytes free, which is a difference of " << diff
                           << ".\n";
-                for (auto *ci = update_aux.db_metadata()->fast_list_begin();
+                for (auto *ci = aux.db_metadata()->fast_list_begin();
                      ci != nullptr;
-                     ci = ci->next(update_aux.db_metadata())) {
-                    auto idx = ci->index(update_aux.db_metadata());
+                     ci = ci->next(aux.db_metadata())) {
+                    auto idx = ci->index(aux.db_metadata());
                     auto chunk = pool.chunk(pool.seq, idx);
                     std::cout << "\n      Chunk " << idx
                               << " has capacity = " << chunk->capacity()
@@ -135,8 +134,8 @@ namespace
         for (auto &i : updates) {
             update_ls.push_front(i);
         }
-        state()->root = upsert(
-            state()->update_aux, state()->root.get(), std::move(update_ls));
+        state()->root =
+            upsert(state()->aux, state()->root.get(), std::move(update_ls));
         std::cout << "\nBefore compaction:";
         state()->print(std::cout);
         // TODO DO COMPACTION
