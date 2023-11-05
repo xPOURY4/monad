@@ -937,12 +937,6 @@ node_writer_unique_ptr_type replace_node_writer(
     else if (offset + block_size > chunk_capacity) {
         block_size = chunk_capacity - offset;
     }
-    /*printf(
-        "*** replace_node_writer next write buffer will use chunk %u offset "
-        "%u size %lu\n",
-        offset_of_next_block.id,
-        offset_of_next_block.offset,
-        block_size);*/
     auto ret = aux.io->make_connected(
         write_single_buffer_sender{
             offset_of_next_block, {(std::byte const *)nullptr, block_size}},
@@ -956,12 +950,14 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
     aux.io->poll_nonblocking(1);
     auto *sender = &node_writer->sender();
     auto const size = node->disk_size;
-    async_write_node_result ret{
-        sender->offset().add_to_offset(sender->written_buffer_bytes()),
-        size,
-        node_writer.get()};
     auto const remaining_bytes = sender->remaining_buffer_bytes();
+    async_write_node_result ret{
+        .offset_written_to = INVALID_OFFSET,
+        .bytes_appended = size,
+        .io_state = node_writer.get()};
     [[likely]] if (size <= remaining_bytes) {
+        ret.offset_written_to =
+            sender->offset().add_to_offset(sender->written_buffer_bytes());
         auto *where_to_serialize = sender->advance_buffer_append(size);
         assert(where_to_serialize != nullptr);
         serialize_node_to_buffer((unsigned char *)where_to_serialize, node);
@@ -969,39 +965,48 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
     else {
         // renew write sender
         auto new_node_writer = replace_node_writer(aux, remaining_bytes);
-        auto to_initiate = std::move(node_writer);
-        node_writer = std::move(new_node_writer);
-        sender = &node_writer->sender(); // new sender
-        auto *where_to_serialize = (unsigned char *)sender->buffer().data();
+        auto *new_sender = &new_node_writer->sender();
+        auto *where_to_serialize = (unsigned char *)new_sender->buffer().data();
         assert(where_to_serialize != nullptr);
         serialize_node_to_buffer(where_to_serialize, node);
-        if (node_writer->sender().offset().id ==
-            to_initiate->sender().offset().id) {
-            // Move the front of this into the tail of to_initiate as they share
-            // the same chunk
+        // Corner case bug is avoided: when remaining_bytes = 0 and we reach the
+        // end of chunk, which can happen inside else{} branch, if we use
+        // add_to_offset(), it will exceed max_offset value and trigger the
+        // assertion.
+        if (new_sender->offset().id == sender->offset().id) {
+            // In this branch, current node_writer won't be writing to the end
+            // of chunk.
+            ret.offset_written_to =
+                sender->offset().add_to_offset(sender->written_buffer_bytes());
+            // Move the front of new_sender into the tail of sender as they
+            // share the same chunk
             auto *where_to_serialize2 =
-                to_initiate->sender().advance_buffer_append(remaining_bytes);
+                sender->advance_buffer_append(remaining_bytes);
             assert(where_to_serialize2 != nullptr);
             memcpy(where_to_serialize2, where_to_serialize, remaining_bytes);
             memmove(
                 where_to_serialize,
                 where_to_serialize + remaining_bytes,
                 size - remaining_bytes);
-            sender->advance_buffer_append(size - remaining_bytes);
+            MONAD_ASSERT(
+                new_sender->advance_buffer_append(size - remaining_bytes) !=
+                nullptr);
         }
         else {
             // Don't split nodes across storage chunks, this simplifies reads
             // greatly
-            MONAD_ASSERT(sender->written_buffer_bytes() == 0);
-            ret = async_write_node_result{
-                sender->offset(), size, node_writer.get()};
-            sender->advance_buffer_append(size);
+            MONAD_ASSERT(new_sender->written_buffer_bytes() == 0);
+            MONAD_ASSERT(size <= new_sender->remaining_buffer_bytes());
+            ret.offset_written_to = new_sender->offset();
+            ret.io_state = new_node_writer.get();
+            MONAD_ASSERT(new_sender->advance_buffer_append(size) != nullptr);
             // Pad buffer about to get initiated so it's O_DIRECT i/o aligned
-            auto *tozero =
-                to_initiate->sender().advance_buffer_append(remaining_bytes);
+            auto *tozero = sender->advance_buffer_append(remaining_bytes);
             assert(tozero != nullptr);
             memset(tozero, 0, remaining_bytes);
         }
+        auto to_initiate = std::move(node_writer);
+        node_writer = std::move(new_node_writer);
         to_initiate->initiate();
         // shall be recycled by the i/o receiver
         to_initiate.release();
