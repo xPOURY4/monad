@@ -5,6 +5,7 @@
 #include <monad/core/unordered_map.hpp>
 
 #include <cassert>
+#include <set>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -49,9 +50,12 @@ namespace detail
 
     static struct AsyncIO_rlimit_raiser_impl
     {
+#ifndef NDEBUG
+        std::set<int> fd_reservation;
+#endif
         AsyncIO_rlimit_raiser_impl()
         {
-            size_t n = 1U << 30U;
+            size_t n = 4096;
             for (; n >= 1024; n >>= 1) {
                 struct rlimit r
                 {
@@ -62,16 +66,35 @@ namespace detail
                     break;
                 }
             }
-            if (n < 16384) {
+            if (n < 4096) {
                 std::cerr << "WARNING: maximum hard file descriptor kimit is "
                           << n
-                          << " which is less than 16384. 'Too many open files' "
+                          << " which is less than 4096. 'Too many open files' "
                              "errors may result. You can increase the hard "
                              "file descriptor limit for a given user by adding "
                              "to '/etc/security/limits.conf' '<username> hard "
                              "nofile 16384'."
                           << std::endl;
             }
+#ifndef NDEBUG
+            /* If in debug, reserve the first 1024 file descriptor numbers
+            in order to better reveal software which is not >= 1024 fd number
+            safe, which is still some third party dependencies on Linux. */
+            else {
+                for (int fd = ::dup(0); fd > 0 && fd < 1024; fd = ::dup(0)) {
+                    fd_reservation.insert(fd);
+                }
+            }
+#endif
+        }
+        ~AsyncIO_rlimit_raiser_impl()
+        {
+#ifndef NDEBUG
+            while (!fd_reservation.empty()) {
+                (void)::close(*fd_reservation.begin());
+                fd_reservation.erase(fd_reservation.begin());
+            }
+#endif
         }
     } AsyncIO_rlimit_raiser;
 
