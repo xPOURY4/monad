@@ -6,9 +6,12 @@ enable_testing()
 # ##############################################################################
 # deps
 # ##############################################################################
-add_subdirectory("monad-core")
 
-include("monad-core/cmake/find_our_dependency.cmake")
+# only include if master project
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+  add_subdirectory("monad-core")
+endif()
+
 find_package(
   Boost 1.78
   COMPONENTS ""
