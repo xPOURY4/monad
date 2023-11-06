@@ -2,21 +2,20 @@
 
 FROM fedora:39
 
-COPY . src
-
 RUN yum -y install dnf-plugins-core dnf-utils
 
 RUN yum -y update
 
-RUN cd src && monad-core/scripts/fedora/install_tools.sh
+RUN --mount=target=src src/monad-core/scripts/fedora/install_tools.sh
 
-RUN cd src && monad-core/scripts/fedora/install_deps.sh
+RUN --mount=target=src src/monad-core/scripts/fedora/install_deps.sh
 
-RUN cd src && monad-core/scripts/fedora/install_devel.sh
+RUN --mount=target=src src/monad-core/scripts/fedora/install_devel.sh
 
 RUN yum -y install \
-  boost-devel \
   cli11-devel
+
+COPY . src
 
 ARG CC
 ARG CXX
@@ -30,4 +29,3 @@ RUN cd src && ./monad-core/scripts/build.sh
 # RUN cd src && ctest --output-on-failure -V --test-dir build
 
 RUN cd src && PYTHONPATH="monad-core" CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./monad-core/scripts/test.sh
-
