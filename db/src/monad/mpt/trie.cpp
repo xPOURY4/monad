@@ -14,6 +14,11 @@
 
 #include <sys/mman.h>
 
+// Define to avoid randomisation of free list chunks on pool creation
+// This can be useful to discover bugs in code which assume chunks are
+// consecutive
+// #define MONAD_MPT_INITIALIZE_POOL_WITH_CONSECUTIVE_CHUNKS 1
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
@@ -230,23 +235,15 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
             MONAD_ASSERT(chunk->size() == 0); // chunks must actually be free
             chunks.push_back(n);
         }
-        struct prng_wrapper : small_prng
-        {
-            using result_type = uint32_t;
-            static constexpr result_type min()
-            {
-                return 0;
-            }
-            static constexpr result_type max()
-            {
-                return UINT32_MAX;
-            }
-        } rand;
-        std::shuffle(chunks.begin(), chunks.end(), rand);
-        chunk_offset_t const root_offset(chunks.back(), 0);
+#if !MONAD_MPT_INITIALIZE_POOL_WITH_CONSECUTIVE_CHUNKS
+        small_prng rand;
+        random_shuffle(chunks.begin(), chunks.end(), rand);
+#endif
+        chunk_offset_t const root_offset(chunks.front(), 0);
         append(chunk_list::fast, root_offset.id);
-        chunks.pop_back();
-        for (uint32_t i : chunks) {
+        std::span const chunks_after_first(
+            chunks.data() + 1, chunks.size() - 1);
+        for (uint32_t i : chunks_after_first) {
             append(chunk_list::free, i);
         }
 

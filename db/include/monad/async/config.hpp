@@ -18,7 +18,7 @@
 
 #define MONAD_ASYNC_NAMESPACE ::monad::async
 
-#include "detail/hash.hpp"
+#include <monad/core/hash.hpp>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
