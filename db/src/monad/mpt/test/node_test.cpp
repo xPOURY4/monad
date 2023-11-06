@@ -64,8 +64,8 @@ TEST(NodeTest, leaf_single_branch)
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 1);
-    EXPECT_EQ(node->get_mem_size(), 37);
-    EXPECT_EQ(node->get_disk_size(), 29);
+    EXPECT_EQ(node->get_mem_size(), 41);
+    EXPECT_EQ(node->get_disk_size(), 33);
 }
 
 TEST(NodeTest, leaf_multiple_branches)
@@ -90,8 +90,8 @@ TEST(NodeTest, leaf_multiple_branches)
     EXPECT_EQ(node->leaf_view(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 2);
-    EXPECT_EQ(node->get_mem_size(), 57);
-    EXPECT_EQ(node->get_disk_size(), 41);
+    EXPECT_EQ(node->get_mem_size(), 65);
+    EXPECT_EQ(node->get_disk_size(), 49);
 }
 
 TEST(NodeTest, branch_node)
@@ -116,8 +116,8 @@ TEST(NodeTest, branch_node)
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->hash_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
-    EXPECT_EQ(node->get_mem_size(), 46);
-    EXPECT_EQ(node->get_disk_size(), 30);
+    EXPECT_EQ(node->get_mem_size(), 54);
+    EXPECT_EQ(node->get_disk_size(), 38);
 }
 
 TEST(NodeTest, extension_node)
@@ -142,6 +142,6 @@ TEST(NodeTest, extension_node)
     EXPECT_EQ(node->leaf_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 0);
-    EXPECT_EQ(node->get_mem_size(), 51);
-    EXPECT_EQ(node->get_disk_size(), 35);
+    EXPECT_EQ(node->get_mem_size(), 59);
+    EXPECT_EQ(node->get_disk_size(), 43);
 }

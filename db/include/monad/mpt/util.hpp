@@ -38,16 +38,17 @@ def calc_size(path_len, num_child, leaf_len = 0,  ptr_size = 8, off_size = 8):
     size += 1  # path end index
     size += 2  # padding
     size += int((path_len + 1) / 2) # path bytes
-    size += ptr_size * num_child  # mem offsets
+    size += ptr_size * num_child  # mem pointers
     size += off_size * num_child  # file offsets
+    size += 4 * num_child  # min_count array
     size += 2 * num_child  # data offset array, 2-byte offset
     size += 32 * num_child  # data
     if(leaf_len):
         size += 32 # branch hash
     return size
-calc_size(64, 16, 32) # 872
+calc_size(64, 16, 32) # 936
 */
-static constexpr uint16_t MAX_DISK_NODE_SIZE = 872;
+static constexpr uint16_t MAX_DISK_NODE_SIZE = 936;
 
 static const byte_string empty_trie_hash = [] {
     using namespace ::monad::literals;

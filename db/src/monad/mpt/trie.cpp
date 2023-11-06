@@ -546,6 +546,9 @@ Node *create_node_from_children_if_any(
         for (auto &child : children) {
             if (child.branch != INVALID_BRANCH &&
                 child.offset == INVALID_OFFSET) {
+                // won't duplicate write of unchanged old child
+                MONAD_ASSERT(child.ptr);
+                MONAD_ASSERT(child.min_count == uint32_t(-1));
                 child.offset =
                     async_write_node(aux, child.ptr).offset_written_to;
                 auto const pages =
@@ -553,6 +556,9 @@ Node *create_node_from_children_if_any(
                 MONAD_DEBUG_ASSERT(
                     pages <= std::numeric_limits<uint16_t>::max());
                 child.offset.spare = static_cast<uint16_t>(pages);
+                child.min_count = calc_min_count(
+                    child.ptr,
+                    aux.db_metadata()->at(child.offset.id)->insertion_count());
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
@@ -826,6 +832,7 @@ bool dispatch_updates_(
             child.len = static_cast<uint8_t>(data.size());
             child.branch = static_cast<uint8_t>(i);
             child.offset = old->fnext(i);
+            child.min_count = old->min_count(i);
             --tnode->npending;
             ++j;
         }

@@ -35,7 +35,7 @@ Node *create_coalesced_node_with_prefix(
     unsigned size =
         prev->get_mem_size() + relpath.data_size() - prev->path_bytes();
     node_ptr node = Node::make_node(size);
-    // copy node, fnexts, data_off
+    // copy node, fnexts, min_count, data_off
     std::memcpy(
         (unsigned char *)node.get(),
         (unsigned char *)prev.get(),
@@ -77,7 +77,7 @@ Node *create_node(
                               : 0;
     auto bytes = sizeof(Node) + leaf_len + hash_len +
                  n * (sizeof(Node *) + sizeof(Node::data_off_t) +
-                      sizeof(file_offset_t)) +
+                      sizeof(uint32_t) + sizeof(file_offset_t)) +
                  relpath.data_size();
     std::vector<Node::data_off_t> offsets(n);
     unsigned data_len = 0;
@@ -108,6 +108,7 @@ Node *create_node(
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
             node->fnext_j(j) = child.offset;
+            node->min_count_j(j) = child.min_count;
             node->set_next_j(j, child.ptr);
             node->set_child_data_j(j++, {child.data, child.len});
         }

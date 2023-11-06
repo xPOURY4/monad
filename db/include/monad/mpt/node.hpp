@@ -8,6 +8,7 @@
 #include <monad/core/unaligned.hpp>
 #include <monad/mem/allocators.hpp>
 
+#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
 
@@ -31,8 +32,9 @@ struct ChildData
 {
     Node *ptr{nullptr};
     chunk_offset_t offset{INVALID_OFFSET};
-    uint8_t branch{INVALID_BRANCH};
     unsigned char data[32];
+    uint32_t min_count{uint32_t(-1)};
+    uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
 };
 static_assert(sizeof(ChildData) == 56);
@@ -102,6 +104,7 @@ public:
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
     uint16_t disk_size{0}; // in bytes, max possible ~1000
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
     unsigned char data[0];
@@ -135,12 +138,12 @@ public:
     using type_allocator = std::allocator<Node>;
     static constexpr size_t raw_bytes_allocator_allocation_lower_bound = 8;
     static constexpr size_t raw_bytes_allocator_allocation_upper_bound =
-        (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32);
+        (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32);
     static constexpr size_t raw_bytes_allocator_allocation_divisor = 36;
     static constexpr size_t
         raw_bytes_allocator_allocation_less_than_lower_bound = 8;
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
-    // upper bound = (8 + (32 + 2 + 8 + 8) * 16 + 110 + 32 + 32)
+    // upper bound = (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32)
     // assuming 8-byte mem pointers and on-disk offsets for now
     // 110: max leaf data bytes
     // 32: max relpath bytes
@@ -228,15 +231,33 @@ public:
         MONAD_DEBUG_ASSERT(i < 16);
         return fnext_j(to_j(i));
     }
+    //! min_block_no array
+    constexpr unsigned char *child_min_count_data() noexcept
+    {
+        return data + n() * sizeof(file_offset_t);
+    }
+    constexpr unsigned char const *child_min_count_data() const noexcept
+    {
+        return data + n() * sizeof(file_offset_t);
+    }
+
+    uint32_t &min_count_j(unsigned const j) noexcept
+    {
+        return reinterpret_cast<uint32_t *>(child_min_count_data())[j];
+    }
+    uint32_t &min_count(unsigned const i) noexcept
+    {
+        return min_count_j(to_j(i));
+    }
 
     //! data_offset array
     constexpr unsigned char *child_off_data() noexcept
     {
-        return data + n() * sizeof(file_offset_t);
+        return child_min_count_data() + n() * sizeof(uint32_t);
     }
     constexpr unsigned char const *child_off_data() const noexcept
     {
-        return data + n() * sizeof(file_offset_t);
+        return child_min_count_data() + n() * sizeof(uint32_t);
     }
     data_off_t child_off_j(unsigned const j) noexcept
     {
@@ -451,6 +472,19 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
         prevent_public_construction_tag_{});
 }
 
+inline uint32_t calc_min_count(Node *const node, uint32_t const curr_count)
+{
+    if (!node->mask) {
+        return curr_count;
+    }
+    auto ret{uint32_t(-1)};
+    for (unsigned j = 0; j < node->n(); ++j) {
+        ret = std::min(ret, node->min_count_j(j));
+    }
+    MONAD_ASSERT(ret != uint32_t(-1));
+    return ret;
+}
+
 struct Compute;
 // create leaf node without children, hash_len = 0
 Node *create_leaf(byte_string_view data, NibblesView relpath);
@@ -480,9 +514,9 @@ inline Node *create_node_nodata(
     uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
 {
     auto const n = bitmask_count(mask);
-    auto const bytes =
-        sizeof(Node) + relpath.data_size() +
-        n * (sizeof(Node *) + sizeof(file_offset_t) + sizeof(Node::data_off_t));
+    auto const bytes = sizeof(Node) + relpath.data_size() +
+                       n * (sizeof(Node *) + sizeof(file_offset_t) +
+                            sizeof(uint32_t) + sizeof(Node::data_off_t));
 
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);

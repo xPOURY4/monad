@@ -52,6 +52,7 @@ node_ptr copy_node(
                     else if (mask & bit) {
                         // assume child has no data for now
                         if (aux.is_on_disk()) {
+                            ret->min_count_j(j) = node->min_count_j(old_j);
                             ret->fnext_j(j++) = node->fnext_j(old_j);
                         }
                         // also clear node's child mem ptr
