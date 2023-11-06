@@ -5,7 +5,6 @@ include(CheckCXXSymbolExists)
 project(monad_core LANGUAGES C CXX ASM)
 
 option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-option(MONAD_FUZZTEST OFF)
 
 # ##############################################################################
 # deps
@@ -30,13 +29,6 @@ add_subdirectory("third_party/nanobench")
 add_subdirectory("third_party/nlohmann_json" SYSTEM)
 
 add_subdirectory("third_party/unordered_dense")
-
-if(MONAD_FUZZTEST)
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(ANTLR_BUILD_CPP_TESTS OFF)
-    add_subdirectory("third_party/fuzztest" SYSTEM)
-  endif()
-endif()
 
 add_library(
   openssl_sha3_asm INTERFACE
