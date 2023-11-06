@@ -7,8 +7,7 @@ enable_testing()
 # deps
 # ##############################################################################
 
-# only include if master project
-if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+if(PROJECT_IS_TOP_LEVEL)
   add_subdirectory("monad-core")
 endif()
 
