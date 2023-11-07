@@ -27,7 +27,7 @@ std::filesystem::path storage_pool::device::current_path() const
     auto *out = const_cast<char *>(ret.data());
     // Linux keeps a symlink at /proc/self/fd/n
     char in[64];
-    snprintf(in, sizeof(in), "/proc/self/fd/%d", readfd_);
+    snprintf(in, sizeof(in), "/proc/self/fd/%d", cached_readwritefd_);
     ssize_t len;
     if ((len = ::readlink(in, out, 32768)) == -1) {
         throw std::system_error(errno, std::system_category());
@@ -55,7 +55,7 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
     switch (type_) {
     case device::type_t_::file: {
         struct stat stat;
-        if (-1 == ::fstat(readfd_, &stat)) {
+        if (-1 == ::fstat(cached_readwritefd_, &stat)) {
             throw std::system_error(errno, std::system_category());
         }
         return {
@@ -65,7 +65,9 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
         file_offset_t capacity, used = round_up_align<CPU_PAGE_BITS>(
                                     metadata_->total_size(size_of_file_));
         if (ioctl(
-                readfd_, _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/, &capacity)) {
+                cached_readwritefd_,
+                _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/,
+                &capacity)) {
             throw std::system_error(errno, std::system_category());
         }
         auto const chunks = this->chunks();
@@ -175,19 +177,14 @@ storage_pool::device storage_pool::make_device_(
     mode op, device::type_t_ type, std::filesystem::path const &path, int fd,
     size_t chunk_capacity)
 {
-    int readfd = fd, writefd = fd;
+    int readwritefd = fd;
     // chunk capacity must be a power of two, or Linux gets upset
     MONAD_ASSERT(
         chunk_capacity ==
         (1ULL << (63 - std::countl_zero(uint64_t(chunk_capacity)))));
     if (!path.empty()) {
-        readfd = ::open(path.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
-        if (-1 == readfd) {
-            throw std::system_error(errno, std::system_category());
-        }
-        // NOT O_DIRECT, we use this fd for the mmap
-        writefd = ::open(path.c_str(), O_RDWR | O_CLOEXEC);
-        if (-1 == writefd) {
+        readwritefd = ::open(path.c_str(), O_RDWR | O_CLOEXEC);
+        if (-1 == readwritefd) {
             throw std::system_error(errno, std::system_category());
         }
     }
@@ -195,13 +192,13 @@ storage_pool::device storage_pool::make_device_(
     memset(&stat, 0, sizeof(stat));
     switch (type) {
     case device::type_t_::file:
-        if (-1 == ::fstat(writefd, &stat)) {
+        if (-1 == ::fstat(readwritefd, &stat)) {
             throw std::system_error(errno, std::system_category());
         }
         break;
     case device::type_t_::block_device:
         if (ioctl(
-                writefd,
+                readwritefd,
                 _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/,
                 &stat.st_size)) {
             throw std::system_error(errno, std::system_category());
@@ -229,7 +226,7 @@ storage_pool::device storage_pool::make_device_(
         MONAD_DEBUG_ASSERT(offset <= std::numeric_limits<off_t>::max());
         MONAD_DEBUG_ASSERT(static_cast<size_t>(stat.st_size) > offset);
         auto const bytesread = ::pread(
-            readfd,
+            readwritefd,
             buffer,
             static_cast<size_t>(stat.st_size) - offset,
             static_cast<off_t>(offset));
@@ -257,16 +254,16 @@ storage_pool::device storage_pool::make_device_(
             // Throw away all contents
             switch (type) {
             case device::type_t_::file:
-                if (-1 == ::ftruncate(writefd, 0)) {
+                if (-1 == ::ftruncate(readwritefd, 0)) {
                     throw std::system_error(errno, std::system_category());
                 }
-                if (-1 == ::ftruncate(writefd, stat.st_size)) {
+                if (-1 == ::ftruncate(readwritefd, stat.st_size)) {
                     throw std::system_error(errno, std::system_category());
                 }
                 break;
             case device::type_t_::block_device: {
                 uint64_t range[2] = {0, uint64_t(stat.st_size)};
-                if (ioctl(writefd, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
+                if (ioctl(readwritefd, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
                     throw std::system_error(errno, std::system_category());
                 }
                 break;
@@ -284,7 +281,7 @@ storage_pool::device storage_pool::make_device_(
             metadata_footer->chunk_capacity =
                 static_cast<uint32_t>(chunk_capacity);
             ::pwrite(
-                writefd,
+                readwritefd,
                 buffer,
                 static_cast<size_t>(bytesread),
                 static_cast<off_t>(offset));
@@ -301,7 +298,7 @@ storage_pool::device storage_pool::make_device_(
         bytestomap,
         PROT_READ | PROT_WRITE,
         MAP_SHARED,
-        writefd,
+        readwritefd,
         static_cast<off_t>(offset));
     if (MAP_FAILED == addr) {
         throw std::system_error(errno, std::system_category());
@@ -310,7 +307,7 @@ storage_pool::device storage_pool::make_device_(
         (std::byte *)addr + stat.st_size - offset - sizeof(device::metadata_t));
     assert(0 == memcmp(metadata->magic, "MND0", 4));
     return device(
-        readfd, writefd, type, static_cast<size_t>(stat.st_size), metadata);
+        readwritefd, type, static_cast<size_t>(stat.st_size), metadata);
 }
 
 void storage_pool::fill_chunks_(bool interleavechunks__evenly)
@@ -487,14 +484,14 @@ storage_pool::~storage_pool()
                     total_size),
                 total_size);
         }
-        if (device.readfd_ != -1) {
-            (void)::close(device.readfd_);
+        if (device.uncached_readfd_ != -1) {
+            (void)::close(device.uncached_readfd_);
         }
-        if (device.writefd_ != -1) {
-            (void)::close(device.writefd_);
+        if (device.uncached_writefd_ != -1) {
+            (void)::close(device.uncached_writefd_);
         }
-        if (device.writefd2_ != -1) {
-            (void)::close(device.writefd2_);
+        if (device.cached_readwritefd_ != -1) {
+            (void)::close(device.cached_readwritefd_);
         }
     }
     devices_.clear();
@@ -539,8 +536,8 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
     case chunk_type::cnv:
         ret = std::shared_ptr<cnv_chunk>(new cnv_chunk(
             devices_[id],
-            devices_[id].readfd_,
-            devices_[id].writefd_,
+            devices_[id].cached_readwritefd_,
+            devices_[id].cached_readwritefd_,
             0,
             devices_[id].metadata_->chunk_capacity,
             id,
@@ -550,24 +547,31 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
         break;
     case chunk_type::seq: {
         auto &chunkinfo = chunks_[chunk_type::seq][id];
-        int directfd = chunkinfo.device.writefd2_;
-        if (-1 == directfd) {
+        int fds[2] = {
+            chunkinfo.device.uncached_readfd_,
+            chunkinfo.device.uncached_writefd_};
+        if (-1 == fds[0]) {
             auto devicepath = chunkinfo.device.current_path();
             if (!devicepath.empty()) {
-                directfd = chunkinfo.device.writefd2_ =
+                fds[0] = chunkinfo.device.uncached_readfd_ =
+                    ::open(devicepath.c_str(), O_RDONLY | O_DIRECT | O_CLOEXEC);
+                if (-1 == fds[0]) {
+                    throw std::system_error(errno, std::system_category());
+                }
+                fds[1] = chunkinfo.device.uncached_writefd_ =
                     ::open(devicepath.c_str(), O_WRONLY | O_DIRECT | O_CLOEXEC);
-                if (-1 == directfd) {
+                if (-1 == fds[1]) {
                     throw std::system_error(errno, std::system_category());
                 }
             }
             else {
-                directfd = chunkinfo.device.writefd_;
+                fds[0] = fds[1] = chunkinfo.device.cached_readwritefd_;
             }
         }
         ret = std::shared_ptr<seq_chunk>(new seq_chunk(
             chunkinfo.device,
-            chunkinfo.device.readfd_,
-            directfd,
+            fds[0],
+            fds[1],
             file_offset_t(chunkinfo.zone_id) *
                 chunkinfo.device.metadata_->chunk_capacity,
             chunkinfo.device.metadata_->chunk_capacity,

@@ -58,17 +58,19 @@ public:
     {
         friend class storage_pool;
 
-        int const readfd_; // O_DIRECT shared by chunks for random read i/o
-        int const writefd_; // used for the device memory map of its metadata
-        int writefd2_; // may or may not be an O_DIRECT shared by chunks for
-                       // append i/o
+        int const cached_readwritefd_; // used for the device memory map of its
+                                       // metadata (not O_DIRECT)
+        int uncached_readfd_; // may or may not be shared by chunks for random
+                              // read i/o (O_DIRECT)
+        int uncached_writefd_; // may or may not be shared by chunks
+                               // for append i/o (O_DIRECT)
         const enum class type_t_ : uint8_t {
             unknown,
             file,
             block_device,
             zoned_device
         } type_;
-        const file_offset_t size_of_file_;
+        file_offset_t const size_of_file_;
         struct metadata_t
         {
             // Preceding this is an array of uint32_t of chunk bytes used
@@ -113,11 +115,11 @@ public:
         } *const metadata_;
 
         constexpr device(
-            int readfd, int writefd, type_t_ type, file_offset_t size_of_file,
+            int cached_readwritefd, type_t_ type, file_offset_t size_of_file,
             metadata_t *metadata)
-            : readfd_(readfd)
-            , writefd_(writefd)
-            , writefd2_(-1)
+            : cached_readwritefd_(cached_readwritefd)
+            , uncached_readfd_(-1)
+            , uncached_writefd_(-1)
             , type_(type)
             , size_of_file_(size_of_file)
             , metadata_(metadata)
@@ -159,10 +161,10 @@ public:
     protected:
         class device &device_;
         int read_fd_{-1}, write_fd_{-1};
-        const file_offset_t offset_{file_offset_t(-1)},
+        file_offset_t const offset_{file_offset_t(-1)},
             capacity_{file_offset_t(-1)};
         uint32_t chunkid_{uint32_t(-1)};
-        const bool owns_readfd_{false}, owns_writefd_{false},
+        bool const owns_readfd_{false}, owns_writefd_{false},
             append_only_{false};
 
         constexpr chunk(
@@ -298,7 +300,7 @@ private:
     std::vector<chunk_info_> chunks_[2];
 
     device make_device_(
-        mode op, device::type_t_ type, const std::filesystem::path &path,
+        mode op, device::type_t_ type, std::filesystem::path const &path,
         int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
 
     void fill_chunks_(bool interleave_chunks_evenly);

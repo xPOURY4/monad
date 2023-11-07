@@ -220,7 +220,7 @@ namespace
         std::filesystem::path devs[] = {
             "/dev/mapper/raid0-rawblk0", "/dev/mapper/raid0-rawblk1"};
         try {
-            storage_pool pool(devs);
+            storage_pool pool(devs, storage_pool::mode::truncate);
             run_tests(pool);
         }
         catch (std::system_error const &e) {
