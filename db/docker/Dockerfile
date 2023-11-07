@@ -1,10 +1,10 @@
 # docker build -f docker/Dockerfile .
 
-FROM fedora:38
+FROM fedora:39
 
 COPY . src
 
-RUN cd src && monad-core/scripts/fedora/enable_debug.sh
+RUN yum -y install dnf-plugins-core dnf-utils
 
 RUN yum -y update
 
