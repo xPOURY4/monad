@@ -171,6 +171,14 @@ public:
         }
         return n;
     }
+    std::optional<size_t>
+    poll_blocking_if_not_within_completions(size_t count = 1)
+    {
+        if (detail::AsyncIO_per_thread_state().am_within_completions()) {
+            return std::nullopt;
+        }
+        return poll_blocking(count);
+    }
 
     // Never blocks
     size_t poll_nonblocking(size_t count = size_t(-1))
@@ -182,6 +190,14 @@ public:
             }
         }
         return n;
+    }
+    std::optional<size_t>
+    poll_nonblocking_if_not_within_completions(size_t count = size_t(-1))
+    {
+        if (detail::AsyncIO_per_thread_state().am_within_completions()) {
+            return std::nullopt;
+        }
+        return poll_nonblocking(count);
     }
 
     void wait_until_done()

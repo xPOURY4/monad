@@ -962,7 +962,7 @@ node_writer_unique_ptr_type replace_node_writer(
 async_write_node_result async_write_node(UpdateAux &aux, Node *node)
 {
     node_writer_unique_ptr_type &node_writer = aux.node_writer;
-    aux.io->poll_nonblocking(1);
+    aux.io->poll_nonblocking_if_not_within_completions(1);
     auto *sender = &node_writer->sender();
     auto const size = node->disk_size;
     auto const remaining_bytes = sender->remaining_buffer_bytes();

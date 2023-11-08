@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/io.hpp"
+#include "monad/async/io_senders.hpp"
 
 namespace
 {
@@ -28,5 +28,78 @@ namespace
                 throw;
             }
         }
+    }
+
+    struct poll_does_not_recurse_receiver_t
+    {
+        static constexpr bool lifetime_managed_internally = false;
+
+        int &count, &recursion_count, &max_recursion_count;
+        std::vector<std::unique_ptr<monad::async::erased_connected_operation>>
+            &states;
+
+        inline void set_value(
+            monad::async::erased_connected_operation *,
+            monad::async::result<void>);
+    };
+    TEST(AsyncIO, poll_does_not_recurse)
+    {
+        int count = 1000000;
+        int recursion_count = 0, max_recursion_count = 0;
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        monad::io::Ring testring(128, 0);
+        monad::io::Buffers testrwbuf{
+            testring, 1, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE};
+        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        std::vector<std::unique_ptr<monad::async::erased_connected_operation>>
+            states;
+        states.reserve(size_t(count));
+        for (size_t n = 0; n < 1000; n++) {
+            std::unique_ptr<monad::async::erased_connected_operation> state(
+                new auto( // NOLINT
+                    monad::async::connect(
+                        testio,
+                        monad::async::timed_delay_sender(
+                            std::chrono::seconds(0)),
+                        poll_does_not_recurse_receiver_t{
+                            count,
+                            recursion_count,
+                            max_recursion_count,
+                            states})));
+            state->initiate();
+            states.push_back(std::move(state));
+        }
+        testio.wait_until_done();
+        std::cout << "At worst " << max_recursion_count
+                  << " recursions on stack occurred." << std::endl;
+        EXPECT_LT(max_recursion_count, 2);
+    }
+    inline void poll_does_not_recurse_receiver_t::set_value(
+        monad::async::erased_connected_operation *iostate,
+        monad::async::result<void> res)
+    {
+        MONAD_ASSERT(res);
+        if (++recursion_count > max_recursion_count) {
+            max_recursion_count = recursion_count;
+        }
+        if (--count > 0) {
+            auto &io = *iostate->executor();
+            std::unique_ptr<monad::async::erased_connected_operation> state(
+                new auto( // NOLINT
+                    monad::async::connect(
+                        io,
+                        monad::async::timed_delay_sender(
+                            std::chrono::seconds(0)),
+                        poll_does_not_recurse_receiver_t{
+                            count,
+                            recursion_count,
+                            max_recursion_count,
+                            states})));
+            state->initiate();
+            states.push_back(std::move(state));
+            io.poll_nonblocking_if_not_within_completions(1);
+        }
+        --recursion_count;
     }
 }
