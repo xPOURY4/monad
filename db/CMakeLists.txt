@@ -12,15 +12,15 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 find_package(
-  Boost 1.78
+  Boost 1.81
   COMPONENTS ""
   REQUIRED)
 find_package(GTest)
 find_package(
   Boost
-  COMPONENTS fiber
+  COMPONENTS fiber json
   REQUIRED)
-
+  
 # ##############################################################################
 # libs
 # ##############################################################################
@@ -61,14 +61,16 @@ target_link_libraries(monad_trie PUBLIC monad_core)
 
 function(add_trie_test)
   set(ONE_VALUE_ARGS TARGET TEST_FILTER)
-  set(MULTI_VALUE_ARGS SOURCES)
+  set(MULTI_VALUE_ARGS SOURCES LINK_LIBRARIES)
   cmake_parse_arguments(ADD_TRIE_TEST "" "${ONE_VALUE_ARGS}"
                         "${MULTI_VALUE_ARGS}" ${ARGN})
 
   add_executable(${ADD_TRIE_TEST_TARGET} ${ADD_TRIE_TEST_SOURCES})
   monad_core_compile_options(${ADD_TRIE_TEST_TARGET})
   target_link_libraries(${ADD_TRIE_TEST_TARGET} PUBLIC monad_trie
-                                                       GTest::gtest_main)
+                                                       GTest::gtest_main
+                                                       ${ADD_TRIE_TEST_LINK_LIBRARIES}
+  )
   gtest_discover_tests(
     ${ADD_TRIE_TEST_TARGET}
     TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER ${ADD_TRIE_TEST_TEST_FILTER})
