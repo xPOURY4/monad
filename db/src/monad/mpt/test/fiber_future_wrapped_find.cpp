@@ -32,7 +32,6 @@ namespace
 
     TEST_F(OnDiskTrieGTest, single_thread_one_find_fiber)
     {
-        // Populate the trie first with the 100 fixed updates
         std::vector<Update> updates;
         for (auto const &i : one_hundred_updates) {
             updates.emplace_back(make_update(i.first, i.second));
@@ -72,6 +71,62 @@ namespace
             aux.io,
             &signal_done);
         find_fiber.join();
+        signal_done = true;
+        poll_fiber.join();
+    }
+
+    TEST_F(OnDiskTrieGTest, single_thread_one_hundred_find_fibers)
+    {
+        std::vector<Update> updates;
+        for (auto const &i : one_hundred_updates) {
+            updates.emplace_back(make_update(i.first, i.second));
+        }
+        this->root = upsert_vector(
+            this->aux, this->sm, this->root.get(), std::move(updates));
+        EXPECT_EQ(
+            root_hash(),
+            0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
+
+        inflight_map_t inflights;
+        std::vector<boost::fibers::fiber> fibers;
+        for (auto const &[key, val] : one_hundred_updates) {
+            fibers.emplace_back(
+                [](AsyncIO *const io,
+                   inflight_map_t *const inflights,
+                   Node *const root,
+                   monad::byte_string_view const key,
+                   monad::byte_string_view const value) {
+                    boost::fibers::promise<monad::mpt::find_result_type>
+                        promise;
+                    find_request_t const request{&promise, root, key};
+                    find_notify_fiber_future(*io, *inflights, request);
+                    auto const [node, errc] =
+                        request.promise->get_future().get();
+                    ASSERT_TRUE(node != nullptr);
+                    EXPECT_EQ(errc, monad::mpt::find_result::success);
+                    EXPECT_EQ(node->leaf_view(), value);
+                },
+                aux.io,
+                &inflights,
+                root.get(),
+                key,
+                val);
+        }
+
+        bool signal_done = false;
+        boost::fibers::fiber poll_fiber(
+            [](AsyncIO *const io, bool *signal_done) {
+                while (!*signal_done) {
+                    io->poll_nonblocking(1);
+                    boost::this_fiber::sleep_for(std::chrono::milliseconds(1));
+                }
+            },
+            aux.io,
+            &signal_done);
+
+        for (auto &fiber : fibers) {
+            fiber.join();
+        }
         signal_done = true;
         poll_fiber.join();
     }
