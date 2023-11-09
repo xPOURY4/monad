@@ -59,12 +59,19 @@ target_link_libraries(monad_trie PRIVATE Boost::boost)
 target_link_libraries(monad_trie PUBLIC monad_async)
 target_link_libraries(monad_trie PUBLIC monad_core)
 
-function(add_trie_test target src)
-  add_executable(${target} ${src})
-  monad_core_compile_options(${target})
-  target_link_libraries(${target} PUBLIC monad_trie GTest::gtest_main)
-  gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER
-                                                              ${ARGN})
+function(add_trie_test)
+  set(ONE_VALUE_ARGS TARGET TEST_FILTER)
+  set(MULTI_VALUE_ARGS SOURCES)
+  cmake_parse_arguments(ADD_TRIE_TEST "" "${ONE_VALUE_ARGS}"
+                        "${MULTI_VALUE_ARGS}" ${ARGN})
+
+  add_executable(${ADD_TRIE_TEST_TARGET} ${ADD_TRIE_TEST_SOURCES})
+  monad_core_compile_options(${ADD_TRIE_TEST_TARGET})
+  target_link_libraries(${ADD_TRIE_TEST_TARGET} PUBLIC monad_trie
+                                                       GTest::gtest_main)
+  gtest_discover_tests(
+    ${ADD_TRIE_TEST_TARGET}
+    TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER ${ADD_TRIE_TEST_TEST_FILTER})
 endfunction()
 
 add_subdirectory("src/monad/mpt/test")
