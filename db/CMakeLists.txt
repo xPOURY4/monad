@@ -59,11 +59,12 @@ target_link_libraries(monad_trie PRIVATE Boost::boost)
 target_link_libraries(monad_trie PUBLIC monad_async)
 target_link_libraries(monad_trie PUBLIC monad_core)
 
-function(add_trie_test target)
-  add_executable(${target} ${ARGN})
+function(add_trie_test target src)
+  add_executable(${target} ${src})
   monad_core_compile_options(${target})
   target_link_libraries(${target} PUBLIC monad_trie GTest::gtest_main)
-  gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/)
+  gtest_discover_tests(${target} TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER
+                                                              ${ARGN})
 endfunction()
 
 add_subdirectory("src/monad/mpt/test")
