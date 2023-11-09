@@ -1,15 +1,9 @@
 #include "gtest/gtest.h"
 
-#include "monad/async/boost_fiber_wrappers.hpp"
-
-#include "monad/core/small_prng.hpp"
-
 #include "fuzz/one_hundred_updates.hpp"
 #include "test_fixtures_gtest.hpp"
 
 #include <monad/mpt/trie.hpp>
-
-#include <boost/fiber/buffered_channel.hpp>
 
 #include <vector>
 
@@ -17,6 +11,31 @@ namespace
 {
     using namespace monad::test;
     using namespace MONAD_ASYNC_NAMESPACE;
+
+    void find(
+        AsyncIO *const io, inflight_map_t *const inflights, Node *const root,
+        monad::byte_string_view const key, monad::byte_string_view const value)
+    {
+        boost::fibers::promise<monad::mpt::find_result_type> promise;
+        find_request_t const request{
+            .promise = &promise,
+            .root = root,
+            .key = key,
+            .node_pi = std::nullopt};
+        find_notify_fiber_future(*io, *inflights, request);
+        auto const [node, errc] = request.promise->get_future().get();
+        ASSERT_TRUE(node != nullptr);
+        EXPECT_EQ(errc, monad::mpt::find_result::success);
+        EXPECT_EQ(node->leaf_view(), value);
+    };
+
+    void poll(AsyncIO *const io, bool *signal_done)
+    {
+        while (!*signal_done) {
+            io->poll_nonblocking(1);
+            boost::this_fiber::sleep_for(std::chrono::milliseconds(1));
+        }
+    };
 
     TEST_F(OnDiskTrieGTest, single_thread_one_find_fiber)
     {
@@ -32,32 +51,14 @@ namespace
 
         inflight_map_t inflights;
         boost::fibers::fiber find_fiber(
-            [](AsyncIO *const io,
-               inflight_map_t *const inflights,
-               Node *const root) {
-                boost::fibers::promise<monad::mpt::find_result_type> promise;
-                find_request_t const request{
-                    &promise, root, one_hundred_updates[0].first};
-                find_notify_fiber_future(*io, *inflights, request);
-                auto const [node, errc] = request.promise->get_future().get();
-                ASSERT_TRUE(node != nullptr);
-                EXPECT_EQ(errc, monad::mpt::find_result::success);
-                EXPECT_EQ(node->leaf_view(), one_hundred_updates[0].second);
-            },
+            find,
             aux.io,
             &inflights,
-            root.get());
-
+            root.get(),
+            one_hundred_updates[0].first,
+            one_hundred_updates[0].second);
         bool signal_done = false;
-        boost::fibers::fiber poll_fiber(
-            [](AsyncIO *const io, bool *signal_done) {
-                while (!*signal_done) {
-                    io->poll_nonblocking(1);
-                    boost::this_fiber::sleep_for(std::chrono::milliseconds(1));
-                }
-            },
-            aux.io,
-            &signal_done);
+        boost::fibers::fiber poll_fiber(poll, aux.io, &signal_done);
         find_fiber.join();
         signal_done = true;
         poll_fiber.join();
@@ -78,39 +79,11 @@ namespace
         inflight_map_t inflights;
         std::vector<boost::fibers::fiber> fibers;
         for (auto const &[key, val] : one_hundred_updates) {
-            fibers.emplace_back(
-                [](AsyncIO *const io,
-                   inflight_map_t *const inflights,
-                   Node *const root,
-                   monad::byte_string_view const key,
-                   monad::byte_string_view const value) {
-                    boost::fibers::promise<monad::mpt::find_result_type>
-                        promise;
-                    find_request_t const request{&promise, root, key};
-                    find_notify_fiber_future(*io, *inflights, request);
-                    auto const [node, errc] =
-                        request.promise->get_future().get();
-                    ASSERT_TRUE(node != nullptr);
-                    EXPECT_EQ(errc, monad::mpt::find_result::success);
-                    EXPECT_EQ(node->leaf_view(), value);
-                },
-                aux.io,
-                &inflights,
-                root.get(),
-                key,
-                val);
+            fibers.emplace_back(find, aux.io, &inflights, root.get(), key, val);
         }
 
         bool signal_done = false;
-        boost::fibers::fiber poll_fiber(
-            [](AsyncIO *const io, bool *signal_done) {
-                while (!*signal_done) {
-                    io->poll_nonblocking(1);
-                    boost::this_fiber::sleep_for(std::chrono::milliseconds(1));
-                }
-            },
-            aux.io,
-            &signal_done);
+        boost::fibers::fiber poll_fiber(poll, aux.io, &signal_done);
 
         for (auto &fiber : fibers) {
             fiber.join();
