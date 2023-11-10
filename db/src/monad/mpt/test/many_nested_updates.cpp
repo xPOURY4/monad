@@ -114,7 +114,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                     self->root = upsert_updates(
                         self->aux,
                         self->sm,
-                        nullptr,
+                        self->root.get(),
                         make_update(
                             to_byte_string(i.key()), to_byte_string(item)));
                 }
@@ -128,7 +128,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                     self->root = upsert_updates(
                         self->aux,
                         self->sm,
-                        nullptr,
+                        self->root.get(),
                         make_update(
                             to_byte_string(i.key()),
                             to_byte_string(item.at("value").as_string()),
@@ -149,8 +149,44 @@ inline void do_erase_corpus(State *self, ::boost::json::object const &updates)
 {
     for (auto const &i : updates) {
         self->root = upsert_updates(
-            self->aux, self->sm, nullptr, make_erase(to_byte_string(i.key())));
+            self->aux,
+            self->sm,
+            self->root.get(),
+            make_erase(to_byte_string(i.key())));
     }
+}
+
+TYPED_TEST(ManyNestedUpdates, simple_fixed_test_not_from_json)
+{
+    auto const
+        key1 =
+            0xac4c09c28206e7e35594aa6b342f5d0a3a5e4842fab428f762e6e282e5c1657c_hex,
+        val1 = 0xb36711eb3906a7c8603d71d409e7a54d87bdc1f70442027a5b_hex,
+        key2 =
+            0x212b86b49e656acf0641169a0b59f4e629439f25d9d4654fec8d4819fb40d6ba_hex,
+        val2 = 0x1c441ae6_hex;
+
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        nullptr,
+        make_update(key1, val1),
+        make_update(key2, val2));
+    EXPECT_EQ(
+        this->root_hash(),
+        0x0d203b1bed203d355d6201a703774018a182975fc4fcae0dae19825cd40ccd17_hex);
+}
+
+TYPED_TEST(ManyNestedUpdates, test_corpus_simple_flat)
+{
+    auto const updates = read_corpus("simple_flat").as_object();
+    do_upsert_corpus(this, updates.at("updates").as_object());
+    EXPECT_EQ(
+        this->root_hash(), to_byte_string(updates.at("root_hash").as_string()));
+    do_erase_corpus(this, updates.at("updates").as_object());
+    EXPECT_EQ(
+        this->root_hash(),
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex /* null hash */);
 }
 
 TYPED_TEST(ManyNestedUpdates, test_corpus_0)
