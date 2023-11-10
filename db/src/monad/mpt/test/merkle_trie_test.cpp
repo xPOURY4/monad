@@ -449,9 +449,15 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
         0xd02534184b896dd4cb37fb34f176cafb508aa2ebc19a773c332514ca8c65ca10_hex);
 
     // update first trie mid leaf data
+    // with nested storage changes but doesn't change any value
     auto acc1 = kv[0].first, new_val = 0x1234_hex;
+    storage.clear();
+    storage.push_front(a);
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_update(acc1, new_val));
+        this->aux,
+        this->sm,
+        this->root.get(),
+        make_update(acc1, new_val, false, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
@@ -587,6 +593,24 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
+    { // update the block_num leaf's value and its nested subtrie
+        UpdateList state_changes;
+        state_changes.push_front(s2); // no change in nested state trie
+        monad::byte_string const leaf_value = 0x01020304_hex;
+        this->root = upsert_updates(
+            this->aux,
+            this->sm,
+            this->root.get(),
+            make_update(blockno, leaf_value, false, std::move(state_changes)));
+        auto [state_root, res] =
+            find_blocking(this->get_storage_pool(), this->root.get(), blockno);
+        EXPECT_EQ(res, monad::mpt::find_result::success);
+        EXPECT_EQ(
+            state_root->leaf_view(), leaf_value); // state_root leaf has updated
+        EXPECT_EQ(
+            state_root->hash_view(), // hash for state trie remains the same
+            0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
+    }
     // copy state root to blockno2
     this->root = copy_node(this->aux, std::move(this->root), blockno, blockno2);
     this->root = upsert_updates(
