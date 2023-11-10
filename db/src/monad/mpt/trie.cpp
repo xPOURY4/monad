@@ -298,9 +298,14 @@ write_new_root_node(UpdateAux &aux, tnode_unique_ptr &root_tnode);
  `old_pi` is nibble index of relpath in previous node - old.
  `*psi` is the starting nibble index in current function frame
 */
-bool dispatch_updates_(
+bool dispatch_updates_flat_list_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
     UpwardTreeNode *tnode, Requests &requests, unsigned pi);
+
+bool dispatch_updates_impl_(
+    UpdateAux &aux, TrieStateMachine &sm, Node *const old,
+    UpwardTreeNode *tnode, Requests &requests, unsigned pi,
+    std::optional<byte_string_view> opt_leaf_data);
 
 bool mismatch_handler_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
@@ -343,6 +348,8 @@ node_ptr upsert(
                 std::move(updates))) {
             assert(aux.is_on_disk());
             aux.io->flush();
+            MONAD_ASSERT(root_tnode->npending == 0);
+            sm.reset(root_tnode->trie_section);
             MONAD_ASSERT(create_node_from_children_if_any_possibly_ondisk(
                 aux, sm, root_tnode.get(), 0));
         }
@@ -609,7 +616,6 @@ bool update_leaf_data_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
     UpwardTreeNode *tnode, Update &update)
 {
-    auto const &relpath = tnode->relpath;
     if (update.is_deletion()) {
         tnode->node = nullptr;
         return true;
@@ -619,24 +625,27 @@ bool update_leaf_data_(
         tnode->trie_section = sm.get_state();
         Requests requests;
         requests.split_into_sublists(std::move(update.next), 0);
+        MONAD_ASSERT(requests.opt_leaf == std::nullopt);
         bool finished = true;
         if (update.incarnation) {
             tnode->node = create_new_trie_from_requests_(
-                aux, sm, requests, relpath, 0, update.value);
+                aux, sm, requests, tnode->relpath, 0, update.value);
         }
         else {
-            finished = dispatch_updates_(aux, sm, old, tnode, requests, 0);
+            auto const opt_leaf_data =
+                update.value.has_value() ? update.value : old->opt_leaf();
+            finished = dispatch_updates_impl_(
+                aux, sm, old, tnode, requests, 0, opt_leaf_data);
         }
         sm.backward();
         return finished;
     }
+    // only value update but not subtrie updates
+    MONAD_ASSERT(update.value.has_value());
     tnode->node =
         update.incarnation
-            ? create_leaf(update.value.value().data(), relpath)
-            : update_node_diff_path_leaf(
-                  old,
-                  relpath,
-                  update.value.has_value() ? update.value : old->opt_leaf());
+            ? create_leaf(update.value.value().data(), tnode->relpath)
+            : update_node_diff_path_leaf(old, tnode->relpath, update.value);
     return true;
 }
 
@@ -727,7 +736,8 @@ bool upsert_(
         unsigned const n = requests.split_into_sublists(std::move(updates), pi);
         MONAD_DEBUG_ASSERT(n);
         if (old_pi == old->path_nibble_index_end) {
-            return dispatch_updates_(aux, sm, old, tnode, requests, pi);
+            return dispatch_updates_flat_list_(
+                aux, sm, old, tnode, requests, pi);
         }
         if (auto old_nibble = get_nibble(old->path_data(), old_pi);
             n == 1 && requests.get_first_branch() == old_nibble) {
@@ -744,31 +754,12 @@ bool upsert_(
 //! dispatch updates at the end of old node's path
 //! old node can have leaf data, there might be update to that leaf
 //! return a new node
-bool dispatch_updates_(
+bool dispatch_updates_impl_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
-    UpwardTreeNode *tnode, Requests &requests, unsigned pi)
+    UpwardTreeNode *tnode, Requests &requests, unsigned pi,
+    std::optional<byte_string_view> const opt_leaf_data)
 {
-    auto const &opt_leaf = requests.opt_leaf;
-    if (opt_leaf.has_value()) {
-        if (opt_leaf.value().incarnation) {
-            // incarnation = 1, also have new children longer than curr
-            // update's key
-            MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
-            tnode->node = create_new_trie_from_requests_(
-                aux, sm, requests, tnode->relpath, pi, opt_leaf.value().value);
-            return true;
-        }
-        else if (opt_leaf.value().is_deletion()) {
-            tnode->node = nullptr;
-            return true;
-        }
-    }
-    tnode->init(
-        (old->mask | requests.mask),
-        pi,
-        (opt_leaf.has_value() && opt_leaf.value().value.has_value())
-            ? opt_leaf.value().value
-            : old->opt_leaf());
+    tnode->init((old->mask | requests.mask), pi, opt_leaf_data);
     unsigned const n = tnode->npending;
 
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
@@ -845,6 +836,41 @@ bool dispatch_updates_(
     return create_node_from_children_if_any_possibly_ondisk(aux, sm, tnode, pi);
 }
 
+bool dispatch_updates_flat_list_(
+    UpdateAux &aux, TrieStateMachine &sm, Node *const old,
+    UpwardTreeNode *tnode, Requests &requests, unsigned pi)
+{
+    auto &opt_leaf = requests.opt_leaf;
+    auto opt_leaf_data = old->opt_leaf();
+    if (opt_leaf.has_value()) {
+        sm.forward();
+        tnode->trie_section = sm.get_state();
+
+        MONAD_ASSERT(opt_leaf->next.empty());
+        if (opt_leaf.value().incarnation) {
+            // incarnation means there are new children keys longer than curr
+            // update's key
+            MONAD_DEBUG_ASSERT(!opt_leaf.value().is_deletion());
+            tnode->node = create_new_trie_from_requests_(
+                aux, sm, requests, tnode->relpath, pi, opt_leaf.value().value);
+            return true;
+        }
+        else if (opt_leaf.value().is_deletion()) {
+            tnode->node = nullptr;
+            return true;
+        }
+        if (opt_leaf.value().value.has_value()) {
+            opt_leaf_data = opt_leaf.value().value;
+        }
+    }
+    bool const finished = dispatch_updates_impl_(
+        aux, sm, old, tnode, requests, pi, opt_leaf_data);
+
+    if (opt_leaf.has_value()) {
+        sm.backward();
+    }
+    return finished;
+}
 //! split old at old_pi, updates at pi
 //! requests can have 1 or more sublists
 bool mismatch_handler_(
