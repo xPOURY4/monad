@@ -617,11 +617,11 @@ bool update_leaf_data_(
         tnode->node = nullptr;
         return true;
     }
-    if (update.next.has_value()) {
+    if (!update.next.empty()) {
         sm.forward();
         tnode->trie_section = sm.get_state();
         Requests requests;
-        requests.split_into_sublists(std::move(update.next.value()), 0);
+        requests.split_into_sublists(std::move(update.next), 0);
         bool finished = true;
         if (update.incarnation) {
             tnode->node = create_new_trie_from_requests_(
@@ -653,10 +653,10 @@ Node *create_new_trie_(
         MONAD_DEBUG_ASSERT(
             update.incarnation == false && update.value.has_value());
         auto const relpath = update.key.substr(pi);
-        if (update.next.has_value()) {
+        if (!update.next.empty()) {
             sm.forward();
             Requests requests;
-            requests.split_into_sublists(std::move(update.next.value()), 0);
+            requests.split_into_sublists(std::move(update.next), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
             auto ret = create_new_trie_from_requests_(
                 aux, sm, requests, relpath, 0, update.value);

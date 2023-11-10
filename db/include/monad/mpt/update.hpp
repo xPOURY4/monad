@@ -21,15 +21,15 @@ struct Update
     NibblesView key{};
     std::optional<byte_string_view> value{std::nullopt};
     bool incarnation{false};
-    std::optional<UpdateList> next;
+    UpdateList next;
 
     constexpr bool is_deletion() const noexcept
     {
-        return !value.has_value() && !next;
+        return !value.has_value() && next.empty();
     }
 };
 
-static_assert(sizeof(Update) == 80);
+static_assert(sizeof(Update) == 72);
 static_assert(alignof(Update) == 8);
 
 // An update can mean
@@ -38,8 +38,7 @@ static_assert(alignof(Update) == 8);
 // 3. leaf erase: when opt is empty, next = nullptr
 inline Update make_update(
     monad::byte_string_view const key, monad::byte_string_view const value,
-    bool incarnation = false,
-    std::optional<UpdateList> &&next = std::nullopt) noexcept
+    bool incarnation = false, UpdateList &&next = UpdateList{}) noexcept
 {
     return Update{
         .key = key,
@@ -49,9 +48,8 @@ inline Update make_update(
 }
 
 // When updates in the nested list but not in this key value pair itself
-inline Update make_update(
-    monad::byte_string_view const key,
-    std::optional<UpdateList> &&next) noexcept
+inline Update
+make_update(monad::byte_string_view const key, UpdateList &&next) noexcept
 {
     return Update{
         .key = key,
@@ -66,7 +64,7 @@ inline Update make_erase(monad::byte_string_view const key) noexcept
         .key = key,
         .value = std::nullopt,
         .incarnation = false,
-        .next = std::nullopt};
+        .next = UpdateList{}};
 }
 
 MONAD_MPT_NAMESPACE_END

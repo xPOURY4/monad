@@ -123,7 +123,7 @@ namespace
             if (i.second > 0) {
                 break;
             }
-            updates.push_back(make_update(i.first, std::nullopt));
+            updates.push_back(make_update(i.first, UpdateList{}));
         }
         std::cout << "Erasing the first " << updates.size()
                   << " inserted keys, which should enable the whole of the "
