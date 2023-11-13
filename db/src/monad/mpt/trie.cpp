@@ -557,19 +557,21 @@ Node *create_node_from_children_if_any(
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
     // handle non child and single child cases
-    unsigned const n = bitmask_count(mask);
-    if (n == 0) {
+    auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
+    if (number_of_children == 0) {
         return leaf_data.has_value() ? create_leaf(leaf_data.value(), relpath)
                                      : nullptr;
     }
-    else if (n == 1 && !leaf_data.has_value()) {
+    else if (number_of_children == 1 && !leaf_data.has_value()) {
         auto const j = bitmask_index(
             orig_mask, static_cast<unsigned>(std::countr_zero(mask)));
         assert(children[j].ptr);
         return create_coalesced_node_with_prefix(
             children[j].branch, node_ptr{children[j].ptr}, relpath);
     }
-    MONAD_DEBUG_ASSERT(n > 1 || (n == 1 && leaf_data.has_value()));
+    MONAD_DEBUG_ASSERT(
+        number_of_children > 1 ||
+        (number_of_children == 1 && leaf_data.has_value()));
     // write children to disk, free any if exceeds the cache level limit
     if (aux.is_on_disk()) {
         for (auto &child : children) {
@@ -592,7 +594,7 @@ Node *create_node_from_children_if_any(
                 // do not free if n == 1, that's when parent is a leaf node with
                 // branches
                 auto cache_opt = sm.cache_option();
-                if (n > 1 && pi > 0 &&
+                if (number_of_children > 1 && pi > 0 &&
                     (cache_opt == CacheOption::DisposeAll ||
                      (cache_opt == CacheOption::ApplyLevelBasedCache &&
                       (pi + 1 + child.ptr->path_nibbles_len() >
@@ -612,8 +614,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
     UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode,
     unsigned const pi)
 {
-    unsigned const n = bitmask_count(tnode->mask);
-    if (n == 1 && !tnode->opt_leaf_data.has_value()) {
+    if (tnode->number_of_children() == 1 && !tnode->opt_leaf_data.has_value()) {
         auto const j = bitmask_index(
             tnode->orig_mask,
             static_cast<unsigned>(std::countr_zero(tnode->mask)));
@@ -719,11 +720,12 @@ Node *create_new_trie_from_requests_(
     NibblesView const relpath, unsigned const pi,
     std::optional<byte_string_view> const opt_leaf_data)
 {
-    unsigned const n = bitmask_count(requests.mask);
+    auto const number_of_children =
+        static_cast<unsigned>(std::popcount(requests.mask));
     uint16_t const mask = requests.mask;
-    MONAD_DEBUG_ASSERT(n > 0);
-    std::vector<ChildData> children(n);
-    for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
+    std::vector<ChildData> children(number_of_children);
+    for (unsigned i = 0, j = 0, bit = 1; j < number_of_children;
+         ++i, bit <<= 1) {
         if (bit & requests.mask) {
             auto node =
                 create_new_trie_(aux, sm, std::move(requests)[i], pi + 1);

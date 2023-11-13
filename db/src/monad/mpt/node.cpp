@@ -76,7 +76,7 @@ Node *create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
     NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
 {
-    unsigned const n = bitmask_count(mask);
+    auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     // any node with child will have hash data
     bool const is_leaf = leaf_data.has_value();
     uint8_t const leaf_len =
@@ -85,11 +85,12 @@ Node *create_node(
                   hash_len =
                       is_leaf ? static_cast<uint8_t>(comp.compute_len(children))
                               : 0;
-    auto bytes = sizeof(Node) + leaf_len + hash_len +
-                 n * (sizeof(Node *) + sizeof(Node::data_off_t) +
-                      sizeof(uint32_t) + sizeof(file_offset_t)) +
-                 relpath.data_size();
-    std::vector<Node::data_off_t> offsets(n);
+    auto bytes =
+        sizeof(Node) + leaf_len + hash_len +
+        number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +
+                              sizeof(uint32_t) + sizeof(file_offset_t)) +
+        relpath.data_size();
+    std::vector<Node::data_off_t> offsets(number_of_children);
     unsigned data_len = 0;
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {

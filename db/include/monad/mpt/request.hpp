@@ -5,6 +5,7 @@
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <bit>
 #include <cstdint>
 #include <optional>
 
@@ -37,7 +38,7 @@ struct Requests
 
     constexpr UpdateList &&first_and_only_list() && noexcept
     {
-        MONAD_DEBUG_ASSERT(bitmask_count(mask) == 1);
+        MONAD_DEBUG_ASSERT(std::popcount(mask) == 1);
         return std::move(sublists[get_first_branch()]);
     }
 

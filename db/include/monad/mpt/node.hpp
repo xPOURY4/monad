@@ -112,7 +112,7 @@ public:
     /* Member funcs and data layout that exceeds node struct size is organized
     as below:
     * `number_of_children()` is the number of children the node has and equals
-    bitmask_count(mask)
+    std::popcount(mask)
     * `fnext` array: size-n array storing children's on-disk offsets
     * `data_offset` array: size-n array each stores a specific child data's
     starting offset
@@ -211,7 +211,7 @@ public:
 
     constexpr unsigned number_of_children() const noexcept
     {
-        return bitmask_count(mask);
+        return static_cast<unsigned>(std::popcount(mask));
     }
 
     //! fnext
@@ -514,9 +514,9 @@ Node *update_node_diff_path_leaf(
 inline Node *create_node_nodata(
     uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
 {
-    auto const n = bitmask_count(mask);
     auto const bytes = sizeof(Node) + relpath.data_size() +
-                       n * (sizeof(Node *) + sizeof(file_offset_t) +
+                       static_cast<unsigned>(std::popcount(mask)) *
+                           (sizeof(Node *) + sizeof(file_offset_t) +
                             sizeof(uint32_t) + sizeof(Node::data_off_t));
 
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
@@ -541,14 +541,14 @@ serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
 inline node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
 {
     uint16_t const mask = unaligned_load<uint16_t>(read_pos);
-    unsigned const n = bitmask_count(mask);
+    auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     uint16_t const disk_size = unaligned_load<uint16_t>(read_pos + 6),
-                   alloc_size =
-                       static_cast<uint16_t>(disk_size + n * sizeof(Node *));
+                   alloc_size = static_cast<uint16_t>(
+                       disk_size + number_of_children * sizeof(Node *));
     MONAD_ASSERT(disk_size > 0 && disk_size <= MAX_DISK_NODE_SIZE);
     node_ptr node = Node::make_node(alloc_size);
     memcpy((unsigned char *)node.get(), read_pos, disk_size);
-    memset(node->next_data(), 0, n * sizeof(Node *));
+    memset(node->next_data(), 0, number_of_children * sizeof(Node *));
     return node;
 }
 

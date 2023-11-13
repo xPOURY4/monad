@@ -64,11 +64,6 @@ bitmask_index(uint16_t const mask, unsigned const i) noexcept
         std::popcount(static_cast<uint16_t>(mask & filter)));
 }
 
-inline constexpr unsigned bitmask_count(uint16_t const mask) noexcept
-{
-    return static_cast<unsigned>(std::popcount(mask));
-}
-
 //! convert an integral's least significant N bytes to a size-N byte string
 template <int N, std::unsigned_integral V>
 inline byte_string serialise_as_big_endian(V n)

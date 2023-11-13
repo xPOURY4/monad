@@ -65,10 +65,10 @@ inline unsigned count_leaves(Node *const root, unsigned n = 0)
     if (!root) {
         return 0;
     }
-    if (!bitmask_count(root->mask)) {
+    if (!std::popcount(root->mask)) {
         return 1;
     }
-    for (unsigned j = 0; j < bitmask_count(root->mask); ++j) {
+    for (unsigned j = 0; j < root->number_of_children(); ++j) {
         n += count_leaves(root->next_j(j));
     }
     return n;
