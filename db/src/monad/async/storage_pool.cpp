@@ -11,16 +11,16 @@
 
 #include <atomic>
 #include <bit>
+#include <cassert>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <limits>
 #include <memory>
-#include <cassert>
-#include <cstring>
 #include <mutex>
 #include <span>
 #include <sstream>
@@ -301,11 +301,12 @@ storage_pool::device storage_pool::make_device_(
                 chunk_capacity <= std::numeric_limits<uint32_t>::max());
             metadata_footer->chunk_capacity =
                 static_cast<uint32_t>(chunk_capacity);
-            ::pwrite(
-                readwritefd,
-                buffer,
-                static_cast<size_t>(bytesread),
-                static_cast<off_t>(offset));
+            MONAD_ASSERT(
+                -1 != ::pwrite(
+                          readwritefd,
+                          buffer,
+                          static_cast<size_t>(bytesread),
+                          static_cast<off_t>(offset)));
         }
         total_size =
             metadata_footer->total_size(static_cast<size_t>(stat.st_size));

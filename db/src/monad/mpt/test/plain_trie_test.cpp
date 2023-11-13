@@ -1,5 +1,4 @@
-#include "gtest/gtest.h"
-
+#include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp"  // NOLINT
 
 #include <monad/core/byte_string.hpp>

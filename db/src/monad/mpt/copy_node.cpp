@@ -1,5 +1,6 @@
 #include <monad/async/config.hpp>
 
+#include <monad/core/byte_string.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/nibble.h>
@@ -12,6 +13,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <optional>
 
 MONAD_MPT_NAMESPACE_BEGIN
 

@@ -1,235 +1,145 @@
-#include "gtest/gtest.h"
-
-#ifndef __clang__
+#if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
+
+#include "test_fixture.hpp"
 
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/connected_operation.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/io.hpp>
+#include <monad/async/io_senders.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/async/util.hpp>
-#include <monad/core/assert.h>
-#include <monad/io/buffers.hpp>
-#include <monad/io/ring.hpp>
-#include <monad/async/io_senders.hpp>
 #include <monad/core/array.hpp>
 #include <monad/core/small_prng.hpp>
+#include <monad/io/ring.hpp>
 
-#include <boost/fiber/future/promise.hpp>
-#include <boost/fiber/operations.hpp>
-#include <boost/outcome/config.hpp>
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future.hpp>
 #include <boost/outcome/coroutine_support.hpp>
 
+#include <array>
+#include <atomic>
 #include <cassert>
+#include <chrono>
+#include <coroutine>
 #include <cstddef>
+#include <future>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
+#include <span>
 #include <thread>
 #include <tuple>
 #include <utility>
-#include <array>
-#include <atomic>
-#include <chrono>
-#include <coroutine>
-#include <future>
-#include <optional>
-#include <span>
 #include <vector>
 
-#include <unistd.h>
+struct AsyncIO : public monad::test::AsyncTestFixture<::testing::Test>
+{
+};
 
-namespace
+struct read_single_buffer_operation_states_base_
+{
+    virtual bool reinitiate(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
+        std::span<std::byte const> buffer) = 0;
+};
+template <MONAD_ASYNC_NAMESPACE::receiver Receiver>
+class read_single_buffer_operation_states_ final
+    : public read_single_buffer_operation_states_base_
+{
+    using io_state_type_ =
+        MONAD_ASYNC_NAMESPACE::AsyncIO::connected_operation_unique_ptr_type<
+            MONAD_ASYNC_NAMESPACE::read_single_buffer_sender, Receiver>;
+    typename AsyncIO::shared_state_t *const fixture_shared_state_;
+    std::vector<io_state_type_> states_;
+    bool test_is_done_{false};
+    unsigned op_count_{0};
+
+public:
+    template <class... Args>
+    explicit read_single_buffer_operation_states_(
+        typename AsyncIO::shared_state_t *fixture_shared_state, size_t total,
+        Args &&...args)
+        : fixture_shared_state_(fixture_shared_state)
+    {
+        using namespace MONAD_ASYNC_NAMESPACE;
+        states_.reserve(total);
+        for (size_t n = 0; n < total; n++) {
+            chunk_offset_t const offset(
+                0,
+                round_down_align<DISK_PAGE_BITS>(
+                    fixture_shared_state_->test_rand() %
+                    (::AsyncIO::TEST_FILE_SIZE - DISK_PAGE_SIZE)));
+            states_.push_back(fixture_shared_state_->testio->make_connected(
+                read_single_buffer_sender(
+                    offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
+                Receiver{this, std::forward<Args>(args)...}));
+        }
+    }
+    ~read_single_buffer_operation_states_()
+    {
+        stop();
+    }
+    unsigned count() const noexcept
+    {
+        return op_count_;
+    }
+    void initiate()
+    {
+        test_is_done_ = false;
+        for (auto &i : states_) {
+            i->initiate();
+        }
+        op_count_ = static_cast<unsigned int>(states_.size());
+    }
+    void stop()
+    {
+        test_is_done_ = true;
+        fixture_shared_state_->testio->wait_until_done();
+    }
+    virtual bool reinitiate(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
+        std::span<std::byte const> buffer) override final
+    {
+        using namespace MONAD_ASYNC_NAMESPACE;
+        auto *state = static_cast<typename io_state_type_::pointer>(i);
+        EXPECT_EQ(
+            buffer.front(),
+            fixture_shared_state_
+                ->testfilecontents[state->sender().offset().offset]);
+        if (!test_is_done_) {
+            chunk_offset_t const offset(
+                0,
+                round_down_align<DISK_PAGE_BITS>(
+                    fixture_shared_state_->test_rand() %
+                    (::AsyncIO::TEST_FILE_SIZE - DISK_PAGE_SIZE)));
+            state->reset(
+                std::tuple{offset, state->sender().buffer()}, std::tuple{});
+            state->initiate();
+            op_count_++;
+            return true;
+        }
+        return false;
+    }
+    MONAD_ASYNC_NAMESPACE::read_single_buffer_sender &
+    sender(size_t idx) noexcept
+    {
+        return states_[idx]->sender();
+    }
+    Receiver &receiver(size_t idx) noexcept
+    {
+        return states_[idx]->receiver();
+    }
+};
+
+TEST_F(AsyncIO, timed_delay_sender_receiver)
 {
     using namespace MONAD_ASYNC_NAMESPACE;
-    static constexpr size_t TEST_FILE_SIZE = 1024 * 1024;
-    static constexpr size_t MAX_CONCURRENCY = 4;
-    static std::vector<std::byte> const testfilecontents = [] {
-        std::vector<std::byte> ret(TEST_FILE_SIZE);
-        std::span<
-            monad::small_prng::value_type,
-            TEST_FILE_SIZE / sizeof(monad::small_prng::value_type)>
-            s((monad::small_prng::value_type *)ret.data(),
-              TEST_FILE_SIZE / sizeof(monad::small_prng::value_type));
-        monad::small_prng rand;
-        for (auto &i : s) {
-            i = rand();
-        }
-        return ret;
-    }();
-    static monad::async::storage_pool pool{
-        monad::async::use_anonymous_inode_tag{}};
-    static monad::io::Ring testring(MAX_CONCURRENCY * 2, 0);
-    static monad::io::Buffers testrwbuf{
-        testring, MAX_CONCURRENCY * 2, MAX_CONCURRENCY * 2, 1UL << 13};
-    static auto testio = [] {
-        auto ret = std::make_unique<AsyncIO>(pool, testring, testrwbuf);
-        auto fd = pool.activate_chunk(monad::async::storage_pool::seq, 0)
-                      ->write_fd(TEST_FILE_SIZE);
-        MONAD_ASSERT(
-            TEST_FILE_SIZE == ::pwrite(
-                                  fd.first,
-                                  testfilecontents.data(),
-                                  TEST_FILE_SIZE,
-                                  static_cast<off_t>(fd.second)));
-        return ret;
-    }();
-    monad::small_prng test_rand;
-
-    struct read_single_buffer_operationstates__base
-    {
-        virtual bool reinitiate(
-            erased_connected_operation *i,
-            std::span<std::byte const> buffer) = 0;
-    };
-    template <receiver Receiver>
-    class read_single_buffer_operationstates_ final
-        : public read_single_buffer_operationstates__base
-    {
-        using io_state_type_ = AsyncIO::connected_operation_unique_ptr_type<
-            read_single_buffer_sender, Receiver>;
-        std::vector<io_state_type_> states_;
-        bool test_is_done_{false};
-        unsigned op_count_{0};
-
-    public:
-        template <class... Args>
-        explicit read_single_buffer_operationstates_(
-            size_t total, Args &&...args)
-        {
-            states_.reserve(total);
-            for (size_t n = 0; n < total; n++) {
-                chunk_offset_t const offset(
-                    0,
-                    round_down_align<DISK_PAGE_BITS>(
-                        test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
-                states_.push_back(testio->make_connected(
-                    read_single_buffer_sender(
-                        offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
-                    Receiver{this, std::forward<Args>(args)...}));
-            }
-        }
-        ~read_single_buffer_operationstates_()
-        {
-            stop();
-        }
-        unsigned count() const noexcept
-        {
-            return op_count_;
-        }
-        void initiate()
-        {
-            test_is_done_ = false;
-            for (auto &i : states_) {
-                i->initiate();
-            }
-            op_count_ = static_cast<unsigned int>(states_.size());
-        }
-        void stop()
-        {
-            test_is_done_ = true;
-            testio->wait_until_done();
-        }
-        virtual bool reinitiate(
-            erased_connected_operation *i,
-            std::span<std::byte const> buffer) override final
-        {
-            auto *state = static_cast<typename io_state_type_::pointer>(i);
-            EXPECT_EQ(
-                buffer.front(),
-                testfilecontents[state->sender().offset().offset]);
-            if (!test_is_done_) {
-                chunk_offset_t const offset(
-                    0,
-                    round_down_align<DISK_PAGE_BITS>(
-                        test_rand() % (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
-                state->reset(
-                    std::tuple{offset, state->sender().buffer()}, std::tuple{});
-                state->initiate();
-                op_count_++;
-                return true;
-            }
-            return false;
-        }
-        read_single_buffer_sender &sender(size_t idx) noexcept
-        {
-            return states_[idx]->sender();
-        }
-        Receiver &receiver(size_t idx) noexcept
-        {
-            return states_[idx]->receiver();
-        }
-    };
-
-    TEST(AsyncIO, timed_delay_sender_receiver)
-    {
-        auto check = [](char const *desc, auto &&get_now, auto timeout) {
-            struct receiver_t
-            {
-                enum : bool
-                {
-                    lifetime_managed_internally = false
-                };
-
-                bool done{false};
-                void set_value(erased_connected_operation *, result<void> res)
-                {
-                    ASSERT_TRUE(res);
-                    done = true;
-                }
-            };
-            auto state =
-                connect(*testio, timed_delay_sender(timeout), receiver_t{});
-            std::cout << "   " << desc << " ..." << std::endl;
-            auto begin = get_now();
-            state.initiate();
-            while (!state.receiver().done) {
-                testio->poll_blocking(1);
-            }
-            auto end = get_now();
-            std::cout
-                << "      io_uring waited for "
-                << (static_cast<double>(
-                        std::chrono::duration_cast<std::chrono::microseconds>(
-                            end - begin)
-                            .count()) /
-                    1000.0)
-                << " ms." << std::endl;
-            if constexpr (requires { timeout.count(); }) {
-                auto diff = end - begin;
-                EXPECT_GE(diff, timeout);
-                EXPECT_LT(diff, timeout + std::chrono::milliseconds(100));
-            }
-            else {
-                EXPECT_GE(end, timeout);
-                EXPECT_LT(end, timeout + std::chrono::milliseconds(100));
-            }
-        };
-        check(
-            "Relative delay",
-            [] { return std::chrono::steady_clock::now(); },
-            std::chrono::milliseconds(100));
-        check(
-            "Absolute monotonic deadline",
-            [] { return std::chrono::steady_clock::now(); },
-            std::chrono::steady_clock::now() + std::chrono::milliseconds(100));
-        check(
-            "Absolute UTC deadline",
-            [] { return std::chrono::system_clock::now(); },
-            std::chrono::system_clock::now() + std::chrono::milliseconds(100));
-        check(
-            "Instant",
-            [] { return std::chrono::steady_clock::now(); },
-            std::chrono::milliseconds(0));
-    }
-
-    TEST(AsyncIO, threadsafe_sender_receiver)
-    {
+    auto check = [&](char const *desc, auto &&get_now, auto timeout) {
         struct receiver_t
         {
             enum : bool
@@ -237,182 +147,511 @@ namespace
                 lifetime_managed_internally = false
             };
 
-            std::atomic<bool> done{false};
-            receiver_t() = default;
-            receiver_t(receiver_t const &) {}
+            bool done{false};
             void set_value(erased_connected_operation *, result<void> res)
             {
                 ASSERT_TRUE(res);
                 done = true;
             }
         };
-        auto state = connect(*testio, threadsafe_sender{}, receiver_t{});
-        auto fut =
-            std::async(std::launch::async, [&state] { state.initiate(); });
+        auto state = connect(
+            *shared_state_()->testio,
+            timed_delay_sender(timeout),
+            receiver_t{});
+        std::cout << "   " << desc << " ..." << std::endl;
+        auto begin = get_now();
+        state.initiate();
         while (!state.receiver().done) {
-            testio->poll_blocking(1);
+            shared_state_()->testio->poll_blocking(1);
         }
-        fut.get();
-    }
+        auto end = get_now();
+        std::cout << "      io_uring waited for "
+                  << (static_cast<double>(
+                          std::chrono::duration_cast<std::chrono::microseconds>(
+                              end - begin)
+                              .count()) /
+                      1000.0)
+                  << " ms." << std::endl;
+        if constexpr (requires { timeout.count(); }) {
+            auto diff = end - begin;
+            EXPECT_GE(diff, timeout);
+            EXPECT_LT(diff, timeout + std::chrono::milliseconds(100));
+        }
+        else {
+            EXPECT_GE(end, timeout);
+            EXPECT_LT(end, timeout + std::chrono::milliseconds(100));
+        }
+    };
+    check(
+        "Relative delay",
+        [] { return std::chrono::steady_clock::now(); },
+        std::chrono::milliseconds(100));
+    check(
+        "Absolute monotonic deadline",
+        [] { return std::chrono::steady_clock::now(); },
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(100));
+    check(
+        "Absolute UTC deadline",
+        [] { return std::chrono::system_clock::now(); },
+        std::chrono::system_clock::now() + std::chrono::milliseconds(100));
+    check(
+        "Instant",
+        [] { return std::chrono::steady_clock::now(); },
+        std::chrono::milliseconds(0));
+}
 
-    TEST(AsyncIO, benchmark_non_io_sender_receiver)
+TEST_F(AsyncIO, threadsafe_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    struct receiver_t
     {
-        static constexpr size_t COUNT = 1000;
-        static std::atomic<int> done{0};
-        static size_t count = 0;
-        struct reinitiating_receiver_t
+        enum : bool
         {
-            enum : bool
-            {
-                lifetime_managed_internally = false
-            };
-
-            void set_value(erased_connected_operation *state, result<void> res)
-            {
-                ASSERT_TRUE(res);
-                count++;
-                if (!done) {
-                    state->initiate();
-                }
-            }
+            lifetime_managed_internally = false
         };
-        struct nonreinitiating_receiver_t
+
+        std::atomic<bool> done{false};
+        receiver_t() = default;
+        receiver_t(receiver_t const &) {}
+        void set_value(erased_connected_operation *, result<void> res)
         {
-            enum : bool
-            {
-                lifetime_managed_internally = false
-            };
-
-            void set_value(erased_connected_operation *, result<void> res)
-            {
-                ASSERT_TRUE(res);
-                count++;
-            }
-        };
-        auto benchmark = [](char const *desc, auto &&initiate) {
-            std::cout << "Benchmarking " << desc << " ..." << std::endl;
-            done = false;
-            count = 0;
-            auto begin = std::chrono::steady_clock::now(), end = begin;
-            initiate();
-            for (; end - begin < std::chrono::seconds(5);
-                 end = std::chrono::steady_clock::now()) {
-                testio->poll_blocking(256);
-            }
+            ASSERT_TRUE(res);
             done = true;
-            std::cout << "   Waiting until done ..." << std::endl;
-            testio->wait_until_done();
-            end = std::chrono::steady_clock::now();
-            auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
-                end - begin);
-            std::cout << "   Did "
-                      << (1000.0 * static_cast<double>(count) /
-                          static_cast<double>(diff.count()))
-                      << " completions per second" << std::endl;
+        }
+    };
+    auto state =
+        connect(*shared_state_()->testio, threadsafe_sender{}, receiver_t{});
+    auto fut = std::async(std::launch::async, [&state] { state.initiate(); });
+    while (!state.receiver().done) {
+        shared_state_()->testio->poll_blocking(1);
+    }
+    fut.get();
+}
+
+TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    static constexpr size_t COUNT = 1000;
+    static std::atomic<int> done{0};
+    static size_t count = 0;
+    struct reinitiating_receiver_t
+    {
+        enum : bool
+        {
+            lifetime_managed_internally = false
         };
-        auto thepast = std::chrono::steady_clock::now();
+
+        void set_value(erased_connected_operation *state, result<void> res)
         {
-            std::array<
+            ASSERT_TRUE(res);
+            count++;
+            if (!done) {
+                state->initiate();
+            }
+        }
+    };
+    struct nonreinitiating_receiver_t
+    {
+        enum : bool
+        {
+            lifetime_managed_internally = false
+        };
+
+        void set_value(erased_connected_operation *, result<void> res)
+        {
+            ASSERT_TRUE(res);
+            count++;
+        }
+    };
+    auto benchmark = [&](char const *desc, auto &&initiate) {
+        std::cout << "Benchmarking " << desc << " ..." << std::endl;
+        done = false;
+        count = 0;
+        auto begin = std::chrono::steady_clock::now(), end = begin;
+        initiate();
+        for (; end - begin < std::chrono::seconds(5);
+             end = std::chrono::steady_clock::now()) {
+            shared_state_()->testio->poll_blocking(256);
+        }
+        done = true;
+        std::cout << "   Waiting until done ..." << std::endl;
+        shared_state_()->testio->wait_until_done();
+        end = std::chrono::steady_clock::now();
+        auto diff =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        std::cout << "   Did "
+                  << (1000.0 * static_cast<double>(count) /
+                      static_cast<double>(diff.count()))
+                  << " completions per second" << std::endl;
+    };
+    auto thepast = std::chrono::steady_clock::now();
+    {
+        std::array<
+            connected_operation<timed_delay_sender, reinitiating_receiver_t>,
+            COUNT>
+            states = monad::make_array<
                 connected_operation<
                     timed_delay_sender,
                     reinitiating_receiver_t>,
-                COUNT>
-                states = monad::make_array<
-                    connected_operation<
-                        timed_delay_sender,
-                        reinitiating_receiver_t>,
-                    COUNT>(
-                    std::piecewise_construct,
-                    *testio,
-                    false,
-                    timed_delay_sender(thepast),
-                    reinitiating_receiver_t{});
-            benchmark("timed_delay_sender with a non-zero timeout", [&] {
-                for (auto &i : states) {
-                    i.initiate();
-                }
-            });
-        }
-        {
-            std::array<
+                COUNT>(
+                std::piecewise_construct,
+                *shared_state_()->testio,
+                false,
+                timed_delay_sender(thepast),
+                reinitiating_receiver_t{});
+        benchmark("timed_delay_sender with a non-zero timeout", [&] {
+            for (auto &i : states) {
+                i.initiate();
+            }
+        });
+    }
+    {
+        std::array<
+            connected_operation<timed_delay_sender, reinitiating_receiver_t>,
+            COUNT>
+            states = monad::make_array<
                 connected_operation<
                     timed_delay_sender,
                     reinitiating_receiver_t>,
-                COUNT>
-                states = monad::make_array<
-                    connected_operation<
-                        timed_delay_sender,
-                        reinitiating_receiver_t>,
-                    COUNT>(
-                    std::piecewise_construct,
-                    *testio,
-                    false,
-                    timed_delay_sender(std::chrono::seconds(0)),
-                    reinitiating_receiver_t{});
-            benchmark("timed_delay_sender with a zero timeout", [&] {
-                for (auto &i : states) {
-                    i.initiate();
-                }
-            });
-        }
-        {
-            std::array<
+                COUNT>(
+                std::piecewise_construct,
+                *shared_state_()->testio,
+                false,
+                timed_delay_sender(std::chrono::seconds(0)),
+                reinitiating_receiver_t{});
+        benchmark("timed_delay_sender with a zero timeout", [&] {
+            for (auto &i : states) {
+                i.initiate();
+            }
+        });
+    }
+    {
+        std::array<
+            connected_operation<threadsafe_sender, nonreinitiating_receiver_t>,
+            COUNT>
+            states = monad::make_array<
                 connected_operation<
                     threadsafe_sender,
                     nonreinitiating_receiver_t>,
-                COUNT>
-                states = monad::make_array<
-                    connected_operation<
-                        threadsafe_sender,
-                        nonreinitiating_receiver_t>,
-                    COUNT>(
-                    std::piecewise_construct,
-                    *testio,
-                    false,
-                    threadsafe_sender{},
-                    nonreinitiating_receiver_t{});
-            done = -2;
-            std::thread worker([&] {
-                done = -1;
-                while (done == -1) {
-                    std::this_thread::yield();
-                }
-                while (done == 0) {
-                    for (auto &i : states) {
-                        i.initiate();
-                    }
-                }
-                std::cout << "   threadsafe_sender initiating thread exits"
-                          << std::endl;
-                done = 2;
-            });
-            while (done == -2) {
+                COUNT>(
+                std::piecewise_construct,
+                *shared_state_()->testio,
+                false,
+                threadsafe_sender{},
+                nonreinitiating_receiver_t{});
+        done = -2;
+        std::thread worker([&] {
+            done = -1;
+            while (done == -1) {
                 std::this_thread::yield();
             }
-            benchmark("threadsafe_sender", [&] {});
-            std::cout << "   threadsafe_sender processing events until sending "
-                         "thread exits"
-                      << std::endl;
-            while (done == 1) {
-                testio->wait_until_done();
+            while (done == 0) {
+                for (auto &i : states) {
+                    i.initiate();
+                }
             }
-            worker.join();
+            std::cout << "   threadsafe_sender initiating thread exits"
+                      << std::endl;
+            done = 2;
+        });
+        while (done == -2) {
+            std::this_thread::yield();
         }
+        benchmark("threadsafe_sender", [&] {});
+        std::cout << "   threadsafe_sender processing events until sending "
+                     "thread exits"
+                  << std::endl;
+        while (done == 1) {
+            shared_state_()->testio->wait_until_done();
+        }
+        worker.join();
+    }
+}
+
+/* A receiver which just immediately asks the sender
+to reinitiate the i/o. This test models traditional
+completion handler based i/o.
+*/
+struct completion_handler_io_receiver
+{
+    static constexpr bool lifetime_managed_internally = false;
+
+    read_single_buffer_operation_states_base_ *state;
+
+    explicit completion_handler_io_receiver(
+        read_single_buffer_operation_states_base_ *s)
+        : state(s)
+    {
+    }
+    void set_value(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+    {
+        ASSERT_TRUE(buffer);
+        state->reinitiate(rawstate, buffer.assume_value());
+    }
+    void reset() {}
+};
+
+TEST_F(AsyncIO, completion_handler_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    read_single_buffer_operation_states_<completion_handler_io_receiver> states(
+        shared_state_().get(), MAX_CONCURRENCY);
+    auto begin = std::chrono::steady_clock::now(), end = begin;
+    states.initiate();
+    for (; end - begin < std::chrono::seconds(5);
+         end = std::chrono::steady_clock::now()) {
+        shared_state_()->testio->poll_blocking(256);
+    }
+    states.stop();
+    end = std::chrono::steady_clock::now();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    std::cout << "Did "
+              << (1000.0 * states.count() / static_cast<double>(diff.count()))
+              << " random single byte reads per second from file length "
+              << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+}
+
+#if __GNUC__ == 12
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+/* A receiver which suspends and resumes a C++ coroutine
+ */
+struct cpp_suspend_resume_io_receiver
+{
+    static constexpr bool lifetime_managed_internally = false;
+
+    using result_type = std::pair<
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>>>;
+    std::coroutine_handle<> _h;
+    std::optional<result_type> res;
+
+    explicit cpp_suspend_resume_io_receiver(
+        read_single_buffer_operation_states_base_ *)
+    {
+    }
+    void set_value(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+    {
+        assert(!res.has_value());
+        res = {rawstate, std::move(buffer)};
+        _h.resume();
+    }
+    void reset()
+    {
+        _h = {};
+        res.reset();
     }
 
-    /* A receiver which just immediately asks the sender
-    to reinitiate the i/o. This test models traditional
-    completion handler based i/o.
-    */
-    struct completion_handler_io_receiver
+    // This is the C++ coroutine machinery which declares
+    // that this type is an awaitable
+    bool await_ready() const noexcept
     {
-        static constexpr bool lifetime_managed_internally = false;
+        return res.has_value();
+    }
+    void await_suspend(std::coroutine_handle<> h)
+    {
+        assert(!res.has_value());
+        _h = h;
+    }
+    result_type await_resume()
+    {
+        assert(res.has_value());
+        auto ret = std::move(res).value();
+        res.reset();
+        return ret;
+    }
+};
+#if __GNUC__ == 12
+    #pragma GCC diagnostic pop
+#endif
 
-        read_single_buffer_operationstates__base *state;
+TEST_F(AsyncIO, cpp_coroutine_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    read_single_buffer_operation_states_<cpp_suspend_resume_io_receiver> states(
+        shared_state_().get(), MAX_CONCURRENCY);
+    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto coroutine = [&](cpp_suspend_resume_io_receiver &receiver)
+        -> BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void> {
+        for (;;) {
+            auto [rawstate, buffer] = co_await receiver;
+            // Can't use gtest ASSERT_TRUE here as it is not coroutine
+            // compatible
+            if (!buffer) {
+                abort();
+            }
+            if (!states.reinitiate(rawstate, buffer.assume_value())) {
+                co_return;
+            }
+        }
+    };
+    std::vector<BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void>> awaitables;
+    awaitables.reserve(MAX_CONCURRENCY);
+    for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
+        awaitables.push_back(coroutine(states.receiver(n)));
+    }
+    states.initiate();
+    for (; end - begin < std::chrono::seconds(5);
+         end = std::chrono::steady_clock::now()) {
+        shared_state_()->testio->poll_blocking(256);
+    }
+    states.stop();
+    awaitables.clear();
+    end = std::chrono::steady_clock::now();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    std::cout << "Did "
+              << (1000.0 * static_cast<double>(states.count()) /
+                  static_cast<double>(diff.count()))
+              << " random single byte reads per second from file length "
+              << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+}
 
-        explicit completion_handler_io_receiver(
-            read_single_buffer_operationstates__base *s)
-            : state(s)
+/* A receiver which suspends and resumes a Boost.Fiber
+ */
+struct fiber_suspend_resume_io_receiver
+{
+    static constexpr bool lifetime_managed_internally = false;
+
+    using result_type = std::pair<
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>>>;
+    boost::fibers::promise<result_type> promise;
+
+    explicit fiber_suspend_resume_io_receiver(
+        read_single_buffer_operation_states_base_ *)
+    {
+    }
+    void set_value(
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
+        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+    {
+        promise.set_value({rawstate, std::move(buffer)});
+    }
+    void reset()
+    {
+        promise = {};
+    }
+};
+
+TEST_F(AsyncIO, fiber_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    read_single_buffer_operation_states_<fiber_suspend_resume_io_receiver>
+        states(shared_state_().get(), MAX_CONCURRENCY);
+    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto fiber = [&](fiber_suspend_resume_io_receiver *receiver) {
+        for (;;) {
+            auto future = receiver->promise.get_future();
+            auto [rawstate, buffer] = future.get();
+            ASSERT_TRUE(buffer);
+            if (!states.reinitiate(rawstate, buffer.assume_value())) {
+                return;
+            }
+        }
+    };
+    std::vector<boost::fibers::fiber> fibers;
+    fibers.reserve(MAX_CONCURRENCY);
+    for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
+        fibers.emplace_back(fiber, &states.receiver(n));
+    }
+    states.initiate();
+    for (; end - begin < std::chrono::seconds(5);
+         end = std::chrono::steady_clock::now()) {
+        boost::this_fiber::yield();
+        shared_state_()->testio->poll_blocking(256);
+    }
+    states.stop();
+    for (auto &i : fibers) {
+        i.join();
+    }
+    fibers.clear();
+    end = std::chrono::steady_clock::now();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    std::cout << "Did "
+              << (1000.0 * static_cast<double>(states.count()) /
+                  static_cast<double>(diff.count()))
+              << " random single byte reads per second from file length "
+              << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+}
+
+TEST_F(AsyncIO, external_thread_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    // Do NOT use this for i/o, as we reuse testio's io_uring state
+    static monad::io::Ring controller_executor_ring(1, 0);
+    static std::unique_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> controller_executor;
+    struct controller_notifying_io_receiver
+    {
+        enum : bool
+        {
+            lifetime_managed_internally = false
+        };
+
+        struct controller_initiating_io_receiver
+        {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
+            controller_notifying_io_receiver *parent{nullptr};
+            void set_value(erased_connected_operation *, result<void> res)
+            {
+                ASSERT_TRUE(res);
+                // This is running on the controller kernel thread.
+                // We need to have the worker kernel thread reinitiate
+                // the i/o
+                parent->state3->initiate();
+            }
+            void reset() {}
+        };
+        struct worker_initiating_io_receiver
+        {
+            enum : bool
+            {
+                lifetime_managed_internally = false
+            };
+
+            controller_notifying_io_receiver *parent{nullptr};
+            void set_value(erased_connected_operation *, result<void> res)
+            {
+                ASSERT_TRUE(res);
+                // This is running on the worker kernel thread, so we
+                // are safe to reinitialise the i/o
+                parent->do_reinitiate();
+            }
+            void reset() {}
+        };
+        read_single_buffer_operation_states_base_ *state1;
+        std::unique_ptr<connected_operation<
+            threadsafe_sender, controller_initiating_io_receiver>>
+            state2; // used to have worker thread invoke controlling thread
+        std::unique_ptr<connected_operation<
+            threadsafe_sender, worker_initiating_io_receiver>>
+            state3; // used to have controlling thread invoke worker thread
+        erased_connected_operation *original_rawstate;
+        std::span<std::byte const> original_buffer;
+
+        explicit controller_notifying_io_receiver(
+            read_single_buffer_operation_states_base_ *s)
+            : state1(s)
+            , state2(new connected_operation<
+                     threadsafe_sender, controller_initiating_io_receiver>(
+                  connect(
+                      *controller_executor, threadsafe_sender{},
+                      controller_initiating_io_receiver{})))
+            , state3(new connected_operation<
+                     threadsafe_sender, worker_initiating_io_receiver>(connect(
+                  *shared_state_()->testio, threadsafe_sender{},
+                  worker_initiating_io_receiver{})))
         {
         }
         void set_value(
@@ -420,389 +659,119 @@ namespace
             result<std::span<std::byte const>> buffer)
         {
             ASSERT_TRUE(buffer);
-            state->reinitiate(rawstate, buffer.assume_value());
-        }
-        void reset() {}
-    };
-
-    TEST(AsyncIO, completion_handler_sender_receiver)
-    {
-        read_single_buffer_operationstates_<completion_handler_io_receiver>
-            states(MAX_CONCURRENCY);
-        auto begin = std::chrono::steady_clock::now(), end = begin;
-        states.initiate();
-        for (; end - begin < std::chrono::seconds(5);
-             end = std::chrono::steady_clock::now()) {
-            testio->poll_blocking(256);
-        }
-        states.stop();
-        end = std::chrono::steady_clock::now();
-        auto diff =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did "
-                  << (1000.0 * states.count() /
-                      static_cast<double>(diff.count()))
-                  << " random single byte reads per second from file length "
-                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
-    }
-
-#if __GNUC__ == 12
-    #pragma GCC diagnostic push
-    #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-    /* A receiver which suspends and resumes a C++ coroutine
-     */
-    struct cpp_suspend_resume_io_receiver
-    {
-        static constexpr bool lifetime_managed_internally = false;
-
-        using result_type = std::pair<
-            erased_connected_operation *, result<std::span<std::byte const>>>;
-        std::coroutine_handle<> _h;
-        std::optional<result_type> res;
-
-        explicit cpp_suspend_resume_io_receiver(
-            read_single_buffer_operationstates__base *)
-        {
-        }
-        void set_value(
-            erased_connected_operation *rawstate,
-            result<std::span<std::byte const>> buffer)
-        {
-            assert(!res.has_value());
-            res = {rawstate, std::move(buffer)};
-            _h.resume();
+            original_rawstate = rawstate;
+            original_buffer = buffer.assume_value();
+            // Tell the controller kernel thread that this i/o has completed
+            state2->receiver().parent = this;
+            state3->receiver().parent = this;
+            state2->initiate();
         }
         void reset()
         {
-            _h = {};
-            res.reset();
+            state2->reset({}, {});
+            state3->reset({}, {});
+            original_rawstate = nullptr;
+            original_buffer = {};
         }
-
-        // This is the C++ coroutine machinery which declares
-        // that this type is an awaitable
-        bool await_ready() const noexcept
+        void do_reinitiate()
         {
-            return res.has_value();
-        }
-        void await_suspend(std::coroutine_handle<> h)
-        {
-            assert(!res.has_value());
-            _h = h;
-        }
-        result_type await_resume()
-        {
-            assert(res.has_value());
-            auto ret = std::move(res).value();
-            res.reset();
-            return ret;
+            state1->reinitiate(original_rawstate, original_buffer);
         }
     };
-#if __GNUC__ == 12
-    #pragma GCC diagnostic pop
-#endif
-
-    TEST(AsyncIO, cpp_coroutine_sender_receiver)
-    {
-        read_single_buffer_operationstates_<cpp_suspend_resume_io_receiver>
-            states(MAX_CONCURRENCY);
-        auto begin = std::chrono::steady_clock::now(), end = begin;
-        auto coroutine = [&](cpp_suspend_resume_io_receiver &receiver)
-            -> BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void> {
-            for (;;) {
-                auto [rawstate, buffer] = co_await receiver;
-                // Can't use gtest ASSERT_TRUE here as it is not coroutine
-                // compatible
-                if (!buffer) {
-                    abort();
-                }
-                if (!states.reinitiate(rawstate, buffer.assume_value())) {
-                    co_return;
-                }
-            }
-        };
-        std::vector<BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void>>
-            awaitables;
-        awaitables.reserve(MAX_CONCURRENCY);
-        for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
-            awaitables.push_back(coroutine(states.receiver(n)));
+    static std::atomic<int> latch{-1};
+    std::thread controller([] {
+        storage_pool pool{use_anonymous_inode_tag{}};
+        controller_executor = std::make_unique<MONAD_ASYNC_NAMESPACE::AsyncIO>(
+            pool, controller_executor_ring, shared_state_()->testrwbuf);
+        latch = 0;
+        while (!latch) {
+            controller_executor->poll_blocking();
         }
-        states.initiate();
-        for (; end - begin < std::chrono::seconds(5);
-             end = std::chrono::steady_clock::now()) {
-            testio->poll_blocking(256);
-        }
-        states.stop();
-        awaitables.clear();
-        end = std::chrono::steady_clock::now();
-        auto diff =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did "
-                  << (1000.0 * static_cast<double>(states.count()) /
-                      static_cast<double>(diff.count()))
-                  << " random single byte reads per second from file length "
-                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+        controller_executor->wait_until_done();
+        controller_executor.reset();
+    });
+    while (latch != 0) {
+        std::this_thread::yield();
     }
+    read_single_buffer_operation_states_<controller_notifying_io_receiver>
+        states(shared_state_().get(), MAX_CONCURRENCY);
+    auto begin = std::chrono::steady_clock::now(), end = begin;
+    states.initiate();
+    for (; end - begin < std::chrono::seconds(5);
+         end = std::chrono::steady_clock::now()) {
+        shared_state_()->testio->poll_blocking(256);
+    }
+    states.stop();
+    end = std::chrono::steady_clock::now();
+    // Drain everything from both threads before exiting
+    latch = 1;
+    while (shared_state_()->testio->io_in_flight() > 0) {
+        shared_state_()->testio->poll_nonblocking();
+    }
+    controller.join();
+    auto diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+    std::cout << "Did "
+              << (1000.0 * static_cast<double>(states.count()) /
+                  static_cast<double>(diff.count()))
+              << " random single byte reads per second from file length "
+              << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
+}
 
-    /* A receiver which suspends and resumes a Boost.Fiber
-     */
-    struct fiber_suspend_resume_io_receiver
+TEST_F(AsyncIO, stack_overflow_avoided)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+    static constexpr size_t COUNT = 100000;
+    struct receiver_t;
+    static std::vector<std::unique_ptr<erased_connected_operation>> ops;
+    static unsigned stack_depth = 0, counter = 0,
+                    last_receiver_count = unsigned(-1);
+    ops.reserve(COUNT);
+    struct receiver_t
     {
-        static constexpr bool lifetime_managed_internally = false;
+        enum : bool
+        {
+            lifetime_managed_internally = false
+        };
 
-        using result_type = std::pair<
-            erased_connected_operation *, result<std::span<std::byte const>>>;
-        boost::fibers::promise<result_type> promise;
-
-        explicit fiber_suspend_resume_io_receiver(
-            read_single_buffer_operationstates__base *)
+        unsigned count;
+        void set_value(erased_connected_operation *, result<void> res)
         {
-        }
-        void set_value(
-            erased_connected_operation *rawstate,
-            result<std::span<std::byte const>> buffer)
-        {
-            promise.set_value({rawstate, std::move(buffer)});
-        }
-        void reset()
-        {
-            promise = {};
+            static thread_local unsigned stack_level = 0;
+            ASSERT_TRUE(res);
+            // Ensure receivers are invoked in exact order of initiation
+            ASSERT_EQ(last_receiver_count + 1, count);
+            last_receiver_count = count;
+            if (ops.size() < COUNT) {
+                // Initiate another two operations to create a combinatorial
+                // explosion
+                using unique_ptr_type = MONAD_ASYNC_NAMESPACE::AsyncIO::
+                    connected_operation_unique_ptr_type<
+                        timed_delay_sender,
+                        receiver_t>;
+                auto initiate = [] {
+                    unique_ptr_type p(new unique_ptr_type::element_type(connect(
+                        *shared_state_()->testio,
+                        timed_delay_sender(std::chrono::seconds(0)),
+                        receiver_t{counter++})));
+                    p->initiate();
+                    ops.push_back(std::unique_ptr<erased_connected_operation>(
+                        p.release()));
+                };
+                if (stack_level > stack_depth) {
+                    std::cout << "Stack depth reaches " << stack_level
+                              << std::endl;
+                    stack_depth = stack_level;
+                }
+                EXPECT_LT(stack_level, 2);
+                stack_level++;
+                initiate();
+                initiate();
+                stack_level--;
+            }
         }
     };
-
-    TEST(AsyncIO, fiber_sender_receiver)
-    {
-        read_single_buffer_operationstates_<fiber_suspend_resume_io_receiver>
-            states(MAX_CONCURRENCY);
-        auto begin = std::chrono::steady_clock::now(), end = begin;
-        auto fiber = [&](fiber_suspend_resume_io_receiver *receiver) {
-            for (;;) {
-                auto future = receiver->promise.get_future();
-                auto [rawstate, buffer] = future.get();
-                ASSERT_TRUE(buffer);
-                if (!states.reinitiate(rawstate, buffer.assume_value())) {
-                    return;
-                }
-            }
-        };
-        std::vector<boost::fibers::fiber> fibers;
-        fibers.reserve(MAX_CONCURRENCY);
-        for (size_t n = 0; n < MAX_CONCURRENCY; n++) {
-            fibers.emplace_back(fiber, &states.receiver(n));
-        }
-        states.initiate();
-        for (; end - begin < std::chrono::seconds(5);
-             end = std::chrono::steady_clock::now()) {
-            boost::this_fiber::yield();
-            testio->poll_blocking(256);
-        }
-        states.stop();
-        for (auto &i : fibers) {
-            i.join();
-        }
-        fibers.clear();
-        end = std::chrono::steady_clock::now();
-        auto diff =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did "
-                  << (1000.0 * static_cast<double>(states.count()) /
-                      static_cast<double>(diff.count()))
-                  << " random single byte reads per second from file length "
-                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
-    }
-
-    TEST(AsyncIO, external_thread_sender_receiver)
-    {
-        // Do NOT use this for i/o, as we reuse testio's io_uring state
-        static monad::io::Ring controller_executor_ring(1, 0);
-        static std::unique_ptr<AsyncIO> controller_executor;
-        struct controller_notifying_io_receiver
-        {
-            enum : bool
-            {
-                lifetime_managed_internally = false
-            };
-
-            struct controller_initiating_io_receiver
-            {
-                enum : bool
-                {
-                    lifetime_managed_internally = false
-                };
-
-                controller_notifying_io_receiver *parent{nullptr};
-                void set_value(erased_connected_operation *, result<void> res)
-                {
-                    ASSERT_TRUE(res);
-                    // This is running on the controller kernel thread.
-                    // We need to have the worker kernel thread reinitiate
-                    // the i/o
-                    parent->state3->initiate();
-                }
-                void reset() {}
-            };
-            struct worker_initiating_io_receiver
-            {
-                enum : bool
-                {
-                    lifetime_managed_internally = false
-                };
-
-                controller_notifying_io_receiver *parent{nullptr};
-                void set_value(erased_connected_operation *, result<void> res)
-                {
-                    ASSERT_TRUE(res);
-                    // This is running on the worker kernel thread, so we
-                    // are safe to reinitialise the i/o
-                    parent->do_reinitiate();
-                }
-                void reset() {}
-            };
-            read_single_buffer_operationstates__base *state1;
-            std::unique_ptr<connected_operation<
-                threadsafe_sender, controller_initiating_io_receiver>>
-                state2; // used to have worker thread invoke controlling thread
-            std::unique_ptr<connected_operation<
-                threadsafe_sender, worker_initiating_io_receiver>>
-                state3; // used to have controlling thread invoke worker thread
-            erased_connected_operation *original_rawstate;
-            std::span<std::byte const> original_buffer;
-
-            explicit controller_notifying_io_receiver(
-                read_single_buffer_operationstates__base *s)
-                : state1(s)
-                , state2(new connected_operation<
-                         threadsafe_sender, controller_initiating_io_receiver>(
-                      connect(
-                          *controller_executor, threadsafe_sender{},
-                          controller_initiating_io_receiver{})))
-                , state3(new connected_operation<
-                         threadsafe_sender, worker_initiating_io_receiver>(
-                      connect(
-                          *testio, threadsafe_sender{},
-                          worker_initiating_io_receiver{})))
-            {
-            }
-            void set_value(
-                erased_connected_operation *rawstate,
-                result<std::span<std::byte const>> buffer)
-            {
-                ASSERT_TRUE(buffer);
-                original_rawstate = rawstate;
-                original_buffer = buffer.assume_value();
-                // Tell the controller kernel thread that this i/o has completed
-                state2->receiver().parent = this;
-                state3->receiver().parent = this;
-                state2->initiate();
-            }
-            void reset()
-            {
-                state2->reset({}, {});
-                state3->reset({}, {});
-                original_rawstate = nullptr;
-                original_buffer = {};
-            }
-            void do_reinitiate()
-            {
-                state1->reinitiate(original_rawstate, original_buffer);
-            }
-        };
-        static std::atomic<int> latch{-1};
-        std::thread controller([] {
-            storage_pool pool{use_anonymous_inode_tag{}};
-            controller_executor = std::make_unique<AsyncIO>(
-                pool, controller_executor_ring, testrwbuf);
-            latch = 0;
-            while (!latch) {
-                controller_executor->poll_blocking();
-            }
-            controller_executor->wait_until_done();
-            controller_executor.reset();
-        });
-        while (latch != 0) {
-            std::this_thread::yield();
-        }
-        read_single_buffer_operationstates_<controller_notifying_io_receiver>
-            states(MAX_CONCURRENCY);
-        auto begin = std::chrono::steady_clock::now(), end = begin;
-        states.initiate();
-        for (; end - begin < std::chrono::seconds(5);
-             end = std::chrono::steady_clock::now()) {
-            testio->poll_blocking(256);
-        }
-        states.stop();
-        end = std::chrono::steady_clock::now();
-        // Drain everything from both threads before exiting
-        latch = 1;
-        while (testio->io_in_flight() > 0) {
-            testio->poll_nonblocking();
-        }
-        controller.join();
-        auto diff =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        std::cout << "Did "
-                  << (1000.0 * static_cast<double>(states.count()) /
-                      static_cast<double>(diff.count()))
-                  << " random single byte reads per second from file length "
-                  << (TEST_FILE_SIZE / 1024 / 1024) << " Mb" << std::endl;
-    }
-
-    TEST(AsyncIO, stack_overflow_avoided)
-    {
-        static constexpr size_t COUNT = 100000;
-        struct receiver_t;
-        static std::vector<std::unique_ptr<erased_connected_operation>> ops;
-        static unsigned stack_depth = 0, counter = 0,
-                        last_receiver_count = unsigned(-1);
-        ops.reserve(COUNT);
-        struct receiver_t
-        {
-            enum : bool
-            {
-                lifetime_managed_internally = false
-            };
-
-            unsigned count;
-            void set_value(erased_connected_operation *, result<void> res)
-            {
-                static thread_local unsigned stack_level = 0;
-                ASSERT_TRUE(res);
-                // Ensure receivers are invoked in exact order of initiation
-                ASSERT_EQ(last_receiver_count + 1, count);
-                last_receiver_count = count;
-                if (ops.size() < COUNT) {
-                    // Initiate another two operations to create a combinatorial
-                    // explosion
-                    using unique_ptr_type =
-                        AsyncIO::connected_operation_unique_ptr_type<
-                            timed_delay_sender,
-                            receiver_t>;
-                    auto initiate = [] {
-                        unique_ptr_type p(
-                            new unique_ptr_type::element_type(connect(
-                                *testio,
-                                timed_delay_sender(std::chrono::seconds(0)),
-                                receiver_t{counter++})));
-                        p->initiate();
-                        ops.push_back(
-                            std::unique_ptr<erased_connected_operation>(
-                                p.release()));
-                    };
-                    if (stack_level > stack_depth) {
-                        std::cout << "Stack depth reaches " << stack_level
-                                  << std::endl;
-                        stack_depth = stack_level;
-                    }
-                    EXPECT_LT(stack_level, 2);
-                    stack_level++;
-                    initiate();
-                    initiate();
-                    stack_level--;
-                }
-            }
-        };
-        receiver_t{counter++}.set_value(nullptr, success());
-        testio->wait_until_done();
-        EXPECT_GE(ops.size(), COUNT);
-    }
+    receiver_t{counter++}.set_value(nullptr, success());
+    shared_state_()->testio->wait_until_done();
+    EXPECT_GE(ops.size(), COUNT);
 }

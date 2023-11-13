@@ -83,11 +83,8 @@ namespace detail
         {
             size_t n = 4096;
             for (; n >= 1024; n >>= 1) {
-                struct rlimit r
-                {
-                    n, n
-                };
-                int ret = setrlimit(RLIMIT_NOFILE, &r);
+                struct rlimit const r{n, n};
+                int const ret = setrlimit(RLIMIT_NOFILE, &r);
                 if (ret >= 0) {
                     break;
                 }

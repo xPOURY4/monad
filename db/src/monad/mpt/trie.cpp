@@ -264,7 +264,7 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
         append(chunk_list::fast, root_offset.id);
         std::span const chunks_after_first(
             chunks.data() + 1, chunks.size() - 1);
-        for (uint32_t i : chunks_after_first) {
+        for (uint32_t const i : chunks_after_first) {
             append(chunk_list::free, i);
         }
 

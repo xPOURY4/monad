@@ -17,7 +17,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <optional>
 #include <ostream>
 #include <utility>
 #include <vector>

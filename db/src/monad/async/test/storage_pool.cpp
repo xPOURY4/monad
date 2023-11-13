@@ -83,21 +83,23 @@ namespace
         std::cout << "\n\nWriting to conventional chunk ..." << std::endl;
         auto fd = chunk1->write_fd(buffer.size());
         EXPECT_EQ(fd.second, 0);
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk1->size(), buffer.size());
 
         memset(buffer.data(), 0xaa, buffer.size());
         fd = chunk1->write_fd(buffer.size());
         EXPECT_EQ(fd.second, buffer.size());
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk1->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
@@ -105,22 +107,24 @@ namespace
         std::cout << "\n\nWriting to first sequential chunk ..." << std::endl;
         fd = chunk2->write_fd(buffer.size());
         EXPECT_EQ(fd.second, chunk1->capacity());
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk2->size(), buffer.size());
         print_pool_statistics(pool);
 
         memset(buffer.data(), 0x55, buffer.size());
         fd = chunk2->write_fd(buffer.size());
         EXPECT_EQ(fd.second, chunk1->capacity() + buffer.size());
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk2->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
@@ -131,11 +135,12 @@ namespace
             fd.second,
             chunk1->capacity() * pool.chunks(storage_pool::seq) /
                 pool.devices().size());
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk3->size(), buffer.size());
         print_pool_statistics(pool);
 
@@ -146,29 +151,32 @@ namespace
             chunk1->capacity() * pool.chunks(storage_pool::seq) /
                     pool.devices().size() +
                 buffer.size());
-        ::pwrite(
-            fd.first,
-            buffer.data(),
-            buffer.size(),
-            static_cast<off_t>(fd.second));
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      fd.first,
+                      buffer.data(),
+                      buffer.size(),
+                      static_cast<off_t>(fd.second)));
         EXPECT_EQ(chunk3->size(), buffer.size() * 2);
         print_pool_statistics(pool);
 
         std::vector<std::byte> buffer2(buffer.size());
         auto check = [&](auto &chunk, int a, int b) {
             auto fd = chunk->read_fd();
-            ::pread(
-                fd.first,
-                buffer2.data(),
-                buffer2.size(),
-                static_cast<off_t>(fd.second) + 0);
+            MONAD_ASSERT(
+                -1 != ::pread(
+                          fd.first,
+                          buffer2.data(),
+                          buffer2.size(),
+                          static_cast<off_t>(fd.second) + 0));
             memset(buffer.data(), a, buffer.size());
             EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
-            ::pread(
-                fd.first,
-                buffer2.data(),
-                buffer2.size(),
-                static_cast<off_t>(fd.second + buffer.size()));
+            MONAD_ASSERT(
+                -1 != ::pread(
+                          fd.first,
+                          buffer2.data(),
+                          buffer2.size(),
+                          static_cast<off_t>(fd.second + buffer.size())));
             memset(buffer.data(), b, buffer.size());
             EXPECT_EQ(0, memcmp(buffer.data(), buffer2.data(), buffer.size()));
         };
@@ -259,7 +267,8 @@ namespace
                     "monad_storage_pool_test_XXXXXX");
                 int const fd = ::mkstemp((char *)ret.native().data());
                 MONAD_ASSERT(fd != -1);
-                ::ftruncate(fd, static_cast<off_t>(length + 16384));
+                MONAD_ASSERT(
+                    -1 != ::ftruncate(fd, static_cast<off_t>(length + 16384)));
                 ::close(fd);
                 return ret;
             };
@@ -371,7 +380,8 @@ namespace
                 "monad_storage_pool_test_XXXXXX");
             int const fd = ::mkstemp((char *)ret.native().data());
             MONAD_ASSERT(fd != -1);
-            ::ftruncate(fd, static_cast<off_t>(length + 16384));
+            MONAD_ASSERT(
+                -1 != ::ftruncate(fd, static_cast<off_t>(length + 16384)));
             ::close(fd);
             return ret;
         };
@@ -385,9 +395,9 @@ namespace
                 std::filesystem::remove(p);
             }
         });
-		{
-          storage_pool const _{devs};
-		}
+        {
+            storage_pool const _{devs};
+        }
         std::filesystem::path devs2[] = {devs[0], devs[1]};
         EXPECT_THROW(storage_pool{devs2}, std::runtime_error);
         storage_pool{devs2, storage_pool::mode::truncate};

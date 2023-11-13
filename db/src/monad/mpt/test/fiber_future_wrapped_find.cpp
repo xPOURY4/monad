@@ -5,32 +5,20 @@
 #include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp"
 
-#include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/io.hpp>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
-#include <monad/io/buffers.hpp>
-#include <monad/io/ring.hpp>
-#include <monad/mpt/update.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/update.hpp>
 
-
-#include <boost/fiber/channel_op_status.hpp>
-#include <boost/fiber/future/async.hpp>
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/operations.hpp>
 #include <boost/fiber/future/future.hpp>
-#include <boost/fiber/future/future_status.hpp>
 #include <boost/fiber/future/promise.hpp>
-#include <algorithm>
+
 #include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <iostream>
-#include <numeric>
 #include <optional>
-#include <ostream>
-#include <stop_token>
-#include <thread>
 #include <utility>
 #include <vector>
 

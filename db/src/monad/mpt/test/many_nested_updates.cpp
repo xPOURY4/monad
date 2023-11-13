@@ -1,14 +1,35 @@
-#include "gtest/gtest.h"
+#include "test_fixtures_base.hpp"
+#include "test_fixtures_gtest.hpp"
 
 #include <monad/core/byte_string.hpp>
 
+#include <monad/core/assert.h>
+#include <monad/core/hex_literal.hpp>
+#include <monad/mpt/config.hpp>
+#include <monad/mpt/update.hpp>
+
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wstringop-overflow="
+#endif
+#include <boost/json/object.hpp>
 #include <boost/json/parse.hpp>
+#include <boost/json/string.hpp>
+#include <boost/json/value.hpp>
 #include <boost/json/visit.hpp>
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
 
-#include "test_fixtures_gtest.hpp"
-
+#include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <map>
+#include <ostream>
 #include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 using namespace ::monad::test;
 using namespace MONAD_MPT_NAMESPACE;

@@ -1,13 +1,25 @@
 #include "gtest/gtest.h"
 
+#include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
+#include <monad/async/connected_operation.hpp>
+#include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io.hpp>
 #include <monad/async/io_senders.hpp>
 #include <monad/async/storage_pool.hpp>
+#include <monad/core/assert.h>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
+#include <iostream>
+#include <memory>
+#include <ostream>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 #include <unistd.h>
 
@@ -21,7 +33,8 @@ namespace
             auto chunk = pool.activate_chunk(pool.seq, 0);
             auto fd = chunk->write_fd(1);
             char c = 5;
-            ::pwrite(fd.first, &c, 1, static_cast<off_t>(fd.second));
+            MONAD_ASSERT(
+                -1 != ::pwrite(fd.first, &c, 1, static_cast<off_t>(fd.second)));
         }
         monad::io::Ring testring(1, 0);
         monad::io::Buffers testrwbuf{testring, 1, 1, 1UL << 13};
