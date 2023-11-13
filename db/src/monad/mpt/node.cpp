@@ -50,7 +50,9 @@ Node *create_coalesced_node_with_prefix(
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
 
     serialize_to_node(NibblesView{relpath}, *node);
-    node->set_value(prev->value());
+    if (prev->has_value()) {
+        node->set_value(prev->value());
+    }
     // hash and data arr
     std::memcpy(
         node->data_data(),
@@ -78,12 +80,14 @@ Node *create_node(
 {
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     // any node with child will have hash data
-    bool const is_leaf = value.has_value();
-    uint8_t const value_len =
-                      is_leaf ? static_cast<uint8_t>(value.value().size()) : 0,
+    bool const has_value = value.has_value();
+    uint8_t const value_len = has_value
+                                  ? static_cast<uint8_t>(value.value().size())
+                                  : 0,
                   data_len =
-                      is_leaf ? static_cast<uint8_t>(comp.compute_len(children))
-                              : 0;
+                      has_value
+                          ? static_cast<uint8_t>(comp.compute_len(children))
+                          : 0;
     auto bytes =
         sizeof(Node) + value_len + data_len +
         number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +
@@ -102,7 +106,7 @@ Node *create_node(
     bytes += child_len;
     node_ptr node = Node::make_node(static_cast<unsigned int>(
         bytes)); // zero initialized in Node but not tail
-    node->set_params(mask, is_leaf, value_len, data_len);
+    node->set_params(mask, has_value, value_len, data_len);
     std::memcpy(
         node->child_off_data(),
         offsets.data(),
@@ -111,7 +115,7 @@ Node *create_node(
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }
-    if (is_leaf) {
+    if (has_value) {
         node->set_value(value.value());
     }
     // set fnext, next and data
@@ -135,7 +139,7 @@ Node *update_node_diff_path_leaf(
     Node *old, NibblesView const relpath,
     std::optional<byte_string_view> const value)
 {
-    bool const is_leaf = value.has_value();
+    bool const has_value = value.has_value();
     auto const value_len = value.has_value() ? value.value().size() : 0;
     MONAD_ASSERT(value_len < 255); // or uint8_t will overflow
 
@@ -149,11 +153,10 @@ Node *update_node_diff_path_leaf(
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
     node->value_len = static_cast<uint8_t>(value_len);
-    node->bitpacked.is_leaf = is_leaf;
-    // assert(is_leaf == node->is_leaf());
+    node->bitpacked.has_value = has_value;
     // order is enforced, must set path first
     serialize_to_node(relpath, *node); // overwrite old path
-    if (is_leaf) {
+    if (has_value) {
         node->set_value(value.value());
     }
     // copy hash and child data arr

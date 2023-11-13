@@ -183,7 +183,7 @@ namespace detail
         virtual unsigned
         compute(unsigned char *const buffer, Node *const node) override
         {
-            if (node->is_leaf()) {
+            if (node->has_value()) {
                 return encode_two_pieces_(
                     buffer,
                     node->path_nibble_view(),
@@ -209,13 +209,13 @@ namespace detail
 
         unsigned encode_two_pieces_(
             unsigned char *const dest, NibblesView const relpath,
-            byte_string_view const second, bool const is_leaf = false)
+            byte_string_view const second, bool const has_value = false)
         {
             unsigned char path_arr[56];
-            auto first = compact_encode(path_arr, relpath, is_leaf);
+            auto first = compact_encode(path_arr, relpath, has_value);
             // leaf and hashed node ref requires rlp encoding,
             // rlp encoded but unhashed branch node ref doesn't
-            bool const need_encode_second = is_leaf || second.size() >= 32;
+            bool const need_encode_second = has_value || second.size() >= 32;
             size_t first_len = rlp::string_length(first),
                    second_len = need_encode_second ? rlp::string_length(second)
                                                    : second.size();
@@ -249,7 +249,7 @@ namespace detail
             return state.len = encode_two_pieces_(
                    state.buffer,
                    concat2(single_child.branch, node->path_nibble_view()),
-                   (node->is_leaf()
+                   (node->has_value()
                         ? TComputeLeafData::compute(node)
                         : (node->has_relpath()
                                ? ([&] -> byte_string {
@@ -259,7 +259,7 @@ namespace detail
                                          compute_branch(branch_hash, node)};
                                  }())
                                : byte_string_view{single_child.data, single_child.len})),
-                   node->is_leaf());
+                   node->has_value());
         }
     };
 }

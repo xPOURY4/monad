@@ -57,7 +57,7 @@ In generic trie, a node can have dual identity of ext and branch node, and
 branch node can have vt (value) and be a leaf node at the same time. Branch node
 with leaf data can have 1 child or more.
 - A node with non-empty relpath is either an ext node or a leaf node
-- A leaf node has is_leaf = true, however not necessarily value_len > 0
+- A leaf node has has_value = true, however not necessarily value_len > 0
 - A branch node with leaf can mean it's the end of an internal trie, making
 itself also the root of the trie underneath, for example a leaf of an
 account trie, where the account has an underlying storage trie. It can also
@@ -87,8 +87,8 @@ public:
 
     struct bitpacked_storage_t
     {
-        /* is a leaf node, value_len is not necessarily positive */
-        bool is_leaf : 1 {false};
+        /* does node have a value, value_len is not necessarily positive */
+        bool has_value : 1 {false};
         bool path_nibble_index_start : 1 {false};
     } bitpacked{0};
     static_assert(sizeof(bitpacked) == 1);
@@ -192,11 +192,11 @@ public:
     static inline unique_ptr_type make_node(unsigned size);
 
     void set_params(
-        uint16_t const mask_, bool const is_leaf_, uint8_t const value_len_,
+        uint16_t const mask_, bool const has_value_, uint8_t const value_len_,
         uint8_t const data_len_)
     {
         mask = mask_;
-        bitpacked.is_leaf = is_leaf_;
+        bitpacked.has_value = has_value_;
         value_len = value_len_;
         data_len = data_len_;
     }
@@ -319,9 +319,9 @@ public:
     {
         return path_data() + path_bytes();
     }
-    constexpr bool is_leaf() const noexcept
+    constexpr bool has_value() const noexcept
     {
-        return bitpacked.is_leaf;
+        return bitpacked.has_value;
     }
     void set_value(byte_string_view value) noexcept
     {
@@ -332,11 +332,12 @@ public:
     }
     constexpr byte_string_view value() const noexcept
     {
+        MONAD_DEBUG_ASSERT(has_value());
         return {value_data(), value_len};
     }
     constexpr std::optional<byte_string_view> opt_value() const noexcept
     {
-        if (is_leaf()) {
+        if (has_value()) {
             return value();
         }
         return std::nullopt;
@@ -502,7 +503,8 @@ Node *update_node_diff_path_leaf(
     std::optional<byte_string_view> value = std::nullopt);
 
 inline Node *create_node_nodata(
-    uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
+    uint16_t const mask, NibblesView const relpath,
+    bool const has_value = false)
 {
     auto const bytes = sizeof(Node) + relpath.data_size() +
                        static_cast<unsigned>(std::popcount(mask)) *
@@ -512,7 +514,7 @@ inline Node *create_node_nodata(
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
-    node->set_params(mask, is_leaf, /*value_len*/ 0, /*data_len*/ 0);
+    node->set_params(mask, has_value, /*value_len*/ 0, /*data_len*/ 0);
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }

@@ -98,8 +98,9 @@ node_ptr copy_node(
                     node_pi + 1,
                     node->path_nibble_index_end,
                     node->path_data()},
-                node->is_leaf() ? std::optional<byte_string_view>{node->value()}
-                                : std::nullopt);
+                node->has_value()
+                    ? std::optional<byte_string_view>{node->value()}
+                    : std::nullopt);
             uint16_t const mask =
                 static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
             Node *ret = create_node_nodata(
