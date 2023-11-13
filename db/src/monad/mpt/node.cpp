@@ -23,7 +23,7 @@ Node *create_leaf(byte_string_view const data, NibblesView const relpath)
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned int>::max());
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     // order is enforced, must set path first
-    MONAD_DEBUG_ASSERT(node->path_data() == node->data);
+    MONAD_DEBUG_ASSERT(node->path_data() == node->fnext_data);
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }

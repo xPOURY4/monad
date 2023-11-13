@@ -107,7 +107,7 @@ public:
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-    unsigned char data[0];
+    unsigned char fnext_data[0];
 #pragma GCC diagnostic pop
     /* Member funcs and data layout that exceeds node struct size is organized
     as below:
@@ -215,15 +215,10 @@ public:
     }
 
     //! fnext
-    constexpr unsigned char *fnext_data() noexcept
-    {
-        return data;
-    }
-
     chunk_offset_t &fnext_j(unsigned const j) noexcept
     {
         MONAD_DEBUG_ASSERT(j < number_of_children());
-        return reinterpret_cast<chunk_offset_t *>(fnext_data())[j];
+        return reinterpret_cast<chunk_offset_t *>(fnext_data)[j];
     }
 
     chunk_offset_t &fnext(unsigned const i) noexcept
@@ -234,11 +229,11 @@ public:
     //! min_block_no array
     constexpr unsigned char *child_min_count_data() noexcept
     {
-        return data + number_of_children() * sizeof(file_offset_t);
+        return fnext_data + number_of_children() * sizeof(file_offset_t);
     }
     constexpr unsigned char const *child_min_count_data() const noexcept
     {
-        return data + number_of_children() * sizeof(file_offset_t);
+        return fnext_data + number_of_children() * sizeof(file_offset_t);
     }
 
     uint32_t &min_count_j(unsigned const j) noexcept
