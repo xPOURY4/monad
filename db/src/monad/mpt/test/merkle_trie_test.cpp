@@ -600,7 +600,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         find_blocking(this->get_storage_pool(), this->root.get(), blockno);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        state_root->hash_view(),
+        state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     { // update the block_num leaf's value and its nested subtrie
@@ -618,7 +618,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         EXPECT_EQ(
             state_root->value(), leaf_value); // state_root leaf has updated
         EXPECT_EQ(
-            state_root->hash_view(), // hash for state trie remains the same
+            state_root->data(), // hash for state trie remains the same
             0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     }
     // copy state root to blockno2
@@ -633,7 +633,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        state_root->hash_view(),
+        state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     Node *old_state_root;
@@ -642,7 +642,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(old_state_root->next_j(0), nullptr);
     EXPECT_EQ(
-        old_state_root->hash_view(),
+        old_state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     // copy state root to blockno3, update blockno3's leaf data
@@ -658,7 +658,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         find_blocking(this->get_storage_pool(), this->root.get(), blockno3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        state_root->hash_view(),
+        state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     EXPECT_EQ(state_root->value(), 0xdeadbeef03_hex);
 
@@ -666,7 +666,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        state_root->hash_view(),
+        state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     EXPECT_EQ(state_root->value(), monad::byte_string_view{});
 
@@ -680,7 +680,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         find_blocking(this->get_storage_pool(), this->root.get(), blockno3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        state_root->hash_view(),
+        state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     // leaf data changed here
     EXPECT_EQ(state_root->value(), monad::byte_string_view{});

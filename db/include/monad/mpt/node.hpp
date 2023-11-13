@@ -100,7 +100,7 @@ public:
     /* size (in byte) of user-passed leaf data */
     uint8_t value_len{0};
     /* size (in byte) of intermediate cache for branch hash */
-    uint8_t hash_len{0};
+    uint8_t data_len{0};
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
     uint16_t disk_size{0}; // in bytes, max possible ~1000
@@ -119,7 +119,7 @@ public:
     * `path`: a few bytes for relative path, size depends on
     path_nibble_index_start, path_nibble_index_end
     * `value`: user-passed leaf data of value_len bytes
-    * `hash_data`: intermediate hash cached for a implicit branch node, which
+    * `data`: intermediate hash cached for a implicit branch node, which
     exists in leaf nodes that have child.
     * `data_arr`: concatenated data bytes for all children
     * `next` array: size-n array storing children's mem pointers
@@ -193,12 +193,12 @@ public:
 
     void set_params(
         uint16_t const mask_, bool const is_leaf_, uint8_t const value_len_,
-        uint8_t const hash_len_)
+        uint8_t const data_len_)
     {
         mask = mask_;
         bitpacked.is_leaf = is_leaf_;
         value_len = value_len_;
-        hash_len = hash_len_;
+        data_len = data_len_;
     }
 
     constexpr unsigned to_j(unsigned const i) const noexcept
@@ -343,27 +343,23 @@ public:
     }
 
     //! hash
-    constexpr bool has_hash() const noexcept
-    {
-        return hash_len;
-    }
-    constexpr unsigned char *hash_data() noexcept
+    constexpr unsigned char *data_data() noexcept
     {
         return value_data() + value_len;
     }
-    constexpr unsigned char const *hash_data() const noexcept
+    constexpr unsigned char const *data_data() const noexcept
     {
         return value_data() + value_len;
     }
-    constexpr byte_string_view hash_view() const noexcept
+    constexpr byte_string_view data() const noexcept
     {
-        return {hash_data(), hash_len};
+        return {data_data(), data_len};
     }
 
     //! child data
     constexpr unsigned char *child_data() noexcept
     {
-        return hash_data() + hash_len;
+        return data_data() + data_len;
     }
     byte_string_view child_data_view_j(unsigned const j) noexcept
     {
@@ -482,7 +478,7 @@ inline uint32_t calc_min_count(Node *const node, uint32_t const curr_count)
 }
 
 struct Compute;
-// create leaf node without children, hash_len = 0
+// create leaf node without children, data_len = 0
 Node *create_leaf(byte_string_view data, NibblesView relpath);
 
 /* Note: there's a potential superfluous extension hash recomputation when node
@@ -516,7 +512,7 @@ inline Node *create_node_nodata(
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
-    node->set_params(mask, is_leaf, /*value_len*/ 0, /*hash_len*/ 0);
+    node->set_params(mask, is_leaf, /*value_len*/ 0, /*data_len*/ 0);
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }

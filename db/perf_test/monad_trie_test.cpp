@@ -97,7 +97,7 @@ inline node_ptr batch_upsert_commit(
             prev_root.get(),
             old_block_no);
         MONAD_ASSERT(res == find_result::success);
-        MONAD_ASSERT(state_root->hash_len == 32);
+        MONAD_ASSERT(state_root->data_len == 32);
     }
 
     double tm_ram;
@@ -130,7 +130,7 @@ inline node_ptr batch_upsert_commit(
         block_no);
     MONAD_ASSERT(res == find_result::success);
     fprintf(stdout, "root->data : ");
-    __print_bytes_in_hex(state_root->hash_view());
+    __print_bytes_in_hex(state_root->data());
 
     fprintf(
         stdout,

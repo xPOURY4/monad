@@ -98,7 +98,7 @@ TEST(InMemoryPlainTrie, var_length)
 
     EXPECT_EQ(root->mask, 0b11);
     EXPECT_EQ(root->value_len, 0);
-    EXPECT_EQ(root->hash_len, 0);
+    EXPECT_EQ(root->data_len, 0);
     EXPECT_EQ(root->path_bytes(), 0);
     Node *node0 = root->next(0), *node1 = root->next(1);
     EXPECT_EQ(node0->mask, 0);
@@ -271,11 +271,11 @@ TEST(InMemoryPlainTrie, mismatch)
         root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
     Node *node3 = root->next(3);
     EXPECT_EQ(node3->mask, 1u << 4 | 1u << 0xa);
-    EXPECT_EQ(node3->hash_len, 0);
+    EXPECT_EQ(node3->data_len, 0);
     EXPECT_EQ(node3->path_bytes(), 0);
     Node *node34 = node3->next(4);
     EXPECT_EQ(node34->mask, 0b11100000);
-    EXPECT_EQ(node34->hash_len, 0);
+    EXPECT_EQ(node34->data_len, 0);
     EXPECT_EQ(node34->path_bytes(), 0);
     EXPECT_EQ(node34->next(5)->value_len, 2);
     EXPECT_EQ(node34->next(5)->value(), kv[0].second);

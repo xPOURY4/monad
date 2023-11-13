@@ -53,9 +53,9 @@ Node *create_coalesced_node_with_prefix(
     node->set_value(prev->value());
     // hash and data arr
     std::memcpy(
-        node->hash_data(),
-        prev->hash_data(),
-        node->hash_len + node->child_off_j(node->number_of_children()));
+        node->data_data(),
+        prev->data_data(),
+        node->data_len + node->child_off_j(node->number_of_children()));
     // copy nexts
     if (node->number_of_children()) {
         memcpy(
@@ -81,28 +81,28 @@ Node *create_node(
     bool const is_leaf = value.has_value();
     uint8_t const value_len =
                       is_leaf ? static_cast<uint8_t>(value.value().size()) : 0,
-                  hash_len =
+                  data_len =
                       is_leaf ? static_cast<uint8_t>(comp.compute_len(children))
                               : 0;
     auto bytes =
-        sizeof(Node) + value_len + hash_len +
+        sizeof(Node) + value_len + data_len +
         number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +
                               sizeof(uint32_t) + sizeof(file_offset_t)) +
         relpath.data_size();
     std::vector<Node::data_off_t> offsets(number_of_children);
-    unsigned data_len = 0;
+    unsigned child_len = 0;
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
-            data_len += child.len;
+            child_len += child.len;
             MONAD_DEBUG_ASSERT(
-                data_len <= std::numeric_limits<Node::data_off_t>::max());
-            offsets[j++] = static_cast<Node::data_off_t>(data_len);
+                child_len <= std::numeric_limits<Node::data_off_t>::max());
+            offsets[j++] = static_cast<Node::data_off_t>(child_len);
         }
     }
-    bytes += data_len;
+    bytes += child_len;
     node_ptr node = Node::make_node(static_cast<unsigned int>(
         bytes)); // zero initialized in Node but not tail
-    node->set_params(mask, is_leaf, value_len, hash_len);
+    node->set_params(mask, is_leaf, value_len, data_len);
     std::memcpy(
         node->child_off_data(),
         offsets.data(),
@@ -123,8 +123,8 @@ Node *create_node(
             node->set_child_data_j(j++, {child.data, child.len});
         }
     }
-    if (node->hash_len) {
-        comp.compute_branch(node->hash_data(), node.get());
+    if (node->data_len) {
+        comp.compute_branch(node->data_data(), node.get());
     }
     node->disk_size = node->get_disk_size();
     assert(node->disk_size < 1024);
@@ -158,9 +158,9 @@ Node *update_node_diff_path_leaf(
     }
     // copy hash and child data arr
     std::memcpy(
-        node->hash_data(),
-        old->hash_data(),
-        node->hash_len + old->child_off_j(old->number_of_children()));
+        node->data_data(),
+        old->data_data(),
+        node->data_len + old->child_off_j(old->number_of_children()));
     // copy next array
     if (old->number_of_children()) {
         std::memcpy(
