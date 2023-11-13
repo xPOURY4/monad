@@ -103,10 +103,12 @@ public:
 
     class storage_pool &storage_pool() noexcept
     {
+        assert(storage_pool_ != nullptr);
         return *storage_pool_;
     }
     const class storage_pool &storage_pool() const noexcept
     {
+        assert(storage_pool_ != nullptr);
         return *storage_pool_;
     }
 

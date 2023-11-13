@@ -18,6 +18,9 @@
 
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future.hpp>
+#include <boost/fiber/future/promise.hpp>
+#include <boost/fiber/operations.hpp>
+#include <boost/outcome/config.hpp>
 #include <boost/outcome/coroutine_support.hpp>
 
 #include <array>

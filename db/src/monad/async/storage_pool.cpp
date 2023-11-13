@@ -544,6 +544,9 @@ storage_pool::chunk(chunk_type which, uint32_t id) const
 std::shared_ptr<class storage_pool::chunk>
 storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
 {
+#ifndef __clang__
+    assert(this != nullptr);
+#endif
     std::unique_lock g(lock_);
     if (id >= chunks_[which].size()) {
         throw std::runtime_error(

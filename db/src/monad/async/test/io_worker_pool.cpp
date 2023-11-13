@@ -1,14 +1,16 @@
 #include "test_fixture.hpp"
 
-#include <monad/async/io_worker_pool.hpp>
-#include <monad/core/array.hpp>
+#include "gtest_signal_stacktrace_printer.hpp"
+
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/connected_operation.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/io_senders.hpp>
+#include <monad/async/io_worker_pool.hpp>
 #include <monad/async/sender_errc.hpp>
 #include <monad/async/util.hpp>
+#include <monad/core/array.hpp>
 #include <monad/core/assert.h>
 
 #include <boost/lockfree/policies.hpp>
@@ -49,13 +51,13 @@ template <class... Args>
 struct TypeList;
 TEST_F(AsyncReadIoWorkerPool, construct_fixed)
 {
-    static MONAD_ASYNC_NAMESPACE::AsyncReadIoWorkerPool<
-        TypeList<::boost::lockfree::capacity<16>>> const
-        workerpool(
-            *shared_state_()->testio,
-            MAX_CONCURRENCY,
-            shared_state_()->make_ring,
-            shared_state_()->make_buffers);
+    // boost::lockfree::capacity causes overalignment
+    delete new auto(MONAD_ASYNC_NAMESPACE::AsyncReadIoWorkerPool<
+                    TypeList<::boost::lockfree::capacity<16>>>(
+        *shared_state_()->testio,
+        MAX_CONCURRENCY,
+        shared_state_()->make_ring,
+        shared_state_()->make_buffers));
 }
 
 TEST_F(AsyncReadIoWorkerPool, works)
@@ -267,7 +269,7 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             MONAD_ASSERT(thread_ids.push(gettid()));
             for (auto &state : states) {
                 state = std::unique_ptr<connected_state_type>(
-                    new connected_state_type(connect(  // NOLINT
+                    new connected_state_type(connect( // NOLINT
                         *st->executor(),
                         execute_on_worker_pool<sender2_t>{workerpool},
                         receiver2_t{st})));

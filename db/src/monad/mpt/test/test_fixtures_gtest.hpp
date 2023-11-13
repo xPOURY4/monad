@@ -2,7 +2,7 @@
 
 #include "test_fixtures_base.hpp"
 
-#include <gtest/gtest.h>
+#include "../../async/test/test_fixture.hpp"
 
 namespace monad::test
 {
