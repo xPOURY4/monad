@@ -50,7 +50,7 @@ node_ptr copy_node(
                 Node *leaf = update_node_diff_path_leaf(
                     src_leaf,
                     dest.substr(static_cast<unsigned char>(pi) + 1u),
-                    src_leaf->leaf_view());
+                    src_leaf->value());
                 // create a node, with no leaf data
                 uint16_t const mask =
                     static_cast<uint16_t>(node->mask | (1u << nibble));
@@ -91,16 +91,15 @@ node_ptr copy_node(
             Node *dest_leaf = update_node_diff_path_leaf(
                 src_leaf,
                 dest.substr(static_cast<unsigned char>(pi) + 1u),
-                src_leaf->leaf_view());
+                src_leaf->value());
             Node *node_latter_half = update_node_diff_path_leaf(
                 node,
                 NibblesView{
                     node_pi + 1,
                     node->path_nibble_index_end,
                     node->path_data()},
-                node->is_leaf()
-                    ? std::optional<byte_string_view>{node->leaf_view()}
-                    : std::nullopt);
+                node->is_leaf() ? std::optional<byte_string_view>{node->value()}
+                                : std::nullopt);
             uint16_t const mask =
                 static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
             Node *ret = create_node_nodata(
@@ -140,7 +139,7 @@ node_ptr copy_node(
         assert(new_node == nullptr);
         assert(node != root.get());
         new_node = update_node_diff_path_leaf(
-            src_leaf, node->path_nibble_view(), src_leaf->leaf_view());
+            src_leaf, node->path_nibble_view(), src_leaf->value());
         // clear parent's children other than new_node
         if (aux.is_on_disk()) {
             for (unsigned j = 0; j < parent->number_of_children(); ++j) {

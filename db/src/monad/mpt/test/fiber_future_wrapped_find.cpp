@@ -53,7 +53,7 @@ namespace
         auto const [node, errc] = request.promise->get_future().get();
         ASSERT_TRUE(node != nullptr);
         EXPECT_EQ(errc, monad::mpt::find_result::success);
-        EXPECT_EQ(node->leaf_view(), value);
+        EXPECT_EQ(node->value(), value);
     };
 
     void poll(AsyncIO *const io, bool *signal_done)

@@ -188,25 +188,25 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
         find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
+        (monad::byte_string_view{leaf->value_data(), leaf->value_len}),
         kv[0].second);
     std::tie(leaf, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
+        (monad::byte_string_view{leaf->value_data(), leaf->value_len}),
         kv[1].second);
     std::tie(leaf, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
+        (monad::byte_string_view{leaf->value_data(), leaf->value_len}),
         kv[2].second);
     std::tie(leaf, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
-        (monad::byte_string_view{leaf->leaf_data(), leaf->leaf_len}),
+        (monad::byte_string_view{leaf->value_data(), leaf->value_len}),
         kv[3].second);
 }
 
@@ -616,7 +616,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
             find_blocking(this->get_storage_pool(), this->root.get(), blockno);
         EXPECT_EQ(res, monad::mpt::find_result::success);
         EXPECT_EQ(
-            state_root->leaf_view(), leaf_value); // state_root leaf has updated
+            state_root->value(), leaf_value); // state_root leaf has updated
         EXPECT_EQ(
             state_root->hash_view(), // hash for state trie remains the same
             0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
@@ -660,7 +660,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
-    EXPECT_EQ(state_root->leaf_view(), 0xdeadbeef03_hex);
+    EXPECT_EQ(state_root->value(), 0xdeadbeef03_hex);
 
     std::tie(state_root, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno2);
@@ -668,7 +668,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     EXPECT_EQ(
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
-    EXPECT_EQ(state_root->leaf_view(), monad::byte_string_view{});
+    EXPECT_EQ(state_root->value(), monad::byte_string_view{});
 
     // copy state root from blockno2 to blockno3 again. In on-disk trie case,
     // blockno2 leaf is on disk and blockno3 leaf in memory, find_blocking()
@@ -683,5 +683,5 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         state_root->hash_view(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     // leaf data changed here
-    EXPECT_EQ(state_root->leaf_view(), monad::byte_string_view{});
+    EXPECT_EQ(state_root->value(), monad::byte_string_view{});
 }

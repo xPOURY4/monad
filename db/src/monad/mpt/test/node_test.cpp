@@ -44,7 +44,7 @@ TEST(NodeTest, leaf)
     node_ptr node{create_leaf(data, relpath)};
 
     EXPECT_EQ(node->mask, 0);
-    EXPECT_EQ(node->leaf_view(), data);
+    EXPECT_EQ(node->value(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath);
     EXPECT_EQ(node->get_mem_size(), 17);
     EXPECT_EQ(node->get_disk_size(), 17);
@@ -65,7 +65,7 @@ TEST(NodeTest, leaf_single_branch)
     uint16_t const mask = 1u << 0xc;
     node_ptr node{create_node(comp, mask, children, relpath2, data)};
 
-    EXPECT_EQ(node->leaf_view(), data);
+    EXPECT_EQ(node->value(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 1);
     EXPECT_EQ(node->get_mem_size(), 41);
@@ -91,7 +91,7 @@ TEST(NodeTest, leaf_multiple_branches)
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2, data)};
 
-    EXPECT_EQ(node->leaf_view(), data);
+    EXPECT_EQ(node->value(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 2);
     EXPECT_EQ(node->get_mem_size(), 65);
@@ -117,7 +117,7 @@ TEST(NodeTest, branch_node)
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2)};
 
-    EXPECT_EQ(node->leaf_len, 0);
+    EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->hash_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->get_mem_size(), 54);
@@ -143,7 +143,7 @@ TEST(NodeTest, extension_node)
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
     node_ptr node{create_node(comp, mask, children, relpath2)};
 
-    EXPECT_EQ(node->leaf_len, 0);
+    EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
     EXPECT_EQ(node->hash_len, 0);
     EXPECT_EQ(node->get_mem_size(), 59);

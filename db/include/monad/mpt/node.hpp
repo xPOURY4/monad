@@ -57,7 +57,7 @@ In generic trie, a node can have dual identity of ext and branch node, and
 branch node can have vt (value) and be a leaf node at the same time. Branch node
 with leaf data can have 1 child or more.
 - A node with non-empty relpath is either an ext node or a leaf node
-- A leaf node has is_leaf = true, however not necessarily leaf_len > 0
+- A leaf node has is_leaf = true, however not necessarily value_len > 0
 - A branch node with leaf can mean it's the end of an internal trie, making
 itself also the root of the trie underneath, for example a leaf of an
 account trie, where the account has an underlying storage trie. It can also
@@ -87,7 +87,7 @@ public:
 
     struct bitpacked_storage_t
     {
-        /* is a leaf node, leaf_len is not necessarily positive */
+        /* is a leaf node, value_len is not necessarily positive */
         bool is_leaf : 1 {false};
         bool path_nibble_index_start : 1 {false};
     } bitpacked{0};
@@ -98,7 +98,7 @@ public:
         "endian would need a bit swapping loader implementation");
 
     /* size (in byte) of user-passed leaf data */
-    uint8_t leaf_len{0};
+    uint8_t value_len{0};
     /* size (in byte) of intermediate cache for branch hash */
     uint8_t hash_len{0};
     uint8_t path_nibble_index_end{0};
@@ -118,7 +118,7 @@ public:
     starting offset
     * `path`: a few bytes for relative path, size depends on
     path_nibble_index_start, path_nibble_index_end
-    * `leaf_data`: user-passed leaf data of leaf_len bytes
+    * `value`: user-passed leaf data of value_len bytes
     * `hash_data`: intermediate hash cached for a implicit branch node, which
     exists in leaf nodes that have child.
     * `data_arr`: concatenated data bytes for all children
@@ -192,12 +192,12 @@ public:
     static inline unique_ptr_type make_node(unsigned size);
 
     void set_params(
-        uint16_t const mask_, bool const is_leaf_, uint8_t const leaf_len_,
+        uint16_t const mask_, bool const is_leaf_, uint8_t const value_len_,
         uint8_t const hash_len_)
     {
         mask = mask_;
         bitpacked.is_leaf = is_leaf_;
-        leaf_len = leaf_len_;
+        value_len = value_len_;
         hash_len = hash_len_;
     }
 
@@ -311,11 +311,11 @@ public:
     }
 
     //! leaf
-    constexpr unsigned char *leaf_data() noexcept
+    constexpr unsigned char *value_data() noexcept
     {
         return path_data() + path_bytes();
     }
-    constexpr unsigned char const *leaf_data() const noexcept
+    constexpr unsigned char const *value_data() const noexcept
     {
         return path_data() + path_bytes();
     }
@@ -323,21 +323,21 @@ public:
     {
         return bitpacked.is_leaf;
     }
-    void set_leaf(byte_string_view data) noexcept
+    void set_value(byte_string_view value) noexcept
     {
-        MONAD_DEBUG_ASSERT(leaf_len == data.size());
-        if (data.size()) {
-            std::memcpy(leaf_data(), data.data(), data.size());
+        MONAD_DEBUG_ASSERT(value_len == value.size());
+        if (value.size()) {
+            std::memcpy(value_data(), value.data(), value.size());
         }
     }
-    constexpr byte_string_view leaf_view() const noexcept
+    constexpr byte_string_view value() const noexcept
     {
-        return {leaf_data(), leaf_len};
+        return {value_data(), value_len};
     }
-    constexpr std::optional<byte_string_view> opt_leaf() const noexcept
+    constexpr std::optional<byte_string_view> opt_value() const noexcept
     {
         if (is_leaf()) {
-            return leaf_view();
+            return value();
         }
         return std::nullopt;
     }
@@ -349,11 +349,11 @@ public:
     }
     constexpr unsigned char *hash_data() noexcept
     {
-        return leaf_data() + leaf_len;
+        return value_data() + value_len;
     }
     constexpr unsigned char const *hash_data() const noexcept
     {
-        return leaf_data() + leaf_len;
+        return value_data() + value_len;
     }
     constexpr byte_string_view hash_view() const noexcept
     {
@@ -496,15 +496,14 @@ Node *create_coalesced_node_with_prefix(
 // create node: either branch/extension, with or without leaf
 Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children,
-    NibblesView relpath,
-    std::optional<byte_string_view> leaf_data = std::nullopt);
+    NibblesView relpath, std::optional<byte_string_view> value = std::nullopt);
 
 /* create a new node from a old node with possibly shorter relpath and an
 optional new leaf data
 Copy old with new relpath and new leaf, new relpath might be shortened */
 Node *update_node_diff_path_leaf(
     Node *old, NibblesView relpath,
-    std::optional<byte_string_view> leaf_data = std::nullopt);
+    std::optional<byte_string_view> value = std::nullopt);
 
 inline Node *create_node_nodata(
     uint16_t const mask, NibblesView const relpath, bool const is_leaf = false)
@@ -517,7 +516,7 @@ inline Node *create_node_nodata(
     node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
-    node->set_params(mask, is_leaf, /*leaf_len*/ 0, /*hash_len*/ 0);
+    node->set_params(mask, is_leaf, /*value_len*/ 0, /*hash_len*/ 0);
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
     }

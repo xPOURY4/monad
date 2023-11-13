@@ -270,7 +270,7 @@ struct DummyComputeLeafData
     // compute leaf data as - concat2(input_leaf, hash);
     static byte_string compute(Node const *const node)
     {
-        return byte_string{node->leaf_view()} + byte_string{node->hash_view()};
+        return byte_string{node->value()} + byte_string{node->hash_view()};
     }
 };
 

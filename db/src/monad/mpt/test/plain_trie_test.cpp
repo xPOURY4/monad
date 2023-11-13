@@ -84,49 +84,49 @@ TEST(InMemoryPlainTrie, var_length)
         make_update(kv[3].first, kv[3].second));
 
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
         kv[3].second);
 
     EXPECT_EQ(root->mask, 0b11);
-    EXPECT_EQ(root->leaf_len, 0);
+    EXPECT_EQ(root->value_len, 0);
     EXPECT_EQ(root->hash_len, 0);
     EXPECT_EQ(root->path_bytes(), 0);
     Node *node0 = root->next(0), *node1 = root->next(1);
     EXPECT_EQ(node0->mask, 0);
     EXPECT_EQ(
         node0->path_nibble_view(), (NibblesView{1, 8, kv[0].first.data()}));
-    EXPECT_EQ(node0->leaf_view(), kv[0].second);
+    EXPECT_EQ(node0->value(), kv[0].second);
     EXPECT_EQ(node1->mask, 1u << 0xa);
     EXPECT_EQ(
         node1->path_nibble_view(), (NibblesView{1, 8, kv[1].first.data()}));
-    EXPECT_EQ(node1->leaf_view(), kv[1].second);
+    EXPECT_EQ(node1->value(), kv[1].second);
     Node *node1aa = node1->next(0xa);
     EXPECT_EQ(node1aa->mask, 1u << 0xa | 1u << 0xc);
     EXPECT_EQ(
         node1aa->path_nibble_view(), (NibblesView{9, 10, kv[3].first.data()}));
 
     EXPECT_EQ(node1aa->path_bytes(), 1);
-    EXPECT_EQ(node1aa->leaf_len, 0);
+    EXPECT_EQ(node1aa->value_len, 0);
     Node *node1aaaa = node1aa->next(0xa), *node1aacd = node1aa->next(0xc);
     EXPECT_EQ(node1aaaa->mask, 0);
     EXPECT_EQ(
         node1aaaa->path_nibble_view(),
         (NibblesView{11, 12, kv[2].first.data()}));
-    EXPECT_EQ(node1aaaa->leaf_view(), kv[2].second);
+    EXPECT_EQ(node1aaaa->value(), kv[2].second);
     EXPECT_EQ(node1aacd->mask, 0);
     EXPECT_EQ(
         node1aacd->path_nibble_view(),
         (NibblesView{11, 12, kv[3].first.data()}));
-    EXPECT_EQ(node1aacd->leaf_view(), kv[3].second);
+    EXPECT_EQ(node1aacd->value(), kv[3].second);
 
     // insert kv 4,5
     root = upsert_updates(
@@ -136,22 +136,22 @@ TEST(InMemoryPlainTrie, var_length)
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
         kv[3].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[4].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[4].first).first->value(),
         kv[4].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[5].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[5].first).first->value(),
         kv[5].second);
 
     EXPECT_EQ(root->mask, 0b11);
@@ -159,11 +159,11 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(node1->mask, 1u << 1 | 1u << 0xa | 1u << 0xb);
     Node *node1111 = node1->next(1), *node111a = node1->next(0xa),
          *node111b = node1->next(0xb);
-    EXPECT_EQ(node1111->leaf_view(), kv[1].second);
+    EXPECT_EQ(node1111->value(), kv[1].second);
     EXPECT_EQ(
         node111a->path_nibble_view(), (NibblesView{4, 8, kv[4].first.data()}));
-    EXPECT_EQ(node111a->leaf_view(), kv[4].second);
-    EXPECT_EQ(node111b->leaf_view(), kv[5].second);
+    EXPECT_EQ(node111a->value(), kv[4].second);
+    EXPECT_EQ(node111b->value(), kv[5].second);
 
     // insert kv 6,7
     root = upsert_updates(
@@ -173,23 +173,23 @@ TEST(InMemoryPlainTrie, var_length)
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[5].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[5].first).first->value(),
         kv[5].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[6].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[6].first).first->value(),
         kv[6].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[7].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[7].first).first->value(),
         kv[7].second);
 
     node1 = root->next(1);
     node111b = node1->next(0xb);
     EXPECT_EQ(node111b->mask, 1u << 0xa | 1u << 0xb);
-    EXPECT_EQ(node111b->next(0xa)->leaf_view(), kv[6].second);
+    EXPECT_EQ(node111b->next(0xa)->value(), kv[6].second);
     EXPECT_EQ(
         node111b->next(0xa)->path_nibble_view(),
         (NibblesView{9, 16, kv[6].first.data()}));
-    EXPECT_EQ(node111b->next(0xb)->leaf_view(), kv[7].second);
+    EXPECT_EQ(node111b->next(0xb)->value(), kv[7].second);
     EXPECT_EQ(
         node111b->next(0xb)->path_nibble_view(),
         (NibblesView{9, 16, kv[7].first.data()}));
@@ -223,21 +223,21 @@ TEST(InMemoryPlainTrie, mismatch)
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
         kv[2].second);
 
     EXPECT_EQ(root->mask, 0b11000);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
-    EXPECT_EQ(root->next(4)->leaf_view(), kv[2].second);
+    EXPECT_EQ(root->next(4)->value(), kv[2].second);
     Node *left_leaf = root->next(3)->next(5);
-    EXPECT_EQ(left_leaf->leaf_view(), kv[0].second);
+    EXPECT_EQ(left_leaf->value(), kv[0].second);
     /* insert 12347678, 123aabcd
                   12
                 /    \
@@ -254,16 +254,16 @@ TEST(InMemoryPlainTrie, mismatch)
         make_update(kv[3].first, kv[3].second),
         make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
         kv[3].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[4].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[4].first).first->value(),
         kv[4].second);
 
     EXPECT_EQ(root->mask, 0b11000);
@@ -277,10 +277,10 @@ TEST(InMemoryPlainTrie, mismatch)
     EXPECT_EQ(node34->mask, 0b11100000);
     EXPECT_EQ(node34->hash_len, 0);
     EXPECT_EQ(node34->path_bytes(), 0);
-    EXPECT_EQ(node34->next(5)->leaf_len, 2);
-    EXPECT_EQ(node34->next(5)->leaf_view(), kv[0].second);
-    EXPECT_EQ(node34->next(6)->leaf_view(), kv[1].second);
-    EXPECT_EQ(node34->next(7)->leaf_view(), kv[3].second);
+    EXPECT_EQ(node34->next(5)->value_len, 2);
+    EXPECT_EQ(node34->next(5)->value(), kv[0].second);
+    EXPECT_EQ(node34->next(6)->value(), kv[1].second);
+    EXPECT_EQ(node34->next(7)->value(), kv[3].second);
 }
 
 TEST(InMemoryPlainTrie, delete_wo_incarnation)
@@ -318,7 +318,7 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
     // erase 1, consequently 2,3 are erased
     root = upsert_updates(aux, sm, root.get(), make_erase(kv[1].first));
     EXPECT_EQ(root->mask, 0);
-    EXPECT_EQ(root->leaf_view(), kv[4].second);
+    EXPECT_EQ(root->value(), kv[4].second);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 8, kv[4].first.data()}));
 }
@@ -340,13 +340,13 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         make_update(kv[1].first, kv[1].second), // 0x11111111
         make_update(kv[2].first, kv[2].second)); // 0x11111111aaaa
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
         kv[2].second);
 
     // upsert a bunch of new kvs, with incarnation flag set
@@ -357,13 +357,13 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         make_update(kv[1].first, kv[1].second, true), // 0x11111111
         make_update(kv[3].first, kv[3].second)); // 0x11111111aacd
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->leaf_view(),
+        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
         kv[3].second);
     EXPECT_EQ(find_blocking(nullptr, root.get(), kv[2].first).first, nullptr);
 }

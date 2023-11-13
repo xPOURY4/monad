@@ -29,7 +29,7 @@ Node *create_leaf(byte_string_view const data, NibblesView const relpath)
     }
     MONAD_DEBUG_ASSERT(data.size() <= std::numeric_limits<uint8_t>::max());
     node->set_params(0, true, static_cast<uint8_t>(data.size()), 0);
-    node->set_leaf(data);
+    node->set_value(data);
     node->disk_size = node->get_disk_size();
     assert(node->disk_size < 1024);
     return node.release();
@@ -50,7 +50,7 @@ Node *create_coalesced_node_with_prefix(
         (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
 
     serialize_to_node(NibblesView{relpath}, *node);
-    node->set_leaf(prev->leaf_view());
+    node->set_value(prev->value());
     // hash and data arr
     std::memcpy(
         node->hash_data(),
@@ -74,19 +74,18 @@ Node *create_coalesced_node_with_prefix(
 // all children's offset are set before creating parent
 Node *create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
-    NibblesView const relpath, std::optional<byte_string_view> const leaf_data)
+    NibblesView const relpath, std::optional<byte_string_view> const value)
 {
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     // any node with child will have hash data
-    bool const is_leaf = leaf_data.has_value();
-    uint8_t const leaf_len =
-                      is_leaf ? static_cast<uint8_t>(leaf_data.value().size())
-                              : 0,
+    bool const is_leaf = value.has_value();
+    uint8_t const value_len =
+                      is_leaf ? static_cast<uint8_t>(value.value().size()) : 0,
                   hash_len =
                       is_leaf ? static_cast<uint8_t>(comp.compute_len(children))
                               : 0;
     auto bytes =
-        sizeof(Node) + leaf_len + hash_len +
+        sizeof(Node) + value_len + hash_len +
         number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +
                               sizeof(uint32_t) + sizeof(file_offset_t)) +
         relpath.data_size();
@@ -103,7 +102,7 @@ Node *create_node(
     bytes += data_len;
     node_ptr node = Node::make_node(static_cast<unsigned int>(
         bytes)); // zero initialized in Node but not tail
-    node->set_params(mask, is_leaf, leaf_len, hash_len);
+    node->set_params(mask, is_leaf, value_len, hash_len);
     std::memcpy(
         node->child_off_data(),
         offsets.data(),
@@ -113,7 +112,7 @@ Node *create_node(
         serialize_to_node(relpath, *node);
     }
     if (is_leaf) {
-        node->set_leaf(leaf_data.value());
+        node->set_value(value.value());
     }
     // set fnext, next and data
     for (unsigned j = 0; auto &child : children) {
@@ -134,13 +133,13 @@ Node *create_node(
 
 Node *update_node_diff_path_leaf(
     Node *old, NibblesView const relpath,
-    std::optional<byte_string_view> const leaf_data)
+    std::optional<byte_string_view> const value)
 {
-    bool const is_leaf = leaf_data.has_value();
-    auto const leaf_len = leaf_data.has_value() ? leaf_data.value().size() : 0;
-    MONAD_ASSERT(leaf_len < 255); // or uint8_t will overflow
+    bool const is_leaf = value.has_value();
+    auto const value_len = value.has_value() ? value.value().size() : 0;
+    MONAD_ASSERT(value_len < 255); // or uint8_t will overflow
 
-    auto const bytes = old->get_mem_size() + leaf_len - old->leaf_len +
+    auto const bytes = old->get_mem_size() + value_len - old->value_len +
                        relpath.data_size() - old->path_bytes();
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned>::max());
     node_ptr node = Node::make_node(static_cast<unsigned>(bytes));
@@ -149,13 +148,13 @@ Node *update_node_diff_path_leaf(
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->leaf_len = static_cast<uint8_t>(leaf_len);
+    node->value_len = static_cast<uint8_t>(value_len);
     node->bitpacked.is_leaf = is_leaf;
     // assert(is_leaf == node->is_leaf());
     // order is enforced, must set path first
     serialize_to_node(relpath, *node); // overwrite old path
     if (is_leaf) {
-        node->set_leaf(leaf_data.value());
+        node->set_value(value.value());
     }
     // copy hash and child data arr
     std::memcpy(

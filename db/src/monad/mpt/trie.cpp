@@ -661,7 +661,7 @@ bool update_leaf_data_(
         }
         else {
             auto const opt_leaf_data =
-                update.value.has_value() ? update.value : old->opt_leaf();
+                update.value.has_value() ? update.value : old->opt_value();
             finished = dispatch_updates_impl_(
                 aux, sm, old, tnode, requests, 0, opt_leaf_data);
         }
@@ -870,7 +870,7 @@ bool dispatch_updates_flat_list_(
     UpwardTreeNode *tnode, Requests &requests, unsigned pi)
 {
     auto &opt_leaf = requests.opt_leaf;
-    auto opt_leaf_data = old->opt_leaf();
+    auto opt_leaf_data = old->opt_value();
     if (opt_leaf.has_value()) {
         sm.forward();
         tnode->trie_section = sm.get_state();
@@ -963,7 +963,7 @@ bool mismatch_handler_(
                 old_pi + 1, old->path_nibble_index_end, old->path_data()};
             // compute node hash
             child.ptr =
-                update_node_diff_path_leaf(old, relpath, old->opt_leaf());
+                update_node_diff_path_leaf(old, relpath, old->opt_value());
             child.branch = static_cast<uint8_t>(i);
             auto const len = sm.get_compute().compute(child.data, child.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
