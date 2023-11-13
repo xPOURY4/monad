@@ -55,13 +55,15 @@ Node *create_coalesced_node_with_prefix(
     std::memcpy(
         node->hash_data(),
         prev->hash_data(),
-        node->hash_len + node->child_off_j(node->n()));
+        node->hash_len + node->child_off_j(node->number_of_children()));
     // copy nexts
-    if (node->n()) {
+    if (node->number_of_children()) {
         memcpy(
-            node->next_data(), prev->next_data(), node->n() * sizeof(Node *));
+            node->next_data(),
+            prev->next_data(),
+            node->number_of_children() * sizeof(Node *));
     }
-    for (unsigned j = 0; j < prev->n(); ++j) {
+    for (unsigned j = 0; j < prev->number_of_children(); ++j) {
         prev->set_next_j(j, nullptr);
     }
     node->disk_size = node->get_disk_size();
@@ -158,14 +160,16 @@ Node *update_node_diff_path_leaf(
     std::memcpy(
         node->hash_data(),
         old->hash_data(),
-        node->hash_len + old->child_off_j(old->n()));
+        node->hash_len + old->child_off_j(old->number_of_children()));
     // copy next array
-    if (old->n()) {
+    if (old->number_of_children()) {
         std::memcpy(
-            node->next_data(), old->next_data(), node->n() * sizeof(Node *));
+            node->next_data(),
+            old->next_data(),
+            node->number_of_children() * sizeof(Node *));
     }
     // clear old nexts
-    for (unsigned j = 0; j < old->n(); ++j) {
+    for (unsigned j = 0; j < old->number_of_children(); ++j) {
         old->set_next_j(j, nullptr);
     }
     node->disk_size = node->get_disk_size();

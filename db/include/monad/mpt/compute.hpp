@@ -135,7 +135,7 @@ namespace detail
         virtual unsigned
         compute_branch(unsigned char *const buffer, Node *const node) override
         {
-            MONAD_DEBUG_ASSERT(node->n());
+            MONAD_DEBUG_ASSERT(node->number_of_children());
             if (state.len) {
                 // a simple memcpy if already computed to internal state
                 std::memcpy(buffer, state.buffer, state.len);
@@ -143,7 +143,7 @@ namespace detail
                 state.len = 0;
                 return len;
             }
-            MONAD_DEBUG_ASSERT(node->n() > 1);
+            MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
             unsigned char branch_str_rlp[544];
             std::span<unsigned char> result = branch_str_rlp;
             for (unsigned i = 0, bit = 1; i < 16; ++i, bit <<= 1) {
@@ -190,7 +190,7 @@ namespace detail
                     TComputeLeafData::compute(node),
                     true);
             }
-            MONAD_DEBUG_ASSERT(node->n() > 1);
+            MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
             if (node->has_relpath()) {
                 unsigned char hash[32];
                 unsigned len = compute_branch(hash, node);

@@ -111,7 +111,7 @@ public:
 #pragma GCC diagnostic pop
     /* Member funcs and data layout that exceeds node struct size is organized
     as below:
-    * `n()` is the number of children the node has and equals
+    * `number_of_children()` is the number of children the node has and equals
     bitmask_count(mask)
     * `fnext` array: size-n array storing children's on-disk offsets
     * `data_offset` array: size-n array each stores a specific child data's
@@ -209,7 +209,7 @@ public:
         return bitmask_index(mask, i);
     }
 
-    constexpr unsigned n() const noexcept
+    constexpr unsigned number_of_children() const noexcept
     {
         return bitmask_count(mask);
     }
@@ -222,7 +222,7 @@ public:
 
     chunk_offset_t &fnext_j(unsigned const j) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < n());
+        MONAD_DEBUG_ASSERT(j < number_of_children());
         return reinterpret_cast<chunk_offset_t *>(fnext_data())[j];
     }
 
@@ -234,11 +234,11 @@ public:
     //! min_block_no array
     constexpr unsigned char *child_min_count_data() noexcept
     {
-        return data + n() * sizeof(file_offset_t);
+        return data + number_of_children() * sizeof(file_offset_t);
     }
     constexpr unsigned char const *child_min_count_data() const noexcept
     {
-        return data + n() * sizeof(file_offset_t);
+        return data + number_of_children() * sizeof(file_offset_t);
     }
 
     uint32_t &min_count_j(unsigned const j) noexcept
@@ -253,15 +253,15 @@ public:
     //! data_offset array
     constexpr unsigned char *child_off_data() noexcept
     {
-        return child_min_count_data() + n() * sizeof(uint32_t);
+        return child_min_count_data() + number_of_children() * sizeof(uint32_t);
     }
     constexpr unsigned char const *child_off_data() const noexcept
     {
-        return child_min_count_data() + n() * sizeof(uint32_t);
+        return child_min_count_data() + number_of_children() * sizeof(uint32_t);
     }
     data_off_t child_off_j(unsigned const j) noexcept
     {
-        MONAD_DEBUG_ASSERT(j <= n());
+        MONAD_DEBUG_ASSERT(j <= number_of_children());
         if (j == 0) {
             return 0;
         }
@@ -287,11 +287,11 @@ public:
     //! path
     constexpr unsigned char *path_data() noexcept
     {
-        return child_off_data() + n() * sizeof(data_off_t);
+        return child_off_data() + number_of_children() * sizeof(data_off_t);
     }
     constexpr unsigned char const *path_data() const noexcept
     {
-        return child_off_data() + n() * sizeof(data_off_t);
+        return child_off_data() + number_of_children() * sizeof(data_off_t);
     }
     constexpr unsigned path_nibbles_len() const noexcept
     {
@@ -372,14 +372,14 @@ public:
     }
     byte_string_view child_data_view_j(unsigned const j) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < n());
+        MONAD_DEBUG_ASSERT(j < number_of_children());
         return byte_string_view{
             child_data() + child_off_j(j),
             static_cast<size_t>(child_data_len_j(j))};
     }
     constexpr unsigned char *child_data_j(unsigned const j) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < n());
+        MONAD_DEBUG_ASSERT(j < number_of_children());
         return child_data() + child_off_j(j);
     }
     constexpr unsigned char *child_data(unsigned const i) noexcept
@@ -399,7 +399,7 @@ public:
     //! next pointers
     constexpr unsigned char *next_data() noexcept
     {
-        return child_data() + child_off_j(n());
+        return child_data() + child_off_j(number_of_children());
     }
 
     constexpr Node *next_j(unsigned const j) noexcept
@@ -437,7 +437,8 @@ public:
     //! node size in memory
     constexpr unsigned get_mem_size() noexcept
     {
-        auto const *const end = next_data() + sizeof(Node *) * n();
+        auto const *const end =
+            next_data() + sizeof(Node *) * number_of_children();
         MONAD_DEBUG_ASSERT(end >= (unsigned char *)this);
         return static_cast<unsigned>(end - (unsigned char *)this);
     }
@@ -455,7 +456,7 @@ using node_ptr = Node::unique_ptr_type;
 
 inline Node::~Node()
 {
-    for (uint8_t j = 0; j < n(); ++j) {
+    for (uint8_t j = 0; j < number_of_children(); ++j) {
         node_ptr{next_j(j)};
         set_next_j(j, nullptr);
     }
@@ -478,7 +479,7 @@ inline uint32_t calc_min_count(Node *const node, uint32_t const curr_count)
         return curr_count;
     }
     auto ret{uint32_t(-1)};
-    for (unsigned j = 0; j < node->n(); ++j) {
+    for (unsigned j = 0; j < node->number_of_children(); ++j) {
         ret = std::min(ret, node->min_count_j(j));
     }
     MONAD_ASSERT(ret != uint32_t(-1));

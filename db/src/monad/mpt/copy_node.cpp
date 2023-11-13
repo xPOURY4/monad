@@ -55,7 +55,8 @@ node_ptr copy_node(
                 uint16_t const mask =
                     static_cast<uint16_t>(node->mask | (1u << nibble));
                 Node *ret = create_node_nodata(mask, node->path_nibble_view());
-                for (unsigned i = 0, j = 0, old_j = 0, bit = 1; j < ret->n();
+                for (unsigned i = 0, j = 0, old_j = 0, bit = 1;
+                     j < ret->number_of_children();
                      ++i, bit <<= 1) {
                     if (i == nibble) {
                         ret->set_next_j(j++, leaf);
@@ -142,7 +143,7 @@ node_ptr copy_node(
             src_leaf, node->path_nibble_view(), src_leaf->leaf_view());
         // clear parent's children other than new_node
         if (aux.is_on_disk()) {
-            for (unsigned j = 0; j < parent->n(); ++j) {
+            for (unsigned j = 0; j < parent->number_of_children(); ++j) {
                 if (j != parent->to_j(branch_i)) {
                     parent->next_j_ptr(j).reset();
                 };

@@ -853,7 +853,7 @@ bool dispatch_updates_impl_(
         }
     }
     // debug
-    for (unsigned j = 0; j < old->n(); ++j) {
+    for (unsigned j = 0; j < old->number_of_children(); ++j) {
         assert(!old->next_j(j));
     }
     if (tnode->npending) {
