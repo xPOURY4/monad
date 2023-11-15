@@ -5,6 +5,7 @@
 
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
+#include <monad/core/math.hpp>
 #include <monad/core/unaligned.hpp>
 #include <monad/mem/allocators.hpp>
 
@@ -136,14 +137,16 @@ public:
     // to new one, also help to keep allocated size as small as possible.
 
     using type_allocator = std::allocator<Node>;
-    static constexpr size_t raw_bytes_allocator_allocation_lower_bound = 8;
+    static constexpr size_t raw_bytes_allocator_allocation_divisor = 16;
+    static constexpr size_t raw_bytes_allocator_allocation_lower_bound =
+        round_up<size_t>(8, raw_bytes_allocator_allocation_divisor);
     static constexpr size_t raw_bytes_allocator_allocation_upper_bound =
-        (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32);
-    static constexpr size_t raw_bytes_allocator_allocation_divisor = 36;
-    static constexpr size_t
-        raw_bytes_allocator_allocation_less_than_lower_bound = 8;
+        round_up<size_t>(
+            (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32),
+            raw_bytes_allocator_allocation_divisor);
+
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
-    // upper bound = (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32)
+    // upper bound = round_up(8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32)
     // assuming 8-byte mem pointers and on-disk offsets for now
     // 110: max leaf data bytes
     // 32: max relpath bytes
@@ -151,8 +154,7 @@ public:
     using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
         raw_bytes_allocator_allocation_lower_bound,
         raw_bytes_allocator_allocation_upper_bound,
-        raw_bytes_allocator_allocation_divisor,
-        raw_bytes_allocator_allocation_less_than_lower_bound>;
+        raw_bytes_allocator_allocation_divisor>;
 #else
     using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -165,21 +167,10 @@ public:
         static raw_bytes_allocator b;
         return {a, b};
     }
-    static inline size_t get_allocated_count(unsigned n)
-    {
-        // node size requested to allocate, n, not always equals a boost pool
-        // size, here rounds n up => lower_bound + k * divisor */
-        size_t res = ((n - raw_bytes_allocator_allocation_lower_bound) /
-                          raw_bytes_allocator_allocation_divisor +
-                      1) *
-                         raw_bytes_allocator_allocation_divisor +
-                     raw_bytes_allocator_allocation_lower_bound;
-        MONAD_DEBUG_ASSERT(res >= n);
-        return res;
-    }
+
     static inline size_t get_deallocate_count(Node *p)
     {
-        return get_allocated_count(p->get_mem_size());
+        return p->get_mem_size();
     }
     using unique_ptr_type = std::unique_ptr<
         Node, allocators::unique_ptr_aliasing_allocator_deleter<
@@ -461,8 +452,7 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
         raw_bytes_allocator,
         &Node::pool,
         &Node::get_deallocate_count>(
-        Node::get_allocated_count(storagebytes),
-        prevent_public_construction_tag_{});
+        storagebytes, prevent_public_construction_tag_{});
 }
 
 inline uint32_t calc_min_count(Node *const node, uint32_t const curr_count)
