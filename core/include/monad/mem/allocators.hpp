@@ -747,14 +747,20 @@ namespace allocators
     */
     template <
         size_t lower_bound, size_t upper_bound, size_t divisor,
-        size_t less_than_lower_bound = 0,
         typename UserAllocator = boost::default_user_allocator_new_delete>
     class array_of_boost_pools_allocator
     {
+        static_assert(lower_bound < upper_bound);
+        static_assert(lower_bound % divisor == 0);
+        static_assert(upper_bound % divisor == 0);
+
+        static constexpr size_t lower_bound_i = lower_bound / divisor;
+        static constexpr size_t upper_bound_i = upper_bound / divisor;
+
         using _impl_type = boost::pool<UserAllocator>;
-        static constexpr size_t _pool_count =
-            ((upper_bound - lower_bound) / divisor) +
-            (less_than_lower_bound != 0);
+
+        static constexpr size_t _pool_count = upper_bound_i - lower_bound_i;
+
         // boost::pool can neither be copied nor moved, so ...
         alignas(_impl_type) std::byte
             _pool_storage[_pool_count * sizeof(_impl_type)];
@@ -764,6 +770,22 @@ namespace allocators
             return {(_impl_type *)_pool_storage, _pool_count};
         }
 
+        constexpr size_t get_index(size_t const n)
+        {
+            size_t i = (n + (divisor - 1)) / divisor;
+
+            if (MONAD_UNLIKELY(i < lower_bound_i)) {
+                i = lower_bound_i;
+            }
+
+            if (i >= upper_bound_i) {
+                throw std::invalid_argument(
+                    "only supports n lower than upper bound");
+            }
+
+            return i - lower_bound_i;
+        }
+
     public:
         using value_type = std::byte;
         using size_type = typename _impl_type::size_type;
@@ -771,18 +793,13 @@ namespace allocators
         static constexpr size_t allocation_lower_bound = lower_bound;
         static constexpr size_t allocation_upper_bound = upper_bound;
         static constexpr size_t allocation_divisor = divisor;
-        static constexpr size_t allocation_less_than_lower_bound =
-            less_than_lower_bound;
 
         array_of_boost_pools_allocator(
             size_type const nnext_size = 32, size_type const nmax_size = 0)
         {
             auto _pools = this->_pools();
             for (size_t n = 0; n < _pools.size(); n++) {
-                size_t itemsize = lower_bound + divisor * n;
-                if (less_than_lower_bound != 0 && n == _pools.size() - 1) {
-                    itemsize = less_than_lower_bound;
-                }
+                size_t const itemsize = lower_bound + divisor * n;
                 new (&_pools[n]) _impl_type(itemsize, nnext_size, nmax_size);
             }
         }
@@ -794,6 +811,7 @@ namespace allocators
         operator=(array_of_boost_pools_allocator const &) = delete;
         array_of_boost_pools_allocator &
         operator=(array_of_boost_pools_allocator &&) = delete;
+
         ~array_of_boost_pools_allocator()
         {
             for (auto &i : _pools()) {
@@ -803,50 +821,26 @@ namespace allocators
 
         [[nodiscard]] value_type *allocate(size_t const n)
         {
-            if (n >= upper_bound) {
-                throw std::invalid_argument(
-                    "only supports n lower than upper bound");
-            }
-            if (less_than_lower_bound == 0 && n < lower_bound) {
-                throw std::invalid_argument(
-                    "only supports n greater than lower bound");
-            }
-            if (less_than_lower_bound != 0 && n < lower_bound &&
-                n > less_than_lower_bound) {
-                throw std::invalid_argument("if n is less than lower bound "
-                                            "then it must be less than or "
-                                            "equal to less_than_lower_bound");
-            }
-    #ifndef NDEBUG
-            if (n >= lower_bound) {
-                size_t const idx = (n - lower_bound) / divisor;
-                assert(idx * divisor + lower_bound == n);
-            }
-    #endif
-
     #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
             auto *ret = (value_type *)std::malloc(n);
     #else
-            auto &_impl = (n >= lower_bound)
-                              ? _pools()[(n - lower_bound) / divisor]
-                              : _pools().back();
-            auto *ret = (value_type *)_impl.malloc();
+            size_t const i = get_index(n);
+            auto &_impl = _pools()[i];
+            auto *const ret = (value_type *)_impl.malloc();
     #endif
             if (ret == nullptr) {
                 throw std::bad_alloc();
             }
             return ret;
         }
+
         void deallocate(value_type *const p, size_t const n) noexcept
         {
-            MONAD_ASSERT(n < upper_bound);
-            MONAD_ASSERT(less_than_lower_bound != 0 || n >= lower_bound);
     #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
             std::free(p);
     #else
-            auto &_impl = (n >= lower_bound)
-                              ? _pools()[(n - lower_bound) / divisor]
-                              : _pools().back();
+            size_t const i = get_index(n);
+            auto &_impl = _pools()[i];
             _impl.free(p);
     #endif
         }
