@@ -750,7 +750,7 @@ namespace allocators
         typename UserAllocator = boost::default_user_allocator_new_delete>
     class array_of_boost_pools_allocator
     {
-        static_assert(lower_bound < upper_bound);
+        static_assert(lower_bound <= upper_bound);
         static_assert(lower_bound % divisor == 0);
         static_assert(upper_bound % divisor == 0);
 
@@ -759,7 +759,7 @@ namespace allocators
 
         using _impl_type = boost::pool<UserAllocator>;
 
-        static constexpr size_t _pool_count = upper_bound_i - lower_bound_i;
+        static constexpr size_t _pool_count = upper_bound_i - lower_bound_i + 1;
 
         // boost::pool can neither be copied nor moved, so ...
         alignas(_impl_type) std::byte
@@ -778,9 +778,9 @@ namespace allocators
                 i = lower_bound_i;
             }
 
-            if (i >= upper_bound_i) {
+            if (i > upper_bound_i) {
                 throw std::invalid_argument(
-                    "only supports n lower than upper bound");
+                    "requested size exceeds upper bound");
             }
 
             return i - lower_bound_i;
