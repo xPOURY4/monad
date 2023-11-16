@@ -1,6 +1,7 @@
 #include <monad/rlp/encode.hpp>
 
 #include <monad/core/byte_string.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>
 
 #include <gtest/gtest.h>
 

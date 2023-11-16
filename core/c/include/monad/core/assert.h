@@ -2,6 +2,11 @@
 
 #include <monad/core/likely.h>
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 void __attribute__((noreturn)) monad_assertion_failed(
     char const *expr, char const *function, char const *file, long line);
 
@@ -21,4 +26,8 @@ void __attribute__((noreturn)) monad_assertion_failed(
         while (0)
 #else
     #define MONAD_DEBUG_ASSERT(x) MONAD_ASSERT(x)
+#endif
+
+#ifdef __cplusplus
+}
 #endif

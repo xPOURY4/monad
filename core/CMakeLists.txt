@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 
 include(CheckCXXSymbolExists)
 
@@ -64,6 +64,7 @@ add_library(
   "include/monad/config.hpp"
   # core
   "include/monad/core/array.hpp"
+  "include/monad/core/backtrace.hpp"
   "include/monad/core/byte_string.hpp"
   "include/monad/core/cmemory.hpp"
   "include/monad/core/endian.hpp"
@@ -77,7 +78,7 @@ add_library(
   "include/monad/core/size_of.hpp"
   "include/monad/core/small_prng.hpp"
   "include/monad/core/unaligned.hpp"
-  "src/monad/core/assert.cpp"
+  "src/monad/core/backtrace.cpp"
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
   # fiber
@@ -105,13 +106,24 @@ add_library(
   "src/monad/mem/pool_allocator.cpp"
   # rlp
   "include/monad/rlp/config.hpp"
-  "include/monad/rlp/encode.hpp")
+  "include/monad/rlp/encode.hpp"
+  # test
+  "include/monad/test/gtest_signal_stacktrace_printer.hpp"
+)
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_core_compile_options(monad_core)
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
-check_cxx_symbol_exists("_GLIBCXX_HAVE_STACKTRACE" "stacktrace" HAVE_STACKTRACE)
-if(HAVE_STACKTRACE)
-  target_link_libraries(monad_core PUBLIC stdc++_libbacktrace)
+cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
+if(linux_flavour MATCHES "debian|ubuntu" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  # This produces the best backtraces on Debian/Ubuntu, addr2line doesn't work well on those
+  # backtrace.h is within GCC's internal headers, so clang doesn't find it.
+  target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_BACKTRACE=1")
+  target_link_libraries(monad_core PUBLIC "backtrace")
+else()
+  # This produces lovely backtraces on CentOS
+  target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
+  target_link_libraries(monad_core PUBLIC "dl")
+  target_link_options(monad_core PUBLIC "-rdynamic")  # needed for quality stack backtracing
 endif()
 
 add_library(

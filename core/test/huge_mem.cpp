@@ -1,6 +1,7 @@
 #include <monad/mem/huge_mem.hpp>
 
 #include <monad/config.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>
 
 #include <gtest/gtest.h>
 

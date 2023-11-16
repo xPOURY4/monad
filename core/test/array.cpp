@@ -1,6 +1,7 @@
 #include <monad/core/array.hpp>
 
 #include <monad/config.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>
 
 #include <gtest/gtest.h>
 
@@ -17,9 +18,9 @@ namespace
                 : x(a + b)
             {
             }
-            Foo(const Foo &) = delete;
+            Foo(Foo const &) = delete;
             Foo(Foo &&) = delete;
-            Foo &operator=(const Foo &) = delete;
+            Foo &operator=(Foo const &) = delete;
             Foo &operator=(Foo &&) = delete;
         };
         auto arr =

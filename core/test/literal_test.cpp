@@ -2,6 +2,7 @@
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>
 
 using namespace ::monad::literals;
 

@@ -1,5 +1,7 @@
 #include <monad/mem/dynamic_allocator.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>
+
 #include <gtest/gtest.h>
 
 #include <sys/mman.h>
