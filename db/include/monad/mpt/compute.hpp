@@ -73,7 +73,7 @@ namespace detail
     template <typename T>
     concept compute_leaf_data = requires {
         {
-            T::compute(std::declval<const Node *>())
+            T::compute(std::declval<Node const &>())
         } -> std::same_as<byte_string>;
     };
     template <compute_leaf_data TComputeLeafData>
@@ -187,7 +187,7 @@ namespace detail
                 return encode_two_pieces_(
                     buffer,
                     node->path_nibble_view(),
-                    TComputeLeafData::compute(node),
+                    TComputeLeafData::compute(*node),
                     true);
             }
             MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
@@ -250,7 +250,7 @@ namespace detail
                    state.buffer,
                    concat2(single_child.branch, node->path_nibble_view()),
                    (node->has_value()
-                        ? TComputeLeafData::compute(node)
+                        ? TComputeLeafData::compute(*node)
                         : (node->has_relpath()
                                ? ([&] -> byte_string {
                                      unsigned char branch_hash[32];
@@ -268,9 +268,9 @@ struct DummyComputeLeafData
 {
     // TEMPORARY for POC
     // compute leaf data as - concat2(input_leaf, hash);
-    static byte_string compute(Node const *const node)
+    static byte_string compute(Node const &node)
     {
-        return byte_string{node->value()} + byte_string{node->data()};
+        return byte_string{node.value()} + byte_string{node.data()};
     }
 };
 
