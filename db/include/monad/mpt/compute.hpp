@@ -41,7 +41,7 @@ struct TrieStateMachine
     //! transform back up the trie
     virtual void backward() = 0;
     //! get the current compute implementation
-    virtual Compute &get_compute() const = 0;
+    virtual Compute &get_compute() = 0;
     //! get current state in uint8_t. It is up to the user to design what each
     //! value means in the state enum
     virtual uint8_t get_state() const = 0;
@@ -343,7 +343,7 @@ public:
         }
     }
 
-    virtual constexpr Compute &get_compute() const override
+    virtual constexpr Compute &get_compute() override
     {
         if (curr_section_ == TrieSection::BlockNo) {
             return candidate_computes().second;

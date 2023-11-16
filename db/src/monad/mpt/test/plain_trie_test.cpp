@@ -51,7 +51,7 @@ public:
     virtual void reset(std::optional<uint8_t>) override {}
     virtual void forward(monad::byte_string_view = {}) override {}
     virtual void backward() override {}
-    virtual Compute &get_compute() const override
+    virtual Compute &get_compute() override
     {
         return candidate_computes();
     }
