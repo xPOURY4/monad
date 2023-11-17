@@ -317,11 +317,11 @@ int main(int argc, char *argv[])
             Node *root = read_node_blocking(io.storage_pool(), root_off);
             state_root.reset(root);
 
-            chunk_offset_t block_start{0, 0};
-            block_start = round_up_align<DISK_PAGE_BITS>(
+            chunk_offset_t const fast_offset = round_up_align<DISK_PAGE_BITS>(
                 root_off.add_to_offset(root->get_disk_size()));
-            // destroy contents after block_start.id chunck
-            aux.rewind_root_offset_to(block_start);
+            // destroy contents after fast_offset.id chunck, and reset
+            // node_writer's offset.
+            aux.rewind_offset_to(fast_offset);
         }
 
         auto begin_test = std::chrono::steady_clock::now();

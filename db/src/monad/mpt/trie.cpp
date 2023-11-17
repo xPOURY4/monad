@@ -6,17 +6,17 @@
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
-#include <monad/mpt/cache_option.hpp>
-#include <monad/mpt/config.hpp>
-#include <monad/mpt/update.hpp>
-#include <monad/mpt/util.hpp>
 #include <monad/core/small_prng.hpp>
+#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/compute.hpp>
+#include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/request.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/update.hpp>
 #include <monad/mpt/upward_tnode.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -44,11 +44,11 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
 
-std::pair<UpdateAux::chunk_list, uint32_t>
+std::pair<UpdateAux::chunk_list, detail::unsigned_20>
 UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
 {
     auto const *ci = db_metadata_[0]->at(idx);
-    std::pair<chunk_list, uint32_t> ret(
+    std::pair<chunk_list, detail::unsigned_20> ret(
         chunk_list::free, ci->insertion_count());
     if (ci->in_fast_list) {
         ret.first = chunk_list::fast;
@@ -61,7 +61,6 @@ UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
     else {
         ret.second -= db_metadata_[0]->free_list_begin()->insertion_count();
     }
-    ret.second &= 0xfffff;
     return ret;
 }
 
@@ -137,29 +136,29 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::rewind_root_offset_to(chunk_offset_t offset)
+void UpdateAux::rewind_offset_to(chunk_offset_t const fast_offset)
 {
-    // TODO FIXME: We need to also adjust the slow list
-    auto *ci = db_metadata_[0]->fast_list_begin();
-    for (; ci != nullptr && offset.id != ci->index(db_metadata_[0]);
-         ci = ci->next(db_metadata_[0])) {
-    }
-    // If this trips, the supplied root offset is not in the fast list
-    MONAD_ASSERT(ci != nullptr);
+    /* TODO FIXME: We need to also adjust the slow list, and slow_node_writer's
+     * offset */
+    // Free all chunks after fast_offset.id
+    auto *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
         auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
         io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
         prepend(chunk_list::free, idx);
     }
-    {
-        auto g = db_metadata_[0]->hold_dirty();
-        db_metadata_[0]->root_offset = offset;
-    }
-    {
-        auto g = db_metadata_[1]->hold_dirty();
-        db_metadata_[1]->root_offset = offset;
-    }
+    auto fast_offset_chunk =
+        io->storage_pool().chunk(storage_pool::seq, fast_offset.id);
+    MONAD_ASSERT(fast_offset_chunk->try_trim_contents(fast_offset.offset));
+
+    // Reset node_writer's offset, and buffer too
+    node_writer->sender().reset(
+        fast_offset,
+        {node_writer->sender().buffer().data(),
+         std::min(
+             AsyncIO::WRITE_BUFFER_SIZE,
+             size_t(fast_offset_chunk->capacity() - fast_offset.offset))});
 }
 
 UpdateAux::~UpdateAux()
@@ -278,23 +277,16 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
     }
     // If the pool has changed since we configured the metadata, this will fail
     MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
-    // Make sure the root offset points into a block in use as a sanity check
-    auto const root_offset = get_root_offset();
-    auto chunk = io->storage_pool().chunk(storage_pool::seq, root_offset.id);
-    MONAD_ASSERT(chunk->size() >= root_offset.offset);
-    /* The DB may have trailing garbage if it died when writing the next block.
-    We simply ignore it, it'll get compacted at some later point.
-    */
-    chunk_offset_t node_writer_offset(root_offset);
-    auto *last_chunk_info = db_metadata_[0]->fast_list_end();
-    if (last_chunk_info != nullptr &&
-        last_chunk_info->index(db_metadata()) != node_writer_offset.id) {
-        node_writer_offset.id =
-            last_chunk_info->index(db_metadata()) & 0xfffffU;
-        chunk =
-            io->storage_pool().chunk(storage_pool::seq, node_writer_offset.id);
-    }
-    node_writer_offset.offset = chunk->size() & 0xfffffU;
+    // Default behavior: initialize the node writer to start at the front of
+    // fast list, and it can be reset later in `rewind_offset_to()`.
+    // Make sure the initial fast offset points into a block in use as
+    // a sanity check
+    chunk_offset_t const default_offset_to_start{
+        db_metadata_[0]->fast_list.begin, 0};
+    auto chunk =
+        io->storage_pool().chunk(storage_pool::seq, default_offset_to_start.id);
+    MONAD_ASSERT(chunk->size() >= default_offset_to_start.offset);
+    chunk_offset_t node_writer_offset(default_offset_to_start);
     node_writer =
         io ? io->make_connected(
                  MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
@@ -416,9 +408,9 @@ void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
         }
         --parent_tnode->npending;
         UpwardTreeNode *p = parent_tnode;
-		{
-          tnode_unique_ptr const _{tnode};
-		}
+        {
+            tnode_unique_ptr const _{tnode};
+        }
         tnode = p;
     }
 }
@@ -599,9 +591,9 @@ Node *create_node_from_children_if_any(
                      (cache_opt == CacheOption::ApplyLevelBasedCache &&
                       (pi + 1 + child.ptr->path_nibbles_len() >
                        CACHE_LEVEL)))) {
-					{
-                      node_ptr const _{child.ptr};
-					}
+                    {
+                        node_ptr const _{child.ptr};
+                    }
                     child.ptr = nullptr;
                 }
             }

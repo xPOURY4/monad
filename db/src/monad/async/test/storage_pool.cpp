@@ -402,4 +402,40 @@ namespace
         EXPECT_THROW(storage_pool{devs2}, std::runtime_error);
         storage_pool{devs2, storage_pool::mode::truncate};
     }
+
+    TEST(StoragePool, clone_content)
+    {
+        storage_pool pool1(use_anonymous_inode_tag{});
+        storage_pool pool2(use_anonymous_inode_tag{});
+
+        std::vector<std::byte> buffer1(1024 * 1024);
+        memset(buffer1.data(), 0xee, buffer1.size());
+        auto chunk1 = pool1.activate_chunk(storage_pool::seq, 0);
+        {
+            auto fd = chunk1->write_fd(buffer1.size());
+            MONAD_ASSERT(
+                -1 != ::pwrite(
+                          fd.first,
+                          buffer1.data(),
+                          buffer1.size(),
+                          static_cast<off_t>(fd.second)));
+            EXPECT_EQ(chunk1->size(), buffer1.size());
+        }
+        std::vector<std::byte> buffer2(1024 * 1024);
+        memset(buffer2.data(), 0xcc, buffer2.size());
+        auto chunk2 = pool2.activate_chunk(storage_pool::seq, 0);
+        {
+            auto cloned = chunk1->clone_contents_into(*chunk2, UINT32_MAX);
+            EXPECT_EQ(cloned, buffer1.size());
+            auto fd = chunk2->read_fd();
+            MONAD_ASSERT(
+                -1 != ::pread(
+                          fd.first,
+                          buffer2.data(),
+                          buffer2.size(),
+                          static_cast<off_t>(fd.second)));
+            EXPECT_EQ(chunk2->size(), buffer1.size());
+        }
+        EXPECT_EQ(0, memcmp(buffer1.data(), buffer2.data(), buffer1.size()));
+    }
 }

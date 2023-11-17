@@ -162,34 +162,116 @@ file_offset_t storage_pool::chunk::size() const
 
 void storage_pool::chunk::destroy_contents()
 {
+    if (!try_trim_contents(0)) {
+        throw std::runtime_error("zonefs support isn't implemented yet");
+    }
+}
+
+uint32_t storage_pool::chunk::clone_contents_into(chunk &other, uint32_t bytes)
+{
+    if (other.is_sequential_write() && other.size() != 0) {
+        throw std::runtime_error(
+            "Append only destinations must be empty before content clone");
+    }
+    bytes = std::min(uint32_t(size()), bytes);
+    auto rdfd = read_fd();
+    auto wrfd = other.write_fd(bytes);
+    auto off_in = off64_t(rdfd.second), off_out = off64_t(wrfd.second);
+    auto bytescopied =
+        copy_file_range(rdfd.first, &off_in, wrfd.first, &off_out, bytes, 0);
+    if (bytescopied == -1) {
+        auto *p = aligned_alloc(DISK_PAGE_SIZE, bytes);
+        MONAD_ASSERT(p != nullptr);
+        auto unp = make_scope_exit([&]() noexcept { ::free(p); });
+        bytescopied =
+            ::pread(rdfd.first, p, bytes, static_cast<off_t>(rdfd.second));
+        MONAD_ASSERT(-1 != bytescopied);
+        MONAD_ASSERT(
+            -1 != ::pwrite(
+                      wrfd.first,
+                      p,
+                      static_cast<size_t>(bytescopied),
+                      static_cast<off_t>(wrfd.second)));
+    }
+    return uint32_t(bytescopied);
+}
+
+bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
+{
+    bytes = std::min(uint32_t(size()), bytes);
+    MONAD_DEBUG_ASSERT(capacity_ <= std::numeric_limits<off_t>::max());
+    MONAD_DEBUG_ASSERT(offset_ <= std::numeric_limits<off_t>::max());
     if (device().is_file()) {
-        MONAD_DEBUG_ASSERT(capacity_ <= std::numeric_limits<off_t>::max());
-        MONAD_DEBUG_ASSERT(offset_ <= std::numeric_limits<off_t>::max());
         if (-1 == ::fallocate(
                       write_fd_,
                       FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE,
-                      static_cast<off_t>(offset_),
-                      static_cast<off_t>(capacity_))) {
+                      static_cast<off_t>(offset_ + bytes),
+                      static_cast<off_t>(capacity_ - bytes))) {
             throw std::system_error(errno, std::system_category());
         }
         auto *metadata = device().metadata_;
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device().size_of_file_);
-        chunk_bytes_used[device_zone_id()].store(0, std::memory_order_release);
-        return;
+        chunk_bytes_used[device_zone_id()].store(
+            bytes, std::memory_order_release);
+        return true;
     }
     if (device().is_block_device()) {
-        uint64_t range[2] = {offset_, capacity_};
-        if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
+        uint64_t range[2] = {
+            round_down_align<DISK_PAGE_BITS>(offset_ + bytes), 0};
+        range[1] = capacity_ - range[0];
+
+        // TODO(niall): Should really read
+        // /sys/block/nvmeXXX/queue/discard_granularity and
+        // /sys/block/nvmeXXX/queue/discard_max_bytes and adjust accordingly,
+        // however every NVMe SSD I'm aware of has 512 and 2Tb. If we ran on MMC
+        // or legacy SATA SSDs this would be very different, but we never will.
+        auto *buffer =
+            (std::byte *)aligned_alloc(DISK_PAGE_SIZE, DISK_PAGE_SIZE);
+        auto unbuffer = make_scope_exit([&]() noexcept { ::free(buffer); });
+        auto const remainder = offset_ + bytes - range[0];
+        auto const bytesread = (remainder == 0)
+                                   ? 0
+                                   : ::pread(
+                                         write_fd_,
+                                         buffer,
+                                         DISK_PAGE_SIZE,
+                                         static_cast<off_t>(range[0]));
+        if (-1 == bytesread) {
             throw std::system_error(errno, std::system_category());
+        }
+        if (remainder > 0) {
+            range[0] += DISK_PAGE_SIZE;
+            range[1] -= DISK_PAGE_SIZE;
+        }
+        if (range[1] > 0) {
+            if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
+                throw std::system_error(errno, std::system_category());
+            }
+        }
+        if (remainder > 0) {
+            memset(buffer + remainder, 0, DISK_PAGE_SIZE - remainder);
+            if (-1 == ::pwrite(
+                          write_fd_,
+                          buffer,
+                          DISK_PAGE_SIZE,
+                          static_cast<off_t>(range[0]))) {
+                throw std::system_error(errno, std::system_category());
+            }
         }
         auto *metadata = device().metadata_;
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device().size_of_file_);
-        chunk_bytes_used[device_zone_id()].store(0, std::memory_order_release);
-        return;
+        chunk_bytes_used[device_zone_id()].store(
+            bytes, std::memory_order_release);
+        return true;
     }
-    throw std::runtime_error("zonefs support isn't implemented yet");
+    /* For zonefs, the documentation is unclear if you can truncate
+    a sequential zone to anything other than its maximum extent or
+    zero. It seems reasonable it would allow any 512 byte granularity.
+    Worth trying if we implement support for zonefs.
+    */
+    return false;
 }
 
 /***************************************************************************/

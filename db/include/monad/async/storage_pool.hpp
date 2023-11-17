@@ -235,6 +235,18 @@ public:
         //! \brief Destroys the contents of the chunk, releasing the backing
         //! storage for use by others.
         void destroy_contents();
+
+        //! \brief Clones part or all of the contents of the chunk into another
+        //! chunk, using kernel offload where available. The destination chunk
+        //! MUST be empty if it is sequential append only, otherwise the call
+        //! fails.
+        uint32_t clone_contents_into(chunk &other, uint32_t bytes);
+
+        /*! \brief Tries to trim the contents of a chunk by efficiently
+        discarding the tail of the contents. If not possible to do efficiently,
+        return false.
+        */
+        bool try_trim_contents(uint32_t bytes);
     };
     /*! \brief A conventional zone chunk from the `cnv` subdirectory.
      */
@@ -333,6 +345,7 @@ public:
     {
         return chunks_[which].size();
     }
+
     //! \brief Returns the number of currently active chunks for the specified
     //! type
     size_t currently_active_chunks(chunk_type which) const noexcept;

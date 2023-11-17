@@ -4,6 +4,8 @@
 
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 
+#include "unsigned_20.hpp"
+
 MONAD_MPT_NAMESPACE_BEGIN
 class UpdateAux;
 
@@ -77,7 +79,7 @@ namespace detail
                 assert(ret < parent->chunk_info_count);
                 return ret;
             }
-            uint32_t insertion_count() const noexcept
+            unsigned_20 insertion_count() const noexcept
             {
                 return uint32_t(insertion_count1_ << 10) |
                        uint32_t(insertion_count0_);
@@ -225,8 +227,8 @@ namespace detail
             auto *tail = at_(list.end);
             auto const insertion_count = tail->insertion_count() + 1;
             assert(tail->next_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
-            i->insertion_count0_ = (insertion_count & 0x3ff);
-            i->insertion_count1_ = ((insertion_count >> 10) & 0x3ff);
+            i->insertion_count0_ = uint32_t(insertion_count) & 0x3ff;
+            i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.end = tail->next_chunk_id = i->index(this) & 0xfffffU;
         }
         void prepend_(id_pair &list, chunk_info_t *i) noexcept
@@ -245,10 +247,10 @@ namespace detail
             assert((list.begin & ~0xfffffU) == 0);
             i->next_chunk_id = list.begin & 0xfffffU;
             auto *head = at_(list.begin);
-            auto const insertion_count = head->insertion_count() + 1;
+            auto const insertion_count = head->insertion_count() - 1;
             assert(head->prev_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
-            i->insertion_count0_ = (insertion_count & 0x3ff);
-            i->insertion_count1_ = ((insertion_count >> 10) & 0x3ff);
+            i->insertion_count0_ = uint32_t(insertion_count) & 0x3ff;
+            i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.begin = head->prev_chunk_id = i->index(this) & 0xfffff;
         }
         void remove_(chunk_info_t *i) noexcept
@@ -298,6 +300,9 @@ namespace detail
 #endif
                 return;
             }
+            MONAD_ASSERT(
+                "remove_() has had mid-list removals explicitly disabled to "
+                "prevent insertion count becoming inaccurate" == nullptr);
             auto *prev = at_(i->prev_chunk_id);
             auto *next = at_(i->next_chunk_id);
             prev->next_chunk_id = next->index(this) & 0xfffffU;

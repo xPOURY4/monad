@@ -15,4 +15,13 @@ namespace monad::test
     {
         using OnDiskTrieBase<::testing::Test>::OnDiskTrieBase;
     };
+
+    template <size_t chunks_to_fill>
+    struct FillDBWithChunksGTest
+        : public FillDBWithChunks<chunks_to_fill, ::testing::Test>
+    {
+        using FillDBWithChunks<
+            chunks_to_fill, ::testing::Test>::FillDBWithChunks;
+    };
+
 }

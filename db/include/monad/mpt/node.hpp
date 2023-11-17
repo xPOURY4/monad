@@ -3,6 +3,8 @@
 #include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/storage_pool.hpp>
 
+#include "detail/unsigned_20.hpp"
+
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/math.hpp>
@@ -34,7 +36,7 @@ struct ChildData
     Node *ptr{nullptr};
     chunk_offset_t offset{INVALID_OFFSET};
     unsigned char data[32];
-    uint32_t min_count{uint32_t(-1)};
+    detail::unsigned_20 min_count{uint32_t(-1)};
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
 };
@@ -227,11 +229,12 @@ public:
         return fnext_data + number_of_children() * sizeof(file_offset_t);
     }
 
-    uint32_t &min_count_j(unsigned const j) noexcept
+    detail::unsigned_20 &min_count_j(unsigned const j) noexcept
     {
-        return reinterpret_cast<uint32_t *>(child_min_count_data())[j];
+        return reinterpret_cast<detail::unsigned_20 *>(
+            child_min_count_data())[j];
     }
-    uint32_t &min_count(unsigned const i) noexcept
+    detail::unsigned_20 &min_count(unsigned const i) noexcept
     {
         return min_count_j(to_j(i));
     }
@@ -455,16 +458,17 @@ inline Node::unique_ptr_type Node::make_node(unsigned storagebytes)
         storagebytes, prevent_public_construction_tag_{});
 }
 
-inline uint32_t calc_min_count(Node *const node, uint32_t const curr_count)
+inline detail::unsigned_20
+calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
 {
     if (!node->mask) {
         return curr_count;
     }
-    auto ret{uint32_t(-1)};
+    detail::unsigned_20 ret{uint32_t(-1)};
     for (unsigned j = 0; j < node->number_of_children(); ++j) {
         ret = std::min(ret, node->min_count_j(j));
     }
-    MONAD_ASSERT(ret != uint32_t(-1));
+    MONAD_ASSERT(ret != detail::unsigned_20(uint32_t(-1)));
     return ret;
 }
 

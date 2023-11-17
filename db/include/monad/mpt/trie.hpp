@@ -83,7 +83,7 @@ public:
     {
         return db_metadata_[0];
     }
-    std::pair<chunk_list, uint32_t>
+    std::pair<chunk_list, detail::unsigned_20>
     chunk_list_and_age(uint32_t idx) const noexcept;
 
     void append(chunk_list list, uint32_t idx) noexcept;
@@ -96,7 +96,7 @@ public:
         do_(db_metadata_[1]);
     }
     // WARNING: This is destructive
-    void rewind_root_offset_to(chunk_offset_t offset);
+    void rewind_offset_to(chunk_offset_t fast_offset);
 
 public:
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
