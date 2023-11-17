@@ -52,7 +52,8 @@ add_library(
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/node.cpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp")
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/update_aux.cpp")
 target_include_directories(monad_trie PUBLIC "${PROJECT_SOURCE_DIR}/include")
 monad_core_compile_options(monad_trie)
 
