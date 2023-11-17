@@ -11,6 +11,7 @@
 #include <monad/mpt/node.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <span>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -314,8 +315,10 @@ public:
 
     virtual std::unique_ptr<TrieStateMachine> clone() const override
     {
-        return std::make_unique<StateMachineWithBlockNo>(
+        auto cloned = std::make_unique<StateMachineWithBlockNo>(
             static_cast<uint8_t>(default_section_));
+        cloned->reset(this->get_state());
+        return cloned;
     }
 
     virtual void reset(std::optional<uint8_t> sec) override
