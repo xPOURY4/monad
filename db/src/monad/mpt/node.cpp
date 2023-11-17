@@ -1,5 +1,3 @@
-#include <monad/mpt/node.hpp>
-
 #include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
@@ -7,6 +5,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/node.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <bit>
@@ -165,6 +164,11 @@ NibblesView Node::path_nibble_view() const noexcept
         bitpacked.path_nibble_index_start, path_nibble_index_end, path_data()};
 }
 
+unsigned Node::path_start_nibble() const noexcept
+{
+    return bitpacked.path_nibble_index_start;
+}
+
 unsigned char *Node::value_data() noexcept
 {
     return path_data() + path_bytes();
@@ -283,6 +287,51 @@ uint16_t Node::get_disk_size() noexcept
     return disk_size;
 }
 
+bool ChildData::is_valid() const
+{
+    return branch != INVALID_BRANCH;
+}
+
+void ChildData::erase()
+{
+    branch = INVALID_BRANCH;
+}
+
+void ChildData::set_branch_and_section(unsigned i, uint8_t const sec)
+{
+    MONAD_DEBUG_ASSERT(i < 16);
+    branch = static_cast<uint8_t>(i);
+    trie_section = sec;
+    MONAD_DEBUG_ASSERT(is_valid());
+}
+
+void ChildData::set_node_and_compute_data(
+    Node *const node, TrieStateMachine &sm)
+{
+    MONAD_DEBUG_ASSERT(is_valid());
+    ptr = node;
+    auto const length = sm.get_compute(trie_section).compute(data, ptr);
+    MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+    len = static_cast<uint8_t>(length);
+}
+
+void ChildData::copy_old_child(Node *old, unsigned i)
+{
+    auto const index = old->to_child_index(i);
+    if (old->next(index)) { // in memory, infers cached
+        ptr = old->next_ptr(index).release();
+    }
+    auto const old_data = old->child_data_view(index);
+    memcpy(&data, old_data.data(), old_data.size());
+    MONAD_DEBUG_ASSERT(old_data.size() <= std::numeric_limits<uint8_t>::max());
+    len = static_cast<uint8_t>(old_data.size());
+    MONAD_DEBUG_ASSERT(i < 16);
+    branch = static_cast<uint8_t>(i);
+    offset = old->fnext(index);
+    min_count = old->min_count(index);
+    MONAD_DEBUG_ASSERT(is_valid());
+}
+
 detail::unsigned_20
 calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
 {
@@ -369,7 +418,7 @@ Node *create_node(
     std::vector<uint16_t> offsets(number_of_children);
     unsigned child_len = 0;
     for (unsigned j = 0; auto &child : children) {
-        if (child.branch != INVALID_BRANCH) {
+        if (child.is_valid()) {
             child_len += child.len;
             MONAD_DEBUG_ASSERT(
                 child_len <= std::numeric_limits<uint16_t>::max());
@@ -393,7 +442,7 @@ Node *create_node(
     }
     // set fnext, next and data
     for (unsigned j = 0; auto &child : children) {
-        if (child.branch != INVALID_BRANCH) {
+        if (child.is_valid()) {
             node->fnext(j) = child.offset;
             node->min_count(j) = child.min_count;
             node->set_next(j, child.ptr);

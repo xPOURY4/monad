@@ -55,6 +55,11 @@ public:
     {
         return candidate_computes();
     }
+    virtual Compute &get_compute(uint8_t) override
+    {
+        return candidate_computes();
+    }
+
     virtual constexpr uint8_t get_state() const override
     {
         return 0;
@@ -80,7 +85,7 @@ TEST(InMemoryPlainTrie, leaf_nodes_persist)
         make_update(0x1122_hex, monad::byte_string_view{}));
     EXPECT_EQ(root->mask, 0b110);
 
-    root = upsert_updates(aux, sm, root.get(), make_erase(0x1111_hex));
+    root = upsert_updates(aux, sm, std::move(root), make_erase(0x1111_hex));
     EXPECT_EQ(root->mask, 0b100);
 }
 
@@ -95,7 +100,7 @@ TEST(InMemoryPlainTrie, var_length)
     root = upsert_updates(
         aux,
         sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second),
@@ -152,7 +157,7 @@ TEST(InMemoryPlainTrie, var_length)
     root = upsert_updates(
         aux,
         sm,
-        root.get(),
+        std::move(root),
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second));
     EXPECT_EQ(
@@ -190,7 +195,7 @@ TEST(InMemoryPlainTrie, var_length)
     root = upsert_updates(
         aux,
         sm,
-        root.get(),
+        std::move(root),
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     EXPECT_EQ(
@@ -241,7 +246,7 @@ TEST(InMemoryPlainTrie, mismatch)
     root = upsert_updates(
         aux,
         sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second));
@@ -273,7 +278,7 @@ TEST(InMemoryPlainTrie, mismatch)
     root = upsert_updates(
         aux,
         sm,
-        root.get(),
+        std::move(root),
         make_update(kv[3].first, kv[3].second),
         make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
@@ -327,19 +332,19 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     // erase 0
-    root = upsert_updates(aux, sm, root.get(), make_erase(kv[0].first));
+    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[0].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
-    root = upsert_updates(aux, sm, root.get(), make_erase(kv[5].first));
+    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[5].first));
     EXPECT_EQ(root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 1, consequently 2,3 are erased
-    root = upsert_updates(aux, sm, root.get(), make_erase(kv[1].first));
+    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[1].first));
     EXPECT_EQ(root->mask, 0);
     EXPECT_EQ(root->value(), kv[4].second);
     EXPECT_EQ(
@@ -358,7 +363,7 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     root = upsert_updates(
         aux,
         sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second), // 0x01111111
         make_update(kv[1].first, kv[1].second), // 0x11111111
         make_update(kv[2].first, kv[2].second)); // 0x11111111aaaa
@@ -376,7 +381,7 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     root = upsert_updates(
         aux,
         sm,
-        root.get(),
+        std::move(root),
         make_update(kv[1].first, kv[1].second, true), // 0x11111111
         make_update(kv[3].first, kv[3].second)); // 0x11111111aacd
     EXPECT_EQ(

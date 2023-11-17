@@ -44,7 +44,7 @@ TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(key1, value),
         make_update(key1 + subkey2, value),
         make_update(key1 + subkey3, value));
@@ -65,7 +65,7 @@ TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
     updates.push_front(base);
 
     this->root =
-        upsert(this->aux, this->sm, this->root.get(), std::move(updates));
+        upsert(this->aux, this->sm, std::move(this->root), std::move(updates));
     EXPECT_EQ(
         this->root_hash(),
         0xd484201234568edeadbeefc98320234584deadbeef0000000000000000000000_hex);
@@ -84,14 +84,14 @@ TYPED_TEST(TrieTest, insert_one_element)
 
     // single update
     this->root =
-        upsert_updates(this->aux, this->sm, nullptr, make_update(key, val1));
+        upsert_updates(this->aux, this->sm, {}, make_update(key, val1));
     EXPECT_EQ(
         this->root_hash(),
         0xa1aa368afa323866e03c21927db548afda3da793f4d3c646d7dd8109477b907e_hex);
 
     // update again
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_update(key, val2));
+        this->aux, this->sm, std::move(this->root), make_update(key, val2));
     EXPECT_EQ(
         this->root_hash(),
         0x5d225e3b0f1f386171899d343211850f102fa15de6e808c6f614915333a4f3ab_hex);
@@ -104,7 +104,7 @@ TYPED_TEST(TrieTest, simple_inserts)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second));
     EXPECT_EQ(
@@ -114,7 +114,7 @@ TYPED_TEST(TrieTest, simple_inserts)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[2].first, kv[2].second),
         make_update(kv[3].first, kv[3].second));
     EXPECT_EQ(
@@ -124,12 +124,12 @@ TYPED_TEST(TrieTest, simple_inserts)
 
 TYPED_TEST(TrieTest, upsert_fixed_key_length)
 {
-    auto const &kv = var_len_updates::kv;
+    auto const &kv = var_len_values::kv;
     // insert kv 0,1
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second));
     EXPECT_EQ(
@@ -140,7 +140,7 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[2].first, kv[2].second),
         make_update(kv[3].first, kv[3].second));
     EXPECT_EQ(
@@ -151,7 +151,7 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second),
         make_update(kv[6].first, kv[6].second));
@@ -161,13 +161,13 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
 
     // erases
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[4].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[4].first));
     EXPECT_EQ(
         this->root_hash(),
         0x3467f96b8c7a1f9646cbee98500111b37d160ec0f02844b2bdcb89c8bcd3878a_hex);
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[6].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[6].first));
     EXPECT_EQ(
         this->root_hash(),
         0xdba3fae4737cde5014f6200508d7659ccc146b760e3a2ded47d7c422372b6b6c_hex);
@@ -175,7 +175,7 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_erase(kv[2].first),
         make_erase(kv[3].first),
         make_erase(kv[5].first));
@@ -184,15 +184,15 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
         0xb28f388f1d98e9f2fc9daa80988cb324e0d517a86fb1f46b0bf8670728143001_hex);
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[1].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[1].first));
     EXPECT_EQ(
         this->root_hash(),
         0x065ed1753a679bbde2ce3ba5af420292b86acd3fdc2ad74215d54cc10b2add72_hex);
 
     // erase the last one
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[0].first));
-    EXPECT_EQ(this->root.get(), nullptr);
+        this->aux, this->sm, std::move(this->root), make_erase(kv[0].first));
+    EXPECT_EQ(this->root, nullptr);
 }
 
 TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
@@ -202,7 +202,7 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second));
     EXPECT_EQ(
@@ -213,7 +213,7 @@ TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[2].first, kv[2].second),
         make_update(kv[3].first, kv[3].second));
     EXPECT_EQ(
@@ -264,8 +264,7 @@ TYPED_TEST(TrieTest, inserts_shorter_leaf_data)
             auto &[k, v] = su;
             return make_update(k, monad::byte_string_view{v});
         });
-    this->root =
-        upsert_vector(this->aux, this->sm, nullptr, std::move(update_vec));
+    this->root = upsert_vector(this->aux, this->sm, {}, std::move(update_vec));
     EXPECT_EQ(
         this->root_hash(),
         0xb796133251968233b84f3fcf8af88cdb42eeabe793f27835c10e8b46c91dfa4a_hex);
@@ -293,7 +292,7 @@ TYPED_TEST(EraseTrieTest, remove_everything)
             return make_erase(k);
         });
     this->root = upsert_vector(
-        this->aux, this->sm, this->root.get(), std::move(update_vec));
+        this->aux, this->sm, std::move(this->root), std::move(update_vec));
     EXPECT_EQ(
         this->root_hash(),
         0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
@@ -306,7 +305,7 @@ TYPED_TEST(EraseTrieTest, delete_single_branch)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_erase(kv[2].first),
         make_erase(kv[3].first));
     EXPECT_EQ(
@@ -319,25 +318,25 @@ TYPED_TEST(EraseTrieTest, delete_one_at_a_time)
     auto kv = fixed_updates::kv;
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[2].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[2].first));
     EXPECT_EQ(
         this->root_hash(),
         0xd8b34a85db25148b1901459eac9805edadaa20b03f41fecd3b571f3b549e2774_hex);
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[1].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[1].first));
     EXPECT_EQ(
         this->root_hash(),
         0x107c8dd7bf9e7ca1faaa2c5856b412a8d7fccfa0005ca2500673a86b9c1760de_hex);
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[0].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[0].first));
     EXPECT_EQ(
         this->root_hash(),
         0x15fa9c02a40994d2d4f9c9b21daba3c4e455985490de5f9ae4889548f34d5873_hex);
 
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[3].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[3].first));
     EXPECT_EQ(
         this->root_hash(),
         0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
@@ -370,7 +369,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second));
@@ -383,7 +382,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
         0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex;
     auto new_val = 0x1234_hex;
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_update(acc1, new_val));
+        this->aux, this->sm, std::move(this->root), make_update(acc1, new_val));
     EXPECT_EQ(
         this->root_hash(),
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
@@ -392,7 +391,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[3].first, kv[3].second));
     EXPECT_EQ(
         this->root_hash(),
@@ -402,7 +401,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
         this->root_hash(),
@@ -412,7 +411,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_erase(kv[3].first),
         make_erase(kv[4].first));
     EXPECT_EQ(
@@ -423,7 +422,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, new_val, true),
         make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
@@ -434,7 +433,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[5].first, kv[5].second),
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
@@ -447,7 +446,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     // leaf data is the input value, we don't concatenate with `empty_trie_hash`
     // in this poc impl yet.
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[4].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[4].first));
     EXPECT_EQ(
         this->root_hash(),
         0x055a9738d15fb121afe470905ca2254da172da7a188d8caa690f279c10422380_hex);
@@ -456,7 +455,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_erase(kv[0].first),
         make_update(kv[3].first, kv[3].second), /*the following are ignored*/
         make_update(kv[4].first, kv[4].second));
@@ -486,7 +485,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(kv[0].first, kv[0].second, false, std::move(storage)),
         make_update(kv[1].first, kv[1].second));
     EXPECT_EQ(
@@ -502,7 +501,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(acc1, new_val, false, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -515,7 +514,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -528,7 +527,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -543,7 +542,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -555,7 +554,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, new_val, true, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -569,7 +568,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[1].first, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -581,7 +580,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(kv[0].first, std::move(storage)));
     EXPECT_EQ(
         this->root_hash(),
@@ -589,7 +588,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
     // erase whole first account (kv[0])
     this->root = upsert_updates(
-        this->aux, this->sm, this->root.get(), make_erase(kv[0].first));
+        this->aux, this->sm, std::move(this->root), make_erase(kv[0].first));
     EXPECT_EQ(
         this->root_hash(),
         0x2c077fecb021212686442677ecd59ac2946c34e398b723cf1be431239cb11858_hex);
@@ -630,7 +629,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        nullptr,
+        {},
         make_update(blockno, {}, false, std::move(state_changes)));
     auto [state_root, res] =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno);
@@ -646,7 +645,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         this->root = upsert_updates(
             this->aux,
             this->sm,
-            this->root.get(),
+            std::move(this->root),
             make_update(blockno, leaf_value, false, std::move(state_changes)));
         auto [state_root, res] =
             find_blocking(this->get_storage_pool(), this->root.get(), blockno);
@@ -662,7 +661,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(blockno2, monad::byte_string_view{}));
 
     std::tie(state_root, res) =
@@ -688,7 +687,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     this->root = upsert_updates(
         this->aux,
         this->sm,
-        this->root.get(),
+        std::move(this->root),
         make_update(blockno3, 0xdeadbeef03_hex));
     std::tie(state_root, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno3);

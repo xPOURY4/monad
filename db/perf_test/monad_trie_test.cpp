@@ -117,7 +117,7 @@ inline Node::UniquePtr batch_upsert_commit(
     updates.push_front(u);
 
     auto ts_before = std::chrono::steady_clock::now();
-    auto new_root = upsert(aux, sm, prev_root.get(), std::move(updates));
+    auto new_root = upsert(aux, sm, std::move(prev_root), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = static_cast<double>(
                  std::chrono::duration_cast<std::chrono::nanoseconds>(

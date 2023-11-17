@@ -11,41 +11,21 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct ChildData;
-class Node;
-
 struct UpwardTreeNode
 {
     UpwardTreeNode *parent{nullptr};
-    Node *node{nullptr}; // new node
-    Node::UniquePtr
-        old{}; // tnode owns old node's lifetime only when old is leaf
-               // node, as opt_leaf_data has to be valid in memory
-               // when it works the way back to recompute leaf data
+    // old only exists to extend the lifetime of opt_leaf_data, when the data
+    // comes from old
+    Node::UniquePtr old{};
     allocators::owning_span<ChildData> children{};
     Nibbles path{};
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
     uint16_t mask{0};
     uint16_t orig_mask{0};
     uint8_t branch{INVALID_BRANCH};
-    unsigned npending{0};
+    uint8_t npending{0};
     uint8_t trie_section{0}; // max 255 diff sections in trie
     uint8_t prefix_index{0};
-
-    // void (*done_)(UpwardTreeNode *, void *) noexcept {nullptr};
-    // void *done_value_{nullptr};
-
-    void init(
-        uint16_t const mask_, unsigned const prefix_index_,
-        std::optional<byte_string_view> const opt_leaf_data_ = std::nullopt)
-    {
-        mask = mask_;
-        orig_mask = mask_;
-        npending = number_of_children();
-        prefix_index = static_cast<uint8_t>(prefix_index_);
-        children = allocators::owning_span<ChildData>(number_of_children());
-        opt_leaf_data = opt_leaf_data_;
-    }
 
     [[nodiscard]] unsigned number_of_children() const
     {
@@ -77,25 +57,28 @@ struct UpwardTreeNode
 using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
 inline tnode_unique_ptr make_tnode(
-    uint8_t const trie_section = 0, UpwardTreeNode *const parent = nullptr,
-    uint8_t const branch = INVALID_BRANCH, Node::UniquePtr old = {})
+    uint16_t const orig_mask, unsigned const prefix_index,
+    uint8_t const trie_section, UpwardTreeNode *const parent = nullptr,
+    uint8_t const branch = INVALID_BRANCH, NibblesView const path = {},
+    std::optional<byte_string_view> const opt_leaf_data = std::nullopt,
+    Node::UniquePtr old = {})
 {
-    // tnode is linked to parent tnode on creation
+    auto const n = static_cast<uint8_t>(std::popcount(orig_mask));
     return UpwardTreeNode::make(UpwardTreeNode{
         .parent = parent,
-        .node = nullptr,
         .old = std::move(old),
-        .children = {},
-        .path = {},
-        .opt_leaf_data = std::nullopt,
-        .mask = 0,
-        .orig_mask = 0,
+        .children = allocators::owning_span<ChildData>{n},
+        .path = path,
+        .opt_leaf_data = opt_leaf_data,
+        .mask = orig_mask,
+        .orig_mask = orig_mask,
         .branch = branch,
+        .npending = n,
         .trie_section = trie_section,
-        .prefix_index = 0});
+        .prefix_index = static_cast<uint8_t>(prefix_index)});
 }
 
-static_assert(sizeof(UpwardTreeNode) == 96);
+static_assert(sizeof(UpwardTreeNode) == 80);
 static_assert(alignof(UpwardTreeNode) == 8);
 
 MONAD_MPT_NAMESPACE_END

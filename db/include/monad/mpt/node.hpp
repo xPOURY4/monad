@@ -17,6 +17,7 @@ MONAD_MPT_NAMESPACE_BEGIN
 struct Compute;
 class NibblesView;
 class Node;
+struct TrieStateMachine;
 
 static constexpr size_t size_of_node = 8;
 constexpr size_t calculate_node_size(
@@ -185,6 +186,7 @@ public:
     bool has_path() const noexcept;
     unsigned path_bytes() const noexcept;
     NibblesView path_nibble_view() const noexcept;
+    unsigned path_start_nibble() const noexcept;
 
     //! value
     unsigned char *value_data() noexcept;
@@ -213,7 +215,6 @@ public:
 
     //! node size in memory
     unsigned get_mem_size() noexcept;
-
     uint16_t get_disk_size() noexcept;
 };
 
@@ -224,10 +225,6 @@ static_assert(alignof(Node) == 2);
 
 // ChildData is for temporarily holding a child's info, including child ptr,
 // file offset and hash data, in the update recursion.
-// TODO for async: children data are part of the state when doing update
-// asynchronously, should allocate an array of ChildData or an array of
-// byte_string on heap instead of on current stack frame, which will be
-// destructed when async
 struct ChildData
 {
     Node *ptr{nullptr};
@@ -236,6 +233,13 @@ struct ChildData
     detail::unsigned_20 min_count{uint32_t(-1)};
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
+    uint8_t trie_section{uint8_t(-1)};
+
+    bool is_valid() const;
+    void erase();
+    void set_branch_and_section(unsigned i, uint8_t sec);
+    void set_node_and_compute_data(Node *node, TrieStateMachine &sm);
+    void copy_old_child(Node *old, unsigned i);
 };
 static_assert(sizeof(ChildData) == 56);
 static_assert(alignof(ChildData) == 8);

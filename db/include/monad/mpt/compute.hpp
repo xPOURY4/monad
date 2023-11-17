@@ -45,8 +45,9 @@ struct TrieStateMachine
     virtual void backward() = 0;
     //! get the current compute implementation
     virtual Compute &get_compute() = 0;
-    //! get current state in uint8_t. It is up to the user to design what each
-    //! value means in the state enum
+    virtual Compute &get_compute(uint8_t sec) = 0;
+    //! get current state in uint8_t. It is up to the user to design what
+    //! each value means in the state enum
     virtual uint8_t get_state() const = 0;
     //! get the current cache option in CacheOption enum type.
     virtual CacheOption cache_option() const = 0;
@@ -88,37 +89,38 @@ namespace detail
             std::span<ChildData> const children, uint16_t const mask) override
         {
             MONAD_DEBUG_ASSERT(std::popcount(mask) >= 1);
-
             // special case, the node to be created has only one branch
             if (std::has_single_bit(mask)) {
-                auto const it = std::ranges::find(
-                    children, std::countr_zero(mask), &ChildData::branch);
+                auto const it = std::ranges::find_if(
+                    children, [](ChildData const &item) constexpr {
+                        return item.is_valid();
+                    });
                 MONAD_DEBUG_ASSERT(it != children.end());
+                MONAD_DEBUG_ASSERT(it->branch < 16);
+                MONAD_DEBUG_ASSERT(it->ptr);
                 return compute_hash_with_extra_nibble_to_state_(*it);
             }
 
             unsigned char branch_str_rlp[544];
             std::span<unsigned char> result = branch_str_rlp;
-            // more than 1 child branch
             unsigned i = 0;
-            for (unsigned j = 0; j < children.size(); ++i) {
-                if (children[j].branch == i) {
-                    result =
-                    (children[j].len < 32)
-                        ? [&] {
-                              memcpy(
-                                  result.data(), children[j].data, children[j].len);
-                              return result.subspan(children[j].len);
-                          }()
-                        : rlp::encode_string(result, {children[j].data, children[j].len});
-                    ++j;
-                }
-                else {
-                    result[0] = RLP_EMPTY_STRING;
-                    result = result.subspan(1);
-                    if (children[j].branch == INVALID_BRANCH) {
-                        ++j;
+            for (auto &child : children) {
+                if (child.is_valid()) {
+                    MONAD_DEBUG_ASSERT(child.branch < 16);
+                    while (child.branch != i) {
+                        result[0] = RLP_EMPTY_STRING;
+                        result = result.subspan(1);
+                        ++i;
                     }
+                    MONAD_DEBUG_ASSERT(i == child.branch);
+                    result =
+                        (child.len < 32)
+                            ? [&] {
+                                  memcpy(result.data(), child.data, child.len);
+                                  return result.subspan(child.len);
+                              }()
+                            : rlp::encode_string(result, {child.data, child.len});
+                    ++i;
                 }
             }
             // encode empty value string
@@ -157,6 +159,7 @@ namespace detail
             for (unsigned i = 0, bit = 1; i < 16; ++i, bit <<= 1) {
                 if (node->mask & bit) {
                     auto const child_index = node->to_child_index(i);
+                    MONAD_DEBUG_ASSERT(node->child_data_len(child_index) <= 32);
                     result =
                         (node->child_data_len(child_index) < 32)
                             ? [&] {
@@ -358,6 +361,17 @@ public:
     virtual constexpr Compute &get_compute() override
     {
         if (curr_section_ == TrieSection::BlockNo) {
+            return candidate_computes().second;
+        }
+        else {
+            return candidate_computes().first;
+        }
+    }
+
+    virtual constexpr Compute &get_compute(uint8_t sec) override
+    {
+        auto section = static_cast<TrieSection>(sec);
+        if (section == TrieSection::BlockNo) {
             return candidate_computes().second;
         }
         else {

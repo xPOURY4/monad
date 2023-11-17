@@ -126,7 +126,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                     self->root = upsert_updates(
                         self->aux,
                         self->sm,
-                        self->root.get(),
+                        std::move(self->root),
                         make_update(
                             to_byte_string(i.key()), to_byte_string(item)));
                 }
@@ -140,7 +140,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                     self->root = upsert_updates(
                         self->aux,
                         self->sm,
-                        self->root.get(),
+                        std::move(self->root),
                         make_update(
                             to_byte_string(i.key()),
                             to_byte_string(item.at("value").as_string()),
@@ -163,7 +163,7 @@ inline void do_erase_corpus(State *self, ::boost::json::object const &updates)
         self->root = upsert_updates(
             self->aux,
             self->sm,
-            self->root.get(),
+            std::move(self->root),
             make_erase(to_byte_string(i.key())));
     }
 }

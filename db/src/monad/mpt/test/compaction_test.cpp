@@ -42,7 +42,10 @@ TEST_F(CompactionTest, first_chunk_is_compacted)
         update_ls.push_front(i);
     }
     state()->root = upsert(
-        state()->aux, state()->sm, state()->root.get(), std::move(update_ls));
+        state()->aux,
+        state()->sm,
+        std::move(state()->root),
+        std::move(update_ls));
     std::cout << "\nBefore compaction:";
     state()->print(std::cout);
     // TODO DO COMPACTION

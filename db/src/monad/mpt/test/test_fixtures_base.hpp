@@ -14,24 +14,24 @@ namespace monad::test
     using namespace monad::literals;
 
     Node::UniquePtr upsert_vector(
-        UpdateAux &aux, TrieStateMachine &sm, Node *const old,
+        UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
         std::vector<Update> &&update_vec)
     {
         UpdateList update_ls;
         for (auto &it : update_vec) {
             update_ls.push_front(it);
         }
-        return upsert(aux, sm, old, std::move(update_ls));
+        return upsert(aux, sm, std::move(old), std::move(update_ls));
     }
 
     template <class... Updates>
     [[nodiscard]] constexpr Node::UniquePtr upsert_updates(
-        UpdateAux &aux, TrieStateMachine &sm, Node *const old,
+        UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
         Updates... updates)
     {
         UpdateList update_ls;
         (update_ls.push_front(updates), ...);
-        return upsert(aux, sm, old, std::move(update_ls));
+        return upsert(aux, sm, std::move(old), std::move(update_ls));
     }
 
     namespace fixed_updates
@@ -60,7 +60,7 @@ namespace monad::test
              0xdeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabedeadbabe_hex}};
     };
 
-    namespace var_len_updates
+    namespace var_len_values
     {
         std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
             {0x0234567812345678123456781234567812345678123456781234567812345678_hex,
@@ -273,7 +273,8 @@ namespace monad::test
                             make_update(keys.back().first, keys.back().first));
                         update_ls.push_front(updates.back());
                     }
-                    root = upsert(aux, sm, root.get(), std::move(update_ls));
+                    root =
+                        upsert(aux, sm, std::move(root), std::move(update_ls));
                     size_t count = 0;
                     for (auto const *ci = aux.db_metadata()->fast_list_begin();
                          ci != nullptr;

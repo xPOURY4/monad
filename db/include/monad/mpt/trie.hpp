@@ -140,7 +140,7 @@ static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
 Node::UniquePtr
-upsert(UpdateAux &, TrieStateMachine &, Node *old, UpdateList &&);
+upsert(UpdateAux &, TrieStateMachine &, Node::UniquePtr old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 

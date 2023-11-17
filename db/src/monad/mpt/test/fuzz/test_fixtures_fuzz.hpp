@@ -210,7 +210,10 @@ namespace monad::test
             for (auto &[_, input] : inputs) {
                 count += input.size();
                 this->root = upsert_vector(
-                    this->aux, this->sm, this->root.get(), std::move(input));
+                    this->aux,
+                    this->sm,
+                    std::move(this->root),
+                    std::move(input));
             }
             MONAD_ASSERT(count >= 100);
         }
@@ -231,7 +234,10 @@ namespace monad::test
                         one_hundred_updates[i].second));
                 }
                 this->root = upsert_vector(
-                    this->aux, this->sm, this->root.get(), std::move(correct));
+                    this->aux,
+                    this->sm,
+                    std::move(this->root),
+                    std::move(correct));
             }
 
             MONAD_ASSERT(
@@ -270,7 +276,10 @@ namespace monad::test
 
             if (!updates.empty()) {
                 this->root = upsert_vector(
-                    this->aux, this->sm, this->root.get(), std::move(updates));
+                    this->aux,
+                    this->sm,
+                    std::move(this->root),
+                    std::move(updates));
             }
             MONAD_ASSERT(root_hash() == NULL_ROOT);
         }
