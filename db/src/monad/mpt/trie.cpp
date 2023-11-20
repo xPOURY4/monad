@@ -664,7 +664,7 @@ bool update_leaf_data_(
     MONAD_ASSERT(update.value.has_value());
     tnode->node =
         update.incarnation
-            ? create_leaf(update.value.value().data(), tnode->relpath)
+            ? create_leaf(update.value.value(), tnode->relpath)
             : update_node_diff_path_leaf(old, tnode->relpath, update.value);
     return true;
 }
