@@ -39,17 +39,8 @@ struct ManyNestedUpdates : public TFixture
 {
 };
 
-using TrieTypes = ::testing::Types<InMemoryTrieGTest>;
+using TrieTypes = ::testing::Types<InMemoryTrieGTest, OnDiskTrieGTest>;
 TYPED_TEST_SUITE(ManyNestedUpdates, TrieTypes);
-
-template <typename TFixture>
-struct EraseTrieTest : public TFixture
-{
-};
-
-using EraseTrieType = ::testing::Types<
-    EraseFixture<InMemoryTrieGTest>, EraseFixture<OnDiskTrieGTest>>;
-TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
 inline ::boost::json::value read_corpus(std::string_view suffix)
 {
