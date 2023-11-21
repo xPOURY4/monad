@@ -140,14 +140,8 @@ Node::UniquePtr copy_node(
                 // `node_latter_half` in memory here. TODO once we enable the
                 // write back cache, we can unpin the node from memory no
                 // problem.
-                auto off =
-                    async_write_node(aux, *node_latter_half).offset_written_to;
-                auto const pages =
-                    num_pages(off.offset, node_latter_half->get_disk_size());
-                MONAD_DEBUG_ASSERT(
-                    pages <= std::numeric_limits<uint16_t>::max());
-                off.spare = static_cast<uint16_t>(pages);
-                children[leaf_first].offset = off;
+                children[leaf_first].offset =
+                    async_write_node_set_spare(aux, *node_latter_half);
             }
             return make_node(
                        mask,

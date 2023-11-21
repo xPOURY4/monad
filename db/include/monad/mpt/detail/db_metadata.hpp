@@ -44,6 +44,7 @@ namespace detail
         uint64_t capacity_in_free_list; // used to detect when free space is
                                         // running low
         chunk_offset_t root_offset;
+        chunk_offset_t latest_slow_offset;
 
         // used to know if the metadata was being
         // updated when the process suddenly exited

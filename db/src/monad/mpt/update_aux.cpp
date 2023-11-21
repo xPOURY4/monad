@@ -1,6 +1,5 @@
-#include <monad/mpt/trie.hpp>
-
 #include <monad/core/small_prng.hpp>
+#include <monad/mpt/trie.hpp>
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -103,10 +102,8 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::rewind_offset_to(chunk_offset_t const fast_offset)
+void UpdateAux::rewind_offsets_to(chunk_offset_t const fast_offset)
 {
-    /* TODO FIXME: We need to also adjust the slow list, and slow_node_writer's
-     * offset */
     // Free all chunks after fast_offset.id
     auto *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
@@ -120,12 +117,33 @@ void UpdateAux::rewind_offset_to(chunk_offset_t const fast_offset)
     MONAD_ASSERT(fast_offset_chunk->try_trim_contents(fast_offset.offset));
 
     // Reset node_writer's offset, and buffer too
-    node_writer->sender().reset(
+    node_writer_fast->sender().reset(
         fast_offset,
-        {node_writer->sender().buffer().data(),
+        {node_writer_fast->sender().buffer().data(),
          std::min(
              AsyncIO::WRITE_BUFFER_SIZE,
              size_t(fast_offset_chunk->capacity() - fast_offset.offset))});
+
+    // Same for slow list
+    auto const slow_offset = db_metadata_[0]->latest_slow_offset;
+    auto *slow_ci = db_metadata_[0]->at(slow_offset.id);
+    while (slow_ci != db_metadata_[0]->slow_list_end()) {
+        auto const idx = db_metadata_[0]->slow_list.end;
+        remove(idx);
+        io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
+        prepend(chunk_list::free, idx);
+    }
+    auto slow_offset_chunk =
+        io->storage_pool().chunk(storage_pool::seq, slow_offset.id);
+    MONAD_ASSERT(slow_offset_chunk->try_trim_contents(slow_offset.offset));
+
+    // Reset node_writer's offset, and buffer too
+    node_writer_slow->sender().reset(
+        slow_offset,
+        {node_writer_slow->sender().buffer().data(),
+         std::min(
+             AsyncIO::WRITE_BUFFER_SIZE,
+             size_t(slow_offset_chunk->capacity() - slow_offset.offset))});
 }
 
 UpdateAux::~UpdateAux()
@@ -226,17 +244,24 @@ void UpdateAux::set_io(AsyncIO *io_)
         small_prng rand;
         random_shuffle(chunks.begin(), chunks.end(), rand);
 #endif
+        // root offset is the front of fast list
         chunk_offset_t const root_offset(chunks.front(), 0);
         append(chunk_list::fast, root_offset.id);
-        std::span const chunks_after_first(
-            chunks.data() + 1, chunks.size() - 1);
-        for (uint32_t const i : chunks_after_first) {
+        // init the first slow chunk and slow_offset
+        chunk_offset_t const slow_offset(chunks[1], 0);
+        append(chunk_list::slow, slow_offset.id);
+        std::span const chunks_after_second(
+            chunks.data() + 2, chunks.size() - 2);
+        // insert the rest of the chunks to free list
+        for (uint32_t const i : chunks_after_second) {
             append(chunk_list::free, i);
         }
 
         // Mark as done
         db_metadata_[0]->root_offset = root_offset;
         db_metadata_[1]->root_offset = root_offset;
+        db_metadata_[0]->latest_slow_offset = slow_offset;
+        db_metadata_[1]->latest_slow_offset = slow_offset;
         std::atomic_signal_fence(
             std::memory_order_seq_cst); // no compiler reordering here
         memcpy(db_metadata_[0]->magic, "MND0", 4);
@@ -244,27 +269,34 @@ void UpdateAux::set_io(AsyncIO *io_)
     }
     // If the pool has changed since we configured the metadata, this will fail
     MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
-    // Default behavior: initialize the node writer to start at the front of
-    // fast list, and it can be reset later in `rewind_offset_to()`.
-    // Make sure the initial fast offset points into a block in use as
-    // a sanity check
-    chunk_offset_t const default_offset_to_start{
-        db_metadata_[0]->fast_list.begin, 0};
-    auto chunk =
-        io->storage_pool().chunk(storage_pool::seq, default_offset_to_start.id);
-    MONAD_ASSERT(chunk->size() >= default_offset_to_start.offset);
-    chunk_offset_t const node_writer_offset(default_offset_to_start);
-    node_writer =
-        io ? io->make_connected(
-                 write_single_buffer_sender{
-                     node_writer_offset,
-                     {(std::byte const *)nullptr,
-                      std::min(
-                          AsyncIO::WRITE_BUFFER_SIZE,
-                          size_t(
-                              chunk->capacity() - node_writer_offset.offset))}},
-                 write_operation_io_receiver{})
-           : node_writer_unique_ptr_type{};
+    // Default behavior: initialize node writers to start at the front of
+    // slow and fast list respectively, and they will be reset later in
+    // `rewind_offset_to()`.
+    // Make sure the initial fast/slow offset points into a block in use as a
+    // sanity check
+    auto init_node_writer =
+        [&](bool const is_fast) -> node_writer_unique_ptr_type {
+        chunk_offset_t const node_writer_offset{
+            is_fast ? db_metadata_[0]->fast_list.begin
+                    : db_metadata_[0]->slow_list.begin,
+            0};
+        auto chunk =
+            io->storage_pool().chunk(storage_pool::seq, node_writer_offset.id);
+        MONAD_ASSERT(chunk->size() >= node_writer_offset.offset);
+        return io ? io->make_connected(
+                        write_single_buffer_sender{
+                            node_writer_offset,
+                            {(std::byte const *)nullptr,
+                             std::min(
+                                 AsyncIO::WRITE_BUFFER_SIZE,
+                                 size_t(
+                                     chunk->capacity() -
+                                     node_writer_offset.offset))}},
+                        write_operation_io_receiver{})
+                  : node_writer_unique_ptr_type{};
+    };
+    node_writer_fast = init_node_writer(true);
+    node_writer_slow = init_node_writer(false);
 }
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic pop

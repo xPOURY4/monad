@@ -56,13 +56,8 @@ struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
     }
 };
 
-struct async_write_node_result
-{
-    chunk_offset_t offset_written_to;
-    unsigned bytes_appended;
-    MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
-};
-async_write_node_result async_write_node(UpdateAux &, Node const &);
+chunk_offset_t
+async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast = true);
 
 // \class Auxiliaries for triedb update
 class UpdateAux
@@ -89,21 +84,26 @@ public:
     void append(chunk_list list, uint32_t idx) noexcept;
     void prepend(chunk_list list, uint32_t idx) noexcept;
     void remove(uint32_t idx) noexcept;
-    void advance_root_offset(chunk_offset_t offset) noexcept
+    void advance_offsets_to(
+        chunk_offset_t root_offset, chunk_offset_t slow_offset) noexcept
     {
-        auto do_ = [&](detail::db_metadata *m) { m->root_offset = offset; };
+        auto do_ = [&](detail::db_metadata *m) {
+            m->root_offset = root_offset;
+            m->latest_slow_offset = slow_offset;
+        };
         do_(db_metadata_[0]);
         do_(db_metadata_[1]);
     }
     // WARNING: This is destructive
-    void rewind_offset_to(chunk_offset_t fast_offset);
+    void rewind_offsets_to(chunk_offset_t fast_offset);
 
 public:
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
-    node_writer_unique_ptr_type node_writer{};
+    node_writer_unique_ptr_type node_writer_fast{}, node_writer_slow{};
 
     UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
-        : node_writer(node_writer_unique_ptr_type{})
+        : node_writer_fast(node_writer_unique_ptr_type{})
+        , node_writer_slow(node_writer_unique_ptr_type{})
     {
         if (io_) {
             set_io(io_);
@@ -135,7 +135,7 @@ public:
         return db_metadata_[0]->capacity_in_free_list;
     }
 };
-static_assert(sizeof(UpdateAux) == 32);
+static_assert(sizeof(UpdateAux) == 40);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

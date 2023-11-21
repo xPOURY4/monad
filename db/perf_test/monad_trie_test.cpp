@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
                 root_off.add_to_offset(root->get_disk_size()));
             // destroy contents after fast_offset.id chunck, and reset
             // node_writer's offset.
-            aux.rewind_offset_to(fast_offset);
+            aux.rewind_offsets_to(fast_offset);
         }
 
         auto begin_test = std::chrono::steady_clock::now();

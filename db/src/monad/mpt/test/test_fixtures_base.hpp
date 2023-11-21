@@ -187,7 +187,7 @@ namespace monad::test
         OnDiskTrieBase()
             : ring(monad::io::Ring(2, 0))
             , rwbuf(
-                  ring, 2, 2,
+                  ring, 2, 4,
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
                   MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)
             , io(pool, ring, rwbuf)
