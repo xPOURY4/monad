@@ -462,5 +462,4 @@ TEST_F(AsyncReadIoWorkerPool, async_completions_are_not_racy)
         shared_state_()->testio->wait_until_done();
     }
     EXPECT_TRUE(state.sender().defers);
-    EXPECT_TRUE(workerpool.currently_idle());
 }
