@@ -2,7 +2,7 @@
 #include <monad/io/ring.hpp>
 
 #include <monad/config.hpp>
-#include <monad/test/gtest_signal_stacktrace_printer.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>  // NOLINT
 
 #include <gtest/gtest.h>
 

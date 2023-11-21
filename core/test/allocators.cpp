@@ -1,13 +1,14 @@
 #include <monad/mem/allocators.hpp>
 
 #include <monad/config.hpp>
-#include <monad/test/gtest_signal_stacktrace_printer.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>  // NOLINT
 
 #include <gtest/gtest.h>
 
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 namespace

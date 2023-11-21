@@ -1,11 +1,11 @@
 #include <monad/core/backtrace.hpp>
 
-#include <monad/config.hpp>
 #include <monad/core/assert.h>
-
-#include <monad/test/gtest_signal_stacktrace_printer.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp>  // NOLINT
 
 #include <array>
+#include <cstdio>
+#include <cstring>
 #include <cstddef>
 #include <span>
 

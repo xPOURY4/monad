@@ -1,3 +1,4 @@
+#include <monad/config.hpp>
 #include <monad/core/backtrace.hpp>
 
 #include <monad/core/assert.h>
@@ -5,6 +6,14 @@
 #include <boost/stacktrace/stacktrace.hpp>
 
 #include <cstdarg>
+#include <cstddef>
+#include <cstdio>
+#include <cstring>
+#include <span>
+#include <stdlib.h>
+#include <type_traits>
+
+#include <unistd.h>
 
 MONAD_NAMESPACE_BEGIN
 
@@ -34,7 +43,8 @@ namespace detail
             p = buffer.data();
         }
         template <class U>
-        constexpr FixedBufferAllocator(FixedBufferAllocator<U> const &o)
+        constexpr FixedBufferAllocator( // NOLINT
+            FixedBufferAllocator<U> const &o)
             : buffer(o.buffer)
             , p(o.p)
         {
@@ -65,7 +75,7 @@ struct stack_backtrace_impl final : public stack_backtrace
     byte_allocator_type main_alloc;
     stacktrace_implementation_type stacktrace;
 
-    stack_backtrace_impl(std::span<std::byte> storage)
+    explicit stack_backtrace_impl(std::span<std::byte> storage)
         : main_alloc(storage, storage_end)
         , stacktrace(stacktrace_allocator_type{main_alloc})
     {
