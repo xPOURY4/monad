@@ -676,8 +676,7 @@ Node *create_new_trie_(
     MONAD_DEBUG_ASSERT(updates.size());
     if (updates.size() == 1) {
         Update &update = updates.front();
-        MONAD_DEBUG_ASSERT(
-            update.incarnation == false && update.value.has_value());
+        MONAD_DEBUG_ASSERT(update.value.has_value());
         auto const relpath = update.key.substr(pi);
         if (!update.next.empty()) {
             sm.forward();
