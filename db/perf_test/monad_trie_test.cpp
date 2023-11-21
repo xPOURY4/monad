@@ -1,21 +1,22 @@
 #include <CLI/CLI.hpp>
 
 #include <monad/async/config.hpp>
+#include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
-#include <monad/io/buffers.hpp>
-#include <monad/io/ring.hpp>
-#include <monad/mpt/node.hpp>
-#include <monad/mpt/util.hpp>
-#include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 #include <monad/mpt/compute.hpp>
+#include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cerrno>
 #include <chrono>

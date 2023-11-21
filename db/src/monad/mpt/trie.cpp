@@ -10,6 +10,7 @@
 #include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/unsigned_20.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/request.hpp>
@@ -286,7 +287,7 @@ void UpdateAux::set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_)
     auto chunk =
         io->storage_pool().chunk(storage_pool::seq, default_offset_to_start.id);
     MONAD_ASSERT(chunk->size() >= default_offset_to_start.offset);
-    chunk_offset_t node_writer_offset(default_offset_to_start);
+    chunk_offset_t const node_writer_offset(default_offset_to_start);
     node_writer =
         io ? io->make_connected(
                  MONAD_ASYNC_NAMESPACE::write_single_buffer_sender{
@@ -692,8 +693,8 @@ Node *create_new_trie_(
     }
     Requests requests;
     auto const psi = pi;
-    while (requests.split_into_sublists(std::move(updates), pi) == 1 &&
-           !requests.opt_leaf) {
+    while (requests.split_into_sublists(std::move(updates), pi) == 1 // NOLINT
+           && !requests.opt_leaf) {
         updates = std::move(requests).first_and_only_list();
         ++pi;
     }
@@ -717,7 +718,7 @@ Node *create_new_trie_from_requests_(
     std::vector<ChildData> children(number_of_children);
     for (unsigned i = 0, j = 0, bit = 1; j < number_of_children;
          ++i, bit <<= 1) {
-        if (bit & requests.mask) {
+        if (bit & requests.mask) { // NOLINT
             auto node =
                 create_new_trie_(aux, sm, std::move(requests)[i], pi + 1);
             auto &entry = children[j++];
@@ -753,7 +754,8 @@ bool upsert_(
         if (updates.size() == 1 && pi == updates.front().key.nibble_size()) {
             return update_leaf_data_(aux, sm, old, tnode, updates.front());
         }
-        unsigned const n = requests.split_into_sublists(std::move(updates), pi);
+        unsigned const n =
+            requests.split_into_sublists(std::move(updates), pi); // NOLINT
         MONAD_DEBUG_ASSERT(n);
         if (old_pi == old->path_nibble_index_end) {
             return dispatch_updates_flat_list_(
@@ -785,7 +787,7 @@ bool dispatch_updates_impl_(
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         auto &child = tnode->children[j];
         MONAD_DEBUG_ASSERT(i <= std::numeric_limits<uint8_t>::max());
-        if (bit & requests.mask) {
+        if (bit & requests.mask) { // NOLINT
             Node *node = nullptr;
             if (bit & old->mask) {
                 node_ptr next_ = old->next_ptr(i);
@@ -907,7 +909,7 @@ bool mismatch_handler_(
     MONAD_DEBUG_ASSERT(n > 1);
     for (unsigned i = 0, j = 0, bit = 1; j < n; ++i, bit <<= 1) {
         auto &child = tnode->children[j];
-        if (bit & requests.mask) {
+        if (bit & requests.mask) { // NOLINT
             Node *node = nullptr;
             if (i == old_nibble) {
                 auto next_tnode = make_tnode(sm.get_state());

@@ -35,6 +35,9 @@ public:
         , end_nibble_(static_cast<size_type>(end_nibble))
     {
         MONAD_DEBUG_ASSERT(end_nibble <= std::numeric_limits<size_type>::max());
+#ifdef __clang_analyzer__ // false positive
+        memset(data_.get(), 0, (end_nibble + 1) / 2);
+#endif
     }
 
     Nibbles(NibblesView other);

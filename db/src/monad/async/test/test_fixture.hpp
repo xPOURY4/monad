@@ -5,6 +5,7 @@
 #include <monad/async/io.hpp>
 
 #include <monad/core/small_prng.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 namespace monad::test
 {

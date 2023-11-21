@@ -5,6 +5,7 @@
 #include <monad/async/storage_pool.hpp>
 #include <monad/async/util.hpp>
 #include <monad/core/assert.h>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 #include <array>
 #include <cmath>

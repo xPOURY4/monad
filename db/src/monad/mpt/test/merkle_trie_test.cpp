@@ -503,7 +503,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
     // update first trie mid leaf data
     // with nested storage changes but doesn't change any value
     auto acc1 = kv[0].first, new_val = 0x1234_hex;
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(a);
     this->root = upsert_updates(
         this->aux,
@@ -516,7 +516,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
     // update storages
     Update b = make_update(storage_kv[1].first, storage_kv[1].second);
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(b);
     this->root = upsert_updates(
         this->aux,
@@ -529,7 +529,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
     // update storage again
     Update c = make_update(storage_kv[2].first, storage_kv[2].second);
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(c);
     this->root = upsert_updates(
         this->aux,
@@ -541,7 +541,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
     // erase some storage
-    storage.clear();
+    storage.clear(); // NOLINT
     Update erase_b = make_erase(storage_kv[1].first),
            erase_c = make_erase(storage_kv[2].first);
     storage.push_front(erase_b);
@@ -556,7 +556,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
         0xe9e9d8bd0c74fe45b27ac36169fd6d58a0ee4eb6573fdf6a8680be814a63d2f5_hex);
 
     // incarnation
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(c);
     this->root = upsert_updates(
         this->aux,
@@ -568,7 +568,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
         0x2667b2bcc7c6a9afcd5a621be863fc06bf76022450e7e2e11ef792d63c7a689c_hex);
 
     // insert storages to the second account
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(a);
     storage.push_front(b);
     storage.push_front(c);
@@ -582,7 +582,7 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
         0x7954fcaa023fb356d6c626119220461c7859b93abd6ea71eac342d8407d7051e_hex);
 
     // erase all storages of kv[0].
-    storage.clear();
+    storage.clear(); // NOLINT
     storage.push_front(erase_c);
     this->root = upsert_updates(
         this->aux,

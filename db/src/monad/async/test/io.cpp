@@ -10,6 +10,7 @@
 #include <monad/core/assert.h>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 #include <chrono>
 #include <cstddef>

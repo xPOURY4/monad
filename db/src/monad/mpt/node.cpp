@@ -7,6 +7,7 @@
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -147,7 +148,7 @@ Node *update_node_diff_path_leaf(
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned>::max());
     node_ptr node = Node::make_node(static_cast<unsigned>(bytes));
     // copy Node, fnexts and data_off array
-    std::memcpy(
+    std::memcpy( // NOLINT
         (void *)node.get(),
         old,
         ((uintptr_t)old->path_data() - (uintptr_t)old));

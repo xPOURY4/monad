@@ -9,6 +9,7 @@
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 #include <monad/async/util.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <bit>
 #include <cassert>
@@ -282,9 +283,11 @@ storage_pool::device storage_pool::make_device_(
 {
     int readwritefd = fd;
     // chunk capacity must be a power of two, or Linux gets upset
-    MONAD_ASSERT(
-        chunk_capacity ==
-        (1ULL << (63 - std::countl_zero(uint64_t(chunk_capacity)))));
+    {
+        auto const bitpos = std::countl_zero(uint64_t(chunk_capacity));
+        MONAD_ASSERT(bitpos <= 63);
+        MONAD_ASSERT(chunk_capacity == (1ULL << size_t(63 - bitpos)));
+    }
     if (!path.empty()) {
         readwritefd = ::open(path.c_str(), O_RDWR | O_CLOEXEC);
         if (-1 == readwritefd) {

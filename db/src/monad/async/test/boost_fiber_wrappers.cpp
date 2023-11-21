@@ -50,7 +50,8 @@ TEST_F(BoostFiberWrappers, fiber_read)
         // execution until the i/o completes. The TRY operation will
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
-        BOOST_OUTCOME_TRY(std::span<const std::byte> bytesread, fut.get());
+        BOOST_OUTCOME_TRY(
+            std::span<const std::byte> const bytesread, fut.get());
 
         // Return a copy of the registered buffer with lifetime held by fut
         return std::vector<std::byte>(bytesread.begin(), bytesread.end());

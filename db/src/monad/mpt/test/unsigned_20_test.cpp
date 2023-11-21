@@ -1,6 +1,11 @@
 #include "gtest/gtest.h"
 
+#include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
+#include <cstdint>
+#include <type_traits>
 
 TEST(unsigned_20, works)
 {

@@ -1,8 +1,9 @@
 #include "gtest/gtest.h"
 
 #include <monad/core/hex_literal.hpp>
-#include <monad/mpt/nibbles_view.hpp>
 #include <monad/core/nibble.h>
+#include <monad/mpt/nibbles_view.hpp>
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 using namespace monad::mpt;
 using namespace monad::literals;

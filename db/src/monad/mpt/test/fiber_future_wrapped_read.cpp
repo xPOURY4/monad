@@ -1,10 +1,10 @@
 #include "test_fixtures_gtest.hpp" // NOLINT
 
+#include <monad/async/boost_fiber_wrappers.hpp>
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/util.hpp>
-#include <monad/async/boost_fiber_wrappers.hpp>
 #include <monad/core/small_prng.hpp>
 
 #include <boost/fiber/future/async.hpp>
@@ -111,7 +111,8 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
         // execution until the i/o completes. The TRY operation will
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
-        BOOST_OUTCOME_TRY(std::span<const std::byte> bytesread, fut.get());
+        BOOST_OUTCOME_TRY(
+            std::span<const std::byte> const bytesread, fut.get());
 
         EXPECT_EQ(DISK_PAGE_SIZE, bytesread.size());
         EXPECT_EQ(

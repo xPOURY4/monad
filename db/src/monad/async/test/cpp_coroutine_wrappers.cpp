@@ -57,7 +57,7 @@ TEST_F(CppCoroutineWrappers, coroutine_read)
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
         BOOST_OUTCOME_CO_TRY(
-            std::span<const std::byte> bytesread, co_await awaitable);
+            std::span<const std::byte> const bytesread, co_await awaitable);
 
         // Return a copy of the registered buffer with lifetime held by
         // awaitable
@@ -271,7 +271,8 @@ TEST_F(
             read_single_buffer_sender(
                 offset, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE}));
         // Suspend until the read completes
-        BOOST_OUTCOME_CO_TRY(std::span<const std::byte> bytesread, co_await aw);
+        BOOST_OUTCOME_CO_TRY(
+            std::span<const std::byte> const bytesread, co_await aw);
         // Return the result of the byte comparison
         co_return memcmp(
             bytesread.data(),
@@ -281,8 +282,10 @@ TEST_F(
     using state_type = decltype(co_initiate(
         *shared_state_()->testio,
         workerpool,
-        std::bind(
-            task, std::placeholders::_1, chunk_offset_t(0, 0)))); // NOLINT
+        std::bind( // NOLINT
+            task,
+            std::placeholders::_1,
+            chunk_offset_t(0, 0)))); // NOLINT
     std::deque<std::unique_ptr<state_type>> states;
     for (size_t n = 0; n < 100; n++) {
         chunk_offset_t const offset(
