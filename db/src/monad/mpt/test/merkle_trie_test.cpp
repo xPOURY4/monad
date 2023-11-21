@@ -34,6 +34,48 @@ using EraseTrieType = ::testing::Types<
     EraseFixture<InMemoryTrieGTest>, EraseFixture<OnDiskTrieGTest>>;
 TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
+TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
+{
+    // TODO: fix for on disk trie
+    if constexpr (std::same_as<TypeParam, OnDiskTrieGTest>) {
+        GTEST_SKIP();
+    }
+
+    auto const key1 = 0x123456_hex;
+    auto const subkey2 = 0x1234_hex;
+    auto const subkey3 = 0x2345_hex;
+    auto const value = 0xdeadbeef_hex;
+
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        nullptr,
+        make_update(key1, value),
+        make_update(key1 + subkey2, value),
+        make_update(key1 + subkey3, value));
+
+    UpdateList next;
+    Update sub1{
+        .key = subkey2,
+        .value = std::nullopt,
+        .incarnation = false,
+        .next = UpdateList{}};
+    next.push_front(sub1);
+    Update base{
+        .key = key1,
+        .value = value,
+        .incarnation = false,
+        .next = std::move(next)};
+    UpdateList updates;
+    updates.push_front(base);
+
+    this->root =
+        upsert(this->aux, this->sm, this->root.get(), std::move(updates));
+    EXPECT_EQ(
+        this->root_hash(),
+        0xd484201234568edeadbeefc98320234584deadbeef0000000000000000000000_hex);
+}
+
 // Test Starts
 TYPED_TEST(TrieTest, insert_one_element)
 {

@@ -1,8 +1,8 @@
 #include "gtest/gtest.h"
 
-#include <monad/mpt/nibbles_view.hpp>
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/compute.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 
 #include <cstdint>
@@ -14,7 +14,8 @@ using namespace monad::literals;
 struct DummyCompute final : Compute
 {
     // hash length = 1
-    virtual unsigned compute_len(std::span<ChildData> const children) override
+    virtual unsigned
+    compute_len(std::span<ChildData> const children, uint16_t const) override
     {
         unsigned len = 0;
         for (auto const &i : children) {

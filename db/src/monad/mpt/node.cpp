@@ -1,8 +1,8 @@
 #include <monad/mpt/node.hpp>
 
 #include <monad/core/assert.h>
-#include <monad/mpt/compute.hpp>
 #include <monad/core/byte_string.hpp>
+#include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
@@ -84,10 +84,9 @@ Node *create_node(
     uint8_t const value_len = has_value
                                   ? static_cast<uint8_t>(value.value().size())
                                   : 0,
-                  data_len =
-                      has_value
-                          ? static_cast<uint8_t>(comp.compute_len(children))
-                          : 0;
+                  data_len = has_value ? static_cast<uint8_t>(
+                                             comp.compute_len(children, mask))
+                                       : 0;
     auto bytes =
         sizeof(Node) + value_len + data_len +
         number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +

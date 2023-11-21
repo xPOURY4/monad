@@ -10,6 +10,7 @@
 #include <monad/mpt/merkle/node_reference.hpp>
 #include <monad/mpt/node.hpp>
 
+#include <algorithm>
 #include <span>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -19,7 +20,8 @@ struct Compute
     virtual ~Compute(){};
     //! compute length of hash from a span of child data, which include the node
     //! pointer, file offset and calculated hash
-    virtual unsigned compute_len(std::span<ChildData> children) = 0;
+    virtual unsigned
+    compute_len(std::span<ChildData> children, uint16_t mask) = 0;
     //! compute hash_data inside node if hash_len > 0, which is the hash of all
     //! node's branches, return hash data length
     virtual unsigned compute_branch(unsigned char *buffer, Node *node) = 0;
@@ -51,7 +53,8 @@ struct TrieStateMachine
 
 struct EmptyCompute final : Compute
 {
-    virtual unsigned compute_len(std::span<ChildData> const) override
+    virtual unsigned
+    compute_len(std::span<ChildData> const, uint16_t const) override
     {
         return 0;
     }
@@ -80,13 +83,17 @@ namespace detail
     struct MerkleComputeBase : Compute
     {
         // compute the actual data to the internal state
-        virtual unsigned
-        compute_len(std::span<ChildData> const children) override
+        virtual unsigned compute_len(
+            std::span<ChildData> const children, uint16_t const mask) override
         {
-            if (children.size() == 1) {
-                // TODO: not size() == 1 but #valid child = 1
-                // special case, the node to be created has only one branch
-                return compute_hash_with_extra_nibble_to_state_(children[0]);
+            MONAD_DEBUG_ASSERT(std::popcount(mask) >= 1);
+
+            // special case, the node to be created has only one branch
+            if (std::has_single_bit(mask)) {
+                auto const it = std::ranges::find(
+                    children, std::countr_zero(mask), &ChildData::branch);
+                MONAD_DEBUG_ASSERT(it != children.end());
+                return compute_hash_with_extra_nibble_to_state_(*it);
             }
 
             unsigned char branch_str_rlp[544];
