@@ -310,7 +310,7 @@ write_new_root_node(UpdateAux &aux, tnode_unique_ptr &root_tnode);
 
 /* Names: `prefix_index` is nibble index in prefix of an update,
  `old_prefix_index` is nibble index of relpath in previous node - old.
- `*psi` is the starting nibble index in current function frame
+ `*_prefix_index_start` is the starting nibble index in current function frame
 */
 bool dispatch_updates_flat_list_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
@@ -364,9 +364,6 @@ node_ptr upsert(
             assert(aux.is_on_disk());
             aux.io->flush();
             MONAD_ASSERT(root_tnode->npending == 0);
-            sm.reset(root_tnode->trie_section);
-            MONAD_ASSERT(create_node_from_children_if_any_possibly_ondisk(
-                aux, sm, root_tnode.get(), 0));
         }
         if (!root_tnode->node) {
             return {};
@@ -382,8 +379,7 @@ void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
 {
     sm.reset(tnode->trie_section);
     bool beginning = true;
-    while (!tnode->npending && tnode->parent) {
-        auto parent_tnode = tnode->parent;
+    while (!tnode->npending) {
         if (beginning) {
             beginning = false;
         }
@@ -395,18 +391,22 @@ void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
                 return;
             }
         }
+        if (!tnode->parent) {
+            MONAD_ASSERT(tnode->branch == INVALID_BRANCH);
+            return;
+        }
+        auto *parent_tnode = tnode->parent;
         sm.reset(parent_tnode->trie_section);
         if (tnode->node) {
             auto &entry = parent_tnode->children[tnode->child_index()];
-            entry.branch = tnode->child_branch_bit;
+            entry.branch = tnode->branch;
             entry.ptr = tnode->node;
             auto const len = sm.get_compute().compute(entry.data, entry.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
             entry.len = static_cast<uint8_t>(len);
         }
         else { // node ends up being removed by erase updates
-            parent_tnode->mask &=
-                static_cast<uint16_t>(~(1u << tnode->child_branch_bit));
+            parent_tnode->mask &= static_cast<uint16_t>(~(1u << tnode->branch));
         }
         --parent_tnode->npending;
         UpwardTreeNode *p = parent_tnode;
@@ -479,7 +479,7 @@ struct update_receiver
 static_assert(sizeof(update_receiver) == 56);
 static_assert(alignof(update_receiver) == 8);
 
-struct create_node_receiver
+struct read_single_child_receiver
 {
     UpdateAux *aux;
     chunk_offset_t rd_offset;
@@ -489,7 +489,7 @@ struct create_node_receiver
     uint8_t j;
     std::unique_ptr<TrieStateMachine> sm;
 
-    create_node_receiver(
+    read_single_child_receiver(
         UpdateAux *const aux_, std::unique_ptr<TrieStateMachine> sm_,
         UpwardTreeNode *const tnode_, uint8_t const j_)
         : aux(aux_)
@@ -518,22 +518,21 @@ struct create_node_receiver
         std::span<std::byte const> const buffer =
             std::move(buffer_).assume_value();
         // load node from read buffer
-        tnode->node = create_coalesced_node_with_prefix(
-            tnode->children[j].branch,
+        tnode->children[j].ptr =
             deserialize_node_from_buffer(
-                (unsigned char *)buffer.data() + buffer_off),
-            tnode->relpath);
+                (unsigned char *)buffer.data() + buffer_off)
+                .release();
+        MONAD_ASSERT(create_node_from_children_if_any_possibly_ondisk(
+            *aux, *sm, tnode, tnode->prefix_index));
         upward_update(*aux, *sm, tnode);
     }
 };
-static_assert(sizeof(create_node_receiver) == 40);
-static_assert(alignof(create_node_receiver) == 8);
+static_assert(sizeof(read_single_child_receiver) == 40);
+static_assert(alignof(read_single_child_receiver) == 8);
 
 template <receiver Receiver>
 void async_read(UpdateAux &aux, Receiver &&receiver)
 {
-    /* there can be async that changed the state machine state, has
-     * to reset it to the stored one */
     read_update_sender sender(receiver);
     auto iostate =
         aux.io->make_connected(std::move(sender), std::move(receiver));
@@ -608,16 +607,16 @@ bool create_node_from_children_if_any_possibly_ondisk(
     UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode,
     unsigned const prefix_index)
 {
-    if (tnode->number_of_children() == 1 && !tnode->opt_leaf_data.has_value()) {
-        auto const j = bitmask_index(
+    if (tnode->number_of_children() == 1) {
+        auto const index = bitmask_index(
             tnode->orig_mask,
             static_cast<unsigned>(std::countr_zero(tnode->mask)));
-        if (!tnode->children[j].ptr) {
+        if (!tnode->children[index].ptr) {
             MONAD_DEBUG_ASSERT(
                 prefix_index <= std::numeric_limits<uint8_t>::max());
             tnode->prefix_index = static_cast<uint8_t>(prefix_index);
-            create_node_receiver receiver(
-                &aux, sm.clone(), tnode, static_cast<uint8_t>(j));
+            read_single_child_receiver receiver(
+                &aux, sm.clone(), tnode, static_cast<uint8_t>(index));
             async_read(aux, std::move(receiver));
             return false;
         }
@@ -634,7 +633,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
     return true;
 }
 
-//! update leaf data of old, old can have branches
+// update leaf data of old, old can have branches
 bool update_leaf_data_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
     UpwardTreeNode *tnode, Update &update)
@@ -788,9 +787,8 @@ bool upsert_(
     }
 }
 
-//! dispatch updates at the end of old node's path
-//! old node can have leaf data, there might be update to that leaf
-//! return a new node
+/* dispatch updates at the end of old node's path. old node may have leaf data,
+ * and there might be update to the leaf value. */
 bool dispatch_updates_impl_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
     UpwardTreeNode *tnode, Requests &requests, unsigned prefix_index,
@@ -863,10 +861,6 @@ bool dispatch_updates_impl_(
             ++j;
         }
     }
-    // debug
-    for (unsigned j = 0; j < old->number_of_children(); ++j) {
-        assert(!old->next(j));
-    }
     if (tnode->npending) {
         return false;
     }
@@ -915,8 +909,8 @@ bool dispatch_updates_flat_list_(
     }
     return finished;
 }
-//! split old at old_prefix_index, updates at prefix_index
-//! requests can have 1 or more sublists
+// Split `old` at old_prefix_index, `updates` are already splitted at
+// prefix_index to `requests`, which can have 1 or more sublists.
 bool mismatch_handler_(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old,
     UpwardTreeNode *tnode, Requests &requests, unsigned const old_prefix_index,

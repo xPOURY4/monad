@@ -26,7 +26,7 @@ struct UpwardTreeNode
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
     uint16_t mask{0};
     uint16_t orig_mask{0};
-    uint8_t child_branch_bit{INVALID_BRANCH};
+    uint8_t branch{INVALID_BRANCH};
     unsigned npending{0};
     uint8_t trie_section{0}; // max 255 diff sections in trie
     uint8_t prefix_index{0};
@@ -35,13 +35,13 @@ struct UpwardTreeNode
     // void *done_value_{nullptr};
 
     void init(
-        uint16_t const mask_, unsigned const pi_,
+        uint16_t const mask_, unsigned const prefix_index_,
         std::optional<byte_string_view> const opt_leaf_data_ = std::nullopt)
     {
         mask = mask_;
         orig_mask = mask_;
         npending = number_of_children();
-        prefix_index = static_cast<uint8_t>(pi_);
+        prefix_index = static_cast<uint8_t>(prefix_index_);
         children = allocators::owning_span<ChildData>(number_of_children());
         opt_leaf_data = opt_leaf_data_;
     }
@@ -54,8 +54,7 @@ struct UpwardTreeNode
     constexpr uint8_t child_index() const noexcept
     {
         MONAD_ASSERT(parent != nullptr);
-        return static_cast<uint8_t>(
-            bitmask_index(parent->orig_mask, child_branch_bit));
+        return static_cast<uint8_t>(bitmask_index(parent->orig_mask, branch));
     }
     using allocator_type =
         allocators::boost_unordered_pool_allocator<UpwardTreeNode>;
@@ -78,7 +77,7 @@ using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
 inline tnode_unique_ptr make_tnode(
     uint8_t const trie_section = 0, UpwardTreeNode *const parent = nullptr,
-    uint8_t const child_branch_bit = 0, node_ptr old = {})
+    uint8_t const branch = INVALID_BRANCH, node_ptr old = {})
 {
     // tnode is linked to parent tnode on creation
     return UpwardTreeNode::make(UpwardTreeNode{
@@ -90,7 +89,7 @@ inline tnode_unique_ptr make_tnode(
         .opt_leaf_data = std::nullopt,
         .mask = 0,
         .orig_mask = 0,
-        .child_branch_bit = child_branch_bit,
+        .branch = branch,
         .trie_section = trie_section,
         .prefix_index = 0});
 }

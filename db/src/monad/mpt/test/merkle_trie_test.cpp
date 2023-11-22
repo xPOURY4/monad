@@ -36,11 +36,6 @@ TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
 TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
 {
-    // TODO: fix for on disk trie
-    if constexpr (std::same_as<TypeParam, OnDiskTrieGTest>) {
-        GTEST_SKIP();
-    }
-
     auto const key1 = 0x123456_hex;
     auto const subkey2 = 0x1234_hex;
     auto const subkey3 = 0x2345_hex;
