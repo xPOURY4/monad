@@ -252,6 +252,7 @@ namespace detail
         {
             state.len = 0;
             Node *const node = single_child.ptr;
+            MONAD_DEBUG_ASSERT(node);
 
             return state.len = encode_two_pieces_(
                    state.buffer,
