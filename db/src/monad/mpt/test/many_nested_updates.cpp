@@ -179,13 +179,12 @@ inline void do_erase_corpus(State *self, ::boost::json::object const &updates)
 
 TYPED_TEST(ManyNestedUpdates, simple_fixed_test_not_from_json)
 {
-    auto const
-        key1 =
-            0xac4c09c28206e7e35594aa6b342f5d0a3a5e4842fab428f762e6e282e5c1657c_hex,
-        val1 = 0xb36711eb3906a7c8603d71d409e7a54d87bdc1f70442027a5b_hex,
-        key2 =
-            0x212b86b49e656acf0641169a0b59f4e629439f25d9d4654fec8d4819fb40d6ba_hex,
-        val2 = 0x1c441ae6_hex;
+    auto const key1 =
+        0xac4c09c28206e7e35594aa6b342f5d0a3a5e4842fab428f762e6e282e5c1657c_hex;
+    auto const val1 = 0xb36711eb3906a7c8603d71d409e7a54d87bdc1f70442027a5b_hex;
+    auto const key2 =
+        0x212b86b49e656acf0641169a0b59f4e629439f25d9d4654fec8d4819fb40d6ba_hex;
+    auto const val2 = 0x1c441ae6_hex;
 
     this->root = upsert_updates(
         this->aux,

@@ -26,9 +26,11 @@ node_ptr copy_node(
     auto [src_leaf, res] = find_blocking(pool, root.get(), src);
     MONAD_ASSERT(res == find_result::success);
 
-    Node *parent = nullptr, *node = root.get(), *new_node = nullptr;
-    unsigned prefix_index = 0,
-             node_prefix_index = root->bitpacked.path_nibble_index_start;
+    Node *parent = nullptr;
+    Node *node = root.get();
+    Node *new_node = nullptr;
+    unsigned prefix_index = 0;
+    unsigned node_prefix_index = root->bitpacked.path_nibble_index_start;
     unsigned char branch_i = INVALID_BRANCH;
 
     // Disconnect src_leaf's children

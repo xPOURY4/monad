@@ -182,7 +182,8 @@ int main(int argc, char *argv[])
     unsigned n_slices = 20;
     bool append = false;
     uint64_t block_no = 0;
-    std::filesystem::path dbname_path = "test.db", csv_stats_path;
+    std::filesystem::path dbname_path = "test.db";
+    std::filesystem::path csv_stats_path;
     uint64_t key_offset = 0;
     unsigned sq_thread_cpu = 15;
     bool erase = false;

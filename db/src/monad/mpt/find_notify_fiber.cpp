@@ -98,8 +98,8 @@ void find_recursive(
     NibblesView const key, std::optional<unsigned> opt_node_prefix_index)
 {
     MONAD_ASSERT(node != nullptr);
-    unsigned prefix_index = 0,
-             node_prefix_index = opt_node_prefix_index.has_value()
+    unsigned prefix_index = 0;
+    unsigned node_prefix_index = opt_node_prefix_index.has_value()
                                      ? opt_node_prefix_index.value()
                                      : node->bitpacked.path_nibble_index_start;
     for (; node_prefix_index < node->path_nibble_index_end;

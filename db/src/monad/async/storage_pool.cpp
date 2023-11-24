@@ -84,8 +84,9 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
             file_offset_t(stat.st_size), file_offset_t(stat.st_blocks) * 512};
     }
     case device::type_t_::block_device: {
-        file_offset_t capacity, used = round_up_align<CPU_PAGE_BITS>(
-                                    metadata_->total_size(size_of_file_));
+        file_offset_t capacity;
+        file_offset_t used =
+            round_up_align<CPU_PAGE_BITS>(metadata_->total_size(size_of_file_));
         if (ioctl(
                 cached_readwritefd_,
                 _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/,
@@ -177,7 +178,8 @@ uint32_t storage_pool::chunk::clone_contents_into(chunk &other, uint32_t bytes)
     bytes = std::min(uint32_t(size()), bytes);
     auto rdfd = read_fd();
     auto wrfd = other.write_fd(bytes);
-    auto off_in = off64_t(rdfd.second), off_out = off64_t(wrfd.second);
+    auto off_in = off64_t(rdfd.second);
+    auto off_out = off64_t(wrfd.second);
     auto bytescopied =
         copy_file_range(rdfd.first, &off_in, wrfd.first, &off_out, bytes, 0);
     if (bytescopied == -1) {
@@ -466,8 +468,8 @@ void storage_pool::fill_chunks_(bool interleavechunks__evenly)
         // We now need to evenly spread the sequential chunks such that if
         // device A has 20, device B has 10 and device C has 5, the interleaving
         // would be ABACABA i.e. a ratio of 4:2:1
-        std::vector<double> chunkratios(chunks.size()),
-            chunkcounts(chunks.size());
+        std::vector<double> chunkratios(chunks.size());
+        std::vector<double> chunkcounts(chunks.size());
         for (size_t n = 0; n < chunks.size(); n++) {
             chunkratios[n] = double(total) / static_cast<double>(chunks[n]);
             chunkcounts[n] = chunkratios[n];

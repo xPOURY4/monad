@@ -99,7 +99,8 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(root->value_len, 0);
     EXPECT_EQ(root->data_len, 0);
     EXPECT_EQ(root->path_bytes(), 0);
-    Node *node0 = root->next(0), *node1 = root->next(1);
+    Node *node0 = root->next(0);
+    Node *node1 = root->next(1);
     EXPECT_EQ(node0->mask, 0);
     EXPECT_EQ(
         node0->path_nibble_view(), (NibblesView{1, 8, kv[0].first.data()}));
@@ -115,7 +116,8 @@ TEST(InMemoryPlainTrie, var_length)
 
     EXPECT_EQ(node1aa->path_bytes(), 1);
     EXPECT_EQ(node1aa->value_len, 0);
-    Node *node1aaaa = node1aa->next(0xa), *node1aacd = node1aa->next(0xc);
+    Node *node1aaaa = node1aa->next(0xa);
+    Node *node1aacd = node1aa->next(0xc);
     EXPECT_EQ(node1aaaa->mask, 0);
     EXPECT_EQ(
         node1aaaa->path_nibble_view(),
@@ -156,8 +158,9 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(root->mask, 0b11);
     node1 = root->next(1); // 1111... 111a... 111b...
     EXPECT_EQ(node1->mask, 1u << 1 | 1u << 0xa | 1u << 0xb);
-    Node *node1111 = node1->next(1), *node111a = node1->next(0xa),
-         *node111b = node1->next(0xb);
+    Node *node1111 = node1->next(1);
+    Node *node111a = node1->next(0xa);
+    Node *node111b = node1->next(0xb);
     EXPECT_EQ(node1111->value(), kv[1].second);
     EXPECT_EQ(
         node111a->path_nibble_view(), (NibblesView{4, 8, kv[4].first.data()}));

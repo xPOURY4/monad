@@ -68,7 +68,8 @@ namespace
     TEST(AsyncIO, poll_does_not_recurse)
     {
         int count = 1000000;
-        int recursion_count = 0, max_recursion_count = 0;
+        int recursion_count = 0;
+        int max_recursion_count = 0;
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
         monad::io::Ring testring(128, 0);

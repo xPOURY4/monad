@@ -270,7 +270,8 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
         std::cout << "Benchmarking " << desc << " ..." << std::endl;
         done = false;
         count = 0;
-        auto begin = std::chrono::steady_clock::now(), end = begin;
+        auto begin = std::chrono::steady_clock::now();
+        auto end = begin;
         initiate();
         for (; end - begin < std::chrono::seconds(5);
              end = std::chrono::steady_clock::now()) {
@@ -401,7 +402,8 @@ TEST_F(AsyncIO, completion_handler_sender_receiver)
     using namespace MONAD_ASYNC_NAMESPACE;
     read_single_buffer_operation_states_<completion_handler_io_receiver> states(
         shared_state_().get(), MAX_CONCURRENCY);
-    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto begin = std::chrono::steady_clock::now();
+    auto end = begin;
     states.initiate();
     for (; end - begin < std::chrono::seconds(5);
          end = std::chrono::steady_clock::now()) {
@@ -479,7 +481,8 @@ TEST_F(AsyncIO, cpp_coroutine_sender_receiver)
     using namespace MONAD_ASYNC_NAMESPACE;
     read_single_buffer_operation_states_<cpp_suspend_resume_io_receiver> states(
         shared_state_().get(), MAX_CONCURRENCY);
-    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto begin = std::chrono::steady_clock::now();
+    auto end = begin;
     auto coroutine = [&](cpp_suspend_resume_io_receiver &receiver)
         -> BOOST_OUTCOME_V2_NAMESPACE::awaitables::eager<void> {
         for (;;) {
@@ -548,7 +551,8 @@ TEST_F(AsyncIO, fiber_sender_receiver)
     using namespace MONAD_ASYNC_NAMESPACE;
     read_single_buffer_operation_states_<fiber_suspend_resume_io_receiver>
         states(shared_state_().get(), MAX_CONCURRENCY);
-    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto begin = std::chrono::steady_clock::now();
+    auto end = begin;
     auto fiber = [&](fiber_suspend_resume_io_receiver *receiver) {
         for (;;) {
             auto future = receiver->promise.get_future();
@@ -698,7 +702,8 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
     }
     read_single_buffer_operation_states_<controller_notifying_io_receiver>
         states(shared_state_().get(), MAX_CONCURRENCY);
-    auto begin = std::chrono::steady_clock::now(), end = begin;
+    auto begin = std::chrono::steady_clock::now();
+    auto end = begin;
     states.initiate();
     for (; end - begin < std::chrono::seconds(5);
          end = std::chrono::steady_clock::now()) {
@@ -727,8 +732,9 @@ TEST_F(AsyncIO, stack_overflow_avoided)
     static constexpr size_t COUNT = 100000;
     struct receiver_t;
     static std::vector<std::unique_ptr<erased_connected_operation>> ops;
-    static unsigned stack_depth = 0, counter = 0,
-                    last_receiver_count = unsigned(-1);
+    static unsigned stack_depth = 0;
+    static unsigned counter = 0;
+    static unsigned last_receiver_count = unsigned(-1);
     ops.reserve(COUNT);
     struct receiver_t
     {

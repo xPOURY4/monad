@@ -82,12 +82,10 @@ Node *create_node(
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     // any node with child will have hash data
     bool const has_value = value.has_value();
-    uint8_t const value_len = has_value
-                                  ? static_cast<uint8_t>(value.value().size())
-                                  : 0,
-                  data_len = has_value ? static_cast<uint8_t>(
-                                             comp.compute_len(children, mask))
-                                       : 0;
+    uint8_t const value_len =
+        has_value ? static_cast<uint8_t>(value.value().size()) : 0;
+    uint8_t const data_len =
+        has_value ? static_cast<uint8_t>(comp.compute_len(children, mask)) : 0;
     auto bytes =
         sizeof(Node) + value_len + data_len +
         number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +

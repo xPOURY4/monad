@@ -473,7 +473,8 @@ void AsyncIO::dump_fd_to(size_t which, std::filesystem::path const &path)
     auto untodfd = make_scope_exit([tofd]() noexcept { ::close(tofd); });
     auto fromfd = seq_chunks_[which].ptr->read_fd();
     MONAD_ASSERT(fromfd.second <= std::numeric_limits<off64_t>::max());
-    off64_t off_in = static_cast<off64_t>(fromfd.second), off_out = 0;
+    off64_t off_in = static_cast<off64_t>(fromfd.second);
+    off64_t off_out = 0;
     auto copied = copy_file_range(
         fromfd.first,
         &off_in,

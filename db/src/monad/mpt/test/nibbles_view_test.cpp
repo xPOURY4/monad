@@ -17,7 +17,8 @@ TEST(NibblesViewTest, nibbles_view)
     EXPECT_EQ(a.data_size(), 0);
     EXPECT_EQ(a, NibblesView{});
 
-    NibblesView const b{12, 16, path.data()}, c{20, 24, path.data()};
+    NibblesView const b{12, 16, path.data()};
+    NibblesView const c{20, 24, path.data()};
     EXPECT_EQ(b, c);
 
     NibblesView const d{15, 18, path.data()};

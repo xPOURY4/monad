@@ -34,8 +34,8 @@ find_result_type find_blocking(
     if (!node) {
         return {nullptr, find_result::root_node_is_null_failure};
     }
-    unsigned prefix_index = 0,
-             node_prefix_index = opt_node_prefix_index.has_value()
+    unsigned prefix_index = 0;
+    unsigned node_prefix_index = opt_node_prefix_index.has_value()
                                      ? opt_node_prefix_index.value()
                                      : node->bitpacked.path_nibble_index_start;
     while (prefix_index < key.nibble_size()) {

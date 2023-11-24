@@ -80,13 +80,12 @@ TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
 TYPED_TEST(TrieTest, insert_one_element)
 {
     // keys are the same
-    auto const
-        key =
-            0x1234567812345678123456781234567812345678123456781234567812345678_hex,
-        val1 =
-            0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex,
-        val2 =
-            0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex;
+    auto const key =
+        0x1234567812345678123456781234567812345678123456781234567812345678_hex;
+    auto const val1 =
+        0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex;
+    auto const val2 =
+        0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead_hex;
 
     // single update
     this->root =
@@ -385,10 +384,9 @@ TYPED_TEST(TrieTest, upsert_var_len_keys)
         0xd02534184b896dd4cb37fb34f176cafb508aa2ebc19a773c332514ca8c65ca10_hex);
 
     // update first trie's account value
-    auto
-        acc1 =
-            0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
-        new_val = 0x1234_hex;
+    auto acc1 =
+        0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex;
+    auto new_val = 0x1234_hex;
     this->root = upsert_updates(
         this->aux, this->sm, this->root.get(), make_update(acc1, new_val));
     EXPECT_EQ(
@@ -502,7 +500,8 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
     // update first trie mid leaf data
     // with nested storage changes but doesn't change any value
-    auto acc1 = kv[0].first, new_val = 0x1234_hex;
+    auto acc1 = kv[0].first;
+    auto new_val = 0x1234_hex;
     storage.clear(); // NOLINT
     storage.push_front(a);
     this->root = upsert_updates(
@@ -542,8 +541,8 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
     // erase some storage
     storage.clear(); // NOLINT
-    Update erase_b = make_erase(storage_kv[1].first),
-           erase_c = make_erase(storage_kv[2].first);
+    Update erase_b = make_erase(storage_kv[1].first);
+    Update erase_c = make_erase(storage_kv[2].first);
     storage.push_front(erase_b);
     storage.push_front(erase_c);
     this->root = upsert_updates(
@@ -618,17 +617,17 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         {0xabcdeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_hex,
          0xcafe_hex}};
 
-    Update a = make_update(storage_kv[0].first, storage_kv[0].second),
-           b = make_update(storage_kv[1].first, storage_kv[1].second),
-           c = make_update(storage_kv[2].first, storage_kv[2].second);
+    Update a = make_update(storage_kv[0].first, storage_kv[0].second);
+    Update b = make_update(storage_kv[1].first, storage_kv[1].second);
+    Update c = make_update(storage_kv[2].first, storage_kv[2].second);
     UpdateList storage;
     storage.push_front(a);
     storage.push_front(b);
     storage.push_front(c);
     UpdateList state_changes;
-    Update s1 = make_update(
-               kv[0].first, kv[0].second, false, std::move(storage)),
-           s2 = make_update(kv[1].first, kv[1].second);
+    Update s1 =
+        make_update(kv[0].first, kv[0].second, false, std::move(storage));
+    Update s2 = make_update(kv[1].first, kv[1].second);
     state_changes.push_front(s1);
     state_changes.push_front(s2);
     auto blockno = 0x00000001_hex;
