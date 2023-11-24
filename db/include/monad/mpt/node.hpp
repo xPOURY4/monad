@@ -194,12 +194,12 @@ public:
         data_len = data_len_;
     }
 
-    constexpr unsigned to_j(unsigned const i) const noexcept
+    constexpr unsigned to_index(unsigned const branch) const noexcept
     {
         // convert the enabled i'th bit in a 16-bit mask into its corresponding
-        // index location - j
-        MONAD_DEBUG_ASSERT(mask & 1u << i);
-        return bitmask_index(mask, i);
+        // index location - index
+        MONAD_DEBUG_ASSERT(mask & (1u << branch));
+        return bitmask_index(mask, branch);
     }
 
     constexpr unsigned number_of_children() const noexcept
@@ -208,16 +208,16 @@ public:
     }
 
     //! fnext
-    chunk_offset_t &fnext_j(unsigned const j) noexcept
+    chunk_offset_t &fnext_index(unsigned const index) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < number_of_children());
-        return reinterpret_cast<chunk_offset_t *>(fnext_data)[j];
+        MONAD_DEBUG_ASSERT(index < number_of_children());
+        return reinterpret_cast<chunk_offset_t *>(fnext_data)[index];
     }
 
-    chunk_offset_t &fnext(unsigned const i) noexcept
+    chunk_offset_t &fnext(unsigned const branch) noexcept
     {
-        MONAD_DEBUG_ASSERT(i < 16);
-        return fnext_j(to_j(i));
+        MONAD_DEBUG_ASSERT(branch < 16);
+        return fnext_index(to_index(branch));
     }
     //! min_block_no array
     constexpr unsigned char *child_min_count_data() noexcept
@@ -229,14 +229,14 @@ public:
         return fnext_data + number_of_children() * sizeof(file_offset_t);
     }
 
-    detail::unsigned_20 &min_count_j(unsigned const j) noexcept
+    detail::unsigned_20 &min_count_index(unsigned const index) noexcept
     {
         return reinterpret_cast<detail::unsigned_20 *>(
-            child_min_count_data())[j];
+            child_min_count_data())[index];
     }
-    detail::unsigned_20 &min_count(unsigned const i) noexcept
+    detail::unsigned_20 &min_count(unsigned const branch) noexcept
     {
-        return min_count_j(to_j(i));
+        return min_count_index(to_index(branch));
     }
 
     //! data_offset array
@@ -248,29 +248,29 @@ public:
     {
         return child_min_count_data() + number_of_children() * sizeof(uint32_t);
     }
-    data_off_t child_off_j(unsigned const j) noexcept
+    data_off_t child_off_index(unsigned const index) noexcept
     {
-        MONAD_DEBUG_ASSERT(j <= number_of_children());
-        if (j == 0) {
+        MONAD_DEBUG_ASSERT(index <= number_of_children());
+        if (index == 0) {
             return 0;
         }
         else {
             data_off_t res;
             memcpy(
                 &res,
-                child_off_data() + (j - 1) * sizeof(data_off_t),
+                child_off_data() + (index - 1) * sizeof(data_off_t),
                 sizeof(data_off_t));
             return res;
         }
     }
-    constexpr unsigned child_data_len_j(unsigned const j)
+    constexpr unsigned child_data_len_index(unsigned const index)
     {
-        return child_off_j(j + 1) - child_off_j(j);
+        return child_off_index(index + 1) - child_off_index(index);
     }
 
-    constexpr unsigned child_data_len(unsigned const i)
+    constexpr unsigned child_data_len(unsigned const branch)
     {
-        return child_data_len_j(to_j(i));
+        return child_data_len_index(to_index(branch));
     }
 
     //! path
@@ -356,68 +356,70 @@ public:
     {
         return data_data() + data_len;
     }
-    byte_string_view child_data_view_j(unsigned const j) noexcept
+    byte_string_view child_data_view_index(unsigned const index) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < number_of_children());
+        MONAD_DEBUG_ASSERT(index < number_of_children());
         return byte_string_view{
-            child_data() + child_off_j(j),
-            static_cast<size_t>(child_data_len_j(j))};
+            child_data() + child_off_index(index),
+            static_cast<size_t>(child_data_len_index(index))};
     }
-    constexpr unsigned char *child_data_j(unsigned const j) noexcept
+    constexpr unsigned char *child_data_index(unsigned const index) noexcept
     {
-        MONAD_DEBUG_ASSERT(j < number_of_children());
-        return child_data() + child_off_j(j);
+        MONAD_DEBUG_ASSERT(index < number_of_children());
+        return child_data() + child_off_index(index);
     }
-    constexpr unsigned char *child_data(unsigned const i) noexcept
+    constexpr unsigned char *child_data(unsigned const branch) noexcept
     {
-        return child_data_j(to_j(i));
+        return child_data_index(to_index(branch));
     }
-    constexpr byte_string_view child_data_view(unsigned const i) noexcept
+    constexpr byte_string_view child_data_view(unsigned const branch) noexcept
     {
-        return child_data_view_j(to_j(i));
+        return child_data_view_index(to_index(branch));
     }
-    void set_child_data_j(unsigned const j, byte_string_view data) noexcept
+    void
+    set_child_data_index(unsigned const index, byte_string_view data) noexcept
     {
         // called after data_off array is calculated
-        std::memcpy(child_data_j(j), data.data(), data.size());
+        std::memcpy(child_data_index(index), data.data(), data.size());
     }
 
     //! next pointers
     constexpr unsigned char *next_data() noexcept
     {
-        return child_data() + child_off_j(number_of_children());
+        return child_data() + child_off_index(number_of_children());
     }
 
-    constexpr Node *next_j(unsigned const j) noexcept
+    constexpr Node *next_index(unsigned const index) noexcept
     {
-        return unaligned_load<Node *>(next_data() + j * sizeof(Node *));
+        return unaligned_load<Node *>(next_data() + index * sizeof(Node *));
     }
 
-    constexpr Node *next(unsigned const i) noexcept
+    constexpr Node *next(unsigned const branch) noexcept
     {
-        return next_j(to_j(i));
+        return next_index(to_index(branch));
     }
 
-    void set_next_j(unsigned const j, Node *const node) noexcept
+    void set_next_index(unsigned const index, Node *const node) noexcept
     {
-        node ? memcpy(next_data() + j * sizeof(Node *), &node, sizeof(Node *))
-             : memset(next_data() + j * sizeof(Node *), 0, sizeof(Node *));
+        node ? memcpy(
+                   next_data() + index * sizeof(Node *), &node, sizeof(Node *))
+             : memset(next_data() + index * sizeof(Node *), 0, sizeof(Node *));
     }
-    void set_next(unsigned const i, Node *const node) noexcept
+    void set_next(unsigned const branch, Node *const node) noexcept
     {
-        set_next_j(to_j(i), node);
+        set_next_index(to_index(branch), node);
     }
 
-    unique_ptr_type next_j_ptr(unsigned const j) noexcept
+    unique_ptr_type next_ptr_index(unsigned const index) noexcept
     {
-        Node *p = next_j(j);
-        set_next_j(j, nullptr);
+        Node *p = next_index(index);
+        set_next_index(index, nullptr);
         return unique_ptr_type{p};
     }
 
-    unique_ptr_type next_ptr(unsigned const i) noexcept
+    unique_ptr_type next_ptr(unsigned const branch) noexcept
     {
-        return next_j_ptr(to_j(i));
+        return next_ptr_index(to_index(branch));
     }
 
     //! node size in memory
@@ -442,9 +444,9 @@ using node_ptr = Node::unique_ptr_type;
 
 inline Node::~Node()
 {
-    for (uint8_t j = 0; j < number_of_children(); ++j) {
-        node_ptr{next_j(j)};
-        set_next_j(j, nullptr);
+    for (uint8_t index = 0; index < number_of_children(); ++index) {
+        node_ptr{next_index(index)};
+        set_next_index(index, nullptr);
     }
 }
 
@@ -465,8 +467,8 @@ calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
         return curr_count;
     }
     detail::unsigned_20 ret{uint32_t(-1)};
-    for (unsigned j = 0; j < node->number_of_children(); ++j) {
-        ret = std::min(ret, node->min_count_j(j));
+    for (unsigned index = 0; index < node->number_of_children(); ++index) {
+        ret = std::min(ret, node->min_count_index(index));
     }
     MONAD_ASSERT(ret != detail::unsigned_20(uint32_t(-1)));
     return ret;

@@ -70,7 +70,7 @@ inline unsigned count_leaves(Node *const root, unsigned n = 0)
         return 1;
     }
     for (unsigned j = 0; j < root->number_of_children(); ++j) {
-        n += count_leaves(root->next_j(j));
+        n += count_leaves(root->next_index(j));
     }
     return n;
 }

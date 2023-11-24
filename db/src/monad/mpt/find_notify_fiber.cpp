@@ -40,7 +40,7 @@ struct find_receiver
     chunk_offset_t rd_offset; // required for sender
     unsigned bytes_to_read; // required for sender too
     uint16_t buffer_off;
-    unsigned const branch_j;
+    unsigned const branch_index;
 
     find_receiver(
         AsyncIO &_io, inflight_map_t &inflights_, Node *const parent_,
@@ -49,9 +49,9 @@ struct find_receiver
         , inflights(inflights_)
         , parent(parent_)
         , rd_offset(0, 0)
-        , branch_j(parent->to_j(branch_))
+        , branch_index(parent->to_index(branch_))
     {
-        chunk_offset_t const offset = parent->fnext_j(branch_j);
+        chunk_offset_t const offset = parent->fnext_index(branch_index);
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
@@ -72,12 +72,12 @@ struct find_receiver
         MONAD_ASSERT(buffer_);
         std::span<std::byte const> const buffer =
             std::move(buffer_).assume_value();
-        MONAD_ASSERT(parent->next_j(branch_j) == nullptr);
+        MONAD_ASSERT(parent->next_index(branch_index) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off)
                          .release();
-        parent->set_next_j(branch_j, node);
-        auto const offset = parent->fnext_j(branch_j);
+        parent->set_next_index(branch_index, node);
+        auto const offset = parent->fnext_index(branch_index);
         auto &pendings = inflights.at(offset);
         for (auto &[key, promise] : pendings) {
             MONAD_DEBUG_ASSERT(promise != nullptr);

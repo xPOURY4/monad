@@ -397,7 +397,7 @@ void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
         }
         sm.reset(parent_tnode->trie_section);
         if (tnode->node) {
-            auto &entry = parent_tnode->children[tnode->child_j()];
+            auto &entry = parent_tnode->children[tnode->child_index()];
             entry.branch = tnode->child_branch_bit;
             entry.ptr = tnode->node;
             auto const len = sm.get_compute().compute(entry.data, entry.ptr);
@@ -864,7 +864,7 @@ bool dispatch_updates_impl_(
     }
     // debug
     for (unsigned j = 0; j < old->number_of_children(); ++j) {
-        assert(!old->next_j(j));
+        assert(!old->next_index(j));
     }
     if (tnode->npending) {
         return false;

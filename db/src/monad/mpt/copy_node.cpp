@@ -60,23 +60,26 @@ node_ptr copy_node(
                 uint16_t const mask =
                     static_cast<uint16_t>(node->mask | (1u << nibble));
                 Node *ret = create_node_nodata(mask, node->path_nibble_view());
-                for (unsigned i = 0, j = 0, old_j = 0, bit = 1;
-                     j < ret->number_of_children();
+                for (unsigned i = 0, index = 0, old_index = 0, bit = 1;
+                     index < ret->number_of_children();
                      ++i, bit <<= 1) {
                     if (i == nibble) {
-                        ret->set_next_j(j++, leaf);
+                        ret->set_next_index(index++, leaf);
                     }
                     else if (mask & bit) {
                         // assume child has no data for now
                         if (aux.is_on_disk()) {
-                            ret->min_count_j(j) = node->min_count_j(old_j);
-                            ret->fnext_j(j++) = node->fnext_j(old_j);
+                            ret->min_count_index(index) =
+                                node->min_count_index(old_index);
+                            ret->fnext_index(index++) =
+                                node->fnext_index(old_index);
                         }
                         // also clear node's child mem ptr
                         aux.is_on_disk()
-                            ? node->next_j_ptr(old_j++).reset()
-                            : ret->set_next_j(
-                                  j++, node->next_j_ptr(old_j++).release());
+                            ? node->next_ptr_index(old_index++).reset()
+                            : ret->set_next_index(
+                                  index++,
+                                  node->next_ptr_index(old_index++).release());
                     }
                 }
                 return ret;
@@ -117,8 +120,8 @@ node_ptr copy_node(
                     node_prefix_index,
                     node->path_data()});
             bool const leaf_first = nibble < node_nibble;
-            ret->set_next_j(leaf_first ? 0 : 1, dest_leaf);
-            ret->set_next_j(leaf_first ? 1 : 0, node_latter_half);
+            ret->set_next_index(leaf_first ? 0 : 1, dest_leaf);
+            ret->set_next_index(leaf_first ? 1 : 0, node_latter_half);
             if (aux.is_on_disk()) {
                 // Request a write for the modified node, async_write_node()
                 // serialize nodes to buffer but it's not guaranteed to land on
@@ -135,7 +138,7 @@ node_ptr copy_node(
                 MONAD_DEBUG_ASSERT(
                     pages <= std::numeric_limits<uint16_t>::max());
                 off.spare = static_cast<uint16_t>(pages);
-                ret->fnext_j(leaf_first ? 1 : 0) = off;
+                ret->fnext_index(leaf_first ? 1 : 0) = off;
             }
             return ret;
         }();
@@ -152,8 +155,8 @@ node_ptr copy_node(
         // clear parent's children other than new_node
         if (aux.is_on_disk()) {
             for (unsigned j = 0; j < parent->number_of_children(); ++j) {
-                if (j != parent->to_j(branch_i)) {
-                    parent->next_j_ptr(j).reset();
+                if (j != parent->to_index(branch_i)) {
+                    parent->next_ptr_index(j).reset();
                 };
             }
         }

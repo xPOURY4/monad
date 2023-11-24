@@ -58,7 +58,7 @@ struct UpwardTreeNode
         child_branch_bit = branch;
     }
 
-    constexpr uint8_t child_j() const noexcept
+    constexpr uint8_t child_index() const noexcept
     {
         MONAD_ASSERT(parent != nullptr);
         return static_cast<uint8_t>(

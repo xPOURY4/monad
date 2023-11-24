@@ -681,7 +681,7 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     std::tie(old_state_root, res) =
         find_blocking(this->get_storage_pool(), this->root.get(), blockno);
     EXPECT_EQ(res, monad::mpt::find_result::success);
-    EXPECT_EQ(old_state_root->next_j(0), nullptr);
+    EXPECT_EQ(old_state_root->next_index(0), nullptr);
     EXPECT_EQ(
         old_state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);

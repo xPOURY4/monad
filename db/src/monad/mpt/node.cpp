@@ -58,7 +58,7 @@ Node *create_coalesced_node_with_prefix(
     std::memcpy(
         node->data_data(),
         prev->data_data(),
-        node->data_len + node->child_off_j(node->number_of_children()));
+        node->data_len + node->child_off_index(node->number_of_children()));
     // copy nexts
     if (node->number_of_children()) {
         memcpy(
@@ -67,7 +67,7 @@ Node *create_coalesced_node_with_prefix(
             node->number_of_children() * sizeof(Node *));
     }
     for (unsigned j = 0; j < prev->number_of_children(); ++j) {
-        prev->set_next_j(j, nullptr);
+        prev->set_next_index(j, nullptr);
     }
     node->disk_size = node->get_disk_size();
     assert(node->disk_size >= prev->disk_size);
@@ -119,10 +119,10 @@ Node *create_node(
     // set fnext, next and data
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
-            node->fnext_j(j) = child.offset;
-            node->min_count_j(j) = child.min_count;
-            node->set_next_j(j, child.ptr);
-            node->set_child_data_j(j++, {child.data, child.len});
+            node->fnext_index(j) = child.offset;
+            node->min_count_index(j) = child.min_count;
+            node->set_next_index(j, child.ptr);
+            node->set_child_data_index(j++, {child.data, child.len});
         }
     }
     if (node->data_len) {
@@ -161,7 +161,7 @@ Node *update_node_diff_path_leaf(
     std::memcpy(
         node->data_data(),
         old->data_data(),
-        node->data_len + old->child_off_j(old->number_of_children()));
+        node->data_len + old->child_off_index(old->number_of_children()));
     // copy next array
     if (old->number_of_children()) {
         std::memcpy(
@@ -171,7 +171,7 @@ Node *update_node_diff_path_leaf(
     }
     // clear old nexts
     for (unsigned j = 0; j < old->number_of_children(); ++j) {
-        old->set_next_j(j, nullptr);
+        old->set_next_index(j, nullptr);
     }
     node->disk_size = node->get_disk_size();
     assert(node->disk_size < 1024);
