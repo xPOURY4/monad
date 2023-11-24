@@ -43,6 +43,7 @@
                     modernize-use-noexcept,
                     modernize-use-nullptr,
                     modernize-use-transparent-functors,
+                    readability-isolate-declaration,
                     readability-redundant-member-init'
   CheckOptions:
     - key:          bugprone-assert-side-effect.AssertMacros
