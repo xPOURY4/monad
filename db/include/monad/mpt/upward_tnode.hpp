@@ -29,7 +29,7 @@ struct UpwardTreeNode
     uint8_t child_branch_bit{INVALID_BRANCH};
     unsigned npending{0};
     uint8_t trie_section{0}; // max 255 diff sections in trie
-    uint8_t pi{0};
+    uint8_t prefix_index{0};
 
     // void (*done_)(UpwardTreeNode *, void *) noexcept {nullptr};
     // void *done_value_{nullptr};
@@ -41,7 +41,7 @@ struct UpwardTreeNode
         mask = mask_;
         orig_mask = mask_;
         npending = number_of_children();
-        pi = static_cast<uint8_t>(pi_);
+        prefix_index = static_cast<uint8_t>(pi_);
         children = allocators::owning_span<ChildData>(number_of_children());
         opt_leaf_data = opt_leaf_data_;
     }

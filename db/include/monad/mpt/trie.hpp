@@ -161,7 +161,7 @@ struct find_request_t
     ::boost::fibers::promise<find_result_type> *promise{nullptr};
     Node *root{nullptr};
     byte_string_view key{};
-    std::optional<unsigned> node_pi{std::nullopt};
+    std::optional<unsigned> node_prefix_index{std::nullopt};
 };
 static_assert(sizeof(find_request_t) == 40);
 static_assert(alignof(find_request_t) == 8);
@@ -204,7 +204,7 @@ thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
     MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, NibblesView key,
-    std::optional<unsigned> opt_node_pi = std::nullopt);
+    std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)

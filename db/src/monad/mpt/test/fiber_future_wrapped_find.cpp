@@ -13,9 +13,9 @@
 #include <monad/mpt/update.hpp>
 
 #include <boost/fiber/fiber.hpp>
-#include <boost/fiber/operations.hpp>
 #include <boost/fiber/future/future.hpp>
 #include <boost/fiber/future/promise.hpp>
+#include <boost/fiber/operations.hpp>
 
 #include <chrono>
 #include <optional>
@@ -36,7 +36,7 @@ namespace
             .promise = &promise,
             .root = root,
             .key = key,
-            .node_pi = std::nullopt};
+            .node_prefix_index = std::nullopt};
         find_notify_fiber_future(*io, *inflights, request);
         auto const [node, errc] = request.promise->get_future().get();
         ASSERT_TRUE(node != nullptr);

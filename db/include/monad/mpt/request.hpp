@@ -47,13 +47,18 @@ struct Requests
         return sublists[get_first_branch()].front().key;
     }
 
-    //! return the number of sublists it splits into, equals #distinct_nibbles
-    //! at prefix index i.
-    //! if single update, pi != key.size() * 2, put to one of sublists, n = 1
-    //! if single update, pi == key.size() * 2, set opt_leaf, n = 0
-    //! if multiple updates, pi = one of key size, set opt_leaf, split the rest
-    //! to sublists, n >= 1
-    unsigned split_into_sublists(UpdateList &&updates, unsigned const pi)
+    // clang-format: off
+    // return the number of sublists it splits into, equals #distinct_nibbles
+    // at prefix index i.
+    // - if single update, prefix_index != key.size() * 2, put to one of
+    //   sublists, n = 1
+    // - if single update, prefix_index == key.size() * 2, set
+    //   opt_leaf, n = 0
+    // - if multiple updates, prefix_index = one of key size, set
+    //   opt_leaf, split the rest to sublists, n >= 1
+    // clang-format: on
+    unsigned
+    split_into_sublists(UpdateList &&updates, unsigned const prefix_index)
     {
         assert(updates.size());
         mask = 0;
@@ -61,19 +66,19 @@ struct Requests
         while (!updates.empty()) {
             Update &req = updates.front();
             updates.pop_front();
-            if (pi == req.key.nibble_size()) {
+            if (prefix_index == req.key.nibble_size()) {
                 opt_leaf = std::move(req);
                 continue;
             }
-            auto const branch = req.key.get(pi);
+            auto const branch = req.key.get(prefix_index);
             if (sublists[branch].empty()) {
                 mask |= uint16_t(1u << branch);
                 ++n;
             }
             sublists[branch].push_front(req);
         }
-        MONAD_DEBUG_ASSERT(pi <= std::numeric_limits<uint8_t>::max());
-        prefix_len = static_cast<uint8_t>(pi);
+        MONAD_DEBUG_ASSERT(prefix_index <= std::numeric_limits<uint8_t>::max());
+        prefix_len = static_cast<uint8_t>(prefix_index);
         return n;
     }
 };

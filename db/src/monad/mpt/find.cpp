@@ -3,11 +3,11 @@
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/nibble.h>
-#include <monad/mpt/nibbles_view.hpp>
-#include <monad/mpt/util.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <cassert>
 #include <optional>
@@ -29,17 +29,18 @@ Node *read_node_blocking_(
 
 find_result_type find_blocking(
     MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *node,
-    NibblesView const key, std::optional<unsigned> opt_node_pi)
+    NibblesView const key, std::optional<unsigned> opt_node_prefix_index)
 {
     if (!node) {
         return {nullptr, find_result::root_node_is_null_failure};
     }
-    unsigned pi = 0, node_pi = opt_node_pi.has_value()
-                                   ? opt_node_pi.value()
-                                   : node->bitpacked.path_nibble_index_start;
-    while (pi < key.nibble_size()) {
-        unsigned char const nibble = key.get(pi);
-        if (node->path_nibble_index_end == node_pi) {
+    unsigned prefix_index = 0,
+             node_prefix_index = opt_node_prefix_index.has_value()
+                                     ? opt_node_prefix_index.value()
+                                     : node->bitpacked.path_nibble_index_start;
+    while (prefix_index < key.nibble_size()) {
+        unsigned char const nibble = key.get(prefix_index);
+        if (node->path_nibble_index_end == node_prefix_index) {
             if (!(node->mask & (1u << nibble))) {
                 return {nullptr, find_result::branch_not_exist_failure};
             }
@@ -51,18 +52,18 @@ find_result_type find_blocking(
             }
             node = node->next(nibble);
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory
-            node_pi = node->bitpacked.path_nibble_index_start;
-            ++pi;
+            node_prefix_index = node->bitpacked.path_nibble_index_start;
+            ++prefix_index;
             continue;
         }
-        if (nibble != get_nibble(node->path_data(), node_pi)) {
+        if (nibble != get_nibble(node->path_data(), node_prefix_index)) {
             return {nullptr, find_result::key_mismatch_failure};
         }
         // nibble is matched
-        ++pi;
-        ++node_pi;
+        ++prefix_index;
+        ++node_prefix_index;
     }
-    if (node_pi != node->path_nibble_index_end) {
+    if (node_prefix_index != node->path_nibble_index_end) {
         // prefix key exists but no leaf ends at `key`
         return {nullptr, find_result::key_ends_ealier_than_node_failure};
     }

@@ -1,14 +1,14 @@
 #include <monad/async/config.hpp>
 
-#include <monad/core/byte_string.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
+#include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
-#include <monad/mpt/nibbles_view.hpp>
-#include <monad/mpt/util.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -27,31 +27,32 @@ node_ptr copy_node(
     MONAD_ASSERT(res == find_result::success);
 
     Node *parent = nullptr, *node = root.get(), *new_node = nullptr;
-    unsigned pi = 0, node_pi = root->bitpacked.path_nibble_index_start;
+    unsigned prefix_index = 0,
+             node_prefix_index = root->bitpacked.path_nibble_index_start;
     unsigned char branch_i = INVALID_BRANCH;
 
     // Disconnect src_leaf's children
     // Insert `dest` to trie, the node created will need to have the same
     // children as node at `src`
-    while (pi < dest.nibble_size()) {
-        unsigned char const nibble = dest.get(pi);
-        if (node->path_nibble_index_end == node_pi) {
+    while (prefix_index < dest.nibble_size()) {
+        unsigned char const nibble = dest.get(prefix_index);
+        if (node->path_nibble_index_end == node_prefix_index) {
             if (node->mask & (1u << nibble) && node->next(nibble) != nullptr) {
                 // go to node's matched child
                 parent = node;
                 branch_i = nibble;
                 node = node->next(nibble);
-                node_pi = node->bitpacked.path_nibble_index_start;
-                ++pi;
+                node_prefix_index = node->bitpacked.path_nibble_index_start;
+                ++prefix_index;
                 continue;
             }
             // add a branch = nibble to new_node
             new_node = [&]() -> Node * {
                 MONAD_DEBUG_ASSERT(
-                    pi < std::numeric_limits<unsigned char>::max());
+                    prefix_index < std::numeric_limits<unsigned char>::max());
                 Node *leaf = update_node_diff_path_leaf(
                     src_leaf,
-                    dest.substr(static_cast<unsigned char>(pi) + 1u),
+                    dest.substr(static_cast<unsigned char>(prefix_index) + 1u),
                     src_leaf->value());
                 // create a node, with no leaf data
                 uint16_t const mask =
@@ -80,24 +81,26 @@ node_ptr copy_node(
             }();
             break;
         }
-        auto const node_nibble = get_nibble(node->path_data(), node_pi);
+        auto const node_nibble =
+            get_nibble(node->path_data(), node_prefix_index);
         if (nibble == node_nibble) {
-            ++pi;
-            ++node_pi;
+            ++prefix_index;
+            ++node_prefix_index;
             continue;
         }
         // mismatch: split node's path: turn node to a branch node with two
         // children
         new_node = [&]() -> Node * {
-            MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
+            MONAD_DEBUG_ASSERT(
+                prefix_index < std::numeric_limits<unsigned char>::max());
             Node *dest_leaf = update_node_diff_path_leaf(
                 src_leaf,
-                dest.substr(static_cast<unsigned char>(pi) + 1u),
+                dest.substr(static_cast<unsigned char>(prefix_index) + 1u),
                 src_leaf->value());
             Node *node_latter_half = update_node_diff_path_leaf(
                 node,
                 NibblesView{
-                    node_pi + 1,
+                    node_prefix_index + 1,
                     node->path_nibble_index_end,
                     node->path_data()},
                 node->has_value()
@@ -109,7 +112,7 @@ node_ptr copy_node(
                 mask,
                 NibblesView{
                     node->bitpacked.path_nibble_index_start,
-                    node_pi,
+                    node_prefix_index,
                     node->path_data()});
             bool const leaf_first = nibble < node_nibble;
             ret->set_next_j(leaf_first ? 0 : 1, dest_leaf);
@@ -136,7 +139,8 @@ node_ptr copy_node(
         }();
         break;
     }
-    if (pi == dest.nibble_size()) { // found an existing dest leaf in memory
+    if (prefix_index ==
+        dest.nibble_size()) { // found an existing dest leaf in memory
         // node is the dest_leaf, need to recreate new_node to have the same
         // children as src_leaf, then deallocate the existing one
         assert(new_node == nullptr);

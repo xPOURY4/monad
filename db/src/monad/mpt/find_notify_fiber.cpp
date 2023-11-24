@@ -11,8 +11,8 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/util.hpp>
 
-#include <boost/fiber/future/promise.hpp>
 #include <boost/fiber/future.hpp>
+#include <boost/fiber/future/promise.hpp>
 
 #include <cassert>
 #include <cstddef>
@@ -30,7 +30,7 @@ using namespace MONAD_ASYNC_NAMESPACE;
 void find_recursive(
     AsyncIO &, inflight_map_t &, ::boost::fibers::promise<find_result_type> &,
     Node *, NibblesView key,
-    std::optional<unsigned> opt_node_pi = std::nullopt);
+    std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
 struct find_receiver
 {
@@ -67,7 +67,7 @@ struct find_receiver
     //! notify a list of requests pending on this node
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        result<std::span<const std::byte>> buffer_)
+        result<std::span<std::byte const>> buffer_)
     {
         MONAD_ASSERT(buffer_);
         std::span<std::byte const> const buffer =
@@ -95,31 +95,37 @@ struct find_receiver
 void find_recursive(
     AsyncIO &io, inflight_map_t &inflights,
     ::boost::fibers::promise<find_result_type> &promise, Node *node,
-    NibblesView const key, std::optional<unsigned> opt_node_pi)
+    NibblesView const key, std::optional<unsigned> opt_node_prefix_index)
 {
     MONAD_ASSERT(node != nullptr);
-    unsigned pi = 0, node_pi = opt_node_pi.has_value()
-                                   ? opt_node_pi.value()
-                                   : node->bitpacked.path_nibble_index_start;
-    for (; node_pi < node->path_nibble_index_end; ++node_pi, ++pi) {
-        if (pi >= key.nibble_size()) {
+    unsigned prefix_index = 0,
+             node_prefix_index = opt_node_prefix_index.has_value()
+                                     ? opt_node_prefix_index.value()
+                                     : node->bitpacked.path_nibble_index_start;
+    for (; node_prefix_index < node->path_nibble_index_end;
+         ++node_prefix_index, ++prefix_index) {
+        if (prefix_index >= key.nibble_size()) {
             promise.set_value(
                 {nullptr, find_result::key_ends_ealier_than_node_failure});
             return;
         }
-        if (key.get(pi) != get_nibble(node->path_data(), node_pi)) {
+        if (key.get(prefix_index) !=
+            get_nibble(node->path_data(), node_prefix_index)) {
             promise.set_value({nullptr, find_result::key_mismatch_failure});
             return;
         }
     }
-    if (pi == key.nibble_size()) {
+    if (prefix_index == key.nibble_size()) {
         promise.set_value({node, find_result::success});
         return;
     }
-    MONAD_ASSERT(pi < key.nibble_size());
-    if (unsigned char const branch = key.get(pi); node->mask & (1u << branch)) {
-        MONAD_DEBUG_ASSERT(pi < std::numeric_limits<unsigned char>::max());
-        auto const next_key = key.substr(static_cast<unsigned char>(pi) + 1u);
+    MONAD_ASSERT(prefix_index < key.nibble_size());
+    if (unsigned char const branch = key.get(prefix_index);
+        node->mask & (1u << branch)) {
+        MONAD_DEBUG_ASSERT(
+            prefix_index < std::numeric_limits<unsigned char>::max());
+        auto const next_key =
+            key.substr(static_cast<unsigned char>(prefix_index) + 1u);
         if (node->next(branch) != nullptr) {
             find_recursive(
                 io, inflights, promise, node->next(branch), next_key);
@@ -147,13 +153,14 @@ void find_recursive(
 void find_notify_fiber_future(
     AsyncIO &io, inflight_map_t &inflights, find_request_t const req)
 {
-    // default is to find from start node pi
+    // default is to find from start node prefix_index
     if (!req.root) {
         req.promise->set_value(
             {nullptr, find_result::root_node_is_null_failure});
         return;
     }
-    find_recursive(io, inflights, *req.promise, req.root, req.key, req.node_pi);
+    find_recursive(
+        io, inflights, *req.promise, req.root, req.key, req.node_prefix_index);
 }
 
 MONAD_MPT_NAMESPACE_END
