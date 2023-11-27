@@ -15,12 +15,6 @@ MONAD_MPT_NAMESPACE_BEGIN
 struct Compute;
 class NibblesView;
 
-inline void set_child_data(ChildData &dest, byte_string_view src)
-{
-    std::memcpy(dest.data, src.data(), src.size());
-    dest.len = static_cast<uint8_t>(src.size());
-}
-
 /* A note on generic trie
 
 In Ethereum merkle patricia trie:
