@@ -2,6 +2,7 @@
 
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/byte_string.hpp>
+#include <monad/core/endian.hpp> // NOLINT
 #include <monad/core/math.hpp>
 #include <monad/mem/allocators.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
@@ -61,10 +62,6 @@ public:
         bool path_nibble_index_start : 1 {false};
     } bitpacked{0};
     static_assert(sizeof(bitpacked) == 1);
-    static_assert(
-        std::endian::native == std::endian::little,
-        "C bitfields stored to disk have the endian of their machine, big "
-        "endian would need a bit swapping loader implementation");
 
     /* size (in byte) of user-passed leaf data */
     uint8_t value_len{0};
