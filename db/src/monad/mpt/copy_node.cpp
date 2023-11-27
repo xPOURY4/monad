@@ -39,11 +39,12 @@ node_ptr copy_node(
     while (prefix_index < dest.nibble_size()) {
         unsigned char const nibble = dest.get(prefix_index);
         if (node->path_nibble_index_end == node_prefix_index) {
-            if (node->mask & (1u << nibble) && node->next(nibble) != nullptr) {
+            if (node->mask & (1u << nibble) &&
+                node->next(node->to_child_index(nibble)) != nullptr) {
                 // go to node's matched child
                 parent = node;
                 branch_i = nibble;
-                node = node->next(nibble);
+                node = node->next(node->to_child_index(nibble));
                 node_prefix_index = node->bitpacked.path_nibble_index_start;
                 ++prefix_index;
                 continue;
@@ -64,22 +65,20 @@ node_ptr copy_node(
                      index < ret->number_of_children();
                      ++i, bit <<= 1) {
                     if (i == nibble) {
-                        ret->set_next_index(index++, leaf);
+                        ret->set_next(index++, leaf);
                     }
                     else if (mask & bit) {
                         // assume child has no data for now
                         if (aux.is_on_disk()) {
-                            ret->min_count_index(index) =
-                                node->min_count_index(old_index);
-                            ret->fnext_index(index++) =
-                                node->fnext_index(old_index);
+                            ret->min_count(index) = node->min_count(old_index);
+                            ret->fnext(index++) = node->fnext(old_index);
                         }
                         // also clear node's child mem ptr
                         aux.is_on_disk()
-                            ? node->next_ptr_index(old_index++).reset()
-                            : ret->set_next_index(
+                            ? node->next_ptr(old_index++).reset()
+                            : ret->set_next(
                                   index++,
-                                  node->next_ptr_index(old_index++).release());
+                                  node->next_ptr(old_index++).release());
                     }
                 }
                 return ret;
@@ -120,8 +119,8 @@ node_ptr copy_node(
                     node_prefix_index,
                     node->path_data()});
             bool const leaf_first = nibble < node_nibble;
-            ret->set_next_index(leaf_first ? 0 : 1, dest_leaf);
-            ret->set_next_index(leaf_first ? 1 : 0, node_latter_half);
+            ret->set_next(leaf_first ? 0 : 1, dest_leaf);
+            ret->set_next(leaf_first ? 1 : 0, node_latter_half);
             if (aux.is_on_disk()) {
                 // Request a write for the modified node, async_write_node()
                 // serialize nodes to buffer but it's not guaranteed to land on
@@ -138,7 +137,7 @@ node_ptr copy_node(
                 MONAD_DEBUG_ASSERT(
                     pages <= std::numeric_limits<uint16_t>::max());
                 off.spare = static_cast<uint16_t>(pages);
-                ret->fnext_index(leaf_first ? 1 : 0) = off;
+                ret->fnext(leaf_first ? 1 : 0) = off;
             }
             return ret;
         }();
@@ -155,16 +154,17 @@ node_ptr copy_node(
         // clear parent's children other than new_node
         if (aux.is_on_disk()) {
             for (unsigned j = 0; j < parent->number_of_children(); ++j) {
-                if (j != parent->to_index(branch_i)) {
-                    parent->next_ptr_index(j).reset();
+                if (j != parent->to_child_index(branch_i)) {
+                    parent->next_ptr(j).reset();
                 };
             }
         }
     }
     // deallocate previous child at branch i
     if (parent) {
-        parent->next_ptr(branch_i).reset(); // deallocate child (= node)
-        parent->set_next(branch_i, new_node);
+        auto const child_index = parent->to_child_index(branch_i);
+        parent->next_ptr(child_index).reset(); // deallocate child (= node)
+        parent->set_next(child_index, new_node);
     }
     else {
         assert(node == root.get());

@@ -18,7 +18,7 @@ Node *read_node_blocking_(
     MONAD_ASYNC_NAMESPACE::storage_pool &pool, Node *parent,
     unsigned char branch)
 {
-    auto offset = parent->fnext(branch);
+    auto offset = parent->fnext(parent->to_child_index(branch));
     // top 2 bits are for no_pages
     auto const num_pages_to_load_node = offset.spare;
     assert(num_pages_to_load_node <= 3);
@@ -45,12 +45,14 @@ find_result_type find_blocking(
                 return {nullptr, find_result::branch_not_exist_failure};
             }
             // go to node's matched child
-            if (!node->next(nibble)) { // read node if not yet in mem
+            if (!node->next(node->to_child_index(nibble))) {
+                // read node if not yet in mem
                 MONAD_ASSERT(pool != nullptr);
                 node->set_next(
-                    nibble, read_node_blocking_(*pool, node, nibble));
+                    node->to_child_index(nibble),
+                    read_node_blocking_(*pool, node, nibble));
             }
-            node = node->next(nibble);
+            node = node->next(node->to_child_index(nibble));
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory
             node_prefix_index = node->bitpacked.path_nibble_index_start;
             ++prefix_index;

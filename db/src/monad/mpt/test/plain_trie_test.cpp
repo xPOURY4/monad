@@ -1,12 +1,12 @@
 #include "test_fixtures_base.hpp"
-#include "test_fixtures_gtest.hpp"  // NOLINT
+#include "test_fixtures_gtest.hpp" // NOLINT
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
-#include <monad/mpt/compute.hpp>
-#include <monad/mpt/trie.hpp>
 #include <monad/mpt/cache_option.hpp>
+#include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
+#include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
 #include <cstdint>
@@ -109,15 +109,15 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(
         node1->path_nibble_view(), (NibblesView{1, 8, kv[1].first.data()}));
     EXPECT_EQ(node1->value(), kv[1].second);
-    Node *node1aa = node1->next(0xa);
+    Node *node1aa = node1->next(0);
     EXPECT_EQ(node1aa->mask, 1u << 0xa | 1u << 0xc);
     EXPECT_EQ(
         node1aa->path_nibble_view(), (NibblesView{9, 10, kv[3].first.data()}));
 
     EXPECT_EQ(node1aa->path_bytes(), 1);
     EXPECT_EQ(node1aa->value_len, 0);
-    Node *node1aaaa = node1aa->next(0xa);
-    Node *node1aacd = node1aa->next(0xc);
+    Node *node1aaaa = node1aa->next(0);
+    Node *node1aacd = node1aa->next(1);
     EXPECT_EQ(node1aaaa->mask, 0);
     EXPECT_EQ(
         node1aaaa->path_nibble_view(),
@@ -158,9 +158,9 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(root->mask, 0b11);
     node1 = root->next(1); // 1111... 111a... 111b...
     EXPECT_EQ(node1->mask, 1u << 1 | 1u << 0xa | 1u << 0xb);
-    Node *node1111 = node1->next(1);
-    Node *node111a = node1->next(0xa);
-    Node *node111b = node1->next(0xb);
+    Node *node1111 = node1->next(0);
+    Node *node111a = node1->next(1);
+    Node *node111b = node1->next(2);
     EXPECT_EQ(node1111->value(), kv[1].second);
     EXPECT_EQ(
         node111a->path_nibble_view(), (NibblesView{4, 8, kv[4].first.data()}));
@@ -184,16 +184,18 @@ TEST(InMemoryPlainTrie, var_length)
         find_blocking(nullptr, root.get(), kv[7].first).first->value(),
         kv[7].second);
 
-    node1 = root->next(1);
-    node111b = node1->next(0xb);
+    node1 = root->next(root->to_child_index(1));
+    node111b = node1->next(node1->to_child_index(0xb));
     EXPECT_EQ(node111b->mask, 1u << 0xa | 1u << 0xb);
-    EXPECT_EQ(node111b->next(0xa)->value(), kv[6].second);
     EXPECT_EQ(
-        node111b->next(0xa)->path_nibble_view(),
+        node111b->next(node111b->to_child_index(0xa))->value(), kv[6].second);
+    EXPECT_EQ(
+        node111b->next(node111b->to_child_index(0xa))->path_nibble_view(),
         (NibblesView{9, 16, kv[6].first.data()}));
-    EXPECT_EQ(node111b->next(0xb)->value(), kv[7].second);
     EXPECT_EQ(
-        node111b->next(0xb)->path_nibble_view(),
+        node111b->next(node111b->to_child_index(0xb))->value(), kv[7].second);
+    EXPECT_EQ(
+        node111b->next(node111b->to_child_index(0xb))->path_nibble_view(),
         (NibblesView{9, 16, kv[7].first.data()}));
 }
 
@@ -237,8 +239,8 @@ TEST(InMemoryPlainTrie, mismatch)
     EXPECT_EQ(root->mask, 0b11000);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
-    EXPECT_EQ(root->next(4)->value(), kv[2].second);
-    Node *left_leaf = root->next(3)->next(5);
+    EXPECT_EQ(root->next(1)->value(), kv[2].second);
+    Node *left_leaf = root->next(0)->next(0);
     EXPECT_EQ(left_leaf->value(), kv[0].second);
     /* insert 12347678, 123aabcd
                   12
@@ -271,18 +273,18 @@ TEST(InMemoryPlainTrie, mismatch)
     EXPECT_EQ(root->mask, 0b11000);
     EXPECT_EQ(
         root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
-    Node *node3 = root->next(3);
+    Node *node3 = root->next(0);
     EXPECT_EQ(node3->mask, 1u << 4 | 1u << 0xa);
     EXPECT_EQ(node3->data_len, 0);
     EXPECT_EQ(node3->path_bytes(), 0);
-    Node *node34 = node3->next(4);
+    Node *node34 = node3->next(0);
     EXPECT_EQ(node34->mask, 0b11100000);
     EXPECT_EQ(node34->data_len, 0);
     EXPECT_EQ(node34->path_bytes(), 0);
-    EXPECT_EQ(node34->next(5)->value_len, 2);
-    EXPECT_EQ(node34->next(5)->value(), kv[0].second);
-    EXPECT_EQ(node34->next(6)->value(), kv[1].second);
-    EXPECT_EQ(node34->next(7)->value(), kv[3].second);
+    EXPECT_EQ(node34->next(0)->value_len, 2);
+    EXPECT_EQ(node34->next(0)->value(), kv[0].second);
+    EXPECT_EQ(node34->next(1)->value(), kv[1].second);
+    EXPECT_EQ(node34->next(2)->value(), kv[3].second);
 }
 
 TEST(InMemoryPlainTrie, delete_wo_incarnation)

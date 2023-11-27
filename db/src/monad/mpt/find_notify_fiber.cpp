@@ -49,9 +49,9 @@ struct find_receiver
         , inflights(inflights_)
         , parent(parent_)
         , rd_offset(0, 0)
-        , branch_index(parent->to_index(branch_))
+        , branch_index(parent->to_child_index(branch_))
     {
-        chunk_offset_t const offset = parent->fnext_index(branch_index);
+        chunk_offset_t const offset = parent->fnext(branch_index);
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
         assert(num_pages_to_load_node <= 3);
@@ -72,12 +72,12 @@ struct find_receiver
         MONAD_ASSERT(buffer_);
         std::span<std::byte const> const buffer =
             std::move(buffer_).assume_value();
-        MONAD_ASSERT(parent->next_index(branch_index) == nullptr);
+        MONAD_ASSERT(parent->next(branch_index) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off)
                          .release();
-        parent->set_next_index(branch_index, node);
-        auto const offset = parent->fnext_index(branch_index);
+        parent->set_next(branch_index, node);
+        auto const offset = parent->fnext(branch_index);
         auto &pendings = inflights.at(offset);
         for (auto &[key, promise] : pendings) {
             MONAD_DEBUG_ASSERT(promise != nullptr);
@@ -126,12 +126,13 @@ void find_recursive(
             prefix_index < std::numeric_limits<unsigned char>::max());
         auto const next_key =
             key.substr(static_cast<unsigned char>(prefix_index) + 1u);
-        if (node->next(branch) != nullptr) {
+        auto const child_index = node->to_child_index(branch);
+        if (node->next(child_index) != nullptr) {
             find_recursive(
-                io, inflights, promise, node->next(branch), next_key);
+                io, inflights, promise, node->next(child_index), next_key);
             return;
         }
-        chunk_offset_t const offset = node->fnext(branch);
+        chunk_offset_t const offset = node->fnext(child_index);
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
             lt->second.emplace_back(next_key, &promise);
             return;

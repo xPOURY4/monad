@@ -155,17 +155,18 @@ namespace detail
             std::span<unsigned char> result = branch_str_rlp;
             for (unsigned i = 0, bit = 1; i < 16; ++i, bit <<= 1) {
                 if (node->mask & bit) {
+                    auto const child_index = node->to_child_index(i);
                     result =
-                        (node->child_data_len(i) < 32)
+                        (node->child_data_len(child_index) < 32)
                             ? [&] {
                                   memcpy(
                                       result.data(),
-                                      node->child_data(i),
-                                      node->child_data_len(i));
+                                      node->child_data(child_index),
+                                      node->child_data_len(child_index));
                                   return result.subspan(
-                                      node->child_data_len(i));
+                                      node->child_data_len(child_index));
                               }()
-                            : rlp::encode_string(result, node->child_data_view(i));
+                            : rlp::encode_string(result, node->child_data_view(child_index));
                 }
                 else {
                     result[0] = RLP_EMPTY_STRING;

@@ -805,14 +805,14 @@ bool dispatch_updates_impl_(
         if (bit & requests.mask) { // NOLINT
             Node *node = nullptr;
             if (bit & old->mask) {
-                node_ptr next_ = old->next_ptr(i);
+                node_ptr next_ = old->next_ptr(old->to_child_index(i));
                 auto next_tnode = make_tnode(sm.get_state());
                 if (!upsert_(
                         aux,
                         sm,
                         next_.get(),
                         next_tnode.get(),
-                        old->fnext(i),
+                        old->fnext(old->to_child_index(i)),
                         std::move(requests)[i],
                         prefix_index + 1,
                         next_ ? next_->bitpacked.path_nibble_index_start
@@ -847,24 +847,25 @@ bool dispatch_updates_impl_(
             ++j;
         }
         else if (bit & old->mask) {
-            if (old->next(i)) { // in memory, infers cached
-                child.ptr = old->next_ptr(i).release();
+            auto const old_child_index = old->to_child_index(i);
+            if (old->next(old_child_index)) { // in memory, infers cached
+                child.ptr = old->next_ptr(old_child_index).release();
             }
-            auto const data = old->child_data_view(i);
+            auto const data = old->child_data_view(old->to_child_index(i));
             memcpy(&child.data, data.data(), data.size());
             MONAD_DEBUG_ASSERT(
                 data.size() <= std::numeric_limits<uint8_t>::max());
             child.len = static_cast<uint8_t>(data.size());
             child.branch = static_cast<uint8_t>(i);
-            child.offset = old->fnext(i);
-            child.min_count = old->min_count(i);
+            child.offset = old->fnext(old_child_index);
+            child.min_count = old->min_count(old_child_index);
             --tnode->npending;
             ++j;
         }
     }
     // debug
     for (unsigned j = 0; j < old->number_of_children(); ++j) {
-        assert(!old->next_index(j));
+        assert(!old->next(j));
     }
     if (tnode->npending) {
         return false;

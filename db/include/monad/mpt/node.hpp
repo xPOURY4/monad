@@ -144,27 +144,24 @@ public:
     void set_params(
         uint16_t mask, bool has_value, uint8_t value_len, uint8_t data_len);
 
-    unsigned to_index(unsigned branch) const noexcept;
+    unsigned to_child_index(unsigned branch) const noexcept;
 
     unsigned number_of_children() const noexcept;
 
     //! fnext
-    chunk_offset_t &fnext_index(unsigned index) noexcept;
-    chunk_offset_t &fnext(unsigned branch) noexcept;
+    chunk_offset_t &fnext(unsigned index) noexcept;
 
     //! min_block_no array
     unsigned char *child_min_count_data() noexcept;
     unsigned char const *child_min_count_data() const noexcept;
-    detail::unsigned_20 &min_count_index(unsigned index) noexcept;
-    detail::unsigned_20 &min_count(unsigned branch) noexcept;
+    detail::unsigned_20 &min_count(unsigned index) noexcept;
 
     //! data_offset array
     unsigned char *child_off_data() noexcept;
     unsigned char const *child_off_data() const noexcept;
-    data_off_t child_off_index(unsigned index) noexcept;
+    data_off_t child_off(unsigned index) noexcept;
 
-    unsigned child_data_len_index(unsigned index);
-    unsigned child_data_len(unsigned branch);
+    unsigned child_data_len(unsigned index);
 
     //! path
     unsigned char *path_data() noexcept;
@@ -189,20 +186,15 @@ public:
 
     //! child data
     unsigned char *child_data() noexcept;
-    byte_string_view child_data_view_index(unsigned index) noexcept;
-    unsigned char *child_data_index(unsigned index) noexcept;
-    unsigned char *child_data(unsigned branch) noexcept;
-    byte_string_view child_data_view(unsigned branch) noexcept;
-    void set_child_data_index(unsigned index, byte_string_view data) noexcept;
+    byte_string_view child_data_view(unsigned index) noexcept;
+    unsigned char *child_data(unsigned index) noexcept;
+    void set_child_data(unsigned index, byte_string_view data) noexcept;
 
     //! next pointers
     unsigned char *next_data() noexcept;
-    Node *next_index(unsigned const index) noexcept;
-    Node *next(unsigned const branch) noexcept;
-    void set_next_index(unsigned const index, Node *const node) noexcept;
-    void set_next(unsigned const branch, Node *const node) noexcept;
-    unique_ptr_type next_ptr_index(unsigned const index) noexcept;
-    unique_ptr_type next_ptr(unsigned const branch) noexcept;
+    Node *next(unsigned index) noexcept;
+    void set_next(unsigned index, Node *) noexcept;
+    unique_ptr_type next_ptr(unsigned index) noexcept;
 
     //! node size in memory
     unsigned get_mem_size() noexcept;
