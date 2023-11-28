@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
     unsigned n_slices = 20;
     bool append = false;
     uint64_t block_no = 0;
-    std::filesystem::path dbname_path = "test.db";
+    std::vector<std::filesystem::path> dbname_paths;
     std::filesystem::path csv_stats_path;
     uint64_t key_offset = 0;
     unsigned sq_thread_cpu = 15;
@@ -199,7 +199,10 @@ int main(int argc, char *argv[])
             "--block-no",
             block_no,
             "start at a specific block_no, append to block_no-1");
-        cli.add_option("--db-name", dbname_path, "db file name");
+        cli.add_option(
+            "--db-names",
+            dbname_paths,
+            "db file names, can have more than one");
         cli.add_option("--csv-stats", csv_stats_path, "CSV stats file name");
         cli.add_option(
             "--key-offset", key_offset, "integer offset to start insert");
@@ -274,22 +277,28 @@ int main(int argc, char *argv[])
         auto keccak_keys = std::vector<monad::byte_string>{keccak_cap};
         auto keccak_values = std::vector<monad::byte_string>{keccak_cap};
 
-        if (!std::filesystem::exists(dbname_path)) {
-            int const fd =
-                ::open(dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
-            if (-1 == fd) {
-                throw std::system_error(errno, std::system_category());
-            }
-            auto unfd =
-                monad::make_scope_exit([fd]() noexcept { ::close(fd); });
-            if (-1 ==
-                ::ftruncate(
-                    fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
-                throw std::system_error(errno, std::system_category());
+        if (dbname_paths.empty()) {
+            dbname_paths.emplace_back("test.db");
+        }
+        for (auto const &dbname_path : dbname_paths) {
+            if (!std::filesystem::exists(dbname_path)) {
+                int const fd = ::open(
+                    dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+                if (-1 == fd) {
+                    throw std::system_error(errno, std::system_category());
+                }
+                auto unfd =
+                    monad::make_scope_exit([fd]() noexcept { ::close(fd); });
+                if (-1 ==
+                    ::ftruncate(
+                        fd,
+                        1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
+                    throw std::system_error(errno, std::system_category());
+                }
             }
         }
         MONAD_ASYNC_NAMESPACE::storage_pool pool{
-            {&dbname_path, 1},
+            {dbname_paths},
             append ? MONAD_ASYNC_NAMESPACE::storage_pool::mode::open_existing
                    : MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
 
