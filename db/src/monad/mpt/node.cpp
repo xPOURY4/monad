@@ -480,7 +480,7 @@ Node *create_node_nodata(
 
 void serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
 {
-    MONAD_ASSERT(node->disk_size > 0 && node->disk_size <= MAX_DISK_NODE_SIZE);
+    MONAD_ASSERT(node->disk_size > 0 && node->disk_size <= max_disk_node_size);
     memcpy(write_pos, node, node->disk_size);
     return;
 }
@@ -492,7 +492,7 @@ Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
     uint16_t const disk_size = unaligned_load<uint16_t>(read_pos + 6),
                    alloc_size = static_cast<uint16_t>(
                        disk_size + number_of_children * sizeof(Node *));
-    MONAD_ASSERT(disk_size > 0 && disk_size <= MAX_DISK_NODE_SIZE);
+    MONAD_ASSERT(disk_size > 0 && disk_size <= max_disk_node_size);
     auto node = Node::make_node(alloc_size);
     memcpy((unsigned char *)node.get(), read_pos, disk_size);
     memset(node->next_data(), 0, number_of_children * sizeof(Node *));

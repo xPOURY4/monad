@@ -16,7 +16,6 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 struct Compute;
 class NibblesView;
-
 /* A note on generic trie
 
 In Ethereum merkle patricia trie:

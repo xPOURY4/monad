@@ -27,30 +27,8 @@ using MONAD_ASYNC_NAMESPACE::round_up_align;
 static constexpr uint8_t INVALID_BRANCH = 255;
 static constexpr uint8_t INVALID_PATH_INDEX = 255;
 static constexpr unsigned CACHE_LEVEL = 5;
-/* The maximum disk storage used by a node:
-# assume each child node's hash data is 32 bytes
-def calc_size(path_len, num_child, leaf_len = 0,  ptr_size = 8, off_size = 8):
-    size = 0
-    size += 2  # mask
-    size += 1  # leaf length
-    size += 1  # hash length
-    size += 1  # path start index
-    size += 1  # path end index
-    size += 2  # padding
-    size += int((path_len + 1) / 2) # path bytes
-    size += ptr_size * num_child  # mem pointers
-    size += off_size * num_child  # file offsets
-    size += 4 * num_child  # min_count array
-    size += 2 * num_child  # data offset array, 2-byte offset
-    size += 32 * num_child  # data
-    if(leaf_len):
-        size += 32 # branch hash
-    return size
-calc_size(64, 16, 32) # 936
-*/
-static constexpr uint16_t MAX_DISK_NODE_SIZE = 936;
 
-static const byte_string empty_trie_hash = [] {
+static byte_string const empty_trie_hash = [] {
     using namespace ::monad::literals;
     return 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex;
 }();
