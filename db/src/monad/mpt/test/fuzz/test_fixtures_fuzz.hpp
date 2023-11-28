@@ -15,7 +15,7 @@ namespace monad::test
 {
     // Used to force Node's pool to be instanced now, not after the test fixture
     // exits
-    static auto force_node_pool_instance_now = mpt::Node::pool();
+    static auto force_node_pool_instance_now = Node::pool();
 
     namespace detail
     {

@@ -43,7 +43,7 @@ auto const path = 0xabcdabcdabcdabcd_hex;
 TEST(NodeTest, leaf)
 {
     NibblesView const relpath{1, 10, path.data()};
-    node_ptr node{create_leaf(data, relpath)};
+    Node::UniquePtr node{create_leaf(data, relpath)};
 
     EXPECT_EQ(node->mask, 0);
     EXPECT_EQ(node->value(), data);
@@ -65,7 +65,7 @@ TEST(NodeTest, leaf_single_branch)
     children[0].ptr = child;
     NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = 1u << 0xc;
-    node_ptr node{create_node(comp, mask, children, relpath2, data)};
+    Node::UniquePtr node{create_node(comp, mask, children, relpath2, data)};
 
     EXPECT_EQ(node->value(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
@@ -91,7 +91,7 @@ TEST(NodeTest, leaf_multiple_branches)
     children[1].ptr = child2;
     NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node{create_node(comp, mask, children, relpath2, data)};
+    Node::UniquePtr node{create_node(comp, mask, children, relpath2, data)};
 
     EXPECT_EQ(node->value(), data);
     EXPECT_EQ(node->path_nibble_view(), relpath2);
@@ -117,7 +117,7 @@ TEST(NodeTest, branch_node)
     children[1].ptr = child2;
     NibblesView const relpath2{1, 1, path.data()}; // relpath2 is empty
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node{create_node(comp, mask, children, relpath2)};
+    Node::UniquePtr node{create_node(comp, mask, children, relpath2)};
 
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->data_len, 0);
@@ -143,7 +143,7 @@ TEST(NodeTest, extension_node)
     children[1].ptr = child2;
     NibblesView const relpath2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    node_ptr node{create_node(comp, mask, children, relpath2)};
+    Node::UniquePtr node{create_node(comp, mask, children, relpath2)};
 
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->path_nibble_view(), relpath2);

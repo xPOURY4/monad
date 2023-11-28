@@ -79,12 +79,12 @@ inline unsigned count_leaves(Node *const root, unsigned n = 0)
     key_offset: insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
-inline node_ptr batch_upsert_commit(
+inline Node::UniquePtr batch_upsert_commit(
     std::ostream &csv_writer, uint64_t block_id, uint64_t vec_idx,
     uint64_t key_offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    node_ptr prev_root, UpdateAux &aux, TrieStateMachine &sm)
+    Node::UniquePtr prev_root, UpdateAux &aux, TrieStateMachine &sm)
 {
     auto const block_no = serialise_as_big_endian<6>(block_id);
     if (block_id != 0) {
@@ -117,7 +117,7 @@ inline node_ptr batch_upsert_commit(
     updates.push_front(u);
 
     auto ts_before = std::chrono::steady_clock::now();
-    node_ptr new_root = upsert(aux, sm, prev_root.get(), std::move(updates));
+    auto new_root = upsert(aux, sm, prev_root.get(), std::move(updates));
     auto ts_after = std::chrono::steady_clock::now();
     tm_ram = static_cast<double>(
                  std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -313,7 +313,7 @@ int main(int argc, char *argv[])
             aux.set_io(&io);
         }
 
-        node_ptr state_root{};
+        Node::UniquePtr state_root{};
         if (append) {
             auto root_off = aux.get_root_offset();
             Node *root = read_node_blocking(io.storage_pool(), root_off);

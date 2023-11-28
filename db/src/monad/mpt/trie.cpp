@@ -345,7 +345,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
     UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode,
     unsigned const prefix_index);
 
-node_ptr upsert(
+Node::UniquePtr upsert(
     UpdateAux &aux, TrieStateMachine &sm, Node *const old, UpdateList &&updates)
 {
     sm.reset();
@@ -372,7 +372,7 @@ node_ptr upsert(
     if (aux.is_on_disk()) {
         write_new_root_node(aux, root_tnode);
     }
-    return node_ptr{root_tnode->node};
+    return Node::UniquePtr{root_tnode->node};
 }
 
 void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
@@ -454,7 +454,7 @@ struct update_receiver
         std::span<std::byte const> const buffer =
             std::move(buffer_).assume_value();
         // tnode owns the deserialized old node
-        node_ptr old = deserialize_node_from_buffer(
+        auto old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off);
         Node *old_node = old.get();
         sm->reset(tnode->trie_section);
@@ -560,7 +560,7 @@ Node *create_node_from_children_if_any(
             orig_mask, static_cast<unsigned>(std::countr_zero(mask)));
         assert(children[j].ptr);
         return create_coalesced_node_with_prefix(
-            children[j].branch, node_ptr{children[j].ptr}, relpath);
+            children[j].branch, Node::UniquePtr{children[j].ptr}, relpath);
     }
     MONAD_DEBUG_ASSERT(
         number_of_children > 1 ||
@@ -593,7 +593,7 @@ Node *create_node_from_children_if_any(
                       (prefix_index + 1 + child.ptr->path_nibbles_len() >
                        CACHE_LEVEL)))) {
                     {
-                        node_ptr const _{child.ptr};
+                        Node::UniquePtr const _{child.ptr};
                     }
                     child.ptr = nullptr;
                 }
@@ -803,7 +803,7 @@ bool dispatch_updates_impl_(
         if (bit & requests.mask) { // NOLINT
             Node *node = nullptr;
             if (bit & old->mask) {
-                node_ptr next_ = old->next_ptr(old->to_child_index(i));
+                auto next_ = old->next_ptr(old->to_child_index(i));
                 MONAD_DEBUG_ASSERT(i <= std::numeric_limits<uint8_t>::max());
                 auto next_tnode =
                     make_tnode(sm.get_state(), tnode, static_cast<uint8_t>(i));

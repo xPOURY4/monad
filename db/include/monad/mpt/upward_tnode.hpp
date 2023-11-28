@@ -18,9 +18,10 @@ struct UpwardTreeNode
 {
     UpwardTreeNode *parent{nullptr};
     Node *node{nullptr}; // new node
-    node_ptr old{}; // tnode owns old node's lifetime only when old is leaf
-                    // node, as opt_leaf_data has to be valid in memory when it
-                    // works the way back to recompute leaf data
+    Node::UniquePtr
+        old{}; // tnode owns old node's lifetime only when old is leaf
+               // node, as opt_leaf_data has to be valid in memory
+               // when it works the way back to recompute leaf data
     allocators::owning_span<ChildData> children{};
     Nibbles relpath{};
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
@@ -77,7 +78,7 @@ using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
 inline tnode_unique_ptr make_tnode(
     uint8_t const trie_section = 0, UpwardTreeNode *const parent = nullptr,
-    uint8_t const branch = INVALID_BRANCH, node_ptr old = {})
+    uint8_t const branch = INVALID_BRANCH, Node::UniquePtr old = {})
 {
     // tnode is linked to parent tnode on creation
     return UpwardTreeNode::make(UpwardTreeNode{

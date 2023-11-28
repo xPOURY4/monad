@@ -20,16 +20,18 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Node::allocator_pair_type Node::pool()
+allocators::detail::type_raw_alloc_pair<
+    std::allocator<Node>, Node::BytesAllocator>
+Node::pool()
 {
-    static Node::type_allocator a;
-    static Node::raw_bytes_allocator b;
+    static std::allocator<Node> a;
+    static BytesAllocator b;
     return {a, b};
 }
 
-size_t Node::get_deallocate_count(Node *p)
+size_t Node::get_deallocate_count(Node *node)
 {
-    return p->get_mem_size();
+    return node->get_mem_size();
 }
 
 Node::Node(prevent_public_construction_tag) {}
@@ -37,19 +39,18 @@ Node::Node(prevent_public_construction_tag) {}
 Node::~Node()
 {
     for (uint8_t index = 0; index < number_of_children(); ++index) {
-        node_ptr{next(index)};
+        UniquePtr{next(index)};
         set_next(index, nullptr);
     }
 }
 
-Node::unique_ptr_type Node::make_node(unsigned storagebytes)
+Node::UniquePtr Node::make_node(unsigned storagebytes)
 {
     return allocators::allocate_aliasing_unique<
-        type_allocator,
-        raw_bytes_allocator,
-        &Node::pool,
-        &Node::get_deallocate_count>(
-        storagebytes, prevent_public_construction_tag{});
+        std::allocator<Node>,
+        BytesAllocator,
+        &pool,
+        &get_deallocate_count>(storagebytes, prevent_public_construction_tag{});
 }
 
 void Node::set_params(
@@ -107,18 +108,18 @@ unsigned char const *Node::child_off_data() const noexcept
     return child_min_count_data() + number_of_children() * sizeof(uint32_t);
 }
 
-Node::data_off_t Node::child_off(unsigned const index) noexcept
+uint16_t Node::child_off(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index <= number_of_children());
     if (index == 0) {
         return 0;
     }
     else {
-        data_off_t res;
+        uint16_t res;
         memcpy(
             &res,
-            child_off_data() + (index - 1) * sizeof(data_off_t),
-            sizeof(data_off_t));
+            child_off_data() + (index - 1) * sizeof(uint16_t),
+            sizeof(uint16_t));
         return res;
     }
 }
@@ -130,12 +131,12 @@ unsigned Node::child_data_len(unsigned const index)
 
 unsigned char *Node::path_data() noexcept
 {
-    return child_off_data() + number_of_children() * sizeof(data_off_t);
+    return child_off_data() + number_of_children() * sizeof(uint16_t);
 }
 
 unsigned char const *Node::path_data() const noexcept
 {
-    return child_off_data() + number_of_children() * sizeof(data_off_t);
+    return child_off_data() + number_of_children() * sizeof(uint16_t);
 }
 
 unsigned Node::path_nibbles_len() const noexcept
@@ -252,11 +253,11 @@ void Node::set_next(unsigned const index, Node *const node) noexcept
          : memset(next_data() + index * sizeof(Node *), 0, sizeof(Node *));
 }
 
-Node::unique_ptr_type Node::next_ptr(unsigned const index) noexcept
+Node::UniquePtr Node::next_ptr(unsigned const index) noexcept
 {
     Node *p = next(index);
     set_next(index, nullptr);
-    return unique_ptr_type{p};
+    return UniquePtr{p};
 }
 
 unsigned Node::get_mem_size() noexcept
@@ -290,7 +291,7 @@ Node *create_leaf(byte_string_view const data, NibblesView const relpath)
 {
     auto const bytes = sizeof(Node) + relpath.data_size() + data.size();
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned int>::max());
-    node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
+    auto node = Node::make_node(static_cast<unsigned int>(bytes));
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->fnext_data);
     if (relpath.data_size()) {
@@ -305,13 +306,13 @@ Node *create_leaf(byte_string_view const data, NibblesView const relpath)
 }
 
 Node *create_coalesced_node_with_prefix(
-    uint8_t const branch, node_ptr prev, NibblesView const prefix)
+    uint8_t const branch, Node::UniquePtr prev, NibblesView const prefix)
 {
     // Note that prev may be a leaf
     Nibbles const relpath = concat3(prefix, branch, prev->path_nibble_view());
     unsigned const size =
         prev->get_mem_size() + relpath.data_size() - prev->path_bytes();
-    node_ptr node = Node::make_node(size);
+    auto node = Node::make_node(size);
     // copy node, fnexts, min_count, data_off
     std::memcpy(
         (unsigned char *)node.get(),
@@ -356,27 +357,27 @@ Node *create_node(
         has_value ? static_cast<uint8_t>(comp.compute_len(children, mask)) : 0;
     auto bytes =
         sizeof(Node) + value_len + data_len +
-        number_of_children * (sizeof(Node *) + sizeof(Node::data_off_t) +
+        number_of_children * (sizeof(Node *) + sizeof(uint16_t) +
                               sizeof(uint32_t) + sizeof(file_offset_t)) +
         relpath.data_size();
-    std::vector<Node::data_off_t> offsets(number_of_children);
+    std::vector<uint16_t> offsets(number_of_children);
     unsigned child_len = 0;
     for (unsigned j = 0; auto &child : children) {
         if (child.branch != INVALID_BRANCH) {
             child_len += child.len;
             MONAD_DEBUG_ASSERT(
-                child_len <= std::numeric_limits<Node::data_off_t>::max());
-            offsets[j++] = static_cast<Node::data_off_t>(child_len);
+                child_len <= std::numeric_limits<uint16_t>::max());
+            offsets[j++] = static_cast<uint16_t>(child_len);
         }
     }
     bytes += child_len;
-    node_ptr node = Node::make_node(static_cast<unsigned int>(
+    auto node = Node::make_node(static_cast<unsigned int>(
         bytes)); // zero initialized in Node but not tail
     node->set_params(mask, has_value, value_len, data_len);
     std::memcpy(
         node->child_off_data(),
         offsets.data(),
-        offsets.size() * sizeof(Node::data_off_t));
+        offsets.size() * sizeof(uint16_t));
     // order is enforced, must set path first
     if (relpath.data_size()) {
         serialize_to_node(relpath, *node);
@@ -412,7 +413,7 @@ Node *update_node_diff_path_leaf(
     auto const bytes = old->get_mem_size() + value_len - old->value_len +
                        relpath.data_size() - old->path_bytes();
     MONAD_DEBUG_ASSERT(bytes <= std::numeric_limits<unsigned>::max());
-    node_ptr node = Node::make_node(static_cast<unsigned>(bytes));
+    auto node = Node::make_node(static_cast<unsigned>(bytes));
     // copy Node, fnexts and data_off array
     std::memcpy( // NOLINT
         (void *)node.get(),
@@ -464,9 +465,9 @@ Node *create_node_nodata(
     auto const bytes = sizeof(Node) + relpath.data_size() +
                        static_cast<unsigned>(std::popcount(mask)) *
                            (sizeof(Node *) + sizeof(file_offset_t) +
-                            sizeof(uint32_t) + sizeof(Node::data_off_t));
+                            sizeof(uint32_t) + sizeof(uint16_t));
 
-    node_ptr node = Node::make_node(static_cast<unsigned int>(bytes));
+    auto node = Node::make_node(static_cast<unsigned int>(bytes));
     memset((void *)node.get(), 0, bytes);
 
     node->set_params(mask, has_value, /*value_len*/ 0, /*data_len*/ 0);
@@ -484,7 +485,7 @@ void serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
     return;
 }
 
-node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
+Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
 {
     uint16_t const mask = unaligned_load<uint16_t>(read_pos);
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
@@ -492,7 +493,7 @@ node_ptr deserialize_node_from_buffer(unsigned char const *read_pos)
                    alloc_size = static_cast<uint16_t>(
                        disk_size + number_of_children * sizeof(Node *));
     MONAD_ASSERT(disk_size > 0 && disk_size <= MAX_DISK_NODE_SIZE);
-    node_ptr node = Node::make_node(alloc_size);
+    auto node = Node::make_node(alloc_size);
     memcpy((unsigned char *)node.get(), read_pos, disk_size);
     memset(node->next_data(), 0, number_of_children * sizeof(Node *));
     return node;

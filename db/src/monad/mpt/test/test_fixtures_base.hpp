@@ -13,7 +13,7 @@ namespace monad::test
     using namespace monad::mpt;
     using namespace monad::literals;
 
-    node_ptr upsert_vector(
+    Node::UniquePtr upsert_vector(
         UpdateAux &aux, TrieStateMachine &sm, Node *const old,
         std::vector<Update> &&update_vec)
     {
@@ -25,7 +25,7 @@ namespace monad::test
     }
 
     template <class... Updates>
-    [[nodiscard]] constexpr node_ptr upsert_updates(
+    [[nodiscard]] constexpr Node::UniquePtr upsert_updates(
         UpdateAux &aux, TrieStateMachine &sm, Node *const old,
         Updates... updates)
     {
@@ -84,7 +84,7 @@ namespace monad::test
     class InMemoryTrieBase : public Base
     {
     public:
-        node_ptr root;
+        Node::UniquePtr root;
         UpdateAux aux;
         StateMachineWithBlockNo sm;
 
@@ -131,7 +131,7 @@ namespace monad::test
         MONAD_ASYNC_NAMESPACE::AsyncIO io;
 
     public:
-        node_ptr root;
+        Node::UniquePtr root;
         UpdateAux aux;
         StateMachineWithBlockNo sm;
 
@@ -211,7 +211,7 @@ namespace monad::test
                 MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
             MONAD_ASYNC_NAMESPACE::AsyncIO io{pool, ring, rwbuf};
             MerkleCompute comp;
-            node_ptr root;
+            Node::UniquePtr root;
             StateMachineWithBlockNo sm{1};
             UpdateAux aux{&io}; // trie section starts from account
             monad::small_prng rand;

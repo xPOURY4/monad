@@ -129,7 +129,7 @@ namespace detail
             byte_string_view encoded_strings{
                 branch_str_rlp,
                 static_cast<size_t>(result.data() - branch_str_rlp)};
-            size_t branch_rlp_len = rlp::list_length(encoded_strings);
+            size_t branch_rlp_len = rlp::list_length(encoded_strings.size());
             MONAD_DEBUG_ASSERT(branch_rlp_len <= 544);
 
             unsigned char branch_rlp[544];
@@ -180,7 +180,7 @@ namespace detail
             byte_string_view encoded_strings{
                 branch_str_rlp,
                 static_cast<size_t>(result.data() - branch_str_rlp)};
-            size_t branch_rlp_len = rlp::list_length(encoded_strings);
+            size_t branch_rlp_len = rlp::list_length(encoded_strings.size());
             MONAD_DEBUG_ASSERT(branch_rlp_len <= 544);
 
             unsigned char branch_rlp[544];
@@ -241,7 +241,7 @@ namespace detail
 
             byte_string_view encoded_strings{
                 rlp_string, first_len + second_len};
-            size_t rlp_len = rlp::list_length(encoded_strings);
+            size_t rlp_len = rlp::list_length(encoded_strings.size());
             MONAD_DEBUG_ASSERT(rlp_len <= 160);
             unsigned char rlp[160];
             rlp::encode_list(rlp, encoded_strings);

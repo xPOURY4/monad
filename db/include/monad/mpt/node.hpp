@@ -7,6 +7,7 @@
 #include <monad/mem/allocators.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
 #include <monad/mpt/util.hpp>
+#include <monad/rlp/encode.hpp>
 
 #include <cstdint>
 #include <span>
@@ -50,8 +51,50 @@ class Node
     };
 
 public:
-    using data_off_t = uint16_t;
+    static constexpr size_t size_of = 8;
+    static constexpr size_t max_child_size =
+        32 // max child data size
+        + sizeof(uint16_t) // child data offset
+        + sizeof(detail::unsigned_20) // min count
+        + sizeof(chunk_offset_t) + sizeof(Node *);
+    static constexpr size_t max_value_size = rlp::list_length( // account rlp
+        rlp::list_length(32) // balance
+        + rlp::list_length(32) // code hash
+        + rlp::list_length(32) // storage hash
+        + rlp::list_length(8) // nonce
+    );
+    // clang-format off
+    static constexpr size_t max_size =
+        size_of
+        + max_child_size * 16
+        + max_value_size
+        + 32 // max path size
+        + 32 // max data size
+        ;
+    // clang-format on
+    static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    static constexpr size_t allocator_divisor = 16;
+    using BytesAllocator = allocators::array_of_boost_pools_allocator<
+        round_up<size_t>(size_of, allocator_divisor),
+        round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
+    static_assert(max_size == 1046);
+    static_assert(max_disk_size == 918);
+    static_assert(BytesAllocator::allocation_upper_bound == 1056);
+#else
+    using BytesAllocator = allocators::malloc_free_allocator<std::byte>;
+#endif
 
+    static allocators::detail::type_raw_alloc_pair<
+        std::allocator<Node>, BytesAllocator>
+    pool();
+    static size_t get_deallocate_count(Node *);
+    using UniquePtr = std::unique_ptr<
+        Node, allocators::unique_ptr_aliasing_allocator_deleter<
+                  std::allocator<Node>, BytesAllocator, &Node::pool,
+                  &Node::get_deallocate_count>>;
+
+public:
     /* 16-bit mask for children */
     uint16_t mask{0};
 
@@ -101,45 +144,12 @@ public:
     // out of line allows us to transfer ownership of data array from old node
     // to new one, also help to keep allocated size as small as possible.
 
-    using type_allocator = std::allocator<Node>;
-    static constexpr size_t raw_bytes_allocator_allocation_divisor = 16;
-    static constexpr size_t raw_bytes_allocator_allocation_lower_bound =
-        round_up<size_t>(8, raw_bytes_allocator_allocation_divisor);
-    static constexpr size_t raw_bytes_allocator_allocation_upper_bound =
-        round_up<size_t>(
-            (8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32),
-            raw_bytes_allocator_allocation_divisor);
-
-#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
-    // upper bound = round_up(8 + (32 + 2 + 4 + 8 + 8) * 16 + 110 + 32 + 32)
-    // assuming 8-byte mem pointers and on-disk offsets for now
-    // 110: max leaf data bytes
-    // 32: max relpath bytes
-    // 32: max intermediate branch hash bytes stored inline
-    using raw_bytes_allocator = allocators::array_of_boost_pools_allocator<
-        raw_bytes_allocator_allocation_lower_bound,
-        raw_bytes_allocator_allocation_upper_bound,
-        raw_bytes_allocator_allocation_divisor>;
-#else
-    using raw_bytes_allocator = allocators::malloc_free_allocator<std::byte>;
-#endif
-
-    using allocator_pair_type = allocators::detail::type_raw_alloc_pair<
-        type_allocator, raw_bytes_allocator>;
-    static allocator_pair_type pool();
-
-    static size_t get_deallocate_count(Node *);
-    using unique_ptr_type = std::unique_ptr<
-        Node, allocators::unique_ptr_aliasing_allocator_deleter<
-                  type_allocator, raw_bytes_allocator, &Node::pool,
-                  &Node::get_deallocate_count>>;
-
     Node(prevent_public_construction_tag);
     Node(Node const &) = delete;
     Node(Node &&) = default;
     ~Node();
 
-    static unique_ptr_type make_node(unsigned size);
+    static UniquePtr make_node(unsigned size);
 
     void set_params(
         uint16_t mask, bool has_value, uint8_t value_len, uint8_t data_len);
@@ -159,7 +169,7 @@ public:
     //! data_offset array
     unsigned char *child_off_data() noexcept;
     unsigned char const *child_off_data() const noexcept;
-    data_off_t child_off(unsigned index) noexcept;
+    uint16_t child_off(unsigned index) noexcept;
 
     unsigned child_data_len(unsigned index);
 
@@ -194,7 +204,7 @@ public:
     unsigned char *next_data() noexcept;
     Node *next(unsigned index) noexcept;
     void set_next(unsigned index, Node *) noexcept;
-    unique_ptr_type next_ptr(unsigned index) noexcept;
+    UniquePtr next_ptr(unsigned index) noexcept;
 
     //! node size in memory
     unsigned get_mem_size() noexcept;
@@ -202,9 +212,10 @@ public:
     uint16_t get_disk_size() noexcept;
 };
 
+static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
+static_assert(sizeof(Node) == Node::size_of);
 static_assert(sizeof(Node) == 8);
 static_assert(alignof(Node) == 2);
-using node_ptr = Node::unique_ptr_type;
 
 // ChildData is for temporarily holding a child's info, including child ptr,
 // file offset and hash data, in the update recursion.
@@ -235,7 +246,7 @@ the final form. There's not yet a good way to avoid this unless we delay all
 the compute() after all child branches finish creating nodes and return in
 the recursion */
 Node *create_coalesced_node_with_prefix(
-    uint8_t branch, node_ptr prev, NibblesView prefix);
+    uint8_t branch, Node::UniquePtr prev, NibblesView prefix);
 
 // create node: either branch/extension, with or without leaf
 Node *create_node(
@@ -254,7 +265,7 @@ create_node_nodata(uint16_t mask, NibblesView relpath, bool has_value = false);
 
 void serialize_node_to_buffer(unsigned char *write_pos, Node *);
 
-node_ptr deserialize_node_from_buffer(unsigned char const *read_pos);
+Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos);
 
 Node *read_node_blocking(
     MONAD_ASYNC_NAMESPACE::storage_pool &, chunk_offset_t node_offset,

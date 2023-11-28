@@ -70,7 +70,7 @@ TEST(InMemoryPlainTrie, var_length)
     auto &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
-    node_ptr root;
+    Node::UniquePtr root;
 
     // insert kv 0,1,2,3
     root = upsert_updates(
@@ -211,7 +211,7 @@ TEST(InMemoryPlainTrie, mismatch)
 
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
-    node_ptr root;
+    Node::UniquePtr root;
     /* insert 12345678, 12346678, 12445678
             12
           /    \
@@ -292,7 +292,7 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
     auto &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
-    node_ptr root;
+    Node::UniquePtr root;
 
     // insert all
     root = upsert_updates(
@@ -333,7 +333,7 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
     auto &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
-    node_ptr root;
+    Node::UniquePtr root;
 
     // insert
     root = upsert_updates(

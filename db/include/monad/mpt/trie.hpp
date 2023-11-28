@@ -139,7 +139,8 @@ static_assert(sizeof(UpdateAux) == 32);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
-node_ptr upsert(UpdateAux &, TrieStateMachine &, Node *old, UpdateList &&);
+Node::UniquePtr
+upsert(UpdateAux &, TrieStateMachine &, Node *old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -193,8 +194,8 @@ relpath. When copying children over, also remove the original's child pointers
 to avoid dup referencing. For on-disk trie deallocate nodes under prefix `src`
 after copy is done when the node is the only in-memory child of its parent.
 Note that we handle the case where `dest` is pre-existed in trie. */
-node_ptr
-copy_node(UpdateAux &, node_ptr root, NibblesView src, NibblesView dest);
+Node::UniquePtr
+copy_node(UpdateAux &, Node::UniquePtr root, NibblesView src, NibblesView dest);
 
 /*! \brief blocking find node indexed by key from root, It works for bothon-disk
 and in-memory trie. When node along key is not yet in memory, it load node

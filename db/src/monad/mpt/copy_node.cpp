@@ -17,8 +17,8 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-node_ptr copy_node(
-    UpdateAux &aux, node_ptr root, NibblesView const src,
+Node::UniquePtr copy_node(
+    UpdateAux &aux, Node::UniquePtr root, NibblesView const src,
     NibblesView const dest)
 {
     MONAD_ASYNC_NAMESPACE::storage_pool *pool =
@@ -168,7 +168,7 @@ node_ptr copy_node(
     }
     else {
         assert(node == root.get());
-        root = node_ptr{new_node}; // deallocate root (= node)
+        root = Node::UniquePtr{new_node}; // deallocate root (= node)
     }
     return root;
 }
