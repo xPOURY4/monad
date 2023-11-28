@@ -1,7 +1,7 @@
 #include <monad/rlp/encode.hpp>
 
 #include <monad/core/byte_string.hpp>
-#include <monad/test/gtest_signal_stacktrace_printer.hpp>  // NOLINT
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 #include <gtest/gtest.h>
 
@@ -140,19 +140,19 @@ TEST(rlp, list_length)
 {
     size_t result;
 
-    result = monad::rlp::list_length(byte_string{});
+    result = monad::rlp::list_length(0);
     EXPECT_EQ(result, 1);
 
-    result = monad::rlp::list_length(byte_string{1});
+    result = monad::rlp::list_length(1);
     EXPECT_EQ(result, 2);
 
-    result = monad::rlp::list_length(byte_string{1, 2});
+    result = monad::rlp::list_length(2);
     EXPECT_EQ(result, 3);
 
-    result = monad::rlp::list_length(byte_string(55, 1));
+    result = monad::rlp::list_length(55);
     EXPECT_EQ(result, 56);
 
-    result = monad::rlp::list_length(byte_string(56, 1));
+    result = monad::rlp::list_length(56);
     EXPECT_EQ(result, 58);
 }
 

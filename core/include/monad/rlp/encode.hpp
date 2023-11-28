@@ -109,13 +109,13 @@ encode_string(std::span<unsigned char> d, byte_string_view const s)
 /**
  * max return value is 1 + sizeof(size_t) + s.size()
  */
-constexpr size_t list_length(byte_string_view const s)
+constexpr size_t list_length(size_t const concatenated_size)
 {
-    if (s.size() <= 55) {
-        return 1 + s.size();
+    if (concatenated_size <= 55) {
+        return 1 + concatenated_size;
     }
     else {
-        return 1 + impl::length_length(s.size()) + s.size();
+        return 1 + impl::length_length(concatenated_size) + concatenated_size;
     }
 }
 

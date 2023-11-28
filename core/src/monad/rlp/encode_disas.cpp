@@ -17,7 +17,7 @@ namespace impl
     }
 
     std::span<unsigned char>
-    encode_length_disas(const std::span<unsigned char> d, size_t const n)
+    encode_length_disas(std::span<unsigned char> const d, size_t const n)
     {
         return encode_length(d, n);
     }
@@ -29,18 +29,18 @@ size_t string_length_disas(byte_string_view const s)
 }
 
 std::span<unsigned char>
-encode_string_disas(const std::span<unsigned char> d, byte_string_view const s)
+encode_string_disas(std::span<unsigned char> const d, byte_string_view const s)
 {
     return encode_string(d, s);
 }
 
-size_t list_length_disas(byte_string_view const s)
+size_t list_length_disas(size_t const concatenated_size)
 {
-    return list_length(s);
+    return list_length(concatenated_size);
 }
 
 std::span<unsigned char>
-encode_list_disas(const std::span<unsigned char> d, byte_string_view const s)
+encode_list_disas(std::span<unsigned char> const d, byte_string_view const s)
 {
     return encode_list(d, s);
 }
