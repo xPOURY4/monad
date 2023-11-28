@@ -916,7 +916,7 @@ bool mismatch_handler_(
     UpwardTreeNode *tnode, Requests &requests, unsigned const old_prefix_index,
     unsigned const prefix_index)
 {
-    MONAD_DEBUG_ASSERT(old->has_relpath());
+    MONAD_DEBUG_ASSERT(old->has_path());
     // Note: no leaf can be created at an existing non-leaf node
     MONAD_DEBUG_ASSERT(!requests.opt_leaf.has_value());
     unsigned char const old_nibble =

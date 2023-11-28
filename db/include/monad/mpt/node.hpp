@@ -176,7 +176,7 @@ public:
     unsigned char *path_data() noexcept;
     unsigned char const *path_data() const noexcept;
     unsigned path_nibbles_len() const noexcept;
-    bool has_relpath() const noexcept;
+    bool has_path() const noexcept;
     unsigned path_bytes() const noexcept;
     NibblesView path_nibble_view() const noexcept;
 

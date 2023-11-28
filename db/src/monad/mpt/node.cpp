@@ -144,7 +144,7 @@ unsigned Node::path_nibbles_len() const noexcept
     return path_nibble_index_end - bitpacked.path_nibble_index_start;
 }
 
-bool Node::has_relpath() const noexcept
+bool Node::has_path() const noexcept
 {
     return path_nibbles_len() > 0;
 }

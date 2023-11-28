@@ -199,7 +199,7 @@ namespace detail
                     true);
             }
             MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
-            if (node->has_relpath()) {
+            if (node->has_path()) {
                 unsigned char hash[32];
                 unsigned len = compute_branch(hash, node);
                 return encode_two_pieces_(
@@ -260,7 +260,7 @@ namespace detail
                    concat2(single_child.branch, node->path_nibble_view()),
                    (node->has_value()
                         ? TComputeLeafData::compute(*node)
-                        : (node->has_relpath()
+                        : (node->has_path()
                                ? ([&] -> byte_string {
                                      unsigned char branch_hash[32];
                                      return {
