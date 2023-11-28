@@ -11,6 +11,7 @@ namespace detail
     {
         AsyncIO *instance{nullptr};
         int within_completions_count{0};
+
         struct
         {
             erased_connected_operation *first{nullptr}, *last{nullptr};
@@ -18,15 +19,18 @@ namespace detail
 
         struct within_completions_holder;
         within_completions_holder enter_completions();
+
         bool empty() const noexcept
         {
             return pending_initiations.first == nullptr;
         }
+
         bool am_within_completions() const noexcept
         {
             assert(within_completions_count >= 0);
             return within_completions_count > 0;
         }
+
         bool if_within_completions_add_to_pending_initiations(
             erased_connected_operation *op)
         {
@@ -47,6 +51,7 @@ namespace detail
             pending_initiations.last = op;
             return true;
         }
+
         void within_completions_reached_zero()
         {
             if (pending_initiations.first != nullptr) {
@@ -71,9 +76,11 @@ namespace detail
             }
         }
     };
+
     // Implemented in io.cpp
     extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
     AsyncIO_per_thread_state();
+
     inline AsyncIO *AsyncIO_thread_instance() noexcept
     {
         auto &ts = AsyncIO_per_thread_state();
@@ -91,6 +98,7 @@ namespace detail
             // on a bytes transferred type connected operation
             abort();
         }
+
         virtual void completed(result<size_t> res) override
         {
             // Decay to the void type
@@ -169,12 +177,14 @@ namespace detail
 
     public:
         connected_operation_storage() = default;
+
         connected_operation_storage(
             sender_type &&sender, receiver_type &&receiver)
             : sender_(static_cast<Sender &&>(sender))
             , receiver_(static_cast<Receiver &&>(receiver))
         {
         }
+
         connected_operation_storage(
             AsyncIO &io, bool lifetime_managed_internally, sender_type &&sender,
             receiver_type &&receiver)
@@ -184,6 +194,7 @@ namespace detail
             , receiver_(static_cast<Receiver &&>(receiver))
         {
         }
+
         template <class... SenderArgs, class... ReceiverArgs>
         connected_operation_storage(
             std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
@@ -193,6 +204,7 @@ namespace detail
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
         {
         }
+
         template <class... SenderArgs, class... ReceiverArgs>
         connected_operation_storage(
             AsyncIO &io, bool lifetime_managed_internally,
@@ -219,47 +231,57 @@ namespace detail
         {
             return sender_;
         }
-        const sender_type &sender() const & noexcept
+
+        sender_type const &sender() const & noexcept
         {
             return sender_;
         }
+
         sender_type sender() && noexcept
         {
             return static_cast<sender_type &&>(sender_);
         }
-        const sender_type sender() const && noexcept
+
+        sender_type const sender() const && noexcept
         {
             return static_cast<sender_type &&>(sender_);
         }
-        const receiver_type &receiver() const & noexcept
+
+        receiver_type const &receiver() const & noexcept
         {
             return receiver_;
         }
+
         receiver_type &receiver() & noexcept
         {
             return receiver_;
         }
+
         receiver_type receiver() && noexcept
         {
             return static_cast<receiver_type &&>(receiver_);
         }
-        const receiver_type receiver() const && noexcept
+
+        receiver_type const receiver() const && noexcept
         {
-            return static_cast<const receiver_type &&>(receiver_);
+            return static_cast<receiver_type const &&>(receiver_);
         }
 
         static constexpr bool is_unknown_operation_type() noexcept
         {
             return operation_type_ == operation_type::unknown;
         }
+
         static constexpr bool is_read() noexcept
         {
             return operation_type_ == operation_type::read;
         }
+
         static constexpr bool is_write() noexcept
         {
             return operation_type_ == operation_type::write;
         }
+
         static constexpr bool is_timeout() noexcept
         {
             return operation_type_ == operation_type::timeout;
@@ -275,10 +297,9 @@ namespace detail
             // You must initiate operations on the same kernel thread as
             // the AsyncIO instance associated with this operation state
             // (except for threadsafeop)
-            auto *thisio = this->executor();
-            MONAD_ASSERT(
-                thisio == nullptr || this->is_threadsafeop() ||
-                thisio->owning_thread_id() == gettid());
+            MONAD_DEBUG_ASSERT(
+                this->executor() == nullptr || this->is_threadsafeop() ||
+                this->executor()->owning_thread_id() == gettid());
             // The threadsafe op is special, it isn't for this AsyncIO instance
             // and therefore never needs deferring
             return this->do_possibly_deferred_initiate_(
