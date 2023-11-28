@@ -51,13 +51,6 @@ struct UpwardTreeNode
         return static_cast<unsigned>(std::popcount(mask));
     }
 
-    void link_parent(
-        UpwardTreeNode *const parent_tnode, uint8_t const branch) noexcept
-    {
-        parent = parent_tnode;
-        child_branch_bit = branch;
-    }
-
     constexpr uint8_t child_index() const noexcept
     {
         MONAD_ASSERT(parent != nullptr);
@@ -83,11 +76,23 @@ struct UpwardTreeNode
 };
 using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
-inline tnode_unique_ptr
-make_tnode(uint8_t const trie_section = 0, node_ptr old = {})
+inline tnode_unique_ptr make_tnode(
+    uint8_t const trie_section = 0, UpwardTreeNode *const parent = nullptr,
+    uint8_t const child_branch_bit = 0, node_ptr old = {})
 {
-    return UpwardTreeNode::make(
-        UpwardTreeNode{.old = std::move(old), .trie_section = trie_section});
+    // tnode is linked to parent tnode on creation
+    return UpwardTreeNode::make(UpwardTreeNode{
+        .parent = parent,
+        .node = nullptr,
+        .old = std::move(old),
+        .children = {},
+        .relpath = {},
+        .opt_leaf_data = std::nullopt,
+        .mask = 0,
+        .orig_mask = 0,
+        .child_branch_bit = child_branch_bit,
+        .trie_section = trie_section,
+        .prefix_index = 0});
 }
 
 static_assert(sizeof(UpwardTreeNode) == 96);

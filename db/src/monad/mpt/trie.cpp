@@ -806,7 +806,9 @@ bool dispatch_updates_impl_(
             Node *node = nullptr;
             if (bit & old->mask) {
                 node_ptr next_ = old->next_ptr(old->to_child_index(i));
-                auto next_tnode = make_tnode(sm.get_state());
+                MONAD_DEBUG_ASSERT(i <= std::numeric_limits<uint8_t>::max());
+                auto next_tnode =
+                    make_tnode(sm.get_state(), tnode, static_cast<uint8_t>(i));
                 if (!upsert_(
                         aux,
                         sm,
@@ -817,11 +819,9 @@ bool dispatch_updates_impl_(
                         prefix_index + 1,
                         next_ ? next_->bitpacked.path_nibble_index_start
                               : INVALID_PATH_INDEX)) {
-                    // always link parent after recurse down
                     if (next_tnode->opt_leaf_data.has_value()) {
                         next_tnode->old = std::move(next_);
                     }
-                    next_tnode->link_parent(tnode, static_cast<uint8_t>(i));
                     next_tnode.release();
                     ++j;
                     continue;
@@ -936,7 +936,9 @@ bool mismatch_handler_(
         if (bit & requests.mask) { // NOLINT
             Node *node = nullptr;
             if (i == old_nibble) {
-                auto next_tnode = make_tnode(sm.get_state());
+                MONAD_DEBUG_ASSERT(i <= std::numeric_limits<uint8_t>::max());
+                auto next_tnode =
+                    make_tnode(sm.get_state(), tnode, static_cast<uint8_t>(i));
                 if (!upsert_(
                         aux,
                         sm,
@@ -946,10 +948,7 @@ bool mismatch_handler_(
                         std::move(requests)[i],
                         prefix_index + 1,
                         old_prefix_index + 1)) {
-                    MONAD_ASSERT(next_tnode->npending);
-                    MONAD_DEBUG_ASSERT(
-                        i <= std::numeric_limits<uint8_t>::max());
-                    next_tnode->link_parent(tnode, static_cast<uint8_t>(i));
+                    MONAD_DEBUG_ASSERT(next_tnode->npending);
                     next_tnode.release();
                     ++j;
                     continue;
