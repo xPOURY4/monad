@@ -111,7 +111,7 @@ public:
     uint8_t data_len{0};
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
-    uint16_t disk_size{0}; // in bytes, max possible ~1000
+    uint16_t disk_size{0};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
