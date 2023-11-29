@@ -10,6 +10,6 @@ namespace outcome = BOOST_OUTCOME_V2_NAMESPACE;
 namespace outcome_e = outcome::experimental;
 
 template <typename T>
-using result_t = outcome::experimental::status_result<T>;
+using Result = outcome_e::status_result<T>;
 
 MONAD_NAMESPACE_END
