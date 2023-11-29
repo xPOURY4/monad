@@ -16,6 +16,23 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 struct Compute;
 class NibblesView;
+class Node;
+
+static constexpr size_t size_of_node = 8;
+constexpr size_t calculate_node_size(
+    size_t const number_of_children, size_t const total_child_data_size,
+    size_t const value_size, size_t const path_size,
+    size_t const data_size) noexcept
+{
+    MONAD_DEBUG_ASSERT(number_of_children || total_child_data_size == 0);
+    return size_of_node +
+           (sizeof(uint16_t) // child data offset
+            + sizeof(detail::unsigned_20) // min count
+            + sizeof(chunk_offset_t) + sizeof(Node *)) *
+               number_of_children +
+           total_child_data_size + value_size + path_size + data_size;
+}
+
 /* A note on generic trie
 
 In Ethereum merkle patricia trie:
@@ -50,32 +67,20 @@ class Node
     };
 
 public:
-    static constexpr size_t size_of = 8;
-    static constexpr size_t max_child_size =
-        32 // max child data size
-        + sizeof(uint16_t) // child data offset
-        + sizeof(detail::unsigned_20) // min count
-        + sizeof(chunk_offset_t) + sizeof(Node *);
     static constexpr size_t max_value_size = rlp::list_length( // account rlp
         rlp::list_length(32) // balance
         + rlp::list_length(32) // code hash
         + rlp::list_length(32) // storage hash
         + rlp::list_length(8) // nonce
     );
-    // clang-format off
-    static constexpr size_t max_size =
-        size_of
-        + max_child_size * 16
-        + max_value_size
-        + 32 // max path size
-        + 32 // max data size
-        ;
-    // clang-format on
+    static constexpr size_t max_children = 16;
+    static constexpr size_t max_size = calculate_node_size(
+        max_children, max_children * 32, max_value_size, 32, 32);
     static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     static constexpr size_t allocator_divisor = 16;
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
-        round_up<size_t>(size_of, allocator_divisor),
+        round_up<size_t>(size_of_node, allocator_divisor),
         round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
     static_assert(max_size == 1046);
     static_assert(max_disk_size == 918);
@@ -148,7 +153,7 @@ public:
     Node(Node &&) = default;
     ~Node();
 
-    static UniquePtr make_node(unsigned size);
+    static UniquePtr make_node(size_t);
 
     void set_params(
         uint16_t mask, bool has_value, uint8_t value_len, uint8_t data_len);
@@ -171,6 +176,7 @@ public:
     uint16_t child_off(unsigned index) noexcept;
 
     unsigned child_data_len(unsigned index);
+    unsigned child_data_len();
 
     //! path
     unsigned char *path_data() noexcept;
@@ -212,7 +218,7 @@ public:
 };
 
 static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
-static_assert(sizeof(Node) == Node::size_of);
+static_assert(sizeof(Node) == size_of_node);
 static_assert(sizeof(Node) == 8);
 static_assert(alignof(Node) == 2);
 
