@@ -44,6 +44,7 @@
                     modernize-use-nullptr,
                     modernize-use-transparent-functors,
                     readability-isolate-declaration,
+                    readability-qualified-auto,
                     readability-redundant-member-init'
   CheckOptions:
     - key:          bugprone-assert-side-effect.AssertMacros
