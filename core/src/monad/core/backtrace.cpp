@@ -3,12 +3,15 @@
 
 #include <monad/core/assert.h>
 
+#include <boost/stacktrace/detail/frame_decl.hpp>
 #include <boost/stacktrace/stacktrace.hpp>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <span>
 #include <stdlib.h>
 #include <type_traits>
@@ -42,6 +45,7 @@ namespace detail
         {
             p = buffer.data();
         }
+
         template <class U>
         constexpr FixedBufferAllocator( // NOLINT
             FixedBufferAllocator<U> const &o)
@@ -58,6 +62,7 @@ namespace detail
             p = newp;
             return ret;
         }
+
         constexpr void deallocate(value_type *, std::size_t) {}
     };
 }
@@ -98,7 +103,7 @@ struct stack_backtrace_impl final : public stack_backtrace
         if (willneed > serialised.size()) {
             return willneed;
         }
-        std::span tofill(
+        std::span const tofill(
             reinterpret_cast<boost::stacktrace::frame::native_frame_ptr_t *>(
                 serialised.data()),
             stacktrace.size());
