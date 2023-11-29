@@ -610,7 +610,7 @@ size_t storage_pool::currently_active_chunks(chunk_type which) const noexcept
 {
     std::unique_lock const g(lock_);
     size_t ret = 0;
-    for (auto &i : chunks_[which]) {
+    for (auto const &i : chunks_[which]) {
         if (!i.chunk.expired()) {
             ret++;
         }

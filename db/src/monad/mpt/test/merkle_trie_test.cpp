@@ -99,7 +99,7 @@ TYPED_TEST(TrieTest, insert_one_element)
 
 TYPED_TEST(TrieTest, simple_inserts)
 {
-    auto &kv = fixed_updates::kv;
+    auto const &kv = fixed_updates::kv;
 
     this->root = upsert_updates(
         this->aux,
@@ -124,7 +124,7 @@ TYPED_TEST(TrieTest, simple_inserts)
 
 TYPED_TEST(TrieTest, upsert_fixed_key_length)
 {
-    auto &kv = var_len_updates::kv;
+    auto const &kv = var_len_updates::kv;
     // insert kv 0,1
     this->root = upsert_updates(
         this->aux,
@@ -197,7 +197,7 @@ TYPED_TEST(TrieTest, upsert_fixed_key_length)
 
 TYPED_TEST(TrieTest, insert_unrelated_leaves_then_read)
 {
-    auto &kv = unrelated_leaves::kv;
+    auto const &kv = unrelated_leaves::kv;
 
     this->root = upsert_updates(
         this->aux,

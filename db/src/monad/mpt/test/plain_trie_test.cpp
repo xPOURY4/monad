@@ -67,7 +67,7 @@ public:
 
 TEST(InMemoryPlainTrie, var_length)
 {
-    auto &kv = updates::kv;
+    auto const &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
     Node::UniquePtr root;
@@ -289,7 +289,7 @@ TEST(InMemoryPlainTrie, mismatch)
 
 TEST(InMemoryPlainTrie, delete_wo_incarnation)
 {
-    auto &kv = updates::kv;
+    auto const &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
     Node::UniquePtr root;
@@ -330,7 +330,7 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
 TEST(InMemoryPlainTrie, delete_with_incarnation)
 {
     // upsert a bunch of var lengths kv
-    auto &kv = updates::kv;
+    auto const &kv = updates::kv;
     StateMachineAlwaysEmpty sm{};
     UpdateAux aux{};
     Node::UniquePtr root;

@@ -142,7 +142,7 @@ void UpdateAux::rewind_offset_to(chunk_offset_t const fast_offset)
     /* TODO FIXME: We need to also adjust the slow list, and slow_node_writer's
      * offset */
     // Free all chunks after fast_offset.id
-    auto *ci = db_metadata_[0]->at(fast_offset.id);
+    auto const *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
         auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
@@ -686,7 +686,7 @@ Node *create_new_trie_(
             Requests requests;
             requests.split_into_sublists(std::move(update.next), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
-            auto ret = create_new_trie_from_requests_(
+            auto *ret = create_new_trie_from_requests_(
                 aux, sm, requests, relpath, 0, update.value);
             sm.backward();
             return ret;
@@ -723,7 +723,7 @@ Node *create_new_trie_from_requests_(
     for (unsigned i = 0, j = 0, bit = 1; j < number_of_children;
          ++i, bit <<= 1) {
         if (bit & requests.mask) { // NOLINT
-            auto node = create_new_trie_(
+            auto *node = create_new_trie_(
                 aux, sm, std::move(requests)[i], prefix_index + 1);
             auto &entry = children[j++];
             entry.branch = static_cast<uint8_t>(i);
@@ -1006,7 +1006,7 @@ node_writer_unique_ptr_type replace_node_writer(
     auto const chunk_capacity = aux.io->chunk_capacity(offset_of_next_block.id);
     MONAD_ASSERT(offset <= chunk_capacity);
     if (offset == chunk_capacity) {
-        auto *ci_ = aux.db_metadata()->free_list_begin();
+        auto const *ci_ = aux.db_metadata()->free_list_begin();
         MONAD_ASSERT(ci_ != nullptr); // we are out of free blocks!
         auto idx = ci_->index(aux.db_metadata());
         aux.remove(idx);

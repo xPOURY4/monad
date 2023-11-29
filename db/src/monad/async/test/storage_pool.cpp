@@ -30,7 +30,7 @@ namespace
     {
         std::cout << "Pool has " << pool.devices().size() << " devices:";
         for (size_t n = 0; n < pool.devices().size(); n++) {
-            auto &device = pool.devices()[n];
+            auto const &device = pool.devices()[n];
             auto capacity = device.capacity();
             std::cout << "\n   " << (n + 1) << ". chunks = " << device.chunks()
                       << " capacity = " << capacity.first
@@ -328,12 +328,12 @@ namespace
         };
         auto print_stddev = [](size_t devid, std::vector<size_t> const &vals) {
             double mean = 0;
-            for (auto &i : vals) {
+            for (const auto &i : vals) {
                 mean += static_cast<double>(i);
             }
             mean /= static_cast<double>(vals.size());
             double variance = 0;
-            for (auto &i : vals) {
+            for (const auto &i : vals) {
                 variance += pow(static_cast<double>(i) - mean, 2);
             }
             variance /= static_cast<double>(vals.size());

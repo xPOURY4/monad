@@ -54,7 +54,7 @@ static void ctrl_c_handler(int s)
 void __print_bytes_in_hex(monad::byte_string_view arr)
 {
     fprintf(stdout, "0x");
-    for (auto &c : arr) {
+    for (auto const &c : arr) {
         fprintf(stdout, "%02x", (uint8_t)c);
     }
     fprintf(stdout, "\n");

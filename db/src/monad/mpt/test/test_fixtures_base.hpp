@@ -181,7 +181,7 @@ namespace monad::test
         EraseFixture()
             : BaseTrie()
         {
-            auto &kv = fixed_updates::kv;
+            auto const &kv = fixed_updates::kv;
 
             std::vector<Update> update_vec;
             std::ranges::transform(
@@ -239,7 +239,7 @@ namespace monad::test
                           << (v.first - v.second)
                           << " bytes free, which is a difference of " << diff
                           << ".\n";
-                for (auto *ci = aux.db_metadata()->fast_list_begin();
+                for (auto const *ci = aux.db_metadata()->fast_list_begin();
                      ci != nullptr;
                      ci = ci->next(aux.db_metadata())) {
                     auto idx = ci->index(aux.db_metadata());
@@ -275,7 +275,7 @@ namespace monad::test
                     }
                     root = upsert(aux, sm, root.get(), std::move(update_ls));
                     size_t count = 0;
-                    for (auto *ci = aux.db_metadata()->fast_list_begin();
+                    for (auto const *ci = aux.db_metadata()->fast_list_begin();
                          ci != nullptr;
                          count++, ci = ci->next(aux.db_metadata())) {
                     }
@@ -294,7 +294,7 @@ namespace monad::test
                     MONAD_MPT_NAMESPACE::detail::unsigned_20>>
                     ret;
                 ret.reserve(4);
-                for (auto *ci = aux.db_metadata()->fast_list_begin();
+                for (auto const *ci = aux.db_metadata()->fast_list_begin();
                      ci != nullptr;
                      ci = ci->next(aux.db_metadata())) {
                     ret.emplace_back(
@@ -312,7 +312,7 @@ namespace monad::test
                     MONAD_MPT_NAMESPACE::detail::unsigned_20>>
                     ret;
                 ret.reserve(4);
-                for (auto *ci = aux.db_metadata()->slow_list_begin();
+                for (auto const *ci = aux.db_metadata()->slow_list_begin();
                      ci != nullptr;
                      ci = ci->next(aux.db_metadata())) {
                     ret.emplace_back(
