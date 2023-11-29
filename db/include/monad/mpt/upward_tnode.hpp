@@ -23,7 +23,7 @@ struct UpwardTreeNode
                // node, as opt_leaf_data has to be valid in memory
                // when it works the way back to recompute leaf data
     allocators::owning_span<ChildData> children{};
-    Nibbles relpath{};
+    Nibbles path{};
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
     uint16_t mask{0};
     uint16_t orig_mask{0};
@@ -86,7 +86,7 @@ inline tnode_unique_ptr make_tnode(
         .node = nullptr,
         .old = std::move(old),
         .children = {},
-        .relpath = {},
+        .path = {},
         .opt_leaf_data = std::nullopt,
         .mask = 0,
         .orig_mask = 0,

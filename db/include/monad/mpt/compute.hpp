@@ -216,11 +216,11 @@ namespace detail
         } state{};
 
         unsigned encode_two_pieces_(
-            unsigned char *const dest, NibblesView const relpath,
+            unsigned char *const dest, NibblesView const path,
             byte_string_view const second, bool const has_value = false)
         {
             unsigned char path_arr[56];
-            auto first = compact_encode(path_arr, relpath, has_value);
+            auto first = compact_encode(path_arr, path, has_value);
             // leaf and hashed node ref requires rlp encoding,
             // rlp encoded but unhashed branch node ref doesn't
             bool const need_encode_second = has_value || second.size() >= 32;

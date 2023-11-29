@@ -36,14 +36,14 @@ constexpr size_t calculate_node_size(
 /* A note on generic trie
 
 In Ethereum merkle patricia trie:
-- Node is a extension if relpath len > 0, it only has one child, a branch node
-- Node is a branch if mask > 0 && relpath len == 0, branch can have leaf value
+- Node is a extension if path len > 0, it only has one child, a branch node
+- Node is a branch if mask > 0 && path len == 0, branch can have leaf value
 - Node is a leaf node if it has no child
 
 In generic trie, a node can have dual identity of ext and branch node, and
 branch node can have vt (value) and be a leaf node at the same time. Branch node
 with leaf data can have 1 child or more.
-- A node with non-empty relpath is either an ext node or a leaf node
+- A node with non-empty path is either an ext node or a leaf node
 - A leaf node has has_value = true, however not necessarily value_len > 0
 - A branch node with leaf can mean it's the end of an internal trie, making
 itself also the root of the trie underneath, for example a leaf of an
@@ -243,10 +243,10 @@ static_assert(alignof(ChildData) == 8);
 detail::unsigned_20 calc_min_count(Node *, detail::unsigned_20 curr_count);
 
 // create leaf node without children, data_len = 0
-Node *create_leaf(byte_string_view data, NibblesView relpath);
+Node *create_leaf(byte_string_view data, NibblesView path);
 
 /* Note: there's a potential superfluous extension hash recomputation when node
-coaleases upon erases, because we compute node hash when relpath is not yet
+coaleases upon erases, because we compute node hash when path is not yet
 the final form. There's not yet a good way to avoid this unless we delay all
 the compute() after all child branches finish creating nodes and return in
 the recursion */
@@ -255,18 +255,18 @@ Node *create_coalesced_node_with_prefix(
 
 // create node: either branch/extension, with or without leaf
 Node *create_node(
-    Compute &, uint16_t mask, std::span<ChildData> children,
-    NibblesView relpath, std::optional<byte_string_view> value = std::nullopt);
+    Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
+    std::optional<byte_string_view> value = std::nullopt);
 
-/* create a new node from a old node with possibly shorter relpath and an
+/* create a new node from a old node with possibly shorter path and an
 optional new leaf data
-Copy old with new relpath and new leaf, new relpath might be shortened */
+Copy old with new path and new leaf, new path might be shortened */
 Node *update_node_diff_path_leaf(
-    Node *old, NibblesView relpath,
+    Node *old, NibblesView path,
     std::optional<byte_string_view> value = std::nullopt);
 
 Node *
-create_node_nodata(uint16_t mask, NibblesView relpath, bool has_value = false);
+create_node_nodata(uint16_t mask, NibblesView path, bool has_value = false);
 
 void serialize_node_to_buffer(unsigned char *write_pos, Node *);
 

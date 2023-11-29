@@ -190,7 +190,7 @@ void find_notify_fiber_future(
 
 /*! \brief Copy a leaf node under prefix `src` to prefix `dest`. Invoked before
 committing block updates to triedb. By copy we mean everything other than
-relpath. When copying children over, also remove the original's child pointers
+path. When copying children over, also remove the original's child pointers
 to avoid dup referencing. For on-disk trie deallocate nodes under prefix `src`
 after copy is done when the node is the only in-memory child of its parent.
 Note that we handle the case where `dest` is pre-existed in trie. */

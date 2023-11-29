@@ -309,7 +309,7 @@ async_write_node_result
 write_new_root_node(UpdateAux &aux, tnode_unique_ptr &root_tnode);
 
 /* Names: `prefix_index` is nibble index in prefix of an update,
- `old_prefix_index` is nibble index of relpath in previous node - old.
+ `old_prefix_index` is nibble index of path in previous node - old.
  `*_prefix_index_start` is the starting nibble index in current function frame
 */
 bool dispatch_updates_flat_list_(
@@ -332,7 +332,7 @@ Node *create_new_trie_(
 
 Node *create_new_trie_from_requests_(
     UpdateAux &aux, TrieStateMachine &sm, Requests &requests,
-    NibblesView const relpath, unsigned const prefix_index,
+    NibblesView const path, unsigned const prefix_index,
     std::optional<byte_string_view> const opt_leaf_data);
 
 bool upsert_(
@@ -546,13 +546,13 @@ void async_read(UpdateAux &aux, Receiver &&receiver)
 Node *create_node_from_children_if_any(
     UpdateAux &aux, TrieStateMachine &sm, uint16_t const orig_mask,
     uint16_t const mask, std::span<ChildData> children,
-    unsigned const prefix_index, NibblesView const relpath,
+    unsigned const prefix_index, NibblesView const path,
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
     // handle non child and single child cases
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     if (number_of_children == 0) {
-        return leaf_data.has_value() ? create_leaf(leaf_data.value(), relpath)
+        return leaf_data.has_value() ? create_leaf(leaf_data.value(), path)
                                      : nullptr;
     }
     else if (number_of_children == 1 && !leaf_data.has_value()) {
@@ -560,7 +560,7 @@ Node *create_node_from_children_if_any(
             orig_mask, static_cast<unsigned>(std::countr_zero(mask)));
         assert(children[j].ptr);
         return create_coalesced_node_with_prefix(
-            children[j].branch, Node::UniquePtr{children[j].ptr}, relpath);
+            children[j].branch, Node::UniquePtr{children[j].ptr}, path);
     }
     MONAD_DEBUG_ASSERT(
         number_of_children > 1 ||
@@ -600,7 +600,7 @@ Node *create_node_from_children_if_any(
             }
         }
     }
-    return create_node(sm.get_compute(), mask, children, relpath, leaf_data);
+    return create_node(sm.get_compute(), mask, children, path, leaf_data);
 }
 
 bool create_node_from_children_if_any_possibly_ondisk(
@@ -628,7 +628,7 @@ bool create_node_from_children_if_any_possibly_ondisk(
         tnode->mask,
         tnode->children,
         prefix_index,
-        tnode->relpath,
+        tnode->path,
         tnode->opt_leaf_data);
     return true;
 }
@@ -651,7 +651,7 @@ bool update_leaf_data_(
         bool finished = true;
         if (update.incarnation) {
             tnode->node = create_new_trie_from_requests_(
-                aux, sm, requests, tnode->relpath, 0, update.value);
+                aux, sm, requests, tnode->path, 0, update.value);
         }
         else {
             auto const opt_leaf_data =
@@ -666,8 +666,8 @@ bool update_leaf_data_(
     MONAD_ASSERT(update.value.has_value());
     tnode->node =
         update.incarnation
-            ? create_leaf(update.value.value(), tnode->relpath)
-            : update_node_diff_path_leaf(old, tnode->relpath, update.value);
+            ? create_leaf(update.value.value(), tnode->path)
+            : update_node_diff_path_leaf(old, tnode->path, update.value);
     return true;
 }
 
@@ -680,18 +680,18 @@ Node *create_new_trie_(
     if (updates.size() == 1) {
         Update &update = updates.front();
         MONAD_DEBUG_ASSERT(update.value.has_value());
-        auto const relpath = update.key.substr(prefix_index);
+        auto const path = update.key.substr(prefix_index);
         if (!update.next.empty()) {
             sm.forward();
             Requests requests;
             requests.split_into_sublists(std::move(update.next), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
             auto *ret = create_new_trie_from_requests_(
-                aux, sm, requests, relpath, 0, update.value);
+                aux, sm, requests, path, 0, update.value);
             sm.backward();
             return ret;
         }
-        return create_leaf(update.value.value(), relpath);
+        return create_leaf(update.value.value(), path);
     }
     Requests requests;
     auto const psi = prefix_index;
@@ -713,7 +713,7 @@ Node *create_new_trie_(
 
 Node *create_new_trie_from_requests_(
     UpdateAux &aux, TrieStateMachine &sm, Requests &requests,
-    NibblesView const relpath, unsigned const prefix_index,
+    NibblesView const path, unsigned const prefix_index,
     std::optional<byte_string_view> const opt_leaf_data)
 {
     auto const number_of_children =
@@ -740,7 +740,7 @@ Node *create_new_trie_from_requests_(
         mask,
         std::span{children},
         prefix_index,
-        relpath,
+        path,
         opt_leaf_data);
 }
 
@@ -761,8 +761,7 @@ bool upsert_(
     unsigned const old_psi = old_prefix_index;
     Requests requests;
     while (true) {
-        tnode->relpath =
-            NibblesView{old_psi, old_prefix_index, old->path_data()};
+        tnode->path = NibblesView{old_psi, old_prefix_index, old->path_data()};
         if (updates.size() == 1 &&
             prefix_index == updates.front().key.nibble_size()) {
             return update_leaf_data_(aux, sm, old, tnode, updates.front());
@@ -888,7 +887,7 @@ bool dispatch_updates_flat_list_(
                 aux,
                 sm,
                 requests,
-                tnode->relpath,
+                tnode->path,
                 prefix_index,
                 opt_leaf.value().value);
             return true;
@@ -969,13 +968,12 @@ bool mismatch_handler_(
         }
         else if (i == old_nibble) {
             // nexts[j] is a path-shortened old node, trim prefix
-            NibblesView const relpath{
+            NibblesView const path{
                 old_prefix_index + 1,
                 old->path_nibble_index_end,
                 old->path_data()};
             // compute node hash
-            child.ptr =
-                update_node_diff_path_leaf(old, relpath, old->opt_value());
+            child.ptr = update_node_diff_path_leaf(old, path, old->opt_value());
             child.branch = static_cast<uint8_t>(i);
             auto const len = sm.get_compute().compute(child.data, child.ptr);
             MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
