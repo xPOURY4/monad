@@ -173,7 +173,7 @@ public:
     //! data_offset array
     unsigned char *child_off_data() noexcept;
     unsigned char const *child_off_data() const noexcept;
-    uint16_t child_off(unsigned index) noexcept;
+    uint16_t child_data_offset(unsigned index) noexcept;
 
     unsigned child_data_len(unsigned index);
     unsigned child_data_len();

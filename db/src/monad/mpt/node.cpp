@@ -108,7 +108,7 @@ unsigned char const *Node::child_off_data() const noexcept
     return child_min_count_data() + number_of_children() * sizeof(uint32_t);
 }
 
-uint16_t Node::child_off(unsigned const index) noexcept
+uint16_t Node::child_data_offset(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index <= number_of_children());
     if (index == 0) {
@@ -126,12 +126,12 @@ uint16_t Node::child_off(unsigned const index) noexcept
 
 unsigned Node::child_data_len(unsigned const index)
 {
-    return child_off(index + 1) - child_off(index);
+    return child_data_offset(index + 1) - child_data_offset(index);
 }
 
 unsigned Node::child_data_len()
 {
-    return child_off(number_of_children()) - child_off(0);
+    return child_data_offset(number_of_children()) - child_data_offset(0);
 }
 
 unsigned char *Node::path_data() noexcept
@@ -226,14 +226,14 @@ byte_string_view Node::child_data_view(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
     return byte_string_view{
-        child_data() + child_off(index),
+        child_data() + child_data_offset(index),
         static_cast<size_t>(child_data_len(index))};
 }
 
 unsigned char *Node::child_data(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
-    return child_data() + child_off(index);
+    return child_data() + child_data_offset(index);
 }
 
 void Node::set_child_data(unsigned const index, byte_string_view data) noexcept
@@ -244,7 +244,7 @@ void Node::set_child_data(unsigned const index, byte_string_view data) noexcept
 
 unsigned char *Node::next_data() noexcept
 {
-    return child_data() + child_off(number_of_children());
+    return child_data() + child_data_offset(number_of_children());
 }
 
 Node *Node::next(unsigned const index) noexcept
@@ -338,7 +338,7 @@ Node *create_coalesced_node_with_prefix(
     std::memcpy(
         node->data_data(),
         prev->data_data(),
-        node->data_len + node->child_off(node->number_of_children()));
+        node->data_len + node->child_data_offset(node->number_of_children()));
     // copy nexts
     if (node->number_of_children()) {
         memcpy(
@@ -437,7 +437,7 @@ Node *update_node_diff_path_leaf(
     std::memcpy(
         node->data_data(),
         old->data_data(),
-        node->data_len + old->child_off(old->number_of_children()));
+        node->data_len + old->child_data_offset(old->number_of_children()));
     // copy next array
     if (old->number_of_children()) {
         std::memcpy(
