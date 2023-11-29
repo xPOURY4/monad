@@ -153,7 +153,7 @@ public:
     Node(Node &&) = default;
     ~Node();
 
-    static UniquePtr make_node(size_t);
+    static UniquePtr make(size_t);
 
     void set_params(
         uint16_t mask, bool has_value, uint8_t value_len, uint8_t data_len);

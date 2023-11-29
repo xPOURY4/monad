@@ -44,7 +44,7 @@ Node::~Node()
     }
 }
 
-Node::UniquePtr Node::make_node(size_t const bytes)
+Node::UniquePtr Node::make(size_t const bytes)
 {
     return allocators::allocate_aliasing_unique<
         std::allocator<Node>,
@@ -299,7 +299,7 @@ calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
 
 Node *create_leaf(byte_string_view const value, NibblesView const path)
 {
-    auto node = Node::make_node(
+    auto node = Node::make(
         calculate_node_size(0, 0, value.size(), path.data_size(), 0));
     // order is enforced, must set path first
     MONAD_DEBUG_ASSERT(node->path_data() == node->fnext_data);
@@ -318,7 +318,7 @@ Node *create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     auto const path = concat3(prefix, branch, prev->path_nibble_view());
-    auto node = Node::make_node(calculate_node_size(
+    auto node = Node::make(calculate_node_size(
         prev->number_of_children(),
         prev->child_data_len(),
         prev->has_value() ? prev->value().size() : 0,
@@ -377,7 +377,7 @@ Node *create_node(
         }
     }
     // zero initialized in Node but not tail
-    auto node = Node::make_node(calculate_node_size(
+    auto node = Node::make(calculate_node_size(
         number_of_children, child_len, value_len, path.data_size(), data_len));
     node->set_params(mask, has_value, value_len, data_len);
     std::memcpy(
@@ -415,7 +415,7 @@ Node *update_node_diff_path_leaf(
     auto const value_len = value.has_value() ? value.value().size() : 0;
     MONAD_ASSERT(value_len < 255); // or uint8_t will overflow
 
-    auto node = Node::make_node(calculate_node_size(
+    auto node = Node::make(calculate_node_size(
         old->number_of_children(),
         old->child_data_len(),
         value_len,
@@ -470,7 +470,7 @@ Node *create_node_nodata(
 {
     auto const bytes = calculate_node_size(
         static_cast<size_t>(std::popcount(mask)), 0, 0, path.data_size(), 0);
-    auto node = Node::make_node(bytes);
+    auto node = Node::make(bytes);
     memset((void *)node.get(), 0, bytes);
 
     node->set_params(mask, has_value, /*value_len*/ 0, /*data_len*/ 0);
@@ -497,7 +497,7 @@ Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
     auto const alloc_size =
         static_cast<uint16_t>(disk_size + number_of_children * sizeof(Node *));
     MONAD_ASSERT(disk_size > 0 && disk_size <= Node::max_disk_size);
-    auto node = Node::make_node(alloc_size);
+    auto node = Node::make(alloc_size);
     std::copy_n(read_pos, disk_size, (unsigned char *)node.get());
     std::memset(node->next_data(), 0, number_of_children * sizeof(Node *));
     return node;
