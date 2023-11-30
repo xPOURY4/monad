@@ -344,7 +344,8 @@ void create_node_compute_data_possibly_async(
         entry.set_node_and_compute_data(node, sm);
     }
     else {
-        parent.mask &= ~(static_cast<uint16_t>(1u << entry.branch));
+        parent.mask &=
+            static_cast<uint16_t>(~(static_cast<uint16_t>(1u << entry.branch)));
         entry.erase();
     }
     --parent.npending;
@@ -357,7 +358,7 @@ void update_leaf_data_(
     Update &update)
 {
     if (update.is_deletion()) {
-        parent.mask &= ~static_cast<uint16_t>(1u << entry.branch);
+        parent.mask &= static_cast<uint16_t>(~(1u << entry.branch));
         entry.erase();
         MONAD_DEBUG_ASSERT(entry.ptr == nullptr);
         --parent.npending;
@@ -648,7 +649,7 @@ void dispatch_updates_flat_list_(
             return;
         }
         else if (opt_leaf.value().is_deletion()) {
-            parent.mask &= ~(static_cast<uint16_t>(1u << entry.branch));
+            parent.mask &= static_cast<uint16_t>(~(1u << entry.branch));
             entry.erase();
             --parent.npending;
             return;

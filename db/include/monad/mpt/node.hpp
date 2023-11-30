@@ -157,7 +157,7 @@ public:
     static UniquePtr make(size_t);
 
     void set_params(
-        uint16_t mask, bool has_value, uint8_t value_len, uint8_t data_len);
+        uint16_t mask, bool has_value, size_t value_len, size_t data_len);
 
     unsigned to_child_index(unsigned branch) const noexcept;
 
@@ -229,7 +229,7 @@ struct ChildData
 {
     Node *ptr{nullptr};
     chunk_offset_t offset{INVALID_OFFSET};
-    unsigned char data[32];
+    unsigned char data[32] = {0};
     detail::unsigned_20 min_count{uint32_t(-1)};
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
@@ -245,6 +245,17 @@ static_assert(sizeof(ChildData) == 56);
 static_assert(alignof(ChildData) == 8);
 
 detail::unsigned_20 calc_min_count(Node *, detail::unsigned_20 curr_count);
+
+Node::UniquePtr
+make_node(Node &from, NibblesView path, std::optional<byte_string_view> value);
+
+Node::UniquePtr make_node(
+    uint16_t mask, std::span<ChildData>, NibblesView path,
+    std::optional<byte_string_view> value, size_t data_size);
+
+Node::UniquePtr make_node(
+    uint16_t mask, std::span<ChildData>, NibblesView path,
+    std::optional<byte_string_view> value, byte_string_view data);
 
 // create leaf node without children, data_len = 0
 Node *create_leaf(byte_string_view data, NibblesView path);

@@ -45,6 +45,7 @@ Node::~Node()
 
 Node::UniquePtr Node::make(size_t const bytes)
 {
+    MONAD_DEBUG_ASSERT(bytes <= Node::max_size);
     return allocators::allocate_aliasing_unique<
         std::allocator<Node>,
         BytesAllocator,
@@ -53,13 +54,15 @@ Node::UniquePtr Node::make(size_t const bytes)
 }
 
 void Node::set_params(
-    uint16_t const mask, bool const has_value, uint8_t const value_len,
-    uint8_t const data_len)
+    uint16_t const mask, bool const has_value, size_t const value_len,
+    size_t const data_len)
 {
+    MONAD_DEBUG_ASSERT(data_len <= std::numeric_limits<uint8_t>::max());
+    MONAD_DEBUG_ASSERT(value_len <= std::numeric_limits<uint8_t>::max());
     this->mask = mask;
     this->bitpacked.has_value = has_value;
-    this->value_len = value_len;
-    this->data_len = data_len;
+    this->value_len = static_cast<uint8_t>(value_len);
+    this->data_len = static_cast<uint8_t>(data_len);
 }
 
 unsigned Node::to_child_index(unsigned const branch) const noexcept
@@ -187,6 +190,7 @@ bool Node::has_value() const noexcept
 void Node::set_value(byte_string_view value) noexcept
 {
     MONAD_DEBUG_ASSERT(value_len == value.size());
+    MONAD_DEBUG_ASSERT(has_value());
     if (value.size()) {
         std::memcpy(value_data(), value.data(), value.size());
     }
@@ -348,17 +352,8 @@ calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
 
 Node *create_leaf(byte_string_view const value, NibblesView const path)
 {
-    auto node = Node::make(
-        calculate_node_size(0, 0, value.size(), path.data_size(), 0));
-    // order is enforced, must set path first
-    MONAD_DEBUG_ASSERT(node->path_data() == node->fnext_data);
-    if (path.data_size()) {
-        serialize_to_node(path, *node);
-    }
-    MONAD_DEBUG_ASSERT(value.size() <= std::numeric_limits<uint8_t>::max());
-    node->set_params(0, true, static_cast<uint8_t>(value.size()), 0);
-    node->set_value(value);
-    node->disk_size = node->get_disk_size();
+    auto node =
+        make_node(0, std::span<ChildData>{}, path, value, byte_string_view{});
     return node.release();
 }
 
@@ -367,40 +362,131 @@ Node *create_coalesced_node_with_prefix(
 {
     // Note that prev may be a leaf
     auto const path = concat3(prefix, branch, prev->path_nibble_view());
-    auto node = Node::make(calculate_node_size(
-        prev->number_of_children(),
-        prev->child_data_len(),
-        prev->has_value() ? prev->value().size() : 0,
-        path.data_size(),
-        prev->data().size()));
-    // copy node, fnexts, min_count, data_off
-    std::memcpy(
-        (unsigned char *)node.get(),
-        (unsigned char *)prev.get(),
-        (uintptr_t)prev->path_data() - (uintptr_t)prev.get());
-
-    serialize_to_node(NibblesView{path}, *node);
-    if (prev->has_value()) {
-        node->set_value(prev->value());
-    }
-    // hash and data arr
-    std::memcpy(
-        node->data_data(),
-        prev->data_data(),
-        node->data_len + node->child_data_offset(node->number_of_children()));
-    // copy nexts
-    if (node->number_of_children()) {
-        memcpy(
-            node->next_data(),
-            prev->next_data(),
-            node->number_of_children() * sizeof(Node *));
-    }
-    for (unsigned j = 0; j < prev->number_of_children(); ++j) {
-        prev->set_next(j, nullptr);
-    }
-    node->disk_size = node->get_disk_size();
+    auto node = make_node(
+        *prev,
+        path,
+        prev->has_value() ? std::make_optional(prev->value()) : std::nullopt);
     assert(node->disk_size >= prev->disk_size);
     return node.release();
+}
+
+Node::UniquePtr make_node(
+    Node &from, NibblesView const path,
+    std::optional<byte_string_view> const value)
+{
+    auto const value_size =
+        value.transform(&byte_string_view::size).value_or(0);
+    auto node = Node::make(calculate_node_size(
+        from.number_of_children(),
+        from.child_data_len(),
+        value_size,
+        path.data_size(),
+        from.data().size()));
+
+    // copy node, fnext, min_count, child_data_offset
+    std::copy_n(
+        (byte_string_view::pointer)&from,
+        (uintptr_t)from.path_data() - (uintptr_t)&from,
+        (byte_string_view::pointer)node.get());
+
+    node->set_params(
+        from.mask, value.has_value(), value_size, from.data().size());
+
+    serialize_to_node(path, *node);
+
+    if (value.has_value()) {
+        node->set_value(value.value());
+    }
+
+    // copy data and child data
+    std::copy_n(
+        from.data_data(),
+        from.data().size() + from.child_data_len(),
+        node->data_data());
+
+    // move next ptrs to new node, invalidating old pointers
+    if (from.number_of_children()) {
+        auto const next_size = from.number_of_children() * sizeof(Node *);
+        std::copy_n(from.next_data(), next_size, node->next_data());
+        std::memset(from.next_data(), 0, next_size);
+    }
+
+    node->disk_size = node->get_disk_size();
+    return node;
+}
+
+Node::UniquePtr make_node(
+    uint16_t const mask, std::span<ChildData> const children,
+    NibblesView const path, std::optional<byte_string_view> const value,
+    size_t const data_size)
+{
+    for (size_t i = 0; i < 16; ++i) {
+        MONAD_DEBUG_ASSERT(
+            !std::ranges::contains(children, i, &ChildData::branch) ||
+            (mask & (1u << i)));
+    }
+
+    auto const number_of_children = static_cast<size_t>(std::popcount(mask));
+    MONAD_DEBUG_ASSERT(
+        data_size == 0 || (number_of_children && value.has_value()));
+    std::vector<uint16_t> child_data_offsets;
+    child_data_offsets.reserve(children.size());
+    uint16_t total_child_data_size = 0;
+    for (auto const &child : children) {
+        if (child.is_valid()) {
+            total_child_data_size += child.len;
+            child_data_offsets.push_back(total_child_data_size);
+        }
+    }
+
+    auto const value_size =
+        value.transform(&byte_string_view::size).value_or(0);
+    auto node = Node::make(calculate_node_size(
+        number_of_children,
+        total_child_data_size,
+        value_size,
+        path.data_size(),
+        data_size));
+    node->set_params(mask, value.has_value(), value_size, data_size);
+
+    std::copy_n(
+        (byte_string_view::pointer)child_data_offsets.data(),
+        child_data_offsets.size() * sizeof(uint16_t),
+        node->child_off_data());
+
+    // Note: path needs to be set first because its length is not set
+    // at initialization, and so data afterwards can not be referenced prior to
+    // this point. TODO: fix this so that order does not matetr
+    if (path.data_size()) {
+        serialize_to_node(path, *node);
+    }
+
+    if (value.has_value()) {
+        node->set_value(value.value());
+    }
+
+    for (unsigned index = 0; auto const &child : children) {
+        if (child.is_valid()) {
+            node->fnext(index) = child.offset;
+            node->min_count(index) = child.min_count;
+            node->set_next(index, child.ptr);
+            node->set_child_data(index, {child.data, child.len});
+            ++index;
+        }
+    }
+
+    node->disk_size = node->get_disk_size();
+    return node;
+}
+
+Node::UniquePtr make_node(
+    uint16_t const mask, std::span<ChildData> const children,
+    NibblesView const path, std::optional<byte_string_view> const value,
+    byte_string_view const data)
+{
+    auto node = make_node(mask, children, path, value, data.size());
+    std::copy_n(data.data(), data.size(), node->data_data());
+    return node;
 }
 
 // all children's offset are set before creating parent
@@ -408,51 +494,13 @@ Node *create_node(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
     NibblesView const path, std::optional<byte_string_view> const value)
 {
-    auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
-    // any node with child will have hash data
-    bool const has_value = value.has_value();
-    uint8_t const value_len =
-        has_value ? static_cast<uint8_t>(value.value().size()) : 0;
-    uint8_t const data_len =
-        has_value ? static_cast<uint8_t>(comp.compute_len(children, mask)) : 0;
-    std::vector<uint16_t> offsets(number_of_children);
-    unsigned child_len = 0;
-    for (unsigned j = 0; auto &child : children) {
-        if (child.is_valid()) {
-            child_len += child.len;
-            MONAD_DEBUG_ASSERT(
-                child_len <= std::numeric_limits<uint16_t>::max());
-            offsets[j++] = static_cast<uint16_t>(child_len);
-        }
-    }
-    // zero initialized in Node but not tail
-    auto node = Node::make(calculate_node_size(
-        number_of_children, child_len, value_len, path.data_size(), data_len));
-    node->set_params(mask, has_value, value_len, data_len);
-    std::memcpy(
-        node->child_off_data(),
-        offsets.data(),
-        offsets.size() * sizeof(uint16_t));
-    // order is enforced, must set path first
-    if (path.data_size()) {
-        serialize_to_node(path, *node);
-    }
-    if (has_value) {
-        node->set_value(value.value());
-    }
-    // set fnext, next and data
-    for (unsigned j = 0; auto &child : children) {
-        if (child.is_valid()) {
-            node->fnext(j) = child.offset;
-            node->min_count(j) = child.min_count;
-            node->set_next(j, child.ptr);
-            node->set_child_data(j++, {child.data, child.len});
-        }
-    }
-    if (node->data_len) {
+    auto const data_size =
+        value.has_value() ? comp.compute_len(children, mask) : 0;
+    auto node = make_node(mask, children, path, value, data_size);
+    MONAD_DEBUG_ASSERT(node);
+    if (data_size) {
         comp.compute_branch(node->data_data(), node.get());
     }
-    node->disk_size = node->get_disk_size();
     return node.release();
 }
 
@@ -460,45 +508,7 @@ Node *update_node_diff_path_leaf(
     Node *old, NibblesView const path,
     std::optional<byte_string_view> const value)
 {
-    bool const has_value = value.has_value();
-    auto const value_len = value.has_value() ? value.value().size() : 0;
-    MONAD_ASSERT(value_len < 255); // or uint8_t will overflow
-
-    auto node = Node::make(calculate_node_size(
-        old->number_of_children(),
-        old->child_data_len(),
-        value_len,
-        path.data_size(),
-        old->data().size()));
-    // copy Node, fnexts and data_off array
-    std::memcpy( // NOLINT
-        (void *)node.get(),
-        old,
-        ((uintptr_t)old->path_data() - (uintptr_t)old));
-    node->value_len = static_cast<uint8_t>(value_len);
-    node->bitpacked.has_value = has_value;
-    // order is enforced, must set path first
-    serialize_to_node(path, *node); // overwrite old path
-    if (has_value) {
-        node->set_value(value.value());
-    }
-    // copy hash and child data arr
-    std::memcpy(
-        node->data_data(),
-        old->data_data(),
-        node->data_len + old->child_data_offset(old->number_of_children()));
-    // copy next array
-    if (old->number_of_children()) {
-        std::memcpy(
-            node->next_data(),
-            old->next_data(),
-            node->number_of_children() * sizeof(Node *));
-    }
-    // clear old nexts
-    for (unsigned j = 0; j < old->number_of_children(); ++j) {
-        old->set_next(j, nullptr);
-    }
-    node->disk_size = node->get_disk_size();
+    auto node = make_node(*old, path, value);
     return node.release();
 }
 
@@ -514,19 +524,24 @@ void serialize_to_node(NibblesView const nibbles, Node &node)
     }
 }
 
+// TODO: get rid of this function
 Node *create_node_nodata(
     uint16_t const mask, NibblesView const path, bool const has_value)
 {
-    auto const bytes = calculate_node_size(
-        static_cast<size_t>(std::popcount(mask)), 0, 0, path.data_size(), 0);
-    auto node = Node::make(bytes);
-    memset((void *)node.get(), 0, bytes);
-
-    node->set_params(mask, has_value, /*value_len*/ 0, /*data_len*/ 0);
-    if (path.data_size()) {
-        serialize_to_node(path, *node);
+    std::array<ChildData, 16> children;
+    for (size_t i = 0; i < 16; ++i) {
+        if (mask & (1u << i)) {
+            children[i].branch = static_cast<uint8_t>(i);
+        }
     }
-    node->disk_size = node->get_disk_size();
+
+    auto node = make_node(
+        mask,
+        children,
+        path,
+        has_value ? std::make_optional(byte_string_view{}) : std::nullopt,
+        byte_string_view{});
+
     return node.release();
 }
 
