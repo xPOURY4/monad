@@ -65,6 +65,25 @@ public:
     }
 };
 
+TEST(InMemoryPlainTrie, leaf_nodes_persist)
+{
+    StateMachineAlwaysEmpty sm{};
+    UpdateAux aux{};
+    Node::UniquePtr root;
+
+    root = upsert_updates(
+        aux,
+        sm,
+        nullptr,
+        make_update(0x11_hex, monad::byte_string_view{}),
+        make_update(0x1111_hex, monad::byte_string_view{}),
+        make_update(0x1122_hex, monad::byte_string_view{}));
+    EXPECT_EQ(root->mask, 0b110);
+
+    root = upsert_updates(aux, sm, root.get(), make_erase(0x1111_hex));
+    EXPECT_EQ(root->mask, 0b100);
+}
+
 TEST(InMemoryPlainTrie, var_length)
 {
     auto const &kv = updates::kv;
