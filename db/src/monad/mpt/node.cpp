@@ -61,6 +61,7 @@ Node::Node(
     MONAD_DEBUG_ASSERT(
         value.transform(&byte_string_view::size).value_or(0) <=
         std::numeric_limits<decltype(value_len)>::max());
+    MONAD_DEBUG_ASSERT(path.begin_nibble_ <= path.end_nibble_);
 
     bitpacked.path_nibble_index_start = path.begin_nibble_;
     bitpacked.has_value = value.has_value();
@@ -210,6 +211,8 @@ unsigned char const *Node::path_data() const noexcept
 
 unsigned Node::path_nibbles_len() const noexcept
 {
+    MONAD_DEBUG_ASSERT(
+        bitpacked.path_nibble_index_start <= path_nibble_index_end);
     return path_nibble_index_end - bitpacked.path_nibble_index_start;
 }
 
@@ -580,28 +583,6 @@ Node *read_node_blocking(
     return deserialize_node_from_buffer(
                buffer + buffer_off, size_t(bytes_read) - buffer_off)
         .release();
-}
-
-std::pair<uint32_t, uint32_t>
-calc_min_offsets(Node &node, chunk_offset_t node_virtual_offset)
-{
-    uint32_t fast_ret = uint32_t(-1);
-    uint32_t slow_ret = uint32_t(-1);
-    if (node_virtual_offset != INVALID_OFFSET) {
-        auto const truncated_offset = truncate_offset(node_virtual_offset);
-        bool const node_in_fast = node_virtual_offset.get_highest_bit();
-        if (node_in_fast) {
-            fast_ret = truncated_offset;
-        }
-        else {
-            slow_ret = truncated_offset;
-        }
-    }
-    for (unsigned i = 0; i < node.number_of_children(); ++i) {
-        fast_ret = std::min(fast_ret, node.min_offset_fast(i));
-        slow_ret = std::min(slow_ret, node.min_offset_slow(i));
-    }
-    return {fast_ret, slow_ret};
 }
 
 MONAD_MPT_NAMESPACE_END

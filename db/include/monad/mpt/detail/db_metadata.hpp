@@ -53,8 +53,10 @@ namespace detail
         // starting offsets of current wip db block's contents. all contents
         // starting this point are not yet validated, and should be rewound if
         // restart.
-        chunk_offset_t start_of_wip_fast_offset;
-        chunk_offset_t start_of_wip_slow_offset;
+        chunk_offset_t start_of_wip_offsets[2];
+        uint32_t last_compact_offsets[2];
+        uint32_t last_compact_offset_ranges[2];
+        double slow_fast_ratio;
 
         // used to know if the metadata was being
         // updated when the process suddenly exited
@@ -359,12 +361,18 @@ namespace detail
 
         void advance_offsets_to_(
             chunk_offset_t const root_off, chunk_offset_t const fast_off,
-            chunk_offset_t const slow_off) noexcept
+            chunk_offset_t const slow_off, uint32_t compact_offset_fast,
+            uint32_t compact_offset_slow, uint32_t compact_range_fast,
+            uint32_t compact_range_slow) noexcept
         {
             auto g = hold_dirty();
             root_offset = root_off;
-            start_of_wip_fast_offset = fast_off;
-            start_of_wip_slow_offset = slow_off;
+            start_of_wip_offsets[0] = fast_off;
+            start_of_wip_offsets[1] = slow_off;
+            last_compact_offsets[0] = compact_offset_fast;
+            last_compact_offsets[1] = compact_offset_slow;
+            last_compact_offset_ranges[0] = compact_range_fast;
+            last_compact_offset_ranges[1] = compact_range_slow;
         }
     };
 

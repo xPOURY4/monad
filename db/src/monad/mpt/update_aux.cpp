@@ -1,6 +1,7 @@
 #include <monad/async/config.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/core/unaligned.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/util.hpp>
@@ -19,6 +20,8 @@
 #include <unistd.h>
 #include <utility>
 #include <vector>
+
+#include <algorithm>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -54,7 +57,7 @@ uint32_t UpdateAux::chunk_id_from_insertion_count(
 chunk_offset_t
 UpdateAux::physical_to_virtual(chunk_offset_t offset) const noexcept
 {
-    MONAD_DEBUG_ASSERT(offset.get_highest_bit() == false);
+    MONAD_ASSERT(offset.id < io->chunk_count());
     auto const *ci = db_metadata_[0]->at(offset.id);
     // free list offset never enter this function
     MONAD_DEBUG_ASSERT(ci->in_fast_list || ci->in_slow_list);
@@ -74,6 +77,7 @@ UpdateAux::virtual_to_physical(chunk_offset_t offset) const noexcept
     offset.id = chunk_id_from_insertion_count(
                     in_fast ? chunk_list::fast : chunk_list::slow, offset.id) &
                 chunk_offset_t::max_id;
+    MONAD_ASSERT(offset.id < io->chunk_count());
     return offset;
 }
 
@@ -157,8 +161,10 @@ void UpdateAux::remove(uint32_t idx) noexcept
 void UpdateAux::rewind_to_match_offsets()
 {
     // Free all chunks after fast_offset.id
-    auto const fast_offset = db_metadata_[0]->start_of_wip_fast_offset;
-    auto const *ci = db_metadata_[0]->at(fast_offset.id);
+    auto const [fast_offset, slow_offset] =
+        db_metadata_[0]->start_of_wip_offsets;
+
+    auto *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
         auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
@@ -170,8 +176,7 @@ void UpdateAux::rewind_to_match_offsets()
     MONAD_ASSERT(fast_offset_chunk->try_trim_contents(fast_offset.offset));
 
     // Same for slow list
-    auto const slow_offset = db_metadata_[0]->start_of_wip_slow_offset;
-    auto const *slow_ci = db_metadata_[0]->at(slow_offset.id);
+    auto *slow_ci = db_metadata_[0]->at(slow_offset.id);
     while (slow_ci != db_metadata_[0]->slow_list_end()) {
         auto const idx = db_metadata_[0]->slow_list.end;
         remove(idx);
@@ -377,9 +382,337 @@ void UpdateAux::reset_node_writers()
                   : node_writer_unique_ptr_type{};
     };
     node_writer_fast =
-        init_node_writer(db_metadata_[0]->start_of_wip_fast_offset);
+        init_node_writer(db_metadata_[0]->start_of_wip_offsets[0]);
     node_writer_slow =
-        init_node_writer(db_metadata_[0]->start_of_wip_slow_offset);
+        init_node_writer(db_metadata_[0]->start_of_wip_offsets[1]);
+}
+
+void UpdateAux::restore_state_history_disk_infos(Node &root)
+{
+    MONAD_ASSERT(is_on_disk());
+    Nibbles const max_block = find_max_key_blocking(*this, root);
+    Nibbles const min_block = find_min_key_blocking(*this, root);
+    uint64_t const max_block_id =
+        deserialize_from_big_endian<uint64_t>(max_block);
+    uint64_t const min_block_id =
+        deserialize_from_big_endian<uint64_t>(min_block);
+    for (auto i = min_block_id; i <= max_block_id; i++) {
+        auto [state_root, res] =
+            find_blocking(*this, &root, serialize_as_big_endian<6>(i));
+        MONAD_ASSERT(res == find_result::success);
+        auto [min_offset_fast, min_offset_slow] = calc_min_offsets(*state_root);
+        if (min_offset_fast == uint32_t(-1)) {
+            min_offset_fast = 0;
+        }
+        if (min_offset_slow == uint32_t(-1)) {
+            min_offset_slow = 0;
+        }
+        if (i > min_block_id) {
+            state_histories.back().max_offset_fast = unaligned_load<uint32_t>(
+                state_root->value().substr(0, 4).data());
+            state_histories.back().max_offset_slow =
+                unaligned_load<uint32_t>(state_root->value().substr(4).data());
+        }
+        state_histories.emplace_back(
+            i,
+            min_offset_fast,
+            min_offset_slow,
+            (i < max_block_id) ? 0
+                               : truncate_offset(this->physical_to_virtual(
+                                     node_writer_fast->sender().offset())),
+            (i < max_block_id) ? 0
+                               : truncate_offset(this->physical_to_virtual(
+                                     node_writer_slow->sender().offset())));
+    }
+}
+
+//! Copy state from last block to new block, erase outdated history block
+//! if any, do compaction if specified, and then upsert
+//! `updates` should include everything nested under block number
+Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
+    Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
+    uint64_t const block_id, bool const compaction)
+{
+    auto block_num = serialize_as_big_endian<6>(block_id);
+    fprintf(stdout, "Insert block_id %lu\n", block_id);
+    if (!state_histories.empty()) {
+        MONAD_ASSERT(block_id == max_block_id_in_history() + 1);
+        // copy old state if any
+        auto prev_block_num =
+            serialize_as_big_endian<6>(max_block_id_in_history());
+        prev_root =
+            copy_node(*this, std::move(prev_root), prev_block_num, block_num);
+    }
+
+    UpdateList block_updates;
+    // erase any outdated states from history
+    byte_string block_to_erase;
+    state_disk_info_t erased_state_info;
+    Update e;
+    if (block_id >= block_history_len) {
+        printf("erase block id %lu\n", min_block_id_in_history());
+        block_to_erase = serialize_as_big_endian<6>(min_block_id_in_history());
+        e = make_erase(block_to_erase);
+        block_updates.push_front(e);
+        erased_state_info = state_histories.front();
+        state_histories.pop_front();
+        if (compaction) {
+            advance_compact_offsets(erased_state_info);
+        }
+    }
+    // value under block_num is the `concat(min_offset_fast +
+    // min_offset_slow)` byte_string
+    auto last_block_max_offsets =
+        serialize(truncate_offset(
+            this->physical_to_virtual(node_writer_fast->sender().offset()))) +
+        serialize(truncate_offset(
+            this->physical_to_virtual(node_writer_slow->sender().offset())));
+    Update u = make_update(
+        block_num, last_block_max_offsets, false, std::move(updates));
+    block_updates.push_front(u);
+
+    // upsert changes
+    auto root =
+        upsert(*this, sm, std::move(prev_root), std::move(block_updates));
+    if (compaction) {
+        this->free_compacted_chunks();
+    }
+    state_histories.emplace_back(
+        block_id,
+        compact_offsets[0],
+        compact_offsets[1],
+        truncate_offset(
+            this->physical_to_virtual(node_writer_fast->sender().offset())),
+        truncate_offset(
+            this->physical_to_virtual(node_writer_slow->sender().offset())));
+    return root;
+}
+
+void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
+{
+    MONAD_ASSERT(is_on_disk());
+
+    // update disk growth speed trackers
+    auto const curr_fast_writer_offset = truncate_offset(
+        physical_to_virtual(node_writer_fast->sender().offset()));
+    auto const curr_slow_writer_offset = truncate_offset(
+        physical_to_virtual(node_writer_slow->sender().offset()));
+    last_block_disk_growth_[0] =
+        last_block_end_offsets_[0] == 0
+            ? 0
+            : curr_fast_writer_offset - last_block_end_offsets_[0];
+    last_block_disk_growth_[1] =
+        last_block_end_offsets_[1] == 0
+            ? 0
+            : curr_slow_writer_offset - last_block_end_offsets_[1];
+    last_block_end_offsets_[0] = curr_fast_writer_offset;
+    last_block_end_offsets_[1] = curr_slow_writer_offset;
+
+    // update compaction variables
+    remove_chunks_before_count_[0] =
+        get_count(erased_state_info.min_offset_fast);
+    remove_chunks_before_count_[1] =
+        get_count(erased_state_info.min_offset_slow);
+
+    compact_offsets[0] = db_metadata_[0]->last_compact_offsets[0];
+    compact_offsets[1] = db_metadata_[0]->last_compact_offsets[1];
+
+    double const used_chunks_ratio =
+        1 - num_chunks(chunk_list::free) / (double)io->chunk_count();
+    printf(
+        "Disk Usage: free chunks %llu, total chunk %lu, disk used chunks "
+        "ratio %.3f. Fastlist has %u chunks, Slowlist has %u chunks\n",
+        get_lower_bound_free_space() >> 28,
+        io->chunk_count(),
+        used_chunks_ratio,
+        num_chunks(chunk_list::fast),
+        num_chunks(chunk_list::slow));
+    compact_offset_ranges_[0] = 0;
+    compact_offset_ranges_[1] = 0;
+    // Compaction pace control based on free space left on disk
+    if (used_chunks_ratio <= 0.2 && state_histories.front().block_id == 0) {
+        printf("NO COMPACT::");
+    }
+    else if (used_chunks_ratio <= 0.8) {
+        printf("SLOW COMPACT::");
+        compact_offset_ranges_[0] = std::min(
+            erased_state_info.max_offset_fast - compact_offsets[0],
+            last_block_disk_growth_[0]);
+    }
+    else {
+        auto slow_fast_inuse_ratio =
+            (double)num_chunks(chunk_list::slow) / num_chunks(chunk_list::fast);
+        if (db_metadata()->slow_fast_ratio == 0.0) {
+            update_slow_fast_ratio_metadata();
+        }
+        if (slow_fast_inuse_ratio < db_metadata()->slow_fast_ratio) {
+            printf("FAST COMPACT::");
+            // slow can continue to grow
+            compact_offset_ranges_[1] = (uint32_t)std::lround(
+                (double)last_block_disk_growth_[1] *
+                ((double)slow_fast_inuse_ratio /
+                 db_metadata()->slow_fast_ratio));
+            // more agressive compaction on fast chunks
+            compact_offset_ranges_[0] = last_block_disk_growth_[0] +
+                                        last_block_disk_growth_[1] -
+                                        compact_offset_ranges_[1] + 5;
+        }
+        else {
+            printf("FAST COMPACT ALSO ON SLOW RING::");
+            // compact slow list more agressively until ratio is met
+            compact_offset_ranges_[0] =
+                (uint32_t)std::lround(last_block_disk_growth_[0] * 0.99);
+            // slow can continue to grow
+            compact_offset_ranges_[1] =
+                std::max(
+                    db_metadata_[0]->last_compact_offset_ranges[1],
+                    last_block_disk_growth_[1]) +
+                2;
+        }
+    }
+    compact_offsets[0] += compact_offset_ranges_[0];
+    compact_offsets[1] += compact_offset_ranges_[1];
+    // correcting offsets
+    // TEMPORARY
+    uint32_t min_fast_offset = 0, min_slow_offset = 0;
+    if (!state_histories.empty()) {
+        // latest block min offsets
+        min_fast_offset = state_histories.back().min_offset_fast;
+        min_slow_offset = state_histories.back().min_offset_slow;
+        if (min_slow_offset > uint32_t(-1) / 2) {
+            min_slow_offset = 0;
+        }
+        if (min_fast_offset > uint32_t(-1) / 2) {
+            min_fast_offset = 0;
+        }
+    }
+    compact_offsets[0] = std::max(compact_offsets[0], min_fast_offset);
+    compact_offsets[1] = std::max(compact_offsets[1], min_slow_offset);
+    compact_offset_ranges_[0] =
+        compact_offsets[0] - db_metadata_[0]->last_compact_offsets[0];
+    compact_offset_ranges_[1] =
+        compact_offsets[1] - db_metadata_[1]->last_compact_offsets[1];
+
+    printf(
+        "  Fast: last block disk grew %u ~%u MB, compact range %u\n"
+        "\tSlow: last block disk grew %u ~%u MB, compact range %u\n",
+        last_block_disk_growth_[0],
+        last_block_disk_growth_[0] >> 4,
+        compact_offset_ranges_[0],
+        last_block_disk_growth_[1],
+        last_block_disk_growth_[1] >> 4,
+        compact_offset_ranges_[1]);
+}
+
+void UpdateAux::free_compacted_chunks()
+{
+    auto free_chunks_from_ci_till_count =
+        [&](detail::db_metadata::chunk_info_t const *ci,
+            uint32_t const count_before) {
+            uint32_t idx = ci->index(db_metadata()),
+                     count =
+                         (uint32_t)db_metadata()->at(idx)->insertion_count();
+            printf("begin id %u count %u, ", idx, count);
+            for (; count < count_before && ci != nullptr;
+                 idx = ci->index(db_metadata()),
+                 count = (uint32_t)db_metadata()->at(idx)->insertion_count()) {
+                ci = ci->next(db_metadata()); // must be in this order
+                remove(idx);
+                io->storage_pool()
+                    .chunk(monad::async::storage_pool::seq, idx)
+                    ->destroy_contents();
+                append(UpdateAux::chunk_list::free, idx); // append not prepend
+                printf("free id %u count %u, ", idx, count);
+            }
+        };
+    printf("Fast Chunks: ");
+    free_chunks_from_ci_till_count(
+        db_metadata()->fast_list_begin(), remove_chunks_before_count_[0]);
+    printf("\nSlow Chunk: ");
+    free_chunks_from_ci_till_count(
+        db_metadata()->slow_list_begin(), remove_chunks_before_count_[1]);
+    printf("\n");
+}
+
+#if MONAD_MPT_COLLECT_STATS
+void UpdateAux::print_update_stats()
+{
+    if (compact_offsets[0] || compact_offsets[1]) {
+        printf(
+            "#nodes copied fast to slow ring %u (%.4f), fast to fast %u "
+            "(%.4f), slow to slow %u, total #nodes copied %u\n"
+            "#nodes copied for compacting fast %u, #nodes copied for "
+            "compacting slow %u\n",
+            nodes_copied_from_fast_to_slow,
+            (double)nodes_copied_from_fast_to_slow /
+                (nodes_copied_from_fast_to_slow +
+                 nodes_copied_from_fast_to_fast),
+            nodes_copied_from_fast_to_fast,
+            (double)nodes_copied_from_fast_to_fast /
+                (nodes_copied_from_fast_to_slow +
+                 nodes_copied_from_fast_to_fast),
+            nodes_copied_from_slow_to_slow,
+            nodes_copied_from_fast_to_slow + nodes_copied_from_fast_to_fast +
+                nodes_copied_from_slow_to_slow,
+            nodes_copied_for_compacting_fast,
+            nodes_copied_for_compacting_slow);
+        if (compact_offsets[0]) {
+            printf(
+                "Fast: #compact reads before compaction offset %u / "
+                "#total compact reads %u = %.4f\n",
+                nreads_before_offset[0],
+                nreads_before_offset[0] + nreads_after_offset[0],
+                (double)nreads_before_offset[0] /
+                    (nreads_before_offset[0] + nreads_after_offset[0]));
+            if (compact_offset_ranges_[0]) {
+                printf(
+                    "Fast: bytes read within compaction range %.2f MB / "
+                    "compaction offset range %.2f MB = %.4f\n",
+                    (double)bytes_read_before_offset[0] / 1024 / 1024,
+                    (double)compact_offset_ranges_[0] / 16,
+                    (double)bytes_read_before_offset[0] /
+                        compact_offset_ranges_[0] / 1024 / 64);
+            }
+        }
+        if (compact_offsets[1] != 0) {
+            printf(
+                "Slow: #compact reads before compaction offset %u / "
+                "#total compact reads %u = %.4f\n",
+                nreads_before_offset[1],
+                nreads_before_offset[1] + nreads_after_offset[1],
+                (double)nreads_before_offset[1] /
+                    (nreads_before_offset[1] + nreads_after_offset[1]));
+            if (compact_offset_ranges_[1]) {
+                printf(
+                    "Slow: bytes read within compaction range %.2f MB / "
+                    "compaction offset range %.2f MB = %.4f\n",
+                    (double)bytes_read_before_offset[1] / 1024 / 1024,
+                    (double)compact_offset_ranges_[1] / 16,
+                    (double)bytes_read_before_offset[1] /
+                        compact_offset_ranges_[1] / 1024 / 64);
+            }
+        }
+    }
+}
+#endif
+
+uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
+{
+    switch (list) {
+    case chunk_list::free:
+        return (
+            uint32_t)(db_metadata_[0]->free_list_end()->insertion_count() -
+                      db_metadata_[0]->free_list_begin()->insertion_count());
+    case chunk_list::fast:
+        return (
+            uint32_t)(db_metadata_[0]->fast_list_end()->insertion_count() -
+                      db_metadata_[0]->fast_list_begin()->insertion_count());
+    case chunk_list::slow:
+        return (
+            uint32_t)(db_metadata_[0]->slow_list_end()->insertion_count() -
+                      db_metadata_[0]->slow_list_begin()->insertion_count());
+    }
+    return 0;
 }
 
 MONAD_MPT_NAMESPACE_END

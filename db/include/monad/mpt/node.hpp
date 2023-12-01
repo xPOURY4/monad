@@ -175,7 +175,7 @@ public:
     unsigned number_of_children() const noexcept;
 
     //! fnext
-    chunk_offset_t const fnext(unsigned index)const noexcept;
+    chunk_offset_t const fnext(unsigned index) const noexcept;
     void set_fnext(unsigned index, chunk_offset_t) noexcept;
 
     //! min_block_no array
@@ -244,16 +244,6 @@ static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
 static_assert(sizeof(Node) == size_of_node);
 static_assert(sizeof(Node) == 12);
 static_assert(alignof(Node) == 4);
-
-inline uint32_t truncate_offset(chunk_offset_t const offset)
-{
-    constexpr unsigned const bits_to_truncate = 48 - sizeof(uint32_t) * 8;
-    return static_cast<uint32_t>(offset.raw() >> bits_to_truncate);
-}
-
-// calculate on virtual offsets
-std::pair<uint32_t, uint32_t>
-calc_min_offsets(Node &, chunk_offset_t = INVALID_OFFSET);
 
 // ChildData is for temporarily holding a child's info, including child ptr,
 // file offset and hash data, in the update recursion.

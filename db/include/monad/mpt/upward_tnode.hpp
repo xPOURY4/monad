@@ -11,20 +11,28 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
+enum class tnode_type : uint8_t
+{
+    update,
+    copy // for compaction
+};
+
 struct UpwardTreeNode
 {
     UpwardTreeNode *parent{nullptr};
-    // old only exists to extend the lifetime of opt_leaf_data, when the data
-    // comes from old
+    tnode_type type{tnode_type::update};
+    uint8_t npending{0};
+    uint8_t branch{INVALID_BRANCH};
+    uint8_t prefix_index{0};
+    uint16_t mask{0};
+    uint16_t orig_mask{0};
+    // tnode owns old node's lifetime only when old is leaf node, as
+    // opt_leaf_data has to be valid in memory when it works the way back to
+    // recompute leaf data
     Node::UniquePtr old{};
     allocators::owning_span<ChildData> children{};
     Nibbles path{};
     std::optional<byte_string_view> opt_leaf_data{std::nullopt};
-    uint16_t mask{0};
-    uint16_t orig_mask{0};
-    uint8_t branch{INVALID_BRANCH};
-    uint8_t npending{0};
-    uint8_t prefix_index{0};
 
     [[nodiscard]] unsigned number_of_children() const
     {
@@ -72,21 +80,91 @@ inline tnode_unique_ptr make_tnode(
     std::optional<byte_string_view> const opt_leaf_data = std::nullopt,
     Node::UniquePtr old = {})
 {
-    auto const n = static_cast<uint8_t>(std::popcount(orig_mask));
+    uint8_t const n = static_cast<uint8_t>(std::popcount(orig_mask));
     return UpwardTreeNode::make(UpwardTreeNode{
         .parent = parent,
+        .type = tnode_type::update,
+        .npending = n,
+        .branch = branch,
+        .prefix_index = static_cast<uint8_t>(prefix_index),
+        .mask = orig_mask,
+        .orig_mask = orig_mask,
         .old = std::move(old),
         .children = allocators::owning_span<ChildData>{n},
         .path = path,
-        .opt_leaf_data = opt_leaf_data,
-        .mask = orig_mask,
-        .orig_mask = orig_mask,
-        .branch = branch,
-        .npending = n,
-        .prefix_index = static_cast<uint8_t>(prefix_index)});
+        .opt_leaf_data = opt_leaf_data});
 }
 
 static_assert(sizeof(UpwardTreeNode) == 80);
 static_assert(alignof(UpwardTreeNode) == 8);
+
+struct CompactTNode
+{
+    CompactTNode *parent{nullptr};
+    tnode_type type{tnode_type::copy};
+    uint8_t npending{0};
+    uint8_t index{INVALID_BRANCH};
+    bool rewrite_to_fast{false};
+    bool cached{false};
+    Node *node;
+
+    CompactTNode(
+        CompactTNode *const parent, unsigned const index, Node *const node,
+        bool const rewrite_to_fast, bool const cached)
+        : parent(parent)
+        , type(tnode_type::copy)
+        , npending(static_cast<uint8_t>(node->number_of_children()))
+        , index(static_cast<uint8_t>(index))
+        , rewrite_to_fast(rewrite_to_fast)
+        , cached(cached)
+        , node(node)
+    {
+    }
+
+    ~CompactTNode()
+    {
+        MONAD_DEBUG_ASSERT(npending == 0);
+        if (!cached) {
+            Node::UniquePtr{node};
+        }
+    }
+
+    bool is_sentinel() const noexcept
+    {
+        return !parent;
+    }
+
+    using allocator_type =
+        allocators::boost_unordered_pool_allocator<CompactTNode>;
+
+    static allocator_type &pool()
+    {
+        static allocator_type v;
+        return v;
+    }
+
+    using unique_ptr_type = std::unique_ptr<
+        CompactTNode, allocators::unique_ptr_allocator_deleter<
+                          allocator_type, &CompactTNode::pool>>;
+
+    static unique_ptr_type make(CompactTNode v)
+    {
+        return allocators::allocate_unique<allocator_type, &CompactTNode::pool>(
+            std::move(v));
+    }
+
+    static unique_ptr_type make(
+        CompactTNode *const parent, unsigned const index, Node *const node,
+        bool const rewrite_to_fast, bool const cached)
+    {
+        MONAD_DEBUG_ASSERT(node);
+        MONAD_DEBUG_ASSERT(parent);
+        return allocators::allocate_unique<allocator_type, &CompactTNode::pool>(
+            parent, index, node, rewrite_to_fast, cached);
+    }
+};
+
+static_assert(sizeof(CompactTNode) == 24);
+static_assert(alignof(CompactTNode) == 8);
 
 MONAD_MPT_NAMESPACE_END

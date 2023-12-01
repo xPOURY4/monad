@@ -8,6 +8,7 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/core/unaligned.hpp>
 #include <monad/core/unordered_map.hpp>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
@@ -68,84 +69,66 @@ void __print_bytes_in_hex(monad::byte_string_view arr)
     fprintf(stdout, "\n");
 }
 
-// helper traversal count
-inline unsigned count_leaves(Node *const root, unsigned n = 0)
-{
-    if (!root) {
-        return 0;
-    }
-    if (!std::popcount(root->mask)) {
-        return 1;
-    }
-    for (unsigned j = 0; j < root->number_of_children(); ++j) {
-        n += count_leaves(root->next(j));
-    }
-    return n;
-}
-
 /*  Commit one batch of updates
     key_offset: insert key starting from this number
     nkeys: number of keys to insert in this batch
 */
-inline Node::UniquePtr batch_upsert_commit(
-    std::ostream &csv_writer, uint64_t block_id, uint64_t vec_idx,
-    uint64_t key_offset, uint64_t nkeys,
+Node::UniquePtr batch_upsert_commit(
+    std::ostream &csv_writer, uint64_t block_id, uint64_t const vec_idx,
+    uint64_t const key_offset, uint64_t const nkeys,
     std::vector<monad::byte_string> &keccak_keys,
-    std::vector<monad::byte_string> &keccak_values, bool erase,
-    Node::UniquePtr prev_root, UpdateAux &aux, StateMachine &sm)
+    std::vector<monad::byte_string> &keccak_values, bool const erase,
+    bool compaction, Node::UniquePtr prev_root, UpdateAux &aux,
+    StateMachine &sm)
 {
-    fprintf(stdout, "Insert block_id %lu\n", block_id);
-    auto const block_no = serialize_as_big_endian<6>(block_id);
-    if (block_id != 0) {
-        auto old_block_no = serialize_as_big_endian<6>(block_id - 1);
-        prev_root = monad::mpt::copy_node(
-            aux, std::move(prev_root), old_block_no, block_no);
-        // For test purpose only: verify that earlier blocks are valid, no
-        // change in db
-        auto [state_root, res] =
-            find_blocking(aux, prev_root.get(), old_block_no);
-        MONAD_ASSERT(res == find_result::success);
-        MONAD_ASSERT(state_root->data_len == 32);
-    }
-
-    double tm_ram;
-    std::vector<Update> update_vec;
-    update_vec.reserve(SLICE_LEN);
+    std::vector<Update> update_alloc;
+    update_alloc.reserve(SLICE_LEN);
     UpdateList state_updates;
     for (uint64_t i = 0; i < nkeys; ++i) {
-        update_vec.push_back(
+        state_updates.push_front(update_alloc.emplace_back(
             erase ? make_erase(keccak_keys[i + vec_idx])
                   : make_update(
-                        keccak_keys[i + vec_idx], keccak_values[i + vec_idx]));
-        state_updates.push_front(update_vec[i]);
+                        keccak_keys[i + vec_idx], keccak_values[i + vec_idx])));
     }
-    Update u = make_update(block_no, {}, false, std::move(state_updates));
-    UpdateList updates;
-    updates.push_front(u);
 
     auto ts_before = std::chrono::steady_clock::now();
-    auto new_root = upsert(aux, sm, std::move(prev_root), std::move(updates));
+    auto new_root = aux.upsert_with_fixed_history_len(
+        std::move(prev_root),
+        sm,
+        std::move(state_updates),
+        block_id,
+        compaction);
     auto ts_after = std::chrono::steady_clock::now();
-    tm_ram = static_cast<double>(
-                 std::chrono::duration_cast<std::chrono::nanoseconds>(
-                     ts_after - ts_before)
-                     .count()) /
-             1000000000.0;
+    double tm_ram = static_cast<double>(
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            ts_after - ts_before)
+                            .count()) /
+                    1000000000.0;
 
-    auto [state_root, res] = find_blocking(aux, new_root.get(), block_no);
-    MONAD_ASSERT(res == find_result::success);
+    auto block_num = serialize_as_big_endian<6>(block_id);
+    auto [state_root, res] = find_blocking(aux, new_root.get(), block_num);
     fprintf(stdout, "root->data : ");
     __print_bytes_in_hex(state_root->data());
 
+    auto const latest_fast_chunk = aux.node_writer_fast->sender().offset();
+    auto const latest_slow_chunk = aux.node_writer_slow->sender().offset();
     fprintf(
         stdout,
-        "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in "
-        "RAM: "
-        "%f /s, total_t %.4f s\n",
+        "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in RAM: %f /s, "
+        "total_t %.4f s\nlatest fast chunk written to: idx %u, count %u\n"
+        "latest slow chunk written to: idx %u, count %u\n=====\n",
         (key_offset + vec_idx + nkeys) % MAX_NUM_KEYS,
         nkeys,
         (double)nkeys / tm_ram,
-        tm_ram);
+        tm_ram,
+        latest_fast_chunk.id,
+        (uint32_t)aux.db_metadata()
+            ->at(latest_fast_chunk.id)
+            ->insertion_count(),
+        latest_slow_chunk.id,
+        (uint32_t)aux.db_metadata()
+            ->at(latest_slow_chunk.id)
+            ->insertion_count());
     fflush(stdout);
     if (csv_writer) {
         csv_writer << (key_offset + vec_idx + nkeys) << ","
@@ -253,7 +236,6 @@ int main(int argc, char *argv[])
 
     unsigned n_slices = 20;
     bool append = false;
-    uint64_t block_no = 0;
     std::vector<std::filesystem::path> dbname_paths;
     std::filesystem::path csv_stats_path;
     uint64_t key_offset = 0;
@@ -263,6 +245,7 @@ int main(int argc, char *argv[])
     bool empty_cpu_caches = false;
     bool realistic_corpus = false;
     bool random_keys = false;
+    bool compaction = false;
 
     CLI::App cli{"monad_merge_trie_test"};
     try {
@@ -290,9 +273,14 @@ int main(int argc, char *argv[])
             "use test corpus resembling historical patterns");
         cli.add_flag(
             "--random-keys", random_keys, "generate random integers as keys");
+        cli.add_flag("--compaction", compaction, "perform compaction on disk");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
+        if (in_memory && compaction) {
+            throw std::invalid_argument(
+                "Invalid to init with compaction on in-memory triedb.");
+        }
         if (realistic_corpus) {
             random_keys = false;
         }
@@ -373,8 +361,7 @@ int main(int argc, char *argv[])
                     monad::make_scope_exit([fd]() noexcept { ::close(fd); });
                 if (-1 ==
                     ::ftruncate(
-                        fd,
-                        1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
+                        fd, 512ULL * 1024 * 1024 * 1024 + 24576 /* 512Gb */)) {
                     throw std::system_error(errno, std::system_category());
                 }
             }
@@ -387,12 +374,11 @@ int main(int argc, char *argv[])
         // init uring
         monad::io::Ring ring(128, sq_thread_cpu);
 
-        // init buffer: default buffer size
-        // TODO: pass in a preallocated memory
+        // init buffer
         monad::io::Buffers rwbuf{
             ring,
             8192 * 16,
-            128,
+            16,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
@@ -408,10 +394,9 @@ int main(int argc, char *argv[])
         if (append) {
             root.reset(
                 read_node_blocking(io.storage_pool(), aux.get_root_offset()));
-            Nibbles const max_block = find_max_key_blocking(aux, *root);
-            // always start from the last valid block num + 1
-            block_no = deserialize_from_big_endian<uint64_t>(max_block) + 1;
+            aux.restore_state_history_disk_infos(*root);
         }
+        uint64_t block_no = aux.next_block_id();
 
         auto begin_test = std::chrono::steady_clock::now();
         uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
@@ -448,6 +433,7 @@ int main(int argc, char *argv[])
                 keccak_keys,
                 keccak_values,
                 false,
+                compaction,
                 std::move(root),
                 aux,
                 sm);
@@ -464,6 +450,7 @@ int main(int argc, char *argv[])
                     keccak_keys,
                     keccak_values,
                     true,
+                    compaction,
                     std::move(root),
                     aux,
                     sm);
@@ -479,6 +466,7 @@ int main(int argc, char *argv[])
                     keccak_keys,
                     keccak_values,
                     false,
+                    compaction,
                     std::move(root),
                     aux,
                     sm);

@@ -86,4 +86,24 @@ inline UnsignedInteger deserialize_from_big_endian(NibblesView const in)
     return out;
 }
 
+//! serilaize a value as it is to a byte string
+template <std::integral V>
+inline byte_string serialize(V n)
+{
+    auto arr = std::bit_cast<std::array<unsigned char, sizeof(V)>>(n);
+    return byte_string{arr.data(), arr.size()};
+}
+
+// truncated offset manipulation functions
+inline uint32_t truncate_offset(chunk_offset_t const offset)
+{
+    constexpr unsigned const bits_to_truncate = 48 - 32;
+    return static_cast<uint32_t>(offset.raw() >> bits_to_truncate);
+}
+
+inline uint32_t get_count(uint32_t const truncated_offset)
+{
+    return truncated_offset >> (32 - 20);
+}
+
 MONAD_MPT_NAMESPACE_END

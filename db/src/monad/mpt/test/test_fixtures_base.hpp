@@ -58,6 +58,7 @@ namespace monad::test
     private:
         static constexpr auto block_num_size = 12;
         static constexpr auto cache_depth = block_num_size + 6;
+        static constexpr auto max_depth = block_num_size + 64 + 64;
         size_t depth{0};
 
     public:
@@ -93,6 +94,7 @@ namespace monad::test
 
         virtual constexpr bool cache() const override
         {
+            MONAD_ASSERT(depth <= max_depth);
             return depth < cache_depth;
         }
 
@@ -144,7 +146,7 @@ namespace monad::test
 
         virtual constexpr bool compact() const override
         {
-            return true;
+            return false;
         }
     };
 
