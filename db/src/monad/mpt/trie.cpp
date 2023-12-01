@@ -40,19 +40,17 @@ using namespace MONAD_ASYNC_NAMESPACE;
  `*_prefix_index_start` is the starting nibble index in current function frame
 */
 void dispatch_updates_flat_list_(
-    UpdateAux &aux, TrieStateMachine &sm, tnode_unique_ptr &parent,
-    ChildData &entry, Node::UniquePtr old, Requests &requests, NibblesView path,
-    unsigned prefix_index);
+    UpdateAux &, TrieStateMachine &, tnode_unique_ptr &parent, ChildData &,
+    Node::UniquePtr old, Requests &, NibblesView path, unsigned prefix_index);
 
 void dispatch_updates_impl_(
-    UpdateAux &aux, TrieStateMachine &sm, tnode_unique_ptr &parent,
-    ChildData &entry, Node::UniquePtr old, Requests &requests,
-    unsigned prefix_index, NibblesView path,
+    UpdateAux &, TrieStateMachine &, tnode_unique_ptr &parent, ChildData &,
+    Node::UniquePtr old, Requests &, unsigned prefix_index, NibblesView path,
     std::optional<byte_string_view> opt_leaf_data);
 
 void mismatch_handler_(
-    UpdateAux &aux, TrieStateMachine &sm, tnode_unique_ptr &parent,
-    ChildData &entry, Node::UniquePtr old, Requests &requests, NibblesView path,
+    UpdateAux &, TrieStateMachine &, tnode_unique_ptr &parent, ChildData &,
+    Node::UniquePtr old, Requests &, NibblesView path,
     unsigned old_prefix_index, unsigned prefix_index);
 
 void create_new_trie_(
@@ -60,21 +58,20 @@ void create_new_trie_(
     UpdateList &&updates, unsigned prefix_index = 0);
 
 void create_new_trie_from_requests_(
-    UpdateAux &aux, TrieStateMachine &sm, ChildData &entry, Requests &requests,
-    NibblesView path, unsigned prefix_index,
-    std::optional<byte_string_view> opt_leaf_data);
+    UpdateAux &, TrieStateMachine &, ChildData &, Requests &, NibblesView path,
+    unsigned prefix_index, std::optional<byte_string_view> opt_leaf_data);
 
 void upsert_(
-    UpdateAux &aux, TrieStateMachine &sm, tnode_unique_ptr &parent,
-    ChildData &entry, Node::UniquePtr old, UpdateList &&updates,
-    unsigned prefix_index = 0, unsigned old_prefix_index = 0);
+    UpdateAux &, TrieStateMachine &, tnode_unique_ptr &parent, ChildData &,
+    Node::UniquePtr old, UpdateList &&, unsigned prefix_index = 0,
+    unsigned old_prefix_index = 0);
 
 bool create_node_compute_data_possibly_async(
-    UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *parent,
-    ChildData &entry, UpwardTreeNode *tnode);
+    UpdateAux &, TrieStateMachine &, UpwardTreeNode *parent, ChildData &,
+    UpwardTreeNode *tnode);
 
 // invoke at the end of each block upsert
-async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root);
+async_write_node_result write_new_root_node(UpdateAux &, Node const &);
 
 Node::UniquePtr upsert(
     UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
