@@ -62,7 +62,7 @@ struct async_write_node_result
     unsigned bytes_appended;
     MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state;
 };
-async_write_node_result async_write_node(UpdateAux &, Node *);
+async_write_node_result async_write_node(UpdateAux &, Node const &);
 
 // \class Auxiliaries for triedb update
 class UpdateAux

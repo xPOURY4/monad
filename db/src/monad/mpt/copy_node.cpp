@@ -110,6 +110,7 @@ Node::UniquePtr copy_node(
                 node->has_value()
                     ? std::optional<byte_string_view>{node->value()}
                     : std::nullopt);
+            MONAD_DEBUG_ASSERT(node_latter_half);
             uint16_t const mask =
                 static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
             Node *ret = create_node_nodata(
@@ -131,7 +132,7 @@ Node::UniquePtr copy_node(
                 // write back cache, we can unpin the node from memory no
                 // problem.
                 auto off =
-                    async_write_node(aux, node_latter_half).offset_written_to;
+                    async_write_node(aux, *node_latter_half).offset_written_to;
                 auto const pages =
                     num_pages(off.offset, node_latter_half->get_disk_size());
                 MONAD_DEBUG_ASSERT(

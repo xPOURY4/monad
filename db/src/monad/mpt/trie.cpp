@@ -30,8 +30,6 @@
 #include <optional>
 #include <span>
 #include <utility>
-#include <variant>
-#include <vector>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -76,7 +74,7 @@ bool create_node_compute_data_possibly_async(
     ChildData &entry, UpwardTreeNode *tnode);
 
 // invoke at the end of each block upsert
-async_write_node_result write_new_root_node(UpdateAux &aux, Node *root);
+async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root);
 
 Node::UniquePtr upsert(
     UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
@@ -98,7 +96,7 @@ Node::UniquePtr upsert(
     }
     auto *const root = entry.ptr;
     if (root && aux.is_on_disk()) {
-        write_new_root_node(aux, root);
+        write_new_root_node(aux, *root);
     }
     return Node::UniquePtr{root};
 }
@@ -290,11 +288,11 @@ Node *create_node_from_children_if_any(
         for (auto &child : children) {
             if (child.is_valid() && child.offset == INVALID_OFFSET) {
                 // won't duplicate write of unchanged old child
-                MONAD_DEBUG_ASSERT(child.ptr);
                 MONAD_DEBUG_ASSERT(child.branch < 16);
                 MONAD_DEBUG_ASSERT(child.min_count == uint32_t(-1));
+                MONAD_DEBUG_ASSERT(child.ptr);
                 child.offset =
-                    async_write_node(aux, child.ptr).offset_written_to;
+                    async_write_node(aux, *child.ptr).offset_written_to;
                 auto const pages =
                     num_pages(child.offset.offset, child.ptr->get_disk_size());
                 MONAD_DEBUG_ASSERT(
@@ -784,12 +782,12 @@ node_writer_unique_ptr_type replace_node_writer(
     return ret;
 }
 
-async_write_node_result async_write_node(UpdateAux &aux, Node *node)
+async_write_node_result async_write_node(UpdateAux &aux, Node const &node)
 {
     node_writer_unique_ptr_type &node_writer = aux.node_writer;
     aux.io->poll_nonblocking_if_not_within_completions(1);
     auto *sender = &node_writer->sender();
-    auto const size = node->disk_size;
+    auto const size = node.disk_size;
     auto const remaining_bytes = sender->remaining_buffer_bytes();
     async_write_node_result ret{
         .offset_written_to = INVALID_OFFSET,
@@ -854,10 +852,9 @@ async_write_node_result async_write_node(UpdateAux &aux, Node *node)
     return ret;
 }
 
-async_write_node_result write_new_root_node(UpdateAux &aux, Node *const root)
+async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
 {
     node_writer_unique_ptr_type &node_writer = aux.node_writer;
-    MONAD_DEBUG_ASSERT(root);
     auto const ret = async_write_node(aux, root);
     // Round up with all bits zero
     auto *sender = &node_writer->sender();

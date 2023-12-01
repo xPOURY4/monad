@@ -530,11 +530,10 @@ Node *create_node_nodata(
     return node.release();
 }
 
-void serialize_node_to_buffer(unsigned char *const write_pos, Node *const node)
+void serialize_node_to_buffer(unsigned char *const write_pos, Node const &node)
 {
-    MONAD_ASSERT(node->disk_size > 0 && node->disk_size <= Node::max_disk_size);
-    memcpy(write_pos, node, node->disk_size);
-    return;
+    MONAD_ASSERT(node.disk_size > 0 && node.disk_size <= Node::max_disk_size);
+    memcpy(write_pos, &node, node.disk_size);
 }
 
 Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
