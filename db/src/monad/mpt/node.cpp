@@ -297,7 +297,7 @@ void ChildData::erase()
     branch = INVALID_BRANCH;
 }
 
-void ChildData::set_branch_and_section(unsigned i, uint8_t const sec)
+void ChildData::set_branch_and_section(unsigned const i, uint8_t const sec)
 {
     MONAD_DEBUG_ASSERT(i < 16);
     branch = static_cast<uint8_t>(i);
@@ -315,7 +315,7 @@ void ChildData::set_node_and_compute_data(
     len = static_cast<uint8_t>(length);
 }
 
-void ChildData::copy_old_child(Node *old, unsigned i)
+void ChildData::copy_old_child(Node *const old, unsigned const i)
 {
     auto const index = old->to_child_index(i);
     if (old->next(index)) { // in memory, infers cached
