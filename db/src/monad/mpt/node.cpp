@@ -357,19 +357,6 @@ Node *create_leaf(byte_string_view const value, NibblesView const path)
     return node.release();
 }
 
-Node *create_coalesced_node_with_prefix(
-    uint8_t const branch, Node::UniquePtr prev, NibblesView const prefix)
-{
-    // Note that prev may be a leaf
-    auto const path = concat3(prefix, branch, prev->path_nibble_view());
-    auto node = make_node(
-        *prev,
-        path,
-        prev->has_value() ? std::make_optional(prev->value()) : std::nullopt);
-    assert(node->disk_size >= prev->disk_size);
-    return node.release();
-}
-
 Node::UniquePtr make_node(
     Node &from, NibblesView const path,
     std::optional<byte_string_view> const value)

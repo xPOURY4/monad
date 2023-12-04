@@ -268,8 +268,18 @@ Node *create_node_from_children_if_any(
         auto const j = bitmask_index(
             orig_mask, static_cast<unsigned>(std::countr_zero(mask)));
         MONAD_DEBUG_ASSERT(children[j].ptr);
-        return create_coalesced_node_with_prefix(
-            children[j].branch, Node::UniquePtr{children[j].ptr}, path);
+        auto const node = Node::UniquePtr{children[j].ptr};
+        /* Note: there's a potential superfluous extension hash recomputation
+        when node coaleases upon erases, because we compute node hash when path
+        is not yet the final form. There's not yet a good way to avoid this
+        unless we delay all the compute() after all child branches finish
+        creating nodes and return in the recursion */
+        return make_node(
+                   *node,
+                   concat3(path, children[j].branch, node->path_nibble_view()),
+                   node->has_value() ? std::make_optional(node->value())
+                                     : std::nullopt)
+            .release();
     }
     MONAD_DEBUG_ASSERT(
         number_of_children > 1 ||

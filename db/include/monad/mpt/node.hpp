@@ -260,14 +260,6 @@ Node::UniquePtr make_node(
 // create leaf node without children, data_len = 0
 Node *create_leaf(byte_string_view data, NibblesView path);
 
-/* Note: there's a potential superfluous extension hash recomputation when node
-coaleases upon erases, because we compute node hash when path is not yet
-the final form. There's not yet a good way to avoid this unless we delay all
-the compute() after all child branches finish creating nodes and return in
-the recursion */
-Node *create_coalesced_node_with_prefix(
-    uint8_t branch, Node::UniquePtr prev, NibblesView prefix);
-
 // create node: either branch/extension, with or without leaf
 Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
