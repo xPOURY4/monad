@@ -63,28 +63,33 @@ Node::UniquePtr copy_node(
                 // create a node, with no leaf data
                 uint16_t const mask =
                     static_cast<uint16_t>(node->mask | (1u << nibble));
-                Node *ret = create_node_nodata(mask, node->path_nibble_view());
-                for (unsigned i = 0, index = 0, old_index = 0, bit = 1;
-                     index < ret->number_of_children();
-                     ++i, bit <<= 1) {
+                std::array<ChildData, 16> children;
+                for (uint8_t i = 0; i < 16; ++i) {
                     if (i == nibble) {
-                        ret->set_next(index++, leaf);
+                        children[i].branch = i;
+                        children[i].ptr = leaf;
                     }
-                    else if (mask & bit) {
-                        // assume child has no data for now
+                    else if (mask & (1u << i)) {
+                        children[i].branch = i;
+                        auto const old_index = node->to_child_index(i);
                         if (aux.is_on_disk()) {
-                            ret->min_count(index) = node->min_count(old_index);
-                            ret->fnext(index++) = node->fnext(old_index);
+                            children[i].min_count = node->min_count(old_index);
+                            children[i].offset = node->fnext(old_index);
+                            node->next_ptr(old_index).reset();
                         }
-                        // also clear node's child mem ptr
-                        aux.is_on_disk()
-                            ? node->next_ptr(old_index++).reset()
-                            : ret->set_next(
-                                  index++,
-                                  node->next_ptr(old_index++).release());
+                        else {
+                            children[i].ptr =
+                                node->next_ptr(old_index).release();
+                        }
                     }
                 }
-                return ret;
+                return make_node(
+                           mask,
+                           children,
+                           node->path_nibble_view(),
+                           std::nullopt,
+                           0)
+                    .release();
             }();
             break;
         }
@@ -120,15 +125,12 @@ Node::UniquePtr copy_node(
             MONAD_DEBUG_ASSERT(node_latter_half);
             uint16_t const mask =
                 static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
-            Node *ret = create_node_nodata(
-                mask,
-                NibblesView{
-                    node->bitpacked.path_nibble_index_start,
-                    node_prefix_index,
-                    node->path_data()});
             bool const leaf_first = nibble < node_nibble;
-            ret->set_next(leaf_first ? 0 : 1, dest_leaf);
-            ret->set_next(leaf_first ? 1 : 0, node_latter_half);
+            ChildData children[2];
+            children[!leaf_first] =
+                ChildData{.ptr = dest_leaf, .branch = node_nibble};
+            children[leaf_first] =
+                ChildData{.ptr = node_latter_half, .branch = nibble};
             if (aux.is_on_disk()) {
                 // Request a write for the modified node, async_write_node()
                 // serialize nodes to buffer but it's not guaranteed to land on
@@ -145,9 +147,18 @@ Node::UniquePtr copy_node(
                 MONAD_DEBUG_ASSERT(
                     pages <= std::numeric_limits<uint16_t>::max());
                 off.spare = static_cast<uint16_t>(pages);
-                ret->fnext(leaf_first ? 1 : 0) = off;
+                children[leaf_first].offset = off;
             }
-            return ret;
+            return make_node(
+                       mask,
+                       std::span(children),
+                       NibblesView{
+                           node->bitpacked.path_nibble_index_start,
+                           node_prefix_index,
+                           node->path_data()},
+                       std::nullopt,
+                       0)
+                .release();
         }();
         break;
     }

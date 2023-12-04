@@ -516,27 +516,6 @@ void serialize_to_node(NibblesView const nibbles, Node &node)
     }
 }
 
-// TODO: get rid of this function
-Node *create_node_nodata(
-    uint16_t const mask, NibblesView const path, bool const has_value)
-{
-    std::array<ChildData, 16> children;
-    for (size_t i = 0; i < 16; ++i) {
-        if (mask & (1u << i)) {
-            children[i].branch = static_cast<uint8_t>(i);
-        }
-    }
-
-    auto node = make_node(
-        mask,
-        children,
-        path,
-        has_value ? std::make_optional(byte_string_view{}) : std::nullopt,
-        byte_string_view{});
-
-    return node.release();
-}
-
 void serialize_node_to_buffer(unsigned char *const write_pos, Node const &node)
 {
     MONAD_ASSERT(node.disk_size > 0 && node.disk_size <= Node::max_disk_size);

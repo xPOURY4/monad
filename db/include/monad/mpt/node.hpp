@@ -273,9 +273,6 @@ Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
     std::optional<byte_string_view> value = std::nullopt);
 
-Node *
-create_node_nodata(uint16_t mask, NibblesView path, bool has_value = false);
-
 void serialize_node_to_buffer(unsigned char *write_pos, Node const &);
 
 Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos);
