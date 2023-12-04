@@ -53,10 +53,13 @@ Node::UniquePtr copy_node(
             new_node = [&]() -> Node * {
                 MONAD_DEBUG_ASSERT(
                     prefix_index < std::numeric_limits<unsigned char>::max());
-                Node *leaf = update_node_diff_path_leaf(
-                    src_leaf,
-                    dest.substr(static_cast<unsigned char>(prefix_index) + 1u),
-                    src_leaf->value());
+                Node *leaf =
+                    make_node(
+                        *src_leaf,
+                        dest.substr(
+                            static_cast<unsigned char>(prefix_index) + 1u),
+                        src_leaf->value())
+                        .release();
                 // create a node, with no leaf data
                 uint16_t const mask =
                     static_cast<uint16_t>(node->mask | (1u << nibble));
@@ -97,19 +100,23 @@ Node::UniquePtr copy_node(
         new_node = [&]() -> Node * {
             MONAD_DEBUG_ASSERT(
                 prefix_index < std::numeric_limits<unsigned char>::max());
-            Node *dest_leaf = update_node_diff_path_leaf(
-                src_leaf,
-                dest.substr(static_cast<unsigned char>(prefix_index) + 1u),
-                src_leaf->value());
-            Node *node_latter_half = update_node_diff_path_leaf(
-                node,
-                NibblesView{
-                    node_prefix_index + 1,
-                    node->path_nibble_index_end,
-                    node->path_data()},
-                node->has_value()
-                    ? std::optional<byte_string_view>{node->value()}
-                    : std::nullopt);
+            Node *dest_leaf =
+                make_node(
+                    *src_leaf,
+                    dest.substr(static_cast<unsigned char>(prefix_index) + 1u),
+                    src_leaf->value())
+                    .release();
+            Node *node_latter_half =
+                make_node(
+                    *node,
+                    NibblesView{
+                        node_prefix_index + 1,
+                        node->path_nibble_index_end,
+                        node->path_data()},
+                    node->has_value()
+                        ? std::optional<byte_string_view>{node->value()}
+                        : std::nullopt)
+                    .release();
             MONAD_DEBUG_ASSERT(node_latter_half);
             uint16_t const mask =
                 static_cast<uint16_t>((1u << nibble) | (1u << node_nibble));
@@ -150,8 +157,9 @@ Node::UniquePtr copy_node(
         // children as src_leaf, then deallocate the existing one
         assert(new_node == nullptr);
         assert(node != root.get());
-        new_node = update_node_diff_path_leaf(
-            src_leaf, node->path_nibble_view(), src_leaf->value());
+        new_node =
+            make_node(*src_leaf, node->path_nibble_view(), src_leaf->value())
+                .release();
         // clear parent's children other than new_node
         if (aux.is_on_disk()) {
             for (unsigned j = 0; j < parent->number_of_children(); ++j) {

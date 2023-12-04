@@ -504,14 +504,6 @@ Node *create_node(
     return node.release();
 }
 
-Node *update_node_diff_path_leaf(
-    Node *old, NibblesView const path,
-    std::optional<byte_string_view> const value)
-{
-    auto node = make_node(*old, path, value);
-    return node.release();
-}
-
 void serialize_to_node(NibblesView const nibbles, Node &node)
 {
     // TODO: optimization opportunity when si and ei are all

@@ -393,10 +393,9 @@ void update_leaf_data_(
     }
     // only value update but not subtrie updates
     MONAD_ASSERT(update.value.has_value());
-    Node *node =
-        update.incarnation
-            ? create_leaf(update.value.value(), path)
-            : update_node_diff_path_leaf(old.get(), path, update.value);
+    Node *node = update.incarnation
+                     ? create_leaf(update.value.value(), path)
+                     : make_node(*old.get(), path, update.value).release();
     MONAD_ASSERT(node);
     entry.set_node_and_compute_data(node, sm);
     --parent.npending;
@@ -730,8 +729,7 @@ void mismatch_handler_(
                 old.path_data()};
             children[j].set_branch_and_section(i, sm.get_state());
             children[j].set_node_and_compute_data(
-                update_node_diff_path_leaf(&old, path_suffix, old.opt_value()),
-                sm);
+                make_node(old, path_suffix, old.opt_value()).release(), sm);
             --tnode->npending;
             ++j;
         }

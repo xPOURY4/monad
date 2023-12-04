@@ -273,13 +273,6 @@ Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
     std::optional<byte_string_view> value = std::nullopt);
 
-/* create a new node from a old node with possibly shorter path and an
-optional new leaf data
-Copy old with new path and new leaf, new path might be shortened */
-Node *update_node_diff_path_leaf(
-    Node *old, NibblesView path,
-    std::optional<byte_string_view> value = std::nullopt);
-
 Node *
 create_node_nodata(uint16_t mask, NibblesView path, bool has_value = false);
 
