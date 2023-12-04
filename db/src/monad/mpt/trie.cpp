@@ -104,23 +104,19 @@ Node::UniquePtr upsert(
 
 // Upward update until a unfinished parent node. For each tnode, create the
 // trie Node when all its children are created
-void upward_update(UpdateAux &aux, TrieStateMachine &sm, tnode_unique_ptr tnode)
+void upward_update(UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode *tnode)
 {
-    MONAD_ASSERT(tnode);
     while (!tnode->npending && tnode->parent) {
+        MONAD_ASSERT(tnode);
         MONAD_DEBUG_ASSERT(tnode->children.size()); // not a leaf
         auto *parent = tnode->parent;
         sm.reset(tnode->trie_section);
         auto &entry = parent->children[tnode->child_index()];
         // put created node and compute to entry in parent
         create_node_compute_data_possibly_async(
-            aux, sm, *parent, entry, std::move(tnode));
-        tnode = tnode_unique_ptr{parent};
+            aux, sm, *parent, entry, tnode_unique_ptr{tnode});
+        tnode = parent;
     }
-    tnode.release(); // lower level tnodes owned by async receiver will
-                     // pick up from there and delete this tnode later, another
-                     // possiblity is `tnode` is the highest possible `tnode`,
-                     // `upsert()` will be responsible to delete it.
 }
 
 struct update_receiver
@@ -178,7 +174,7 @@ struct update_receiver
             std::move(updates),
             prefix_index,
             old_prefix_index);
-        upward_update(*aux, *sm, tnode_unique_ptr{parent});
+        upward_update(*aux, *sm, parent);
     }
 };
 static_assert(sizeof(update_receiver) == 64);
@@ -235,7 +231,7 @@ struct read_single_child_receiver
                         .release();
         create_node_compute_data_possibly_async(
             *aux, *sm, *parent, entry, tnode_unique_ptr{tnode}, false);
-        upward_update(*aux, *sm, tnode_unique_ptr{parent});
+        upward_update(*aux, *sm, parent);
     }
 };
 static_assert(sizeof(read_single_child_receiver) == 48);
