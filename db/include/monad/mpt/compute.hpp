@@ -227,8 +227,12 @@ namespace detail
             unsigned char *const dest, NibblesView const path,
             byte_string_view const second, bool const has_value = false)
         {
-            unsigned char path_arr[56];
-            auto first = compact_encode(path_arr, path, has_value);
+            MONAD_DEBUG_ASSERT(path.data_size() <= KECCAK256_SIZE);
+            constexpr size_t max_compact_encode_size = KECCAK256_SIZE + 1;
+            static_assert(max_compact_encode_size == 33);
+            unsigned char path_arr[max_compact_encode_size];
+            auto const first = compact_encode(path_arr, path, has_value);
+            MONAD_ASSERT(first.size() <= max_compact_encode_size);
             // leaf and hashed node ref requires rlp encoding,
             // rlp encoded but unhashed branch node ref doesn't
             bool const need_encode_second = has_value || second.size() >= 32;
