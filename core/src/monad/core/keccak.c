@@ -13,7 +13,7 @@ SHA3_squeeze(uint64_t A[5][5], unsigned char *out, size_t len, size_t r);
 
 void keccak256(
     const unsigned char *const in, unsigned long const len,
-    unsigned char out[32])
+    unsigned char out[KECCAK256_SIZE])
 {
     uint64_t A[5][5];
     unsigned char blk[BLOCK_SIZE];
