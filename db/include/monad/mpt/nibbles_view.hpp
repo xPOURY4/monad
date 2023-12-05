@@ -65,6 +65,7 @@ class NibblesView
 {
 private:
     friend class Nibbles;
+    friend class Node;
     using size_type = Nibbles::size_type;
     unsigned char const *data_{nullptr};
     bool begin_nibble_{false};
@@ -165,8 +166,6 @@ public:
         MONAD_ASSERT(i < nibble_size());
         return get_nibble(data_, begin_nibble_ + i);
     }
-
-    friend void serialize_to_node(NibblesView const, Node &);
 };
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);

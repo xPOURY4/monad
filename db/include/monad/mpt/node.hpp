@@ -149,15 +149,28 @@ public:
     // out of line allows us to transfer ownership of data array from old node
     // to new one, also help to keep allocated size as small as possible.
 
+    template <class... Args>
+    static UniquePtr make(size_t bytes, Args &&...args)
+    {
+        MONAD_DEBUG_ASSERT(bytes <= Node::max_size);
+        return allocators::allocate_aliasing_unique<
+            std::allocator<Node>,
+            BytesAllocator,
+            &pool,
+            &get_deallocate_count>(
+            bytes,
+            prevent_public_construction_tag{},
+            std::forward<Args>(args)...);
+    }
+
     Node(prevent_public_construction_tag);
+    Node(
+        prevent_public_construction_tag, uint16_t mask,
+        std::optional<byte_string_view> value, size_t data_size,
+        NibblesView path);
     Node(Node const &) = delete;
     Node(Node &&) = default;
     ~Node();
-
-    static UniquePtr make(size_t);
-
-    void set_params(
-        uint16_t mask, bool has_value, size_t value_len, size_t data_len);
 
     unsigned to_child_index(unsigned branch) const noexcept;
 
@@ -192,7 +205,6 @@ public:
     unsigned char *value_data() noexcept;
     unsigned char const *value_data() const noexcept;
     bool has_value() const noexcept;
-    void set_value(byte_string_view value) noexcept;
     byte_string_view value() const noexcept;
     std::optional<byte_string_view> opt_value() const noexcept;
 
