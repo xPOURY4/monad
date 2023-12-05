@@ -38,20 +38,22 @@ target_link_libraries(monad_async PUBLIC monad_core Boost::fiber)
 add_library(
   monad_trie STATIC
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
-  "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/cache_option.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/request.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/traverse.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/trie.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/copy_node.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find.cpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/node.cpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/traverse.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/update_aux.cpp")
 target_include_directories(monad_trie PUBLIC "${PROJECT_SOURCE_DIR}/include")

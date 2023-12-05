@@ -190,7 +190,7 @@ public:
     //! data_offset array
     unsigned char *child_off_data() noexcept;
     unsigned char const *child_off_data() const noexcept;
-    uint16_t child_data_offset(unsigned index) noexcept;
+    uint16_t child_data_offset(unsigned index) const noexcept;
 
     unsigned child_data_len(unsigned index);
     unsigned child_data_len();
@@ -218,13 +218,16 @@ public:
 
     //! child data
     unsigned char *child_data() noexcept;
+    unsigned char const *child_data() const noexcept;
     byte_string_view child_data_view(unsigned index) noexcept;
     unsigned char *child_data(unsigned index) noexcept;
     void set_child_data(unsigned index, byte_string_view data) noexcept;
 
     //! next pointers
     unsigned char *next_data() noexcept;
-    Node *next(unsigned index) noexcept;
+    unsigned char const *next_data() const noexcept;
+    Node *next(size_t index) noexcept;
+    Node const *next(size_t index) const noexcept;
     void set_next(unsigned index, Node *) noexcept;
     UniquePtr next_ptr(unsigned index) noexcept;
 

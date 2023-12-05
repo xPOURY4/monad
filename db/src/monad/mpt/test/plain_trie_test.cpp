@@ -33,43 +33,6 @@ namespace updates
     };
 }
 
-class StateMachineAlwaysEmpty final : public TrieStateMachine
-{
-    static Compute &candidate_computes()
-    {
-        // candidate impls to use
-        static EmptyCompute e{};
-        return e;
-    }
-
-public:
-    StateMachineAlwaysEmpty() = default;
-    virtual std::unique_ptr<TrieStateMachine> clone() const override
-    {
-        return std::make_unique<StateMachineAlwaysEmpty>();
-    }
-    virtual void reset(std::optional<uint8_t>) override {}
-    virtual void forward(monad::byte_string_view = {}) override {}
-    virtual void backward() override {}
-    virtual Compute &get_compute() override
-    {
-        return candidate_computes();
-    }
-    virtual Compute &get_compute(uint8_t) override
-    {
-        return candidate_computes();
-    }
-
-    virtual constexpr uint8_t get_state() const override
-    {
-        return 0;
-    }
-    virtual constexpr CacheOption cache_option() const override
-    {
-        return CacheOption::CacheAll;
-    }
-};
-
 TEST(InMemoryPlainTrie, leaf_nodes_persist)
 {
     StateMachineAlwaysEmpty sm{};

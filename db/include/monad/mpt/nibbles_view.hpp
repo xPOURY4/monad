@@ -29,7 +29,7 @@ private:
 public:
     constexpr Nibbles() = default;
 
-    Nibbles(unsigned const end_nibble)
+    Nibbles(size_t const end_nibble)
         : data_(std::make_unique<unsigned char[]>((end_nibble + 1) / 2))
         , begin_nibble_(false)
         , end_nibble_(static_cast<size_type>(end_nibble))
@@ -58,6 +58,7 @@ public:
         ::set_nibble(data_.get(), begin_nibble_ + i, value);
     }
 };
+
 static_assert(sizeof(Nibbles) == 16);
 static_assert(alignof(Nibbles) == 8);
 
@@ -167,6 +168,7 @@ public:
         return get_nibble(data_, begin_nibble_ + i);
     }
 };
+
 static_assert(sizeof(NibblesView) == 16);
 static_assert(alignof(NibblesView) == 8);
 static_assert(std::is_trivially_copyable_v<NibblesView> == true);

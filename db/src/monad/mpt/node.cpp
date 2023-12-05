@@ -116,7 +116,7 @@ unsigned char const *Node::child_off_data() const noexcept
     return child_min_count_data() + number_of_children() * sizeof(uint32_t);
 }
 
-uint16_t Node::child_data_offset(unsigned const index) noexcept
+uint16_t Node::child_data_offset(unsigned const index) const noexcept
 {
     MONAD_DEBUG_ASSERT(index <= number_of_children());
     if (index == 0) {
@@ -227,6 +227,11 @@ unsigned char *Node::child_data() noexcept
     return data_data() + data_len;
 }
 
+unsigned char const *Node::child_data() const noexcept
+{
+    return data_data() + data_len;
+}
+
 byte_string_view Node::child_data_view(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
@@ -252,7 +257,17 @@ unsigned char *Node::next_data() noexcept
     return child_data() + child_data_offset(number_of_children());
 }
 
-Node *Node::next(unsigned const index) noexcept
+unsigned char const *Node::next_data() const noexcept
+{
+    return child_data() + child_data_offset(number_of_children());
+}
+
+Node *Node::next(size_t const index) noexcept
+{
+    return unaligned_load<Node *>(next_data() + index * sizeof(Node *));
+}
+
+Node const *Node::next(size_t const index) const noexcept
 {
     return unaligned_load<Node *>(next_data() + index * sizeof(Node *));
 }
