@@ -57,6 +57,7 @@ protected:
     std::atomic<AsyncIO *> io_{
         nullptr}; // set at construction if associated with an AsyncIO instance,
                   // which isn't mandatory
+
     struct rbtree_t_
     {
         /* Users of these fields:
@@ -73,6 +74,7 @@ protected:
             rbtree_t_ *parent{nullptr};
             erased_connected_operation *parent_;
         };
+
         rbtree_t_ *left{nullptr}, *right{nullptr};
         file_offset_t key : 63 {0};
         file_offset_t color : 1 {false};
@@ -92,8 +94,8 @@ protected:
 #endif
     }
 
-    virtual initiation_result
-    do_possibly_deferred_initiate_(bool never_defer) noexcept = 0;
+    virtual initiation_result do_possibly_deferred_initiate_(
+        bool never_defer, bool is_retry) noexcept = 0;
 
 public:
     struct rbtree_node_traits
@@ -102,50 +104,62 @@ public:
         using node_ptr = rbtree_t_ *;
         using const_node_ptr = rbtree_t_ const *;
         using color = bool;
+
         static node_ptr get_parent(const_node_ptr n)
         {
             return n->parent;
         }
+
         static void set_parent(node_ptr n, node_ptr parent)
         {
             n->parent = parent;
         }
+
         static node_ptr get_left(const_node_ptr n)
         {
             return n->left;
         }
+
         static void set_left(node_ptr n, node_ptr left)
         {
             n->left = left;
         }
+
         static node_ptr get_right(const_node_ptr n)
         {
             return n->right;
         }
+
         static void set_right(node_ptr n, node_ptr right)
         {
             n->right = right;
         }
+
         static color get_color(const_node_ptr n)
         {
             return n->color;
         }
+
         static void set_color(node_ptr n, color c)
         {
             n->color = c;
         }
+
         static color black()
         {
             return color(false);
         }
+
         static color red()
         {
             return color(true);
         }
+
         static file_offset_t get_key(const_node_ptr n)
         {
             return n->key;
         }
+
         static void set_key(node_ptr n, file_offset_t v)
         {
             static constexpr file_offset_t max_key = (1ULL << 63) - 1;
@@ -153,20 +167,24 @@ public:
             n->key = v & max_key;
             assert(n->key == v);
         }
+
         static erased_connected_operation *
         get_parent(erased_connected_operation const *n)
         {
             return n->rbtree_.parent_;
         }
+
         static void set_parent(
             erased_connected_operation *n, erased_connected_operation *parent)
         {
             n->rbtree_.parent_ = parent;
         }
+
         static file_offset_t get_key(erased_connected_operation const *n)
         {
             return n->rbtree_.key;
         }
+
         static void set_key(erased_connected_operation *n, file_offset_t v)
         {
             static constexpr file_offset_t max_key = (1ULL << 63) - 1;
@@ -174,23 +192,28 @@ public:
             n->rbtree_.key = v & max_key;
             assert(n->rbtree_.key == v);
         }
+
         static node_ptr to_node_ptr(erased_connected_operation *n)
         {
             return &n->rbtree_;
         }
+
         static const_node_ptr to_node_ptr(erased_connected_operation const *n)
         {
             return &n->rbtree_;
         }
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored                                                 \
     "-Winvalid-offsetof" // complains about lack of standard layout
+
         static erased_connected_operation *
         to_erased_connected_operation(node_ptr n)
         {
             return reinterpret_cast<erased_connected_operation *>(
                 ((char *)n) - offsetof(erased_connected_operation, rbtree_));
         }
+
         static erased_connected_operation const *
         to_erased_connected_operation(const_node_ptr n)
         {
@@ -198,6 +221,7 @@ public:
                 ((char const *)n) -
                 offsetof(erased_connected_operation, rbtree_));
         }
+
 #pragma GCC diagnostic pop
     };
     friend struct rbtree_node_traits;
@@ -206,39 +230,48 @@ public:
     {
         MONAD_ASSERT(!being_executed_);
     }
+
     bool is_unknown_operation_type() const noexcept
     {
         return operation_type_ == operation_type::unknown;
     }
+
     bool is_read() const noexcept
     {
         return operation_type_ == operation_type::read;
     }
+
     bool is_write() const noexcept
     {
         return operation_type_ == operation_type::write;
     }
+
     bool is_timeout() const noexcept
     {
         return operation_type_ == operation_type::timeout;
     }
+
     bool is_threadsafeop() const noexcept
     {
         return operation_type_ == operation_type::threadsafeop;
     }
+
     bool is_currently_being_executed() const noexcept
     {
         return being_executed_;
     }
+
     bool lifetime_is_managed_internally() const noexcept
     {
         return lifetime_managed_internally_;
     }
+
     //! The executor instance being used, which may be none.
     AsyncIO *executor() noexcept
     {
         return io_.load(std::memory_order_acquire);
     }
+
     //! Invoke completion. The Sender will send the value to the Receiver. If
     //! the Receiver expects bytes transferred and the Sender does not send a
     //! value, terminates the program.
@@ -247,19 +280,30 @@ public:
     //! transferred. If the Receiver does not expect bytes transferred, this
     //! will silently decay into the other `completed()` overload.
     virtual void completed(result<size_t> bytes_transferred) = 0;
+
     // Overload ambiguity resolver so you can write `completed(success())`
     // without ambiguous overload warnings.
     void completed(BOOST_OUTCOME_V2_NAMESPACE::success_type<void> _)
     {
         completed(result<void>(_));
     }
+
     //! Invoke initiation, sending any failure to the receiver
     initiation_result initiate() noexcept
     {
-        return do_possibly_deferred_initiate_(false);
+        return do_possibly_deferred_initiate_(false, false);
     }
+
+    //! Invoke re-initiation after temporary failutre, sending any failure to
+    //! the receiver
+    initiation_result reinitiate() noexcept
+    {
+        return do_possibly_deferred_initiate_(true, true);
+    }
+
     void reset() {}
 };
+
 static_assert(sizeof(erased_connected_operation) == 56);
 static_assert(alignof(erased_connected_operation) == 8);
 

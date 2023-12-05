@@ -65,7 +65,7 @@ namespace detail
                     if (pending_initiations.first == nullptr) {
                         pending_initiations.last = nullptr;
                     }
-                    op->do_possibly_deferred_initiate_(true);
+                    op->do_possibly_deferred_initiate_(true, false);
                     if (op == original_last) {
                         // Prevent infinite loops caused by initiations adding
                         // more stuff to pending initiations
@@ -141,9 +141,11 @@ namespace detail
             }
         }();
 
-        virtual initiation_result
-        do_possibly_deferred_initiate_(bool never_defer) noexcept override
+        virtual initiation_result do_possibly_deferred_initiate_(
+            bool never_defer, bool is_retry) noexcept override
         {
+            (void)
+                is_retry; // useful to know how this initiation is coming about
             this->being_executed_ = true;
             // Prevent compiler reordering write of being_executed_ after this
             // point without using actual atomics.
@@ -303,7 +305,7 @@ namespace detail
             // The threadsafe op is special, it isn't for this AsyncIO instance
             // and therefore never needs deferring
             return this->do_possibly_deferred_initiate_(
-                this->is_threadsafeop());
+                this->is_threadsafeop(), false);
         }
 
         //! Resets the operation state. Only available if both sender and

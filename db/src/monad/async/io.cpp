@@ -48,13 +48,16 @@ namespace detail
     struct AsyncIO_per_thread_state_t::within_completions_holder
     {
         AsyncIO_per_thread_state_t *parent;
+
         explicit within_completions_holder(AsyncIO_per_thread_state_t *parent_)
             : parent(parent_)
         {
             parent->within_completions_count++;
         }
+
         within_completions_holder(within_completions_holder const &) = delete;
         within_completions_holder(within_completions_holder &&) = default;
+
         ~within_completions_holder()
         {
             if (0 == --parent->within_completions_count) {
@@ -62,11 +65,13 @@ namespace detail
             }
         }
     };
+
     AsyncIO_per_thread_state_t::within_completions_holder
     AsyncIO_per_thread_state_t::enter_completions()
     {
         return within_completions_holder{this};
     }
+
     extern __attribute__((visibility("default"))) AsyncIO_per_thread_state_t &
     AsyncIO_per_thread_state()
     {
@@ -110,6 +115,7 @@ namespace detail
             }
 #endif
         }
+
         ~AsyncIO_rlimit_raiser_impl()
         {
 #ifndef NDEBUG
@@ -284,6 +290,7 @@ void AsyncIO::submit_request_(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
+
 void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
@@ -314,6 +321,7 @@ void AsyncIO::submit_request_(
     MONAD_ASSERT(
         io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
 }
+
 void AsyncIO::submit_request_(timed_invocation_state *state, void *uring_data)
 {
     poll_uring_while_submission_queue_full_();
@@ -440,6 +448,23 @@ bool AsyncIO::poll_uring_(bool blocking)
 
     if (state->is_read()) {
         --records_.inflight_rd;
+        // For now, only silently retry reads
+        [[unlikely]] if (
+            res.has_error() &&
+            res.assume_error() == errc::resource_unavailable_try_again) {
+            /* This is what the io_uring source code does when
+            EAGAIN comes back in a cqe and the submission queue
+            is full. It effectively is a "hard pace", and given how
+            rare EAGAIN is, it's probably not a bad idea to truly
+            slow things down if it occurs.
+            */
+            while (io_uring_sq_space_left(ring) == 0) {
+                ::usleep(50);
+                MONAD_ASSERT(io_uring_sqring_wait(ring) >= 0);
+            }
+            state->reinitiate();
+            return true;
+        }
     }
     else if (state->is_write()) {
         --records_.inflight_wr;
