@@ -215,10 +215,10 @@ namespace detail
             }
             MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
             if (node->has_path()) {
-                unsigned char hash[32];
-                unsigned len = compute_branch(hash, node);
+                unsigned char reference[KECCAK256_SIZE];
+                unsigned len = compute_branch(reference, node);
                 return encode_two_pieces_(
-                    buffer, node->path_nibble_view(), {hash, len});
+                    buffer, node->path_nibble_view(), {reference, len});
             }
             return compute_branch(buffer, node);
         }
@@ -226,7 +226,7 @@ namespace detail
     private:
         struct InternalHashState
         {
-            unsigned char buffer[32]; // max 32 bytes
+            unsigned char buffer[KECCAK256_SIZE];
             unsigned len{0};
         } state{};
 
@@ -286,7 +286,7 @@ namespace detail
                         ? TComputeLeafData::compute(*node)
                         : (node->has_path()
                                ? ([&] -> byte_string {
-                                     unsigned char branch_hash[32];
+                                     unsigned char branch_hash[KECCAK256_SIZE];
                                      return {
                                          branch_hash,
                                          compute_branch(branch_hash, node)};
