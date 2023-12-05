@@ -74,6 +74,9 @@ struct EmptyCompute final : Compute
 
 namespace detail
 {
+    constexpr auto max_branch_rlp_size =
+        rlp::list_length(rlp::list_length(32) * 16 + rlp::list_length(0));
+    static_assert(max_branch_rlp_size == 532);
 
     template <typename T>
     concept compute_leaf_data = requires {
@@ -101,7 +104,7 @@ namespace detail
                 return compute_hash_with_extra_nibble_to_state_(*it);
             }
 
-            unsigned char branch_str_rlp[544];
+            unsigned char branch_str_rlp[max_branch_rlp_size];
             std::span<unsigned char> result = branch_str_rlp;
             unsigned i = 0;
             for (auto &child : children) {
@@ -128,18 +131,19 @@ namespace detail
                 result[0] = RLP_EMPTY_STRING;
                 result = result.subspan(1);
             }
-            MONAD_ASSERT(result.data() - branch_str_rlp <= 544);
-            byte_string_view encoded_strings{
-                branch_str_rlp,
-                static_cast<size_t>(result.data() - branch_str_rlp)};
-            size_t branch_rlp_len = rlp::list_length(encoded_strings.size());
-            MONAD_DEBUG_ASSERT(branch_rlp_len <= 544);
 
-            unsigned char branch_rlp[544];
-            rlp::encode_list(branch_rlp, encoded_strings);
+            auto const concat_size =
+                static_cast<size_t>(result.data() - branch_str_rlp);
+            MONAD_DEBUG_ASSERT(concat_size <= max_branch_rlp_size);
+            auto const rlp_size = rlp::list_length(concat_size);
+            MONAD_DEBUG_ASSERT(rlp_size <= max_branch_rlp_size);
+
+            unsigned char branch_rlp[max_branch_rlp_size];
+            rlp::encode_list(
+                branch_rlp, byte_string_view{branch_str_rlp, concat_size});
             // compute hash to internal state and return hash length
-            return state.len = to_node_reference(
-                       {branch_rlp, branch_rlp_len}, state.buffer);
+            return state.len =
+                       to_node_reference({branch_rlp, rlp_size}, state.buffer);
         }
 
         virtual unsigned
@@ -154,7 +158,7 @@ namespace detail
                 return len;
             }
             MONAD_DEBUG_ASSERT(node->number_of_children() > 1);
-            unsigned char branch_str_rlp[544];
+            unsigned char branch_str_rlp[max_branch_rlp_size];
             std::span<unsigned char> result = branch_str_rlp;
             for (unsigned i = 0, bit = 1; i < 16; ++i, bit <<= 1) {
                 if (node->mask & bit) {
@@ -180,15 +184,15 @@ namespace detail
             // encode empty value string
             result[0] = RLP_EMPTY_STRING;
             result = result.subspan(1);
-            MONAD_ASSERT(result.data() - branch_str_rlp <= 544);
-            byte_string_view encoded_strings{
-                branch_str_rlp,
-                static_cast<size_t>(result.data() - branch_str_rlp)};
-            size_t branch_rlp_len = rlp::list_length(encoded_strings.size());
-            MONAD_DEBUG_ASSERT(branch_rlp_len <= 544);
+            auto const concat_size =
+                static_cast<size_t>(result.data() - branch_str_rlp);
+            MONAD_ASSERT(concat_size <= max_branch_rlp_size);
+            auto const branch_rlp_len = rlp::list_length(concat_size);
+            MONAD_DEBUG_ASSERT(branch_rlp_len <= max_branch_rlp_size);
 
-            unsigned char branch_rlp[544];
-            rlp::encode_list(branch_rlp, encoded_strings);
+            unsigned char branch_rlp[max_branch_rlp_size];
+            rlp::encode_list(
+                branch_rlp, byte_string_view{branch_str_rlp, concat_size});
             return to_node_reference({branch_rlp, branch_rlp_len}, buffer);
         }
 
