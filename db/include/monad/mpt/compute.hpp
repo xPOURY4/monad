@@ -76,7 +76,14 @@ namespace detail
 {
     constexpr auto max_branch_rlp_size =
         rlp::list_length(rlp::list_length(32) * 16 + rlp::list_length(0));
+    constexpr auto max_leaf_data_size = rlp::list_length( // account rlp
+        rlp::list_length(32) // balance
+        + rlp::list_length(32) // code hash
+        + rlp::list_length(32) // storage hash
+        + rlp::list_length(8) // nonce
+    );
     static_assert(max_branch_rlp_size == 532);
+    static_assert(max_leaf_data_size == 110);
 
     template <typename T>
     concept compute_leaf_data = requires {
@@ -227,20 +234,28 @@ namespace detail
             unsigned char *const dest, NibblesView const path,
             byte_string_view const second, bool const has_value = false)
         {
-            MONAD_DEBUG_ASSERT(path.data_size() <= KECCAK256_SIZE);
             constexpr size_t max_compact_encode_size = KECCAK256_SIZE + 1;
+            constexpr size_t max_rlp_size = rlp::list_length(
+                rlp::list_length(max_compact_encode_size) +
+                rlp::list_length(max_leaf_data_size));
             static_assert(max_compact_encode_size == 33);
+            static_assert(max_rlp_size == 148);
+
+            MONAD_DEBUG_ASSERT(path.data_size() <= KECCAK256_SIZE);
+            MONAD_DEBUG_ASSERT(second.size() <= max_leaf_data_size);
+
             unsigned char path_arr[max_compact_encode_size];
             auto const first = compact_encode(path_arr, path, has_value);
             MONAD_ASSERT(first.size() <= max_compact_encode_size);
             // leaf and hashed node ref requires rlp encoding,
             // rlp encoded but unhashed branch node ref doesn't
             bool const need_encode_second = has_value || second.size() >= 32;
-            size_t first_len = rlp::string_length(first),
-                   second_len = need_encode_second ? rlp::string_length(second)
-                                                   : second.size();
-            MONAD_DEBUG_ASSERT(first_len + second_len <= 160);
-            unsigned char rlp_string[160];
+            auto const concat_size =
+                rlp::string_length(first) + (need_encode_second
+                                                 ? rlp::string_length(second)
+                                                 : second.size());
+            MONAD_DEBUG_ASSERT(concat_size <= max_rlp_size);
+            unsigned char rlp_string[max_rlp_size];
             auto result = rlp::encode_string(rlp_string, first);
             result =
                 need_encode_second ? rlp::encode_string(result, second) : [&] {
@@ -248,15 +263,12 @@ namespace detail
                     return result.subspan(second.size());
                 }();
             MONAD_DEBUG_ASSERT(
-                (unsigned long)(result.data() - rlp_string) ==
-                first_len + second_len);
+                (unsigned long)(result.data() - rlp_string) == concat_size);
 
-            byte_string_view encoded_strings{
-                rlp_string, first_len + second_len};
-            size_t rlp_len = rlp::list_length(encoded_strings.size());
-            MONAD_DEBUG_ASSERT(rlp_len <= 160);
-            unsigned char rlp[160];
-            rlp::encode_list(rlp, encoded_strings);
+            auto const rlp_len = rlp::list_length(concat_size);
+            MONAD_DEBUG_ASSERT(rlp_len <= max_rlp_size);
+            unsigned char rlp[max_rlp_size];
+            rlp::encode_list(rlp, byte_string_view{rlp_string, concat_size});
             return to_node_reference({rlp, rlp_len}, dest);
         }
 
