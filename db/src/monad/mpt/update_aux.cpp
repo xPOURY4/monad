@@ -102,7 +102,7 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::rewind_offsets_to(chunk_offset_t const fast_offset)
+void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
 {
     // Free all chunks after fast_offset.id
     auto *ci = db_metadata_[0]->at(fast_offset.id);

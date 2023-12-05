@@ -302,7 +302,8 @@ Node *create_node_from_children_if_any(
                 MONAD_DEBUG_ASSERT(child.branch < 16);
                 MONAD_DEBUG_ASSERT(child.ptr);
                 MONAD_DEBUG_ASSERT(child.min_count == uint32_t(-1));
-                child.offset = async_write_node_set_spare(aux, *child.ptr);
+                child.offset =
+                    async_write_node_set_spare(aux, *child.ptr, true);
                 child.min_count = calc_min_count(
                     child.ptr,
                     aux.db_metadata()->at(child.offset.id)->insertion_count());
@@ -758,14 +759,14 @@ void mismatch_handler_(
 // Async write
 /////////////////////////////////////////////////////
 node_writer_unique_ptr_type replace_node_writer(
-    UpdateAux &aux, bool const is_fast = true,
+    UpdateAux &aux, node_writer_unique_ptr_type &node_writer,
     size_t bytes_yet_to_be_appended_to_existing = 0)
 {
-    node_writer_unique_ptr_type &node_writer =
-        is_fast ? aux.node_writer_fast : aux.node_writer_slow;
     // Can't use add_to_offset(), because it asserts if we go past the
     // capacity
     auto offset_of_next_block = node_writer->sender().offset();
+    bool in_fast_list =
+        aux.db_metadata()->at(offset_of_next_block.id)->in_fast_list;
     file_offset_t offset = offset_of_next_block.offset;
     offset += node_writer->sender().written_buffer_bytes() +
               bytes_yet_to_be_appended_to_existing;
@@ -779,7 +780,8 @@ node_writer_unique_ptr_type replace_node_writer(
         auto idx = ci_->index(aux.db_metadata());
         aux.remove(idx);
         aux.append(
-            is_fast ? UpdateAux::chunk_list::fast : UpdateAux::chunk_list::slow,
+            in_fast_list ? UpdateAux::chunk_list::fast
+                         : UpdateAux::chunk_list::slow,
             idx);
         // TODO assert that count is incremented by one
         offset_of_next_block.id = idx & 0xfffffU;
@@ -795,12 +797,9 @@ node_writer_unique_ptr_type replace_node_writer(
     return ret;
 }
 
-async_write_node_result
-async_write_node(UpdateAux &aux, Node const &node, bool const is_fast = true)
+async_write_node_result async_write_node(
+    UpdateAux &aux, node_writer_unique_ptr_type &node_writer, Node const &node)
 {
-
-    node_writer_unique_ptr_type &node_writer =
-        is_fast ? aux.node_writer_fast : aux.node_writer_slow;
     aux.io->poll_nonblocking_if_not_within_completions(1);
     auto *sender = &node_writer->sender();
     auto const size = node.disk_size;
@@ -819,7 +818,7 @@ async_write_node(UpdateAux &aux, Node const &node, bool const is_fast = true)
     else {
         // renew write sender
         auto new_node_writer =
-            replace_node_writer(aux, is_fast, remaining_bytes);
+            replace_node_writer(aux, node_writer, remaining_bytes);
         auto *new_sender = &new_node_writer->sender();
         auto *where_to_serialize = (unsigned char *)new_sender->buffer().data();
         assert(where_to_serialize != nullptr);
@@ -872,7 +871,10 @@ async_write_node(UpdateAux &aux, Node const &node, bool const is_fast = true)
 chunk_offset_t
 async_write_node_set_spare(UpdateAux &aux, Node &node, bool const is_fast)
 {
-    auto off = async_write_node(aux, node, is_fast).offset_written_to;
+    auto off =
+        async_write_node(
+            aux, is_fast ? aux.node_writer_fast : aux.node_writer_slow, node)
+            .offset_written_to;
     auto const pages = num_pages(off.offset, node.get_disk_size());
     MONAD_DEBUG_ASSERT(pages <= std::numeric_limits<uint16_t>::max());
     off.spare = static_cast<uint16_t>(pages);
@@ -881,10 +883,9 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool const is_fast)
 
 async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
 {
-    auto const ret = async_write_node(aux, root);
+    auto const ret = async_write_node(aux, aux.node_writer_fast, root);
     // Round up with all bits zero
-    auto replace = [&](node_writer_unique_ptr_type &node_writer,
-                       bool const is_fast) {
+    auto replace = [&](node_writer_unique_ptr_type &node_writer) {
         auto *sender = &node_writer->sender();
         auto written = sender->written_buffer_bytes();
         auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
@@ -893,17 +894,17 @@ async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
         assert(tozero != nullptr);
         memset(tozero, 0, tozerobytes);
         // replace fast node writer
-        auto new_node_writer = replace_node_writer(aux, is_fast);
+        auto new_node_writer = replace_node_writer(aux, node_writer);
         auto to_initiate = std::move(node_writer);
         node_writer = std::move(new_node_writer);
         to_initiate->initiate();
         // shall be recycled by the i/o receiver
         to_initiate.release();
     };
-    replace(aux.node_writer_fast, true);
+    replace(aux.node_writer_fast);
     if (aux.node_writer_slow->sender().written_buffer_bytes()) {
         // replace slow node writer
-        replace(aux.node_writer_slow, false);
+        replace(aux.node_writer_slow);
     }
     // flush async write root and slow writer
     aux.io->flush();

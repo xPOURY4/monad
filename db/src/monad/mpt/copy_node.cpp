@@ -141,7 +141,7 @@ Node::UniquePtr copy_node(
                 // write back cache, we can unpin the node from memory no
                 // problem.
                 children[leaf_first].offset =
-                    async_write_node_set_spare(aux, *node_latter_half);
+                    async_write_node_set_spare(aux, *node_latter_half, true);
             }
             return make_node(
                        mask,

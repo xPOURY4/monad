@@ -34,7 +34,7 @@ TEST_F(AppendTest, works)
         root_off.add_to_offset(root->get_disk_size()));
     // destroy contents after fast_offset.id chunk, and reset
     // node_writer's offset.
-    state()->aux.rewind_offsets_to(fast_offset);
+    state()->aux.rewind_to_match_offset(fast_offset);
 
     std::cout << "\nAfter rewind:";
     state()->print(std::cout);

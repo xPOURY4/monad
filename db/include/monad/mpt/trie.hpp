@@ -36,6 +36,7 @@ struct write_operation_io_receiver
         //         ->notify_write_operation_completed_(rawstate);
         // }
     }
+
     void reset() {}
 };
 
@@ -45,6 +46,7 @@ using node_writer_unique_ptr_type =
         write_operation_io_receiver>;
 
 using MONAD_ASYNC_NAMESPACE::receiver;
+
 template <receiver Receiver>
 struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 {
@@ -57,7 +59,7 @@ struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 };
 
 chunk_offset_t
-async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast = true);
+async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast);
 
 // \class Auxiliaries for triedb update
 class UpdateAux
@@ -78,12 +80,14 @@ public:
     {
         return db_metadata_[0];
     }
+
     std::pair<chunk_list, detail::unsigned_20>
     chunk_list_and_age(uint32_t idx) const noexcept;
 
     void append(chunk_list list, uint32_t idx) noexcept;
     void prepend(chunk_list list, uint32_t idx) noexcept;
     void remove(uint32_t idx) noexcept;
+
     void advance_offsets_to(
         chunk_offset_t root_offset, chunk_offset_t slow_offset) noexcept
     {
@@ -94,12 +98,13 @@ public:
         do_(db_metadata_[0]);
         do_(db_metadata_[1]);
     }
-    // WARNING: This is destructive
-    void rewind_offsets_to(chunk_offset_t fast_offset);
 
-public:
+    // WARNING: This is destructive
+    void rewind_to_match_offset(chunk_offset_t fast_offset);
+
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
-    node_writer_unique_ptr_type node_writer_fast{}, node_writer_slow{};
+    node_writer_unique_ptr_type node_writer_fast{};
+    node_writer_unique_ptr_type node_writer_slow{};
 
     UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
         : node_writer_fast(node_writer_unique_ptr_type{})
@@ -109,6 +114,7 @@ public:
             set_io(io_);
         }
     }
+
     ~UpdateAux();
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_);
@@ -135,6 +141,7 @@ public:
         return db_metadata_[0]->capacity_in_free_list;
     }
 };
+
 static_assert(sizeof(UpdateAux) == 40);
 static_assert(alignof(UpdateAux) == 8);
 
@@ -164,6 +171,7 @@ struct find_request_t
     byte_string_view key{};
     std::optional<unsigned> node_prefix_index{std::nullopt};
 };
+
 static_assert(sizeof(find_request_t) == 40);
 static_assert(alignof(find_request_t) == 8);
 static_assert(std::is_trivially_copyable_v<find_request_t> == true);
@@ -177,6 +185,7 @@ namespace detail
         NibblesView const, ::boost::fibers::promise<find_result_type> *const>;
     static_assert(std::is_trivially_copyable_v<pending_request_t> == true);
 }
+
 using inflight_map_t = unordered_dense_map<
     chunk_offset_t, std::list<detail::pending_request_t>,
     chunk_offset_t_hasher>;
