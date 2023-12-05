@@ -261,8 +261,9 @@ Node *create_node_from_children_if_any(
     // handle non child and single child cases
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     if (number_of_children == 0) {
-        return leaf_data.has_value() ? create_leaf(leaf_data.value(), path)
-                                     : nullptr;
+        return leaf_data.has_value()
+                   ? make_node(0, {}, path, leaf_data.value(), {}).release()
+                   : nullptr;
     }
     else if (number_of_children == 1 && !leaf_data.has_value()) {
         auto const j = bitmask_index(
@@ -403,9 +404,10 @@ void update_leaf_data_(
     }
     // only value update but not subtrie updates
     MONAD_ASSERT(update.value.has_value());
-    Node *node = update.incarnation
-                     ? create_leaf(update.value.value(), path)
-                     : make_node(*old.get(), path, update.value).release();
+    Node *node =
+        update.incarnation
+            ? make_node(0, {}, path, update.value.value(), {}).release()
+            : make_node(*old.get(), path, update.value).release();
     MONAD_ASSERT(node);
     entry.set_node_and_compute_data(node, sm);
     --parent.npending;
@@ -435,7 +437,7 @@ void create_new_trie_(
             return;
         }
         entry.set_node_and_compute_data(
-            create_leaf(update.value.value(), path), sm);
+            make_node(0, {}, path, update.value.value(), {}).release(), sm);
         return;
     }
     Requests requests;

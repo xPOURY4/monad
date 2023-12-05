@@ -257,9 +257,6 @@ Node::UniquePtr make_node(
     uint16_t mask, std::span<ChildData>, NibblesView path,
     std::optional<byte_string_view> value, byte_string_view data);
 
-// create leaf node without children, data_len = 0
-Node *create_leaf(byte_string_view data, NibblesView path);
-
 // create node: either branch/extension, with or without leaf
 Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,

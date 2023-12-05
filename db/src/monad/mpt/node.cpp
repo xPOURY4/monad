@@ -350,13 +350,6 @@ calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
     return ret;
 }
 
-Node *create_leaf(byte_string_view const value, NibblesView const path)
-{
-    auto node =
-        make_node(0, std::span<ChildData>{}, path, value, byte_string_view{});
-    return node.release();
-}
-
 Node::UniquePtr make_node(
     Node &from, NibblesView const path,
     std::optional<byte_string_view> const value)

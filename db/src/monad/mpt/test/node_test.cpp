@@ -37,16 +37,16 @@ struct DummyCompute final : Compute
     }
 };
 
-auto const data = 0x12345678_hex;
+auto const value = 0x12345678_hex;
 auto const path = 0xabcdabcdabcdabcd_hex;
 
 TEST(NodeTest, leaf)
 {
     NibblesView const path1{1, 10, path.data()};
-    Node::UniquePtr node{create_leaf(data, path1)};
+    Node::UniquePtr node{make_node(0, {}, path1, value, {})};
 
     EXPECT_EQ(node->mask, 0);
-    EXPECT_EQ(node->value(), data);
+    EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path1);
     EXPECT_EQ(node->get_mem_size(), 17);
     EXPECT_EQ(node->get_disk_size(), 17);
@@ -56,7 +56,7 @@ TEST(NodeTest, leaf_single_branch)
 {
     DummyCompute comp{};
     NibblesView const path1{12, 16, path.data()};
-    Node *child = create_leaf(data, path1);
+    Node *child = make_node(0, {}, path1, value, {}).release();
 
     ChildData children[1];
     children[0].len = 1;
@@ -65,9 +65,9 @@ TEST(NodeTest, leaf_single_branch)
     children[0].ptr = child;
     NibblesView const path2{1, 10, path.data()};
     uint16_t const mask = 1u << 0xc;
-    Node::UniquePtr node{create_node(comp, mask, children, path2, data)};
+    Node::UniquePtr node{create_node(comp, mask, children, path2, value)};
 
-    EXPECT_EQ(node->value(), data);
+    EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
     EXPECT_EQ(node->data_len, 1);
     EXPECT_EQ(node->get_mem_size(), 41);
@@ -78,8 +78,8 @@ TEST(NodeTest, leaf_multiple_branches)
 {
     DummyCompute comp{};
     NibblesView const path1{12, 16, path.data()};
-    Node *child1 = create_leaf(data, path1);
-    Node *child2 = create_leaf(data, path1);
+    Node *child1 = make_node(0, {}, path1, value, {}).release();
+    Node *child2 = make_node(0, {}, path1, value, {}).release();
 
     ChildData child;
     child.len = 1;
@@ -91,9 +91,9 @@ TEST(NodeTest, leaf_multiple_branches)
     children[1].ptr = child2;
     NibblesView const path2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    Node::UniquePtr node{create_node(comp, mask, children, path2, data)};
+    Node::UniquePtr node{create_node(comp, mask, children, path2, value)};
 
-    EXPECT_EQ(node->value(), data);
+    EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
     EXPECT_EQ(node->data_len, 2);
     EXPECT_EQ(node->get_mem_size(), 65);
@@ -104,8 +104,8 @@ TEST(NodeTest, branch_node)
 {
     DummyCompute comp{};
     NibblesView const path1{12, 16, path.data()};
-    Node *child1 = create_leaf(data, path1);
-    Node *child2 = create_leaf(data, path1);
+    Node *child1 = make_node(0, {}, path1, value, {}).release();
+    Node *child2 = make_node(0, {}, path1, value, {}).release();
 
     ChildData child;
     child.len = 1;
@@ -130,8 +130,8 @@ TEST(NodeTest, extension_node)
 {
     DummyCompute comp{};
     NibblesView const path1{12, 16, path.data()};
-    Node *child1 = create_leaf(data, path1);
-    Node *child2 = create_leaf(data, path1);
+    Node *child1 = make_node(0, {}, path1, value, {}).release();
+    Node *child2 = make_node(0, {}, path1, value, {}).release();
 
     ChildData child;
     child.len = 1;
