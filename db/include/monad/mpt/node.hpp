@@ -20,6 +20,7 @@ class Node;
 struct TrieStateMachine;
 
 static constexpr size_t size_of_node = 8;
+
 constexpr size_t calculate_node_size(
     size_t const number_of_children, size_t const total_child_data_size,
     size_t const value_size, size_t const path_size,
@@ -109,6 +110,7 @@ public:
         bool has_value : 1 {false};
         bool path_nibble_index_start : 1 {false};
     } bitpacked{0};
+
     static_assert(sizeof(bitpacked) == 1);
 
     /* size (in byte) of user-passed leaf data */
@@ -123,6 +125,7 @@ public:
 #pragma GCC diagnostic ignored "-Wpedantic"
     unsigned char fnext_data[0];
 #pragma GCC diagnostic pop
+
     /* Member funcs and data layout that exceeds node struct size is organized
     as below:
     * `number_of_children()` is the number of children the node has and equals
@@ -245,7 +248,13 @@ struct ChildData
     detail::unsigned_20 min_count{uint32_t(-1)};
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
-    uint8_t trie_section{uint8_t(-1)};
+    /* Why parent_trie_section? We compute data here by the child node
+     * recursion, where trie section in the state machine is in the context of
+     * the child, but computing data should be in the context of parent's trie
+     * state, which is set by `set_branch_and_section()` in the parent
+     * recursion.
+     */
+    uint8_t parent_trie_section{uint8_t(-1)};
 
     bool is_valid() const;
     void erase();
@@ -253,6 +262,7 @@ struct ChildData
     void set_node_and_compute_data(Node *node, TrieStateMachine &sm);
     void copy_old_child(Node *old, unsigned i);
 };
+
 static_assert(sizeof(ChildData) == 56);
 static_assert(alignof(ChildData) == 8);
 

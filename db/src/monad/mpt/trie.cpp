@@ -177,6 +177,7 @@ struct update_receiver
         upward_update(*aux, *sm, parent);
     }
 };
+
 static_assert(sizeof(update_receiver) == 64);
 static_assert(alignof(update_receiver) == 8);
 
@@ -234,6 +235,7 @@ struct read_single_child_receiver
         upward_update(*aux, *sm, parent);
     }
 };
+
 static_assert(sizeof(read_single_child_receiver) == 48);
 static_assert(alignof(read_single_child_receiver) == 8);
 
@@ -350,7 +352,7 @@ void create_node_compute_data_possibly_async(
         tnode->path,
         tnode->opt_leaf_data);
     MONAD_DEBUG_ASSERT(entry.branch < 16);
-    MONAD_DEBUG_ASSERT(entry.trie_section != uint8_t(-1));
+    MONAD_DEBUG_ASSERT(entry.parent_trie_section != uint8_t(-1));
     if (node) {
         entry.set_node_and_compute_data(node, sm);
     }
@@ -430,7 +432,7 @@ void create_new_trie_(
             Requests requests;
             requests.split_into_sublists(std::move(update.next), 0);
             MONAD_DEBUG_ASSERT(update.value.has_value());
-            MONAD_DEBUG_ASSERT(entry.trie_section != uint8_t(-1));
+            MONAD_DEBUG_ASSERT(entry.parent_trie_section != uint8_t(-1));
             create_new_trie_from_requests_(
                 aux, sm, entry, requests, path, 0, update.value);
             sm.backward();
@@ -683,6 +685,7 @@ void dispatch_updates_flat_list_(
         sm.backward();
     }
 }
+
 // Split `old` at old_prefix_index, `updates` are already splitted at
 // prefix_index to `requests`, which can have 1 or more sublists.
 void mismatch_handler_(
