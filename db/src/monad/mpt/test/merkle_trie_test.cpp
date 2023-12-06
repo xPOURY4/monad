@@ -596,7 +596,8 @@ TYPED_TEST(TrieTest, upsert_var_len_keys_nested)
 
 TYPED_TEST(TrieTest, nested_updates_block_no)
 {
-    this->sm = StateMachineWithBlockNo();
+    this->sm = StateMachineWithBlockNo(
+        0); // default section = 0, which is block_no section
 
     std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbdd_hex,
@@ -719,4 +720,43 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     // leaf data changed here
     EXPECT_EQ(state_root->value(), monad::byte_string_view{});
+}
+
+TYPED_TEST(TrieTest, verify_correct_compute_at_section_edge)
+{
+    this->sm = StateMachineWithBlockNo(
+        0); // default section = 0, which is block_no section
+
+    auto const block_num1 = 0x0001_hex;
+    auto const block_num2 = 0x0002_hex;
+    auto const key = 0x123456_hex;
+    auto const value = 0xdeadbeef_hex;
+
+    UpdateList next;
+    Update update = make_update(key, value);
+    next.push_front(update);
+
+    monad::byte_string_view const empty_value{};
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        {},
+        make_update(block_num1, empty_value),
+        make_update(block_num2, empty_value, false, std::move(next)));
+
+    EXPECT_EQ(this->root->child_data_len(1), 0);
+    EXPECT_EQ(this->root->child_data_len(), 0);
+
+    // leaf is the end of block_num2 section, also root of account trie
+    Node *const block_num2_leaf = this->root->next(1);
+    EXPECT_EQ(block_num2_leaf->has_value(), true);
+    EXPECT_EQ(block_num2_leaf->path_nibbles_len(), 0);
+    EXPECT_EQ(block_num2_leaf->data().size(), 11);
+    unsigned char state_hash[KECCAK256_SIZE];
+    keccak256(
+        block_num2_leaf->data_data(), block_num2_leaf->data_len, state_hash);
+    EXPECT_EQ(
+        (monad::byte_string_view{state_hash, 32}),
+        0x82efc3b165cba3705dec8fe0f7d8ec6692ae82605bdea6058d2237535dc6aa9b_hex);
+    EXPECT_EQ(block_num2_leaf->child_data_len(0), 10);
 }
