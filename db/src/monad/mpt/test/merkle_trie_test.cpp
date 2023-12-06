@@ -68,7 +68,7 @@ TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
         upsert(this->aux, this->sm, std::move(this->root), std::move(updates));
     EXPECT_EQ(
         this->root_hash(),
-        0xd484201234568edeadbeefc98320234584deadbeef0000000000000000000000_hex);
+        0xeefbd82ec11d1d2d83a23d661a8eece950f1e29fa72665f07b57fc9a903257cc_hex);
 }
 
 // Test Starts
@@ -751,12 +751,27 @@ TYPED_TEST(TrieTest, verify_correct_compute_at_section_edge)
     Node *const block_num2_leaf = this->root->next(1);
     EXPECT_EQ(block_num2_leaf->has_value(), true);
     EXPECT_EQ(block_num2_leaf->path_nibbles_len(), 0);
-    EXPECT_EQ(block_num2_leaf->data().size(), 11);
-    unsigned char state_hash[KECCAK256_SIZE];
-    keccak256(
-        block_num2_leaf->data_data(), block_num2_leaf->data_len, state_hash);
-    EXPECT_EQ(
-        (monad::byte_string_view{state_hash, 32}),
-        0x82efc3b165cba3705dec8fe0f7d8ec6692ae82605bdea6058d2237535dc6aa9b_hex);
     EXPECT_EQ(block_num2_leaf->child_data_len(0), 10);
+    EXPECT_EQ(block_num2_leaf->data().size(), 32);
+    EXPECT_EQ(
+        block_num2_leaf->data(),
+        0x82efc3b165cba3705dec8fe0f7d8ec6692ae82605bdea6058d2237535dc6aa9b_hex);
+}
+
+TYPED_TEST(TrieTest, root_data_always_hashed)
+{
+    auto const key1 = 0x12_hex;
+    auto const key2 = 0x13_hex;
+    auto const value1 = 0xdead_hex;
+    auto const value2 = 0xbeef_hex;
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        {},
+        make_update(key1, value1),
+        make_update(key2, value2));
+
+    EXPECT_EQ(
+        this->root_hash(),
+        0xfb68c0ed148bf387cff736c64cc6acff3e89a6e6d722fba9b2eaf68f24ad5761_hex);
 }

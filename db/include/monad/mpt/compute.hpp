@@ -91,10 +91,12 @@ namespace detail
             T::compute(std::declval<Node const &>())
         } -> std::same_as<byte_string>;
     };
+
     template <compute_leaf_data TComputeLeafData>
     struct MerkleComputeBase : Compute
     {
         // compute the actual data to the internal state
+        // Only called when computing data to stored inline in a leaf node
         virtual unsigned compute_len(
             std::span<ChildData> const children, uint16_t const mask) override
         {
@@ -108,7 +110,8 @@ namespace detail
                 MONAD_DEBUG_ASSERT(it != children.end());
                 MONAD_DEBUG_ASSERT(it->branch < 16);
                 MONAD_DEBUG_ASSERT(it->ptr);
-                return compute_hash_with_extra_nibble_to_state_(*it);
+                compute_hash_with_extra_nibble_to_state_(*it);
+                return keccak_internal_state_data_inplace();
             }
 
             unsigned char branch_str_rlp[max_branch_rlp_size];
@@ -148,9 +151,9 @@ namespace detail
             unsigned char branch_rlp[max_branch_rlp_size];
             rlp::encode_list(
                 branch_rlp, byte_string_view{branch_str_rlp, concat_size});
-            // compute hash to internal state and return hash length
-            return state.len =
-                       to_node_reference({branch_rlp, rlp_size}, state.buffer);
+            // Compute hash to internal state and return hash length
+            state.len = to_node_reference({branch_rlp, rlp_size}, state.buffer);
+            return keccak_internal_state_data_inplace();
         }
 
         virtual unsigned
@@ -275,24 +278,33 @@ namespace detail
         unsigned
         compute_hash_with_extra_nibble_to_state_(ChildData &single_child)
         {
-            state.len = 0;
             Node *const node = single_child.ptr;
             MONAD_DEBUG_ASSERT(node);
 
             return state.len = encode_two_pieces_(
-                   state.buffer,
-                   concat2(single_child.branch, node->path_nibble_view()),
-                   (node->has_value()
-                        ? TComputeLeafData::compute(*node)
-                        : (node->has_path()
-                               ? ([&] -> byte_string {
-                                     unsigned char branch_hash[KECCAK256_SIZE];
-                                     return {
-                                         branch_hash,
-                                         compute_branch(branch_hash, node)};
-                                 }())
-                               : byte_string_view{single_child.data, single_child.len})),
-                   node->has_value());
+                state.buffer,
+                concat2(single_child.branch, node->path_nibble_view()),
+                (node->has_value()
+                     ? TComputeLeafData::compute(*node)
+                     : (node->has_path()
+                            ? ([&] -> byte_string {
+                                  unsigned char branch_hash[KECCAK256_SIZE];
+                                  return {
+                                      branch_hash,
+                                      compute_branch(branch_hash, node)};
+                              }())
+                            : byte_string_view{single_child.data, single_child.len})),
+                node->has_value());
+        }
+
+        unsigned keccak_internal_state_data_inplace()
+        {
+            if (state.len < KECCAK256_SIZE) {
+                keccak256(state.buffer, state.len, state.buffer);
+                state.len = KECCAK256_SIZE;
+            }
+            MONAD_DEBUG_ASSERT(state.len == KECCAK256_SIZE);
+            return state.len;
         }
     };
 }
@@ -416,6 +428,7 @@ public:
         }
     }
 };
+
 static_assert(sizeof(StateMachineWithBlockNo) == 16);
 static_assert(alignof(StateMachineWithBlockNo) == 8);
 

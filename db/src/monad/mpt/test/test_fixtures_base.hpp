@@ -104,7 +104,11 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->sm.get_compute().compute(res.data(), this->root.get());
+                auto const len = this->sm.get_compute().compute(
+                    res.data(), this->root.get());
+                if (len < KECCAK256_SIZE) {
+                    keccak256(res.data(), len, res.data());
+                }
                 return res;
             }
             return empty_trie_hash;
@@ -120,6 +124,7 @@ namespace monad::test
             return nullptr;
         }
     };
+
     template <class Base>
     class OnDiskTrieBase : public Base
     {
@@ -157,7 +162,11 @@ namespace monad::test
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                this->sm.get_compute().compute(res.data(), this->root.get());
+                auto const len = this->sm.get_compute().compute(
+                    res.data(), this->root.get());
+                if (len < KECCAK256_SIZE) {
+                    keccak256(res.data(), len, res.data());
+                }
                 return res;
             }
             return empty_trie_hash;
@@ -333,15 +342,18 @@ namespace monad::test
                 return empty_trie_hash;
             }
         };
+
         static state_t *&state()
         {
             static state_t *v;
             return v;
         }
+
         static void SetUpTestSuite()
         {
             state() = new state_t;
         }
+
         static void TearDownTestSuite()
         {
             delete state();
