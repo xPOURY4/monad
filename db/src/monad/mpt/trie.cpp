@@ -279,7 +279,7 @@ Node *create_node_from_children_if_any(
         creating nodes and return in the recursion */
         return make_node(
                    *node,
-                   concat3(path, children[j].branch, node->path_nibble_view()),
+                   concat(path, children[j].branch, node->path_nibble_view()),
                    node->has_value() ? std::make_optional(node->value())
                                      : std::nullopt)
             .release();

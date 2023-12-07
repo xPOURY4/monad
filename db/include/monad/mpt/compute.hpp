@@ -283,7 +283,7 @@ namespace detail
 
             return state.len = encode_two_pieces_(
                 state.buffer,
-                concat2(single_child.branch, node->path_nibble_view()),
+                concat(single_child.branch, node->path_nibble_view()),
                 (node->has_value()
                      ? TComputeLeafData::compute(*node)
                      : (node->has_path()
@@ -312,7 +312,7 @@ namespace detail
 struct DummyComputeLeafData
 {
     // TEMPORARY for POC
-    // compute leaf data as - concat2(input_leaf, hash);
+    // compute leaf data as - concat(input_leaf, hash);
     static byte_string compute(Node const &node)
     {
         return byte_string{node.value()} + byte_string{node.data()};

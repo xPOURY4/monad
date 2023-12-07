@@ -33,10 +33,10 @@ TEST(NibblesTest, concat_nibbles)
         0x1234567812345678123456781234567812345678123456781234567812345678_hex;
 
     Nibbles const a =
-        concat2(get_nibble(path.data(), 0), NibblesView{1, 12, path.data()});
+        concat(get_nibble(path.data(), 0), NibblesView{1, 12, path.data()});
     EXPECT_EQ(a, (NibblesView{0, 12, path.data()}));
 
-    Nibbles const b = concat3(
+    Nibbles const b = concat(
         NibblesView{12, 16, path.data()},
         get_nibble(path.data(), 16),
         NibblesView{17, 20, path.data()});

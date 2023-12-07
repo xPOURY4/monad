@@ -183,29 +183,41 @@ inline Nibbles::Nibbles(NibblesView const nibbles)
     }
 }
 
-inline Nibbles concat3(
-    NibblesView const prefix, unsigned char const nibble,
-    NibblesView const suffix)
+template <class... Args>
+    requires(
+        (std::same_as<Args, unsigned char> || std::same_as<Args, NibblesView>),
+        ...)
+constexpr Nibbles concat(Args... args)
 {
-    Nibbles res{prefix.nibble_size() + 1u + suffix.nibble_size()};
-    for (auto i = 0u; i < prefix.nibble_size(); ++i) {
-        res.set(i, prefix.get(i));
-    }
-    res.set(prefix.nibble_size(), nibble);
-    for (auto i = 0u; i < suffix.nibble_size(); ++i) {
-        res.set(i + prefix.nibble_size() + 1u, suffix.get(i));
-    }
-    return res;
-}
+    unsigned num_nibbles = 0;
+    (
+        [&num_nibbles]<class T>(T const arg) {
+            if constexpr (std::same_as<T, unsigned char>) {
+                ++num_nibbles;
+            }
+            else {
+                num_nibbles += arg.nibble_size();
+            }
+        }(args),
+        ...);
 
-inline Nibbles concat2(unsigned char const nibble, NibblesView const suffix)
-{
-    Nibbles res{1u + suffix.nibble_size()};
-    res.set(0u, nibble);
-    for (auto i = 0u; i < suffix.nibble_size(); ++i) {
-        res.set(i + 1u, suffix.get(i));
-    }
-    return res;
+    Nibbles ret{num_nibbles};
+    unsigned index = 0;
+    (
+        [&ret, &index]<class T>(T const arg) {
+            if constexpr (std::same_as<T, unsigned char>) {
+                ret.set(index, arg);
+                ++index;
+            }
+            else {
+                for (auto i = 0u; i < arg.nibble_size(); ++i) {
+                    ret.set(index + i, arg.get(i));
+                }
+                index += arg.nibble_size();
+            }
+        }(args),
+        ...);
+    return ret;
 }
 
 MONAD_MPT_NAMESPACE_END
