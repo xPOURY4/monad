@@ -30,6 +30,8 @@ add_subdirectory("third_party/nlohmann_json" SYSTEM)
 
 add_subdirectory("third_party/unordered_dense")
 
+add_subdirectory("third_party/quill" SYSTEM)
+
 add_library(
   openssl_sha3_asm INTERFACE
   "third_party/openssl/crypto/sha/asm/keccak1600-avx2.S"
