@@ -67,6 +67,7 @@ add_library(
   # core
   "include/monad/core/array.hpp"
   "include/monad/core/backtrace.hpp"
+  "include/monad/core/basic_formatter.hpp"
   "include/monad/core/byte_string.hpp"
   "include/monad/core/cmemory.hpp"
   "include/monad/core/endian.hpp"
