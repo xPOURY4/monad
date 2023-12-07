@@ -10,8 +10,8 @@ class Node;
 
 struct TraverseMachine
 {
-    virtual void down(Node const &) = 0;
-    virtual void up(Node const &) = 0;
+    virtual void down(unsigned char branch, Node const &) = 0;
+    virtual void up(unsigned char branch, Node const &) = 0;
 };
 
 void preorder_traverse(Node const &, TraverseMachine &);

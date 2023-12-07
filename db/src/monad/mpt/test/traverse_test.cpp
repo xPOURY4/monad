@@ -54,9 +54,10 @@ TEST(TraverseTest, simple)
         size_t index = 0;
         size_t num_up = 0;
 
-        virtual void down(Node const &node) override
+        virtual void down(unsigned char const branch, Node const &node) override
         {
             if (index == 0) {
+                EXPECT_EQ(branch, INVALID_BRANCH);
                 EXPECT_EQ(node.number_of_children(), 2);
                 EXPECT_EQ(node.mask, 0b11000);
                 EXPECT_FALSE(node.has_value());
@@ -64,6 +65,7 @@ TEST(TraverseTest, simple)
                 EXPECT_EQ(node.path_nibble_view(), NibblesView(0x12_hex));
             }
             else if (index == 1) {
+                EXPECT_EQ(branch, 3);
                 EXPECT_EQ(node.number_of_children(), 2);
                 EXPECT_EQ(node.mask, 0b1100000);
                 EXPECT_FALSE(node.has_value());
@@ -71,6 +73,7 @@ TEST(TraverseTest, simple)
                 EXPECT_EQ(node.path_nibble_view(), make_nibbles({0x4}));
             }
             else if (index == 2) {
+                EXPECT_EQ(branch, 5);
                 EXPECT_EQ(node.number_of_children(), 0);
                 EXPECT_EQ(node.mask, 0);
                 EXPECT_TRUE(node.has_value());
@@ -80,6 +83,7 @@ TEST(TraverseTest, simple)
                     node.path_nibble_view(), make_nibbles({0x6, 0x7, 0x8}));
             }
             else if (index == 3) {
+                EXPECT_EQ(branch, 6);
                 EXPECT_EQ(node.number_of_children(), 0);
                 EXPECT_EQ(node.mask, 0);
                 EXPECT_TRUE(node.has_value());
@@ -89,6 +93,7 @@ TEST(TraverseTest, simple)
                     node.path_nibble_view(), make_nibbles({0x6, 0x7, 0x8}));
             }
             else if (index == 4) {
+                EXPECT_EQ(branch, 4);
                 EXPECT_EQ(node.number_of_children(), 0);
                 EXPECT_EQ(node.mask, 0);
                 EXPECT_TRUE(node.has_value());
@@ -105,7 +110,7 @@ TEST(TraverseTest, simple)
             ++index;
         }
 
-        virtual void up(Node const &) override
+        virtual void up(unsigned char const, Node const &) override
         {
             ++num_up;
         }
