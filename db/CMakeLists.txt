@@ -42,6 +42,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view_fmt.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/request.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/traverse.hpp"
