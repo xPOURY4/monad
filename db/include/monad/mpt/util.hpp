@@ -4,6 +4,7 @@
 #include <monad/core/assert.h>
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 
 #include <concepts>
 
@@ -43,28 +44,47 @@ bitmask_index(uint16_t const mask, unsigned const i) noexcept
 }
 
 //! convert an integral's least significant N bytes to a size-N byte string
-template <int N, std::unsigned_integral V>
-inline byte_string serialise_as_big_endian(V n)
+template <int N, std::unsigned_integral UnsignedInteger>
+inline byte_string serialize_as_big_endian(UnsignedInteger n)
 {
-    MONAD_ASSERT(N <= sizeof(V));
+    MONAD_ASSERT(N <= sizeof(UnsignedInteger));
 
     // std::byteswap is C++23 only, using GCC intrinsic instead
     if constexpr (std::endian::native != std::endian::big) {
-        if constexpr (sizeof(V) <= 2) {
+        if constexpr (sizeof(UnsignedInteger) <= 2) {
             n = __builtin_bswap16(n);
         }
-        else if constexpr (sizeof(V) == 4) {
+        else if constexpr (sizeof(UnsignedInteger) == 4) {
             n = __builtin_bswap32(n);
         }
-        else if constexpr (sizeof(V) == 8) {
+        else if constexpr (sizeof(UnsignedInteger) == 8) {
             n = __builtin_bswap64(n);
         }
         else {
-            return serialise_as_big_endian<N>(static_cast<uint64_t>(n));
+            return serialize_as_big_endian<N>(static_cast<uint64_t>(n));
         }
     }
-    auto arr = std::bit_cast<std::array<unsigned char, sizeof(V)>>(n);
+    auto arr =
+        std::bit_cast<std::array<unsigned char, sizeof(UnsignedInteger)>>(n);
     return byte_string{arr.data() + sizeof(n) - N, N};
+}
+
+template <std::unsigned_integral UnsignedInteger>
+inline UnsignedInteger deserialize_from_big_endian(NibblesView const in)
+{
+    if (in.nibble_size() > sizeof(UnsignedInteger) * 2) {
+        throw std::runtime_error(
+            "input bytes to deserialize must be less than or "
+            "equal to sizeof output type\n");
+    }
+    UnsignedInteger out = 0;
+    UnsignedInteger bit =
+        static_cast<UnsignedInteger>(1UL << ((in.nibble_size() - 1) * 4));
+    for (auto i = 0; i < in.nibble_size(); ++i, bit >>= 4) {
+        out += static_cast<UnsignedInteger>(
+            in.get(static_cast<unsigned char>(i)) * bit);
+    }
+    return out;
 }
 
 MONAD_MPT_NAMESPACE_END

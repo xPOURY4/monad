@@ -238,6 +238,11 @@ find_result_type find_blocking(
     MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
+Nibbles
+find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root);
+Nibbles
+find_max_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root);
+
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
 {

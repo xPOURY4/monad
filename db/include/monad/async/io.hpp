@@ -52,6 +52,7 @@ private:
         int io_uring_read_fd{-1}, io_uring_write_fd{-1}; // NOT POSIX fds!
 
         constexpr chunk_ptr_() = default;
+
         constexpr chunk_ptr_(std::shared_ptr<T> ptr_)
             : ptr(std::move(ptr_))
             , io_uring_read_fd(ptr ? ptr->read_fd().first : -1)
@@ -64,10 +65,12 @@ private:
     class storage_pool *storage_pool_{nullptr};
     chunk_ptr_<cnv_chunk> cnv_chunk_;
     std::vector<chunk_ptr_<seq_chunk>> seq_chunks_;
+
     struct
     {
         int msgread, msgwrite;
     } fds_;
+
     monad::io::Ring &uring_;
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
@@ -106,6 +109,7 @@ public:
         assert(storage_pool_ != nullptr);
         return *storage_pool_;
     }
+
     const class storage_pool &storage_pool() const noexcept
     {
         assert(storage_pool_ != nullptr);
@@ -116,6 +120,7 @@ public:
     {
         return seq_chunks_.size();
     }
+
     file_offset_t chunk_capacity(size_t id) const noexcept
     {
         MONAD_ASSERT(id < seq_chunks_.size());
@@ -173,6 +178,7 @@ public:
         }
         return n;
     }
+
     std::optional<size_t>
     poll_blocking_if_not_within_completions(size_t count = 1)
     {
@@ -193,6 +199,7 @@ public:
         }
         return n;
     }
+
     std::optional<size_t>
     poll_nonblocking_if_not_within_completions(size_t count = size_t(-1))
     {
@@ -241,9 +248,11 @@ public:
         {
             0, 0
         };
+
         bool timespec_is_absolute{false};
         bool timespec_is_utc_clock{false};
     };
+
     void submit_timed_invocation_request(
         timed_invocation_state *info, erased_connected_operation *uring_data)
     {
@@ -267,6 +276,7 @@ public:
     static constexpr size_t MONAD_IO_BUFFERS_WRITE_SIZE =
         round_up_align<CPU_PAGE_BITS>(
             WRITE_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
+
     template <class ConnectedOperationType, bool is_write>
     struct registered_io_buffer_with_connected_operation
     {
@@ -277,10 +287,12 @@ public:
 #pragma GCC diagnostic ignored "-Wpedantic"
         ConnectedOperationType state[0];
 #pragma GCC diagnostic pop
+
         constexpr registered_io_buffer_with_connected_operation() {}
     };
     friend struct
         registered_io_buffer_with_connected_operation_unique_ptr_deleter;
+
     struct registered_io_buffer_with_connected_operation_unique_ptr_deleter
     {
         void operator()(erased_connected_operation *p) const
@@ -303,6 +315,7 @@ public:
             }
         }
     };
+
     using erased_connected_operation_unique_ptr_type = std::unique_ptr<
         erased_connected_operation,
         registered_io_buffer_with_connected_operation_unique_ptr_deleter>;
@@ -361,6 +374,7 @@ public:
             return connect(*this, std::move(sender), std::move(receiver));
         });
     }
+
     //! Construct into a registered i/o buffer a connected state for an i/o read
     //! or write (not timed delay)
     template <
@@ -412,12 +426,14 @@ public:
                 &extant_write_operations_header_, p, pred);
         }
     }
+
     template <class Base, sender Sender, receiver Receiver>
     void notify_operation_reset_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state)
     {
         (void)state;
     }
+
     template <class Base, sender Sender, receiver Receiver, class T>
     void notify_operation_completed_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state,
@@ -453,6 +469,7 @@ private:
     erased_connected_operation::rbtree_node_traits::node
         extant_write_operations_header_;
 };
+
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 

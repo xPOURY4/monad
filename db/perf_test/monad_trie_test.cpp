@@ -86,9 +86,10 @@ inline Node::UniquePtr batch_upsert_commit(
     std::vector<monad::byte_string> &keccak_values, bool erase,
     Node::UniquePtr prev_root, UpdateAux &aux, TrieStateMachine &sm)
 {
-    auto const block_no = serialise_as_big_endian<6>(block_id);
+    fprintf(stdout, "Insert block_id %lu\n", block_id);
+    auto const block_no = serialize_as_big_endian<6>(block_id);
     if (block_id != 0) {
-        auto old_block_no = serialise_as_big_endian<6>(block_id - 1);
+        auto old_block_no = serialize_as_big_endian<6>(block_id - 1);
         prev_root = monad::mpt::copy_node(
             aux, std::move(prev_root), old_block_no, block_no);
         // For test purpose only: verify that earlier blocks are valid, no
@@ -326,17 +327,34 @@ int main(int argc, char *argv[])
             aux.set_io(&io);
         }
 
-        Node::UniquePtr state_root{};
+        Node::UniquePtr root{};
         if (append) {
             auto root_off = aux.get_root_offset();
-            Node *root = read_node_blocking(io.storage_pool(), root_off);
-            state_root.reset(root);
+            root.reset(read_node_blocking(io.storage_pool(), root_off));
 
             chunk_offset_t const fast_offset = round_up_align<DISK_PAGE_BITS>(
                 root_off.add_to_offset(root->get_disk_size()));
             // destroy contents after fast_offset.id chunck, and reset
             // node_writer's offset.
             aux.rewind_to_match_offset(fast_offset);
+
+            // Find the min max block_no path in db, verify validity of block-no
+            Nibbles min_block =
+                find_min_key_blocking(&io.storage_pool(), *root);
+            auto const min_block_num =
+                deserialize_from_big_endian<uint64_t>(min_block);
+            Nibbles max_block =
+                find_max_key_blocking(&io.storage_pool(), *root);
+            auto const max_block_num =
+                deserialize_from_big_endian<uint64_t>(max_block);
+            // Next starting block_no must be
+            // min_block_num < block_no <= max_block_num + 1
+            if (block_no > max_block_num + 1 || block_no <= min_block_num) {
+                std::stringstream str;
+                str << "Invalid block-no input, must choose in ("
+                    << min_block_num << "," << max_block_num << "]";
+                throw std::runtime_error(std::move(str).str());
+            }
         }
 
         auto begin_test = std::chrono::steady_clock::now();
@@ -363,7 +381,7 @@ int main(int argc, char *argv[])
             }
 
             cpu_cache_emptier();
-            state_root = batch_upsert_commit(
+            root = batch_upsert_commit(
                 csv_writer,
                 block_no++,
                 (iter % 100) * SLICE_LEN, /* vec_idx */
@@ -372,14 +390,14 @@ int main(int argc, char *argv[])
                 keccak_keys,
                 keccak_values,
                 false,
-                std::move(state_root),
+                std::move(root),
                 aux,
                 sm);
 
             if (erase && (iter & 1) != 0) {
                 fprintf(stdout, "> erase iter = %lu\n", iter);
                 fflush(stdout);
-                state_root = batch_upsert_commit(
+                root = batch_upsert_commit(
                     csv_writer,
                     block_no++,
                     (iter % 100) * SLICE_LEN, /* vec_idx */
@@ -388,13 +406,13 @@ int main(int argc, char *argv[])
                     keccak_keys,
                     keccak_values,
                     true,
-                    std::move(state_root),
+                    std::move(root),
                     aux,
                     sm);
 
                 fprintf(stdout, "> dup batch iter = %lu\n", iter);
 
-                state_root = batch_upsert_commit(
+                root = batch_upsert_commit(
                     csv_writer,
                     block_no++,
                     (iter % 100) * SLICE_LEN, /* vec_idx */
@@ -403,7 +421,7 @@ int main(int argc, char *argv[])
                     keccak_keys,
                     keccak_values,
                     false,
-                    std::move(state_root),
+                    std::move(root),
                     aux,
                     sm);
             }

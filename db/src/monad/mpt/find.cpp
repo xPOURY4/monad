@@ -72,4 +72,49 @@ find_result_type find_blocking(
     return {node, find_result::success};
 }
 
+Nibbles
+find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
+{
+    Nibbles path;
+    Node *node = &root;
+    while (!node->has_value()) {
+        MONAD_DEBUG_ASSERT(node->number_of_children() > 0);
+        path = concat(
+            NibblesView{path},
+            node->path_nibble_view(),
+            (unsigned char)std::countr_zero(node->mask));
+        // go to next node
+        if (!node->next(0)) {
+            MONAD_ASSERT(pool);
+            node->set_next(0, read_node_blocking(*pool, node->fnext(0)));
+        }
+        node = node->next(0);
+    }
+    return concat(NibblesView{path}, node->path_nibble_view());
+}
+
+Nibbles
+find_max_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
+{
+    Nibbles path;
+    Node *node = &root;
+    while (!node->has_value()) {
+        MONAD_DEBUG_ASSERT(node->number_of_children() > 0);
+        path = concat(
+            NibblesView{path},
+            node->path_nibble_view(),
+            static_cast<unsigned char>(15 - std::countl_zero(node->mask)));
+        // go to next node
+        if (!node->next(node->number_of_children() - 1)) {
+            MONAD_ASSERT(pool);
+            node->set_next(
+                node->number_of_children() - 1,
+                read_node_blocking(
+                    *pool, node->fnext(node->number_of_children() - 1)));
+        }
+        node = node->next(node->number_of_children() - 1);
+    }
+    return concat(NibblesView{path}, node->path_nibble_view());
+}
+
 MONAD_MPT_NAMESPACE_END
