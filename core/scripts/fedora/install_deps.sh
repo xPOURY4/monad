@@ -20,5 +20,4 @@ packages=(
 
 dnf -y install "${packages[@]}"
 
-# TODO Fedora 39 repos have issue
-#debuginfo-install -y "${packages[@]}"
+debuginfo-install -y "${packages[@]}"
