@@ -152,21 +152,74 @@ inline Node::UniquePtr batch_upsert_commit(
 
 void prepare_keccak(
     size_t nkeys, std::vector<monad::byte_string> &keccak_keys,
-    std::vector<monad::byte_string> &keccak_values, size_t key_offset)
+    std::vector<monad::byte_string> &keccak_values, size_t key_offset,
+    bool realistic_corpus)
 {
-    size_t key;
     size_t val;
-
     // prepare keccak
-    for (size_t i = 0; i < nkeys; ++i) {
-        // assign keccak256 on i to key
-        key = (i + key_offset) % MAX_NUM_KEYS;
-        keccak_keys[i].resize(32);
-        keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
+    if (realistic_corpus) {
+        /* We know from analysing Ethereum chain history that:
 
-        val = key * 2;
-        keccak_values[i].resize(32);
-        keccak256((unsigned char const *)&val, 8, keccak_values[i].data());
+        - Under 2% of all accounts are recipients of 65% of all transactions.
+        - Under 5% of all accounts are recipients of 75% of all transactions.
+        - Around one third of all accounts are recipients of 90% of all
+        transactions.
+        - Around two thirds of all accounts are recipients of 95% of all
+        transactions.
+
+        Or put another way:
+        - One third of all accounts are recipients of 5% of all transactions.
+        - Two thirds of all accounts are recipients of 10% of all transactions.
+        - 95% of all accounts are recipients of 25% of all transactions.
+        - 98% of all accounts are recipients of 35% of all transactions.
+        - So just under 2% of all accounts are recipients of two thirds of all
+        transactions.
+        */
+        static constexpr auto MULTIPLIER = 3.7;
+        static auto const DIVISOR = pow(MULTIPLIER, MULTIPLIER);
+        static constexpr uint32_t TOTAL_KEYS = 500000000;
+        static double const MAX_RAND = double(monad::small_prng::max());
+        monad::small_prng rand(uint32_t(key_offset / (100 * SLICE_LEN)));
+        monad::unordered_flat_set<uint32_t> seen;
+        for (size_t i = 0; i < nkeys; ++i) {
+            if ((i % SLICE_LEN) == 0) {
+                seen.clear();
+            }
+            for (;;) {
+                double r = double(rand()) / MAX_RAND;
+                r = pow(MULTIPLIER, MULTIPLIER * r) / DIVISOR;
+                uint32_t j = uint32_t(double(TOTAL_KEYS) * r);
+                if (!seen.contains(j)) {
+                    seen.insert(j);
+                    keccak_keys[i].resize(32);
+                    keccak256(
+                        (unsigned char const *)&j, 4, keccak_keys[i].data());
+
+                    val = (i + key_offset) * 2;
+                    keccak_values[i].resize(32);
+                    keccak256(
+                        (unsigned char const *)&val,
+                        8,
+                        keccak_values[i].data());
+                    break;
+                }
+            }
+        }
+    }
+    else {
+        // Random fixed size key-values based on hash of key_offset to create
+        // always forward progression
+        size_t key;
+        for (size_t i = 0; i < nkeys; ++i) {
+            // assign keccak256 on i to key
+            key = (i + key_offset) % MAX_NUM_KEYS;
+            keccak_keys[i].resize(32);
+            keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
+
+            val = (i + key_offset) * 2;
+            keccak_values[i].resize(32);
+            keccak256((unsigned char const *)&val, 8, keccak_values[i].data());
+        }
     }
 }
 
@@ -188,6 +241,7 @@ int main(int argc, char *argv[])
     bool erase = false;
     bool in_memory = false; // default is on disk
     bool empty_cpu_caches = false;
+    bool realistic_corpus = false;
 
     // TODO: add block num in trie update, cache level should be 1,
     CLI::App cli{"monad_merge_trie_test"};
@@ -210,6 +264,10 @@ int main(int argc, char *argv[])
             "--empty-cpu-caches",
             empty_cpu_caches,
             "empty cpu caches between updates");
+        cli.add_flag(
+            "--realistic-corpus",
+            realistic_corpus,
+            "use test corpus resembling historical patterns");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
@@ -345,7 +403,8 @@ int main(int argc, char *argv[])
                     std::min(keccak_cap, max_key - key_offset),
                     keccak_keys,
                     keccak_values,
-                    key_offset);
+                    key_offset,
+                    realistic_corpus);
                 fprintf(
                     stdout, "Finish preparing keccak.\nStart transactions\n");
                 fflush(stdout);
@@ -407,9 +466,18 @@ int main(int argc, char *argv[])
                     end_test - begin_test)
                     .count()) /
             1000000.0;
-        printf("\nTotal test time: %f secs.\n", test_secs);
+        uint64_t bytes_used = 0;
+        for (auto &device : pool.devices()) {
+            bytes_used += device.capacity().second;
+        }
+        printf(
+            "\nTotal test time: %f secs. Total storage consumed: %f Gb\n",
+            test_secs,
+            double(bytes_used) / 1024.0 / 1024.0 / 1024.0);
         if (csv_writer) {
-            csv_writer << "\n\"Total test time:\"," << test_secs << std::endl;
+            csv_writer << "\n\"Total test time:\"," << test_secs;
+            csv_writer << "\n\"Total storage consumed:\"," << bytes_used
+                       << std::endl;
         }
     }
     catch (const CLI::CallForHelp &e) {
