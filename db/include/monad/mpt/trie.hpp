@@ -93,7 +93,7 @@ public:
     {
         auto do_ = [&](detail::db_metadata *m) {
             m->root_offset = root_offset;
-            m->latest_slow_offset = slow_offset;
+            m->start_of_wip_slow_offset = slow_offset;
         };
         do_(db_metadata_[0]);
         do_(db_metadata_[1]);
@@ -122,11 +122,11 @@ public:
     bool alternate_slow_fast_writer{false};
     bool can_write_to_fast{true};
 
-    // WARNING: Testing only
-    // DO NOT invoke it outside of test
-    void alternate_slow_fast_node_writer()
+    // WARNING: for unit testing only
+    // DO NOT invoke it outside of unit test
+    void alternate_slow_fast_node_writer_unit_testing_only(bool alternate)
     {
-        alternate_slow_fast_writer = true;
+        alternate_slow_fast_writer = alternate;
     }
 
     constexpr bool is_in_memory() const noexcept
@@ -145,10 +145,10 @@ public:
         return db_metadata_[0]->root_offset;
     }
 
-    chunk_offset_t get_latest_slow_offset() const noexcept
+    chunk_offset_t get_start_of_wip_slow_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata_[0]->latest_slow_offset;
+        return db_metadata_[0]->start_of_wip_slow_offset;
     }
 
     file_offset_t get_lower_bound_free_space() const noexcept

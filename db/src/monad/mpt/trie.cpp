@@ -783,7 +783,6 @@ node_writer_unique_ptr_type replace_node_writer(
             in_fast_list ? UpdateAux::chunk_list::fast
                          : UpdateAux::chunk_list::slow,
             idx);
-        // TODO assert that count is incremented by one
         offset_of_next_block.id = idx & 0xfffffU;
         offset_of_next_block.offset = 0;
     }

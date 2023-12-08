@@ -27,7 +27,8 @@ TYPED_TEST_SUITE(AppendTest, AppendTestTypes);
 TYPED_TEST(AppendTest, works)
 {
     auto const root_off = this->state()->aux.get_root_offset();
-    auto const latest_slow_off = this->state()->aux.get_latest_slow_offset();
+    auto const latest_slow_off =
+        this->state()->aux.get_start_of_wip_slow_offset();
     auto const root_hash_before = this->state()->root_hash();
     auto const rand_state = this->state()->rand;
 

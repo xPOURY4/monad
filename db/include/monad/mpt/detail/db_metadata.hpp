@@ -22,10 +22,12 @@ namespace detail
             uint32_t unused0_ : 4;
             uint32_t reserved0_ : 8;
         } v{.reserved0_ = 1};
+
         struct type
         {
             uint8_t x[sizeof(v)];
         };
+
         constexpr type ret = std::bit_cast<type>(v);
         return ret.x[3];
     }
@@ -43,8 +45,16 @@ namespace detail
         // DO NOT INSERT ANYTHING IN HERE
         uint64_t capacity_in_free_list; // used to detect when free space is
                                         // running low
+        // these two are advanced after each db block update, they represent the
+        // last valid root offset which is always in fast list, and the start of
+        // wip slow list offset.
         chunk_offset_t root_offset;
-        chunk_offset_t latest_slow_offset;
+        chunk_offset_t
+            start_of_wip_slow_offset; // start of current wip db block's
+                                      // contents in slow list. all contents
+                                      // starting this point are not yet
+                                      // validated, and should be rewound if
+                                      // restart.
 
         // used to know if the metadata was being
         // updated when the process suddenly exited
@@ -62,6 +72,7 @@ namespace detail
         {
             uint32_t begin, end;
         } free_list, fast_list, slow_list;
+
         struct chunk_info_t
         {
             static constexpr uint32_t INVALID_CHUNK_ID = 0xfffff;
@@ -80,11 +91,13 @@ namespace detail
                 assert(ret < parent->chunk_info_count);
                 return ret;
             }
+
             unsigned_20 insertion_count() const noexcept
             {
                 return uint32_t(insertion_count1_ << 10) |
                        uint32_t(insertion_count0_);
             }
+
             chunk_info_t const *prev(db_metadata const *parent) const noexcept
             {
                 if (prev_chunk_id == INVALID_CHUNK_ID) {
@@ -93,6 +106,7 @@ namespace detail
                 assert(prev_chunk_id < parent->chunk_info_count);
                 return &parent->chunk_info[prev_chunk_id];
             }
+
             chunk_info_t const *next(db_metadata const *parent) const noexcept
             {
                 if (next_chunk_id == INVALID_CHUNK_ID) {
@@ -121,6 +135,7 @@ namespace detail
         auto hold_dirty() noexcept
         {
             static_assert(sizeof(std::atomic<uint8_t>) == sizeof(uint8_t));
+
             struct holder_t
             {
                 db_metadata *parent;
@@ -130,12 +145,15 @@ namespace detail
                 {
                     parent->is_dirty().store(1, std::memory_order_release);
                 }
+
                 holder_t(holder_t const &) = delete;
+
                 holder_t(holder_t &&o) noexcept
                     : parent(o.parent)
                 {
                     o.parent = nullptr;
                 }
+
                 ~holder_t()
                 {
                     if (parent != nullptr) {
@@ -143,18 +161,22 @@ namespace detail
                     }
                 }
             };
+
             return holder_t(this);
         }
+
         chunk_info_t const *at(uint32_t idx) const noexcept
         {
             assert(idx < chunk_info_count);
             return &chunk_info[idx];
         }
+
         chunk_info_t const &operator[](uint32_t idx) const noexcept
         {
             assert(idx < chunk_info_count);
             return chunk_info[idx];
         }
+
         chunk_info_t const *free_list_begin() const noexcept
         {
             if (free_list.begin == UINT32_MAX) {
@@ -163,6 +185,7 @@ namespace detail
             assert(free_list.begin < chunk_info_count);
             return &chunk_info[free_list.begin];
         }
+
         chunk_info_t const *free_list_end() const noexcept
         {
             if (free_list.end == UINT32_MAX) {
@@ -171,6 +194,7 @@ namespace detail
             assert(free_list.end < chunk_info_count);
             return &chunk_info[free_list.end];
         }
+
         chunk_info_t const *fast_list_begin() const noexcept
         {
             if (fast_list.begin == UINT32_MAX) {
@@ -179,6 +203,7 @@ namespace detail
             assert(fast_list.begin < chunk_info_count);
             return &chunk_info[fast_list.begin];
         }
+
         chunk_info_t const *fast_list_end() const noexcept
         {
             if (fast_list.end == UINT32_MAX) {
@@ -187,6 +212,7 @@ namespace detail
             assert(fast_list.end < chunk_info_count);
             return &chunk_info[fast_list.end];
         }
+
         chunk_info_t const *slow_list_begin() const noexcept
         {
             if (slow_list.begin == UINT32_MAX) {
@@ -195,6 +221,7 @@ namespace detail
             assert(slow_list.begin < chunk_info_count);
             return &chunk_info[slow_list.begin];
         }
+
         chunk_info_t const *slow_list_end() const noexcept
         {
             if (slow_list.end == UINT32_MAX) {
@@ -210,6 +237,7 @@ namespace detail
             assert(idx < chunk_info_count);
             return &chunk_info[idx];
         }
+
         void append_(id_pair &list, chunk_info_t *i) noexcept
         {
             auto g = hold_dirty();
@@ -232,6 +260,7 @@ namespace detail
             i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.end = tail->next_chunk_id = i->index(this) & 0xfffffU;
         }
+
         void prepend_(id_pair &list, chunk_info_t *i) noexcept
         {
             auto g = hold_dirty();
@@ -254,6 +283,7 @@ namespace detail
             i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.begin = head->prev_chunk_id = i->index(this) & 0xfffff;
         }
+
         void remove_(chunk_info_t *i) noexcept
         {
             auto get_list = [&]() -> id_pair & {
@@ -314,17 +344,20 @@ namespace detail
                 chunk_info_t::INVALID_CHUNK_ID;
 #endif
         }
+
         void free_capacity_add_(uint64_t bytes) noexcept
         {
             auto g = hold_dirty();
             capacity_in_free_list += bytes;
         }
+
         void free_capacity_sub_(uint64_t bytes) noexcept
         {
             auto g = hold_dirty();
             capacity_in_free_list -= bytes;
         }
     };
+
     static_assert(std::is_trivially_copyable_v<db_metadata>);
 }
 

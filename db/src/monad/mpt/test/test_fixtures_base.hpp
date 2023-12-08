@@ -273,9 +273,8 @@ namespace monad::test
 
             state_t()
             {
-                if constexpr (alternate_slow_fast_writer) {
-                    aux.alternate_slow_fast_node_writer();
-                }
+                aux.alternate_slow_fast_node_writer_unit_testing_only(
+                    alternate_slow_fast_writer);
                 ensure_total_chunks(chunks_to_fill);
                 std::cout << "After suite set up before testing:";
                 print(std::cout);
