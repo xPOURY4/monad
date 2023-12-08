@@ -16,12 +16,14 @@ namespace monad::test
         using OnDiskTrieBase<::testing::Test>::OnDiskTrieBase;
     };
 
-    template <size_t chunks_to_fill>
+    template <size_t chunks_to_fill, bool alternate_slow_fast_writer = false>
     struct FillDBWithChunksGTest
-        : public FillDBWithChunks<chunks_to_fill, ::testing::Test>
+        : public FillDBWithChunks<
+              chunks_to_fill, alternate_slow_fast_writer, ::testing::Test>
     {
         using FillDBWithChunks<
-            chunks_to_fill, ::testing::Test>::FillDBWithChunks;
+            chunks_to_fill, alternate_slow_fast_writer,
+            ::testing::Test>::FillDBWithChunks;
     };
 
 }

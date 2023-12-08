@@ -869,12 +869,18 @@ async_write_node_result async_write_node(
 }
 
 chunk_offset_t
-async_write_node_set_spare(UpdateAux &aux, Node &node, bool const is_fast)
+async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
 {
-    auto off =
-        async_write_node(
-            aux, is_fast ? aux.node_writer_fast : aux.node_writer_slow, node)
-            .offset_written_to;
+    if (aux.alternate_slow_fast_writer) {
+        // alternate between slow and fast writer
+        write_to_fast &= aux.can_write_to_fast;
+        aux.can_write_to_fast = !aux.can_write_to_fast;
+    }
+    auto off = async_write_node(
+                   aux,
+                   write_to_fast ? aux.node_writer_fast : aux.node_writer_slow,
+                   node)
+                   .offset_written_to;
     auto const pages = num_pages(off.offset, node.get_disk_size());
     MONAD_DEBUG_ASSERT(pages <= std::numeric_limits<uint16_t>::max());
     off.spare = static_cast<uint16_t>(pages);

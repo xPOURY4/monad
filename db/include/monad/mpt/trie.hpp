@@ -119,6 +119,16 @@ public:
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_);
 
+    bool alternate_slow_fast_writer{false};
+    bool can_write_to_fast{true};
+
+    // WARNING: Testing only
+    // DO NOT invoke it outside of test
+    void alternate_slow_fast_node_writer()
+    {
+        alternate_slow_fast_writer = true;
+    }
+
     constexpr bool is_in_memory() const noexcept
     {
         return io == nullptr;
@@ -135,6 +145,12 @@ public:
         return db_metadata_[0]->root_offset;
     }
 
+    chunk_offset_t get_latest_slow_offset() const noexcept
+    {
+        MONAD_ASSERT(this->is_on_disk());
+        return db_metadata_[0]->latest_slow_offset;
+    }
+
     file_offset_t get_lower_bound_free_space() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
@@ -142,7 +158,7 @@ public:
     }
 };
 
-static_assert(sizeof(UpdateAux) == 40);
+static_assert(sizeof(UpdateAux) == 48);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

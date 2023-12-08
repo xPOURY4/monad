@@ -247,7 +247,8 @@ namespace monad::test
         }
     };
 
-    template <size_t chunks_to_fill, class Base>
+    template <
+        size_t chunks_to_fill, bool alternate_slow_fast_writer, class Base>
     struct FillDBWithChunks : public Base
     {
         struct state_t
@@ -272,6 +273,9 @@ namespace monad::test
 
             state_t()
             {
+                if constexpr (alternate_slow_fast_writer) {
+                    aux.alternate_slow_fast_node_writer();
+                }
                 ensure_total_chunks(chunks_to_fill);
                 std::cout << "After suite set up before testing:";
                 print(std::cout);
@@ -292,7 +296,18 @@ namespace monad::test
                           << (v.first - v.second)
                           << " bytes free, which is a difference of " << diff
                           << ".\n";
+                std::cout << "   Fast list:\n";
                 for (auto const *ci = aux.db_metadata()->fast_list_begin();
+                     ci != nullptr;
+                     ci = ci->next(aux.db_metadata())) {
+                    auto idx = ci->index(aux.db_metadata());
+                    auto chunk = pool.chunk(pool.seq, idx);
+                    std::cout << "\n      Chunk " << idx
+                              << " has capacity = " << chunk->capacity()
+                              << " consumed = " << chunk->size();
+                }
+                std::cout << "\n   Slow list:\n";
+                for (auto const *ci = aux.db_metadata()->slow_list_begin();
                      ci != nullptr;
                      ci = ci->next(aux.db_metadata())) {
                     auto idx = ci->index(aux.db_metadata());
