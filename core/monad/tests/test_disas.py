@@ -105,6 +105,7 @@ def _create_test_class(test_dir):
                 "--disassemble",
                 "--reloc",
                 "--no-addresses",
+                "--insn-width=8",
                 obj,
             ]
             result = check_output(cmd)
