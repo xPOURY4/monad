@@ -775,7 +775,7 @@ node_writer_unique_ptr_type replace_node_writer(
     auto const chunk_capacity = aux.io->chunk_capacity(offset_of_next_block.id);
     MONAD_ASSERT(offset <= chunk_capacity);
     if (offset == chunk_capacity) {
-        auto const *ci_ = aux.db_metadata()->free_list_begin();
+        auto const *ci_ = aux.db_metadata()->free_list_end();
         MONAD_ASSERT(ci_ != nullptr); // we are out of free blocks!
         auto idx = ci_->index(aux.db_metadata());
         aux.remove(idx);

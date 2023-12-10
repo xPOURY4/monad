@@ -13,6 +13,28 @@ using namespace MONAD_ASYNC_NAMESPACE;
 // consecutive
 // #define MONAD_MPT_INITIALIZE_POOL_WITH_CONSECUTIVE_CHUNKS 1
 
+uint32_t UpdateAux::chunk_id_from_insertion_count(
+    chunk_list list, detail::unsigned_20 insertion_count) const noexcept
+{
+    uint32_t idx = uint32_t(insertion_count);
+    switch (list) {
+    case chunk_list::free:
+        idx -= uint32_t(db_metadata()->free_list_begin()->insertion_count());
+        break;
+    case chunk_list::fast:
+        idx -= uint32_t(db_metadata()->fast_list_begin()->insertion_count());
+        break;
+    case chunk_list::slow:
+        idx -= uint32_t(db_metadata()->slow_list_begin()->insertion_count());
+        break;
+    }
+    auto const &map = insertion_count_to_chunk_id_[uint8_t(list)];
+    if (idx >= map.size()) {
+        return uint32_t(-1);
+    }
+    return map[idx];
+}
+
 std::pair<UpdateAux::chunk_list, detail::unsigned_20>
 UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
 {
@@ -50,32 +72,8 @@ void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
     };
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
-    if (list == chunk_list::free) {
-        auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
-        auto capacity = chunk->capacity();
-        assert(chunk->size() == 0);
-        db_metadata_[0]->free_capacity_add_(capacity);
-        db_metadata_[1]->free_capacity_add_(capacity);
-    }
-}
-
-void UpdateAux::prepend(chunk_list list, uint32_t idx) noexcept
-{
-    auto do_ = [&](detail::db_metadata *m) {
-        switch (list) {
-        case chunk_list::free:
-            m->prepend_(m->free_list, m->at_(idx));
-            break;
-        case chunk_list::fast:
-            m->prepend_(m->fast_list, m->at_(idx));
-            break;
-        case chunk_list::slow:
-            m->prepend_(m->slow_list, m->at_(idx));
-            break;
-        }
-    };
-    do_(db_metadata_[0]);
-    do_(db_metadata_[1]);
+    auto &map = insertion_count_to_chunk_id_[uint8_t(list)];
+    map.emplace_back(idx);
     if (list == chunk_list::free) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
@@ -87,13 +85,25 @@ void UpdateAux::prepend(chunk_list list, uint32_t idx) noexcept
 
 void UpdateAux::remove(uint32_t idx) noexcept
 {
-    bool const is_free_list =
-        (!db_metadata_[0]->at_(idx)->in_fast_list &&
-         !db_metadata_[0]->at_(idx)->in_slow_list);
+    bool const in_fast_list = db_metadata_[0]->at_(idx)->in_fast_list;
+    bool const in_slow_list = db_metadata_[0]->at_(idx)->in_slow_list;
+    bool const in_free_list = !in_fast_list && !in_slow_list;
+    chunk_list const list =
+        in_free_list ? chunk_list::free
+                     : (in_fast_list ? chunk_list::fast : chunk_list::slow);
     auto do_ = [&](detail::db_metadata *m) { m->remove_(m->at_(idx)); };
+    auto &map = insertion_count_to_chunk_id_[uint8_t(list)];
+    MONAD_DEBUG_ASSERT(
+        uint32_t(map.front()) == idx || uint32_t(map.back()) == idx);
+    if (uint32_t(map.back()) == idx) {
+        map.pop_back();
+    }
+    else {
+        map.pop_front();
+    }
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
-    if (is_free_list) {
+    if (in_free_list) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
         assert(chunk->size() == 0);
@@ -110,7 +120,7 @@ void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
         auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
         io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
-        prepend(chunk_list::free, idx);
+        append(chunk_list::free, idx);
     }
     auto fast_offset_chunk =
         io->storage_pool().chunk(storage_pool::seq, fast_offset.id);
@@ -131,7 +141,7 @@ void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
         auto const idx = db_metadata_[0]->slow_list.end;
         remove(idx);
         io->storage_pool().chunk(storage_pool::seq, idx)->destroy_contents();
-        prepend(chunk_list::free, idx);
+        append(chunk_list::free, idx);
     }
     auto slow_offset_chunk =
         io->storage_pool().chunk(storage_pool::seq, slow_offset.id);
@@ -267,13 +277,31 @@ void UpdateAux::set_io(AsyncIO *io_)
         memcpy(db_metadata_[0]->magic, "MND0", 4);
         memcpy(db_metadata_[1]->magic, "MND0", 4);
     }
+    else {
+        auto build_insertion_count_to_chunk_id =
+            [&](auto &lst, detail::db_metadata::chunk_info_t const *i) {
+                for (; i != nullptr; i = i->next(db_metadata())) {
+                    lst.emplace_back(i->index(db_metadata()));
+                }
+            };
+        build_insertion_count_to_chunk_id(
+            insertion_count_to_chunk_id_[uint8_t(chunk_list::free)],
+            db_metadata()->free_list_begin());
+        build_insertion_count_to_chunk_id(
+            insertion_count_to_chunk_id_[uint8_t(chunk_list::fast)],
+            db_metadata()->fast_list_begin());
+        build_insertion_count_to_chunk_id(
+            insertion_count_to_chunk_id_[uint8_t(chunk_list::slow)],
+            db_metadata()->slow_list_begin());
+    }
     // If the pool has changed since we configured the metadata, this will fail
     MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
+
     // Default behavior: initialize node writers to start at the front of
     // slow and fast list respectively, and they will be reset later in
     // `rewind_to_match_offset()`.
-    // Make sure the initial fast/slow offset points into a block in use as a
-    // sanity check
+    // Make sure the initial fast/slow offset points into a block in use as
+    // a sanity check
     auto init_node_writer =
         [&](bool const is_fast) -> node_writer_unique_ptr_type {
         chunk_offset_t const node_writer_offset{

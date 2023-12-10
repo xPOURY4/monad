@@ -13,6 +13,7 @@
 
 #include <monad/core/unordered_map.hpp>
 
+#include <boost/container/devector.hpp>
 #include <boost/fiber/future.hpp>
 
 #include <cstdint>
@@ -68,12 +69,14 @@ class UpdateAux
         nullptr, nullptr}; // two copies, to prevent sudden process
                            // exits making the DB irretrievable
 
+    ::boost::container::devector<uint32_t> insertion_count_to_chunk_id_[3];
+
 public:
-    enum class chunk_list
+    enum class chunk_list : uint8_t
     {
-        free,
-        fast,
-        slow
+        free = 0,
+        fast = 1,
+        slow = 2
     };
 
     detail::db_metadata const *db_metadata() const noexcept
@@ -81,11 +84,14 @@ public:
         return db_metadata_[0];
     }
 
+    uint32_t chunk_id_from_insertion_count(
+        chunk_list list_type,
+        detail::unsigned_20 insertion_count) const noexcept;
+
     std::pair<chunk_list, detail::unsigned_20>
     chunk_list_and_age(uint32_t idx) const noexcept;
 
     void append(chunk_list list, uint32_t idx) noexcept;
-    void prepend(chunk_list list, uint32_t idx) noexcept;
     void remove(uint32_t idx) noexcept;
 
     void advance_offsets_to(
@@ -158,7 +164,7 @@ public:
     }
 };
 
-static_assert(sizeof(UpdateAux) == 48);
+static_assert(sizeof(UpdateAux) == 144);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
