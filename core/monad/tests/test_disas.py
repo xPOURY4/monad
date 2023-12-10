@@ -93,8 +93,43 @@ def _create_test_class(test_dir):
             return result
 
         @staticmethod
+        def _gen_result_objdump(test_id):
+            obj, syms = TestDisas._load_test(test_id)
+            obj = path.join("**", obj)
+            objs = glob(obj, recursive=True)
+            assert len(objs) == 1
+            obj = objs[0]
+            cmd = [
+                "objdump",
+                "--demangle",
+                "--disassemble",
+                "--reloc",
+                "--no-addresses",
+                obj,
+            ]
+            result = check_output(cmd)
+            result = result.decode("ascii")
+            result = result.splitlines()
+
+            result2 = []
+            match = False
+            for line in result:
+                if not match:
+                    for sym in syms:
+                        if "<%s>:" % (sym,) in line:
+                            match = True
+                            break
+                if match:
+                    result2.append(line)
+                    if not line.strip():
+                        match = False
+
+            result = "\n".join(result2)
+            return result
+
+        @staticmethod
         def _save_result(test_id):
-            result = TestDisas._gen_result(test_id)
+            result = TestDisas._gen_result_objdump(test_id)
             result_file = path.join(TestDisas._test_dir, "%s.dis" % (test_id,))
             with open(result_file, "w") as f:
                 f.write(result)
@@ -102,7 +137,7 @@ def _create_test_class(test_dir):
         @staticmethod
         def _run_test(test_id):
             expected_result = TestDisas._load_result(test_id)
-            current_result = TestDisas._gen_result(test_id)
+            current_result = TestDisas._gen_result_objdump(test_id)
             assert expected_result == current_result
 
     setattr(TestDisas, "_test_dir", test_dir)
