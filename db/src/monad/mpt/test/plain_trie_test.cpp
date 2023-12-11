@@ -19,6 +19,14 @@ using namespace monad::mpt;
 using namespace monad::literals;
 using namespace monad::test;
 
+template <typename TFixture>
+struct PlainTrieTest : public TFixture
+{
+};
+
+using PlainTrieTypes = ::testing::Types<InMemoryTrieGTest, OnDiskTrieGTest>;
+TYPED_TEST_SUITE(PlainTrieTest, PlainTrieTypes);
+
 namespace updates
 {
     std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
@@ -33,61 +41,58 @@ namespace updates
     };
 }
 
-TEST(InMemoryPlainTrie, leaf_nodes_persist)
+TYPED_TEST(PlainTrieTest, leaf_nodes_persist)
 {
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    Node::UniquePtr root;
-
-    root = upsert_updates(
-        aux,
-        sm,
-        nullptr,
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(0x11_hex, monad::byte_string_view{}),
         make_update(0x1111_hex, monad::byte_string_view{}),
         make_update(0x1122_hex, monad::byte_string_view{}));
-    EXPECT_EQ(root->mask, 0b110);
+    EXPECT_EQ(this->root->mask, 0b110);
 
-    root = upsert_updates(aux, sm, std::move(root), make_erase(0x1111_hex));
-    EXPECT_EQ(root->mask, 0b100);
+    this->root = upsert_updates(
+        this->aux, this->sm, std::move(this->root), make_erase(0x1111_hex));
+    EXPECT_EQ(this->root->mask, 0b100);
 }
 
-TEST(InMemoryPlainTrie, var_length)
+TYPED_TEST(PlainTrieTest, var_length)
 {
     auto const &kv = updates::kv;
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    Node::UniquePtr root;
-
     // insert kv 0,1,2,3
-    root = upsert_updates(
-        aux,
-        sm,
-        {},
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second),
         make_update(kv[3].first, kv[3].second));
 
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first)
+            .first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first)
+            .first->value(),
         kv[3].second);
 
-    EXPECT_EQ(root->mask, 0b11);
-    EXPECT_EQ(root->value_len, 0);
-    EXPECT_EQ(root->data_len, 0);
-    EXPECT_EQ(root->path_bytes(), 0);
-    Node *node0 = root->next(0);
-    Node *node1 = root->next(1);
+    EXPECT_EQ(this->root->mask, 0b11);
+    EXPECT_EQ(this->root->value_len, 0);
+    EXPECT_EQ(this->root->data_len, 0);
+    EXPECT_EQ(this->root->path_bytes(), 0);
+    Node *node0 = this->root->next(0);
+    Node *node1 = this->root->next(1);
     EXPECT_EQ(node0->mask, 0);
     EXPECT_EQ(
         node0->path_nibble_view(), (NibblesView{1, 8, kv[0].first.data()}));
@@ -117,33 +122,39 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(node1aacd->value(), kv[3].second);
 
     // insert kv 4,5
-    root = upsert_updates(
-        aux,
-        sm,
-        std::move(root),
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first)
+            .first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first)
+            .first->value(),
         kv[3].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[4].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[4].first)
+            .first->value(),
         kv[4].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[5].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[5].first)
+            .first->value(),
         kv[5].second);
 
-    EXPECT_EQ(root->mask, 0b11);
-    node1 = root->next(1); // 1111... 111a... 111b...
+    EXPECT_EQ(this->root->mask, 0b11);
+    node1 = this->root->next(1); // 1111... 111a... 111b...
     EXPECT_EQ(node1->mask, 1u << 1 | 1u << 0xa | 1u << 0xb);
     Node *node1111 = node1->next(0);
     Node *node111a = node1->next(1);
@@ -155,23 +166,26 @@ TEST(InMemoryPlainTrie, var_length)
     EXPECT_EQ(node111b->value(), kv[5].second);
 
     // insert kv 6,7
-    root = upsert_updates(
-        aux,
-        sm,
-        std::move(root),
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[5].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[5].first)
+            .first->value(),
         kv[5].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[6].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[6].first)
+            .first->value(),
         kv[6].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[7].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[7].first)
+            .first->value(),
         kv[7].second);
 
-    node1 = root->next(root->to_child_index(1));
+    node1 = this->root->next(this->root->to_child_index(1));
     node111b = node1->next(node1->to_child_index(0xb));
     EXPECT_EQ(node111b->mask, 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
@@ -186,7 +200,7 @@ TEST(InMemoryPlainTrie, var_length)
         (NibblesView{9, 16, kv[7].first.data()}));
 }
 
-TEST(InMemoryPlainTrie, mismatch)
+TYPED_TEST(PlainTrieTest, mismatch)
 {
     std::vector<std::pair<monad::byte_string, monad::byte_string>> const kv{
         {0x12345678_hex, 0xdead_hex}, // 0
@@ -196,9 +210,6 @@ TEST(InMemoryPlainTrie, mismatch)
         {0x123aabcd_hex, 0xbabe_hex}, // 4
     };
 
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    Node::UniquePtr root;
     /* insert 12345678, 12346678, 12445678
             12
           /    \
@@ -206,28 +217,32 @@ TEST(InMemoryPlainTrie, mismatch)
         / \
     5678  6678
     */
-    root = upsert_updates(
-        aux,
-        sm,
-        {},
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first)
+            .first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first->value(),
         kv[2].second);
 
-    EXPECT_EQ(root->mask, 0b11000);
+    EXPECT_EQ(this->root->mask, 0b11000);
     EXPECT_EQ(
-        root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
-    EXPECT_EQ(root->next(1)->value(), kv[2].second);
-    Node *left_leaf = root->next(0)->next(0);
+        this->root->path_nibble_view(),
+        (NibblesView{0, 2, kv[0].first.data()}));
+    EXPECT_EQ(this->root->next(1)->value(), kv[2].second);
+    Node *left_leaf = this->root->next(0)->next(0);
     EXPECT_EQ(left_leaf->value(), kv[0].second);
     /* insert 12347678, 123aabcd
                   12
@@ -238,29 +253,34 @@ TEST(InMemoryPlainTrie, mismatch)
           / | \
       5678 6678 7678
     */
-    root = upsert_updates(
-        aux,
-        sm,
-        std::move(root),
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[3].first, kv[3].second),
         make_update(kv[4].first, kv[4].second));
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first->value(),
         kv[2].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first)
+            .first->value(),
         kv[3].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[4].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[4].first)
+            .first->value(),
         kv[4].second);
 
-    EXPECT_EQ(root->mask, 0b11000);
+    EXPECT_EQ(this->root->mask, 0b11000);
     EXPECT_EQ(
-        root->path_nibble_view(), (NibblesView{0, 2, kv[0].first.data()}));
-    Node *node3 = root->next(0);
+        this->root->path_nibble_view(),
+        (NibblesView{0, 2, kv[0].first.data()}));
+    Node *node3 = this->root->next(0);
     EXPECT_EQ(node3->mask, 1u << 4 | 1u << 0xa);
     EXPECT_EQ(node3->data_len, 0);
     EXPECT_EQ(node3->path_bytes(), 0);
@@ -274,18 +294,15 @@ TEST(InMemoryPlainTrie, mismatch)
     EXPECT_EQ(node34->next(2)->value(), kv[3].second);
 }
 
-TEST(InMemoryPlainTrie, delete_wo_incarnation)
+TYPED_TEST(PlainTrieTest, delete_wo_incarnation)
 {
     auto const &kv = updates::kv;
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    Node::UniquePtr root;
 
     // insert all
-    root = upsert_updates(
-        aux,
-        sm,
-        nullptr,
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
         make_update(kv[2].first, kv[2].second),
@@ -295,84 +312,98 @@ TEST(InMemoryPlainTrie, delete_wo_incarnation)
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
     // erase 0
-    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[0].first));
-    EXPECT_EQ(root->mask, 2 | 1u << 0xa | 1u << 0xb);
+    this->root = upsert_updates(
+        this->aux, this->sm, std::move(this->root), make_erase(kv[0].first));
+    EXPECT_EQ(this->root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
-        root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
+        this->root->path_nibble_view(),
+        (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
-    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[5].first));
-    EXPECT_EQ(root->mask, 2 | 1u << 0xa);
+    this->root = upsert_updates(
+        this->aux, this->sm, std::move(this->root), make_erase(kv[5].first));
+    EXPECT_EQ(this->root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
-        root->path_nibble_view(), (NibblesView{0, 3, kv[1].first.data()}));
+        this->root->path_nibble_view(),
+        (NibblesView{0, 3, kv[1].first.data()}));
 
     // erase 1, consequently 2,3 are erased
-    root = upsert_updates(aux, sm, std::move(root), make_erase(kv[1].first));
-    EXPECT_EQ(root->mask, 0);
-    EXPECT_EQ(root->value(), kv[4].second);
+    this->root = upsert_updates(
+        this->aux, this->sm, std::move(this->root), make_erase(kv[1].first));
+    EXPECT_EQ(this->root->mask, 0);
+    EXPECT_EQ(this->root->value(), kv[4].second);
     EXPECT_EQ(
-        root->path_nibble_view(), (NibblesView{0, 8, kv[4].first.data()}));
+        this->root->path_nibble_view(),
+        (NibblesView{0, 8, kv[4].first.data()}));
 }
 
-TEST(InMemoryPlainTrie, delete_with_incarnation)
+TYPED_TEST(PlainTrieTest, delete_with_incarnation)
 {
     // upsert a bunch of var lengths kv
     auto const &kv = updates::kv;
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    Node::UniquePtr root;
-
     // insert
-    root = upsert_updates(
-        aux,
-        sm,
-        {},
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[0].first, kv[0].second), // 0x01111111
         make_update(kv[1].first, kv[1].second), // 0x11111111
         make_update(kv[2].first, kv[2].second)); // 0x11111111aaaa
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first)
+            .first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[2].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first->value(),
         kv[2].second);
 
     // upsert a bunch of new kvs, with incarnation flag set
-    root = upsert_updates(
-        aux,
-        sm,
-        std::move(root),
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
         make_update(kv[1].first, kv[1].second, true), // 0x11111111
         make_update(kv[3].first, kv[3].second)); // 0x11111111aacd
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[0].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[0].first)
+            .first->value(),
         kv[0].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[1].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[1].first)
+            .first->value(),
         kv[1].second);
     EXPECT_EQ(
-        find_blocking(nullptr, root.get(), kv[3].first).first->value(),
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[3].first)
+            .first->value(),
         kv[3].second);
-    EXPECT_EQ(find_blocking(nullptr, root.get(), kv[2].first).first, nullptr);
+    EXPECT_EQ(
+        find_blocking(this->get_storage_pool(), this->root.get(), kv[2].first)
+            .first,
+        nullptr);
 }
 
-TEST(InMemoryPlainTrie, large_values)
+TYPED_TEST(PlainTrieTest, large_values)
 {
     auto const key1 = 0x12_hex;
     auto const key2 = 0x13_hex;
     auto const value1 = monad::byte_string(0x6000, 0xf);
     auto const value2 = monad::byte_string(0x6000, 0x3);
 
-    StateMachineAlwaysEmpty sm{};
-    UpdateAux aux{};
-    auto const root = upsert_updates(
-        aux, sm, {}, make_update(key1, value1), make_update(key2, value2));
+    this->root = upsert_updates(
+        this->aux,
+        this->sm,
+        std::move(this->root),
+        make_update(key1, value1),
+        make_update(key2, value2));
 
     {
-        auto [leaf, res] = find_blocking(nullptr, root.get(), key1);
+        auto [leaf, res] =
+            find_blocking(this->get_storage_pool(), this->root.get(), key1);
         EXPECT_EQ(res, find_result::success);
         EXPECT_NE(leaf, nullptr);
         EXPECT_TRUE(leaf->has_value());
@@ -380,7 +411,8 @@ TEST(InMemoryPlainTrie, large_values)
     }
 
     {
-        auto [leaf, res] = find_blocking(nullptr, root.get(), key2);
+        auto [leaf, res] =
+            find_blocking(this->get_storage_pool(), this->root.get(), key2);
         EXPECT_EQ(res, find_result::success);
         EXPECT_NE(leaf, nullptr);
         EXPECT_TRUE(leaf->has_value());
