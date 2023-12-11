@@ -6,14 +6,25 @@
 
 namespace monad::test
 {
-    struct InMemoryTrieGTest : public InMemoryTrieBase<::testing::Test>
+    struct InMemoryMerkleTrieGTest
+        : public MerkleTrie<InMemoryTrieBase<::testing::Test>>
     {
-        using InMemoryTrieBase<::testing::Test>::InMemoryTrieBase;
+        using MerkleTrie<InMemoryTrieBase<::testing::Test>>::InMemoryTrieBase;
     };
 
-    struct OnDiskTrieGTest : public OnDiskTrieBase<::testing::Test>
+    struct OnDiskMerkleTrieGTest
+        : public MerkleTrie<OnDiskTrieBase<::testing::Test>>
     {
-        using OnDiskTrieBase<::testing::Test>::OnDiskTrieBase;
+        using MerkleTrie<OnDiskTrieBase<::testing::Test>>::OnDiskTrieBase;
+    };
+
+    struct InMemoryTrieGTest
+        : public PlainTrie<InMemoryTrieBase<::testing::Test>>
+    {
+    };
+
+    struct OnDiskTrieGTest : public PlainTrie<OnDiskTrieBase<::testing::Test>>
+    {
     };
 
     template <size_t chunks_to_fill, bool alternate_slow_fast_writer = false>

@@ -23,6 +23,7 @@ namespace monad::test
         struct is_std_vector : std::false_type
         {
         };
+
         template <class T, class Allocator>
         struct is_std_vector<std::vector<T, Allocator>> : std::true_type
         {
@@ -32,6 +33,7 @@ namespace monad::test
         struct is_std_array : std::false_type
         {
         };
+
         template <class T, size_t N>
         struct is_std_array<std::array<T, N>> : std::true_type
         {
@@ -41,6 +43,7 @@ namespace monad::test
         struct is_std_map : std::false_type
         {
         };
+
         template <class Key, class T, class Compare, class Allocator>
         struct is_std_map<std::map<Key, T, Compare, Allocator>> : std::true_type
         {
@@ -87,6 +90,7 @@ namespace monad::test
             }
             return ret;
         }
+
         template <class T>
             requires(
                 detail::is_std_array<T>::value &&
@@ -101,6 +105,7 @@ namespace monad::test
             }
             return ret;
         }
+
         template <class T>
             requires(
                 detail::is_std_vector<T>::value &&
@@ -117,6 +122,7 @@ namespace monad::test
             }
             return ret;
         }
+
         template <class T>
             requires(detail::is_std_map<T>::value)
         T
@@ -290,6 +296,7 @@ namespace monad::test
     };
 
     using in_memory_trie_fixture_t =
-        trie_fuzzer_fixture<InMemoryTrieBase<Nothing>>;
-    using on_disk_fixture_t = trie_fuzzer_fixture<OnDiskTrieBase<Nothing>>;
+        trie_fuzzer_fixture<MerkleTrie<InMemoryTrieBase<Nothing>>>;
+    using on_disk_fixture_t =
+        trie_fuzzer_fixture<MerkleTrie<OnDiskTrieBase<Nothing>>>;
 }

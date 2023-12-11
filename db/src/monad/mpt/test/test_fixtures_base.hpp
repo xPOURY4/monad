@@ -130,32 +130,16 @@ namespace monad::test
     public:
         Node::UniquePtr root;
         UpdateAux aux;
-        StateMachineWithBlockNo sm;
 
         InMemoryTrieBase()
             : root()
             , aux(nullptr)
-            , sm(1)
         {
         }
 
         void reset()
         {
             root.reset();
-        }
-
-        monad::byte_string root_hash()
-        {
-            if (this->root.get()) {
-                monad::byte_string res(32, 0);
-                auto const len = this->sm.get_compute().compute(
-                    res.data(), this->root.get());
-                if (len < KECCAK256_SIZE) {
-                    keccak256(res.data(), len, res.data());
-                }
-                return res;
-            }
-            return empty_trie_hash;
         }
 
         constexpr bool on_disk() const
@@ -182,7 +166,6 @@ namespace monad::test
     public:
         Node::UniquePtr root;
         UpdateAux aux;
-        StateMachineWithBlockNo sm;
 
         OnDiskTrieBase()
             : ring(monad::io::Ring(2, 0))
@@ -193,7 +176,6 @@ namespace monad::test
             , io(pool, ring, rwbuf)
             , root()
             , aux(&io)
-            , sm(1)
         {
         }
 
@@ -201,6 +183,23 @@ namespace monad::test
         {
             root.reset();
         }
+
+        constexpr bool on_disk() const
+        {
+            return aux.is_on_disk();
+        }
+
+        constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool()
+        {
+            return &io.storage_pool();
+        }
+    };
+
+    template <class Base>
+    class MerkleTrie : public Base
+    {
+    public:
+        StateMachineWithBlockNo sm{1};
 
         monad::byte_string root_hash()
         {
@@ -215,16 +214,13 @@ namespace monad::test
             }
             return empty_trie_hash;
         }
+    };
 
-        constexpr bool on_disk() const
-        {
-            return aux.is_on_disk();
-        }
-
-        constexpr MONAD_ASYNC_NAMESPACE::storage_pool *get_storage_pool()
-        {
-            return &io.storage_pool();
-        }
+    template <class Base>
+    class PlainTrie : public Base
+    {
+    public:
+        StateMachineAlwaysEmpty sm;
     };
 
     template <typename BaseTrie>

@@ -52,7 +52,7 @@ namespace
         }
     };
 
-    TEST_F(OnDiskTrieGTest, single_thread_one_find_fiber)
+    TEST_F(OnDiskMerkleTrieGTest, single_thread_one_find_fiber)
     {
         std::vector<Update> updates;
         for (auto const &i : one_hundred_updates) {
@@ -79,7 +79,7 @@ namespace
         poll_fiber.join();
     }
 
-    TEST_F(OnDiskTrieGTest, single_thread_one_hundred_find_fibers)
+    TEST_F(OnDiskMerkleTrieGTest, single_thread_one_hundred_find_fibers)
     {
         std::vector<Update> updates;
         for (auto const &i : one_hundred_updates) {

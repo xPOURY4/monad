@@ -39,7 +39,8 @@ struct ManyNestedUpdates : public TFixture
 {
 };
 
-using TrieTypes = ::testing::Types<InMemoryTrieGTest, OnDiskTrieGTest>;
+using TrieTypes =
+    ::testing::Types<InMemoryMerkleTrieGTest, OnDiskMerkleTrieGTest>;
 TYPED_TEST_SUITE(ManyNestedUpdates, TrieTypes);
 
 inline ::boost::json::value read_corpus(std::string_view suffix)
@@ -84,6 +85,7 @@ reserve_storage(std::vector<Update> &storage, ::boost::json::object const &m)
             i.value());
     }
 }
+
 inline UpdateList
 prepare_upsert(std::vector<Update> &storage, ::boost::json::object const &m)
 {

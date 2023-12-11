@@ -22,7 +22,8 @@ struct TrieTest : public TFixture
 {
 };
 
-using TrieTypes = ::testing::Types<InMemoryTrieGTest, OnDiskTrieGTest>;
+using TrieTypes =
+    ::testing::Types<InMemoryMerkleTrieGTest, OnDiskMerkleTrieGTest>;
 TYPED_TEST_SUITE(TrieTest, TrieTypes);
 
 template <typename TFixture>
@@ -31,7 +32,7 @@ struct EraseTrieTest : public TFixture
 };
 
 using EraseTrieType = ::testing::Types<
-    EraseFixture<InMemoryTrieGTest>, EraseFixture<OnDiskTrieGTest>>;
+    EraseFixture<InMemoryMerkleTrieGTest>, EraseFixture<OnDiskMerkleTrieGTest>>;
 TYPED_TEST_SUITE(EraseTrieTest, EraseTrieType);
 
 TYPED_TEST(TrieTest, nested_leave_one_child_on_branch_with_leaf)
