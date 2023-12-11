@@ -23,8 +23,7 @@ namespace monad::test
         }
     };
 
-    using MerkleCompute =
-        ::monad::mpt::detail::MerkleComputeBase<DummyComputeLeafData>;
+    using MerkleCompute = ::monad::mpt::MerkleComputeBase<DummyComputeLeafData>;
 
     struct EmptyCompute final : Compute
     {
