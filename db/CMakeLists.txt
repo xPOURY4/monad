@@ -86,7 +86,6 @@ endfunction()
 
 add_subdirectory("src/monad/mpt/test")
 add_subdirectory("src/monad/async/test")
-add_subdirectory("perf_test")
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   add_subdirectory("src/monad/mpt/test/fuzz")

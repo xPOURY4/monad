@@ -13,3 +13,11 @@ add_trie_test(TARGET node_test SOURCES "node_test.cpp")
 add_trie_test(TARGET plain_trie_test SOURCES "plain_trie_test.cpp")
 add_trie_test(TARGET traverse_test SOURCES "traverse_test.cpp")
 add_trie_test(TARGET unsigned_20_test SOURCES "unsigned_20_test.cpp")
+
+find_package(CLI11 REQUIRED)
+
+# monad trie perf test
+add_executable(monad_trie_test "monad_trie_test.cpp")
+monad_core_compile_options(monad_trie_test)
+
+target_link_libraries(monad_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie)
