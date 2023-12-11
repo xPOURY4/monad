@@ -256,7 +256,7 @@ namespace monad::test
             MONAD_ASYNC_NAMESPACE::storage_pool pool{
                 MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{},
                 MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-            monad::io::Ring ring{2, 0};
+            monad::io::Ring ring{1, 0};
             monad::io::Buffers rwbuf{
                 ring,
                 2,
