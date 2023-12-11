@@ -63,8 +63,8 @@ void create_new_trie_from_requests_(
 
 void upsert_(
     UpdateAux &, TrieStateMachine &, UpwardTreeNode &parent, ChildData &,
-    Node::UniquePtr old, UpdateList &&, unsigned prefix_index = 0,
-    unsigned old_prefix_index = 0);
+    Node::UniquePtr old, chunk_offset_t offset, UpdateList &&,
+    unsigned prefix_index = 0, unsigned old_prefix_index = 0);
 
 void create_node_compute_data_possibly_async(
     UpdateAux &, TrieStateMachine &, UpwardTreeNode &parent, ChildData &,
@@ -92,7 +92,14 @@ Node::UniquePtr upsert(
     ChildData &entry = sentinel->children[0];
     entry.set_branch_and_section(0, sm.get_state());
     if (old) {
-        upsert_(aux, sm, *sentinel, entry, std::move(old), std::move(updates));
+        upsert_(
+            aux,
+            sm,
+            *sentinel,
+            entry,
+            std::move(old),
+            INVALID_OFFSET,
+            std::move(updates));
         if (sentinel->npending) {
             aux.io->flush();
             MONAD_ASSERT(sentinel->npending == 0);
@@ -181,6 +188,7 @@ struct update_receiver
             *parent,
             entry,
             std::move(old),
+            INVALID_OFFSET,
             std::move(updates),
             prefix_index,
             old_prefix_index);
@@ -498,11 +506,25 @@ void create_new_trie_from_requests_(
 
 void upsert_(
     UpdateAux &aux, TrieStateMachine &sm, UpwardTreeNode &parent,
-    ChildData &entry, Node::UniquePtr old, UpdateList &&updates,
-    unsigned prefix_index, unsigned old_prefix_index)
+    ChildData &entry, Node::UniquePtr old, chunk_offset_t const old_offset,
+    UpdateList &&updates, unsigned prefix_index, unsigned old_prefix_index)
 {
-    MONAD_DEBUG_ASSERT(old);
-    MONAD_DEBUG_ASSERT(old_prefix_index != INVALID_PATH_INDEX);
+    if (!old) {
+        update_receiver receiver(
+            &aux,
+            sm.clone(),
+            entry,
+            old_offset,
+            std::move(updates),
+            &parent,
+            prefix_index);
+        async_read(aux, std::move(receiver));
+        return;
+    }
+    if (old_prefix_index == INVALID_PATH_INDEX) {
+        old_prefix_index = old->path_start_nibble();
+        MONAD_DEBUG_ASSERT(old_prefix_index != INVALID_PATH_INDEX);
+    }
     unsigned const old_prefix_index_start = old_prefix_index;
     Requests requests;
     while (true) {
@@ -597,30 +619,16 @@ void dispatch_updates_impl_(
         if (bit & requests.mask) {
             children[j].set_branch_and_section(i, sm.get_state());
             if (bit & old->mask) {
-                Node::UniquePtr next_ = old->next_ptr(old->to_child_index(i));
-                if (!next_) {
-                    update_receiver receiver(
-                        &aux,
-                        sm.clone(),
-                        children[j],
-                        old->fnext(old->to_child_index(i)),
-                        std::move(requests)[i],
-                        tnode.get(),
-                        prefix_index + 1);
-                    async_read(aux, std::move(receiver));
-                    ++j;
-                    continue;
-                }
-                unsigned const next_prefix_index = next_->path_start_nibble();
                 upsert_(
                     aux,
                     sm,
                     *tnode,
                     children[j],
-                    std::move(next_),
+                    old->next_ptr(old->to_child_index(i)),
+                    old->fnext(old->to_child_index(i)),
                     std::move(requests)[i],
                     prefix_index + 1,
-                    next_prefix_index);
+                    INVALID_PATH_INDEX);
             }
             else {
                 create_new_trie_(
@@ -727,6 +735,7 @@ void mismatch_handler_(
                     *tnode,
                     children[j],
                     std::move(old_ptr),
+                    INVALID_OFFSET,
                     std::move(requests)[i],
                     prefix_index + 1,
                     old_prefix_index + 1);
