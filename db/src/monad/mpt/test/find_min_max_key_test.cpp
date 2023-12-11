@@ -6,6 +6,8 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
 
+#include <vector>
+
 using namespace ::monad::test;
 
 template <typename TFixture>

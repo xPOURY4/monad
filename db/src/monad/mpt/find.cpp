@@ -82,7 +82,7 @@ find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
         path = concat(
             NibblesView{path},
             node->path_nibble_view(),
-            (unsigned char)std::countr_zero(node->mask));
+            static_cast<unsigned char>(std::countr_zero(node->mask)));
         // go to next node
         if (!node->next(0)) {
             MONAD_ASSERT(pool);

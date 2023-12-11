@@ -197,10 +197,6 @@ int main(int argc, char *argv[])
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
         cli.add_flag("--append", append, "append at a specific block in db");
         cli.add_option(
-            "--block-no",
-            block_no,
-            "start at a specific block_no, append to block_no-1");
-        cli.add_option(
             "--db-names",
             dbname_paths,
             "db file names, can have more than one");
@@ -338,23 +334,10 @@ int main(int argc, char *argv[])
             // node_writer's offset.
             aux.rewind_to_match_offset(fast_offset);
 
-            // Find the min max block_no path in db, verify validity of block-no
-            Nibbles min_block =
-                find_min_key_blocking(&io.storage_pool(), *root);
-            auto const min_block_num =
-                deserialize_from_big_endian<uint64_t>(min_block);
             Nibbles max_block =
                 find_max_key_blocking(&io.storage_pool(), *root);
-            auto const max_block_num =
-                deserialize_from_big_endian<uint64_t>(max_block);
-            // Next starting block_no must be
-            // min_block_num < block_no <= max_block_num + 1
-            if (block_no > max_block_num + 1 || block_no <= min_block_num) {
-                std::stringstream str;
-                str << "Invalid block-no input, must choose in ("
-                    << min_block_num << "," << max_block_num << "]";
-                throw std::runtime_error(std::move(str).str());
-            }
+            // always start from the last valid block num + 1
+            block_no = deserialize_from_big_endian<uint64_t>(max_block) + 1;
         }
 
         auto begin_test = std::chrono::steady_clock::now();
