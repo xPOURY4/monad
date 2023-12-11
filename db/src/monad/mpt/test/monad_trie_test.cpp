@@ -1,4 +1,4 @@
-#include <CLI/CLI.hpp>
+#include "test_fixtures_base.hpp"
 
 #include <monad/async/config.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
@@ -14,6 +14,8 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
+
+#include <CLI/CLI.hpp>
 
 #include <algorithm>
 #include <bit>
@@ -318,7 +320,7 @@ int main(int argc, char *argv[])
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
         UpdateAux aux{};
-        StateMachineWithBlockNo sm{};
+        monad::test::StateMachineWithBlockNo sm{};
         if (!in_memory) {
             aux.set_io(&io);
         }

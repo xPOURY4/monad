@@ -13,6 +13,150 @@ namespace monad::test
     using namespace monad::mpt;
     using namespace monad::literals;
 
+    struct DummyComputeLeafData
+    {
+        // TEMPORARY for POC
+        // compute leaf data as - concat(input_leaf, hash);
+        static byte_string compute(Node const &node)
+        {
+            return byte_string{node.value()} + byte_string{node.data()};
+        }
+    };
+
+    using MerkleCompute =
+        ::monad::mpt::detail::MerkleComputeBase<DummyComputeLeafData>;
+
+    struct EmptyCompute final : Compute
+    {
+        virtual unsigned
+        compute_len(std::span<ChildData> const, uint16_t const) override
+        {
+            return 0;
+        }
+
+        virtual unsigned compute_branch(unsigned char *const, Node *) override
+        {
+            return 0;
+        }
+
+        virtual unsigned compute(unsigned char *const, Node *) override
+        {
+            return 0;
+        }
+    };
+
+    class StateMachineWithBlockNo final : public TrieStateMachine
+    {
+    private:
+        enum class TrieSection : uint8_t
+    {
+        BlockNo = 0,
+        Account,
+        Storage,
+        Receipt, // not used yet
+        Invalid
+    }  default_section_, curr_section_;
+
+        static std::pair<Compute &, Compute &> candidate_computes()
+        {
+            // candidate impls to use
+            static MerkleCompute m{};
+            static EmptyCompute e{};
+            return {m, e};
+        }
+
+    public:
+        StateMachineWithBlockNo(uint8_t const sec = 0)
+            : default_section_(static_cast<TrieSection>(sec))
+            , curr_section_(default_section_)
+        {
+        }
+
+        virtual std::unique_ptr<TrieStateMachine> clone() const override
+        {
+            auto cloned = std::make_unique<StateMachineWithBlockNo>(
+                static_cast<uint8_t>(default_section_));
+            cloned->reset(this->get_state());
+            return cloned;
+        }
+
+        virtual void reset(std::optional<uint8_t> sec) override
+        {
+            curr_section_ = sec.has_value()
+                                ? static_cast<TrieSection>(sec.value())
+                                : default_section_;
+        }
+
+        virtual void forward(byte_string_view = {}) override
+        {
+            switch (curr_section_) {
+            case (TrieSection::BlockNo):
+                curr_section_ = TrieSection::Account;
+                break;
+            case (TrieSection::Account):
+                curr_section_ = TrieSection::Storage;
+                break;
+            default:
+                curr_section_ = TrieSection::Invalid;
+            }
+        }
+
+        virtual void backward() override
+        {
+            switch (curr_section_) {
+            case (TrieSection::Storage):
+                curr_section_ = TrieSection::Account;
+                break;
+            case (TrieSection::Account):
+                curr_section_ = TrieSection::BlockNo;
+                break;
+            default:
+                curr_section_ = TrieSection::Invalid;
+            }
+        }
+
+        virtual constexpr Compute &get_compute() override
+        {
+            if (curr_section_ == TrieSection::BlockNo) {
+                return candidate_computes().second;
+            }
+            else {
+                return candidate_computes().first;
+            }
+        }
+
+        virtual constexpr Compute &get_compute(uint8_t sec) override
+        {
+            auto section = static_cast<TrieSection>(sec);
+            if (section == TrieSection::BlockNo) {
+                return candidate_computes().second;
+            }
+            else {
+                return candidate_computes().first;
+            }
+        }
+
+        virtual constexpr uint8_t get_state() const override
+        {
+            return static_cast<uint8_t>(curr_section_);
+        }
+
+        virtual constexpr CacheOption get_cache_option() const override
+        {
+            switch (curr_section_) {
+            case (TrieSection::BlockNo):
+                return CacheOption::CacheAll;
+            case (TrieSection::Account):
+                return CacheOption::ApplyLevelBasedCache;
+            default:
+                return CacheOption::DisposeAll;
+            }
+        }
+    };
+
+    static_assert(sizeof(StateMachineWithBlockNo) == 16);
+    static_assert(alignof(StateMachineWithBlockNo) == 8);
+
     class StateMachineAlwaysEmpty final : public TrieStateMachine
     {
         static Compute &candidate_computes()
