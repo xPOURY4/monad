@@ -50,7 +50,7 @@ struct TrieStateMachine
     //! each value means in the state enum
     virtual uint8_t get_state() const = 0;
     //! get the current cache option in CacheOption enum type.
-    virtual CacheOption cache_option() const = 0;
+    virtual CacheOption get_cache_option() const = 0;
 };
 
 struct EmptyCompute final : Compute
@@ -416,7 +416,7 @@ public:
         return static_cast<uint8_t>(curr_section_);
     }
 
-    virtual constexpr CacheOption cache_option() const override
+    virtual constexpr CacheOption get_cache_option() const override
     {
         switch (curr_section_) {
         case (TrieSection::BlockNo):

@@ -313,7 +313,7 @@ Node *create_node_from_children_if_any(
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node
                 // with branches
-                auto cache_opt = sm.cache_option();
+                auto cache_opt = sm.get_cache_option();
                 if (number_of_children > 1 && prefix_index > 0 &&
                     (cache_opt == CacheOption::DisposeAll ||
                      (cache_opt == CacheOption::ApplyLevelBasedCache &&

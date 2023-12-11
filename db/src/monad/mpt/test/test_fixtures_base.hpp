@@ -51,7 +51,7 @@ namespace monad::test
             return 0;
         }
 
-        virtual constexpr CacheOption cache_option() const override
+        virtual constexpr CacheOption get_cache_option() const override
         {
             return CacheOption::CacheAll;
         }
