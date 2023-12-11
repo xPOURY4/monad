@@ -40,15 +40,16 @@ Node::Node(
     std::optional<byte_string_view> value, size_t const data_size,
     NibblesView const path)
     : mask(mask)
-    , value_len(static_cast<uint8_t>(
+    , value_len(static_cast<decltype(value_len)>(
           value.transform(&byte_string_view::size).value_or(0)))
-    , data_len(static_cast<uint8_t>(data_size))
+    , data_len(static_cast<decltype(data_len)>(data_size))
     , path_nibble_index_end(path.end_nibble_)
 {
-    MONAD_DEBUG_ASSERT(data_size <= std::numeric_limits<uint8_t>::max());
+    MONAD_DEBUG_ASSERT(
+        data_size <= std::numeric_limits<decltype(data_len)>::max());
     MONAD_DEBUG_ASSERT(
         value.transform(&byte_string_view::size).value_or(0) <=
-        std::numeric_limits<uint8_t>::max());
+        std::numeric_limits<decltype(value_len)>::max());
 
     bitpacked.path_nibble_index_start = path.begin_nibble_;
     bitpacked.has_value = value.has_value();

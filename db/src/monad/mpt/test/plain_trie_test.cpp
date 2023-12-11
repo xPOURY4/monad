@@ -358,3 +358,32 @@ TEST(InMemoryPlainTrie, delete_with_incarnation)
         kv[3].second);
     EXPECT_EQ(find_blocking(nullptr, root.get(), kv[2].first).first, nullptr);
 }
+
+TEST(InMemoryPlainTrie, large_values)
+{
+    auto const key1 = 0x12_hex;
+    auto const key2 = 0x13_hex;
+    auto const value1 = monad::byte_string(0x6000, 0xf);
+    auto const value2 = monad::byte_string(0x6000, 0x3);
+
+    StateMachineAlwaysEmpty sm{};
+    UpdateAux aux{};
+    auto const root = upsert_updates(
+        aux, sm, {}, make_update(key1, value1), make_update(key2, value2));
+
+    {
+        auto [leaf, res] = find_blocking(nullptr, root.get(), key1);
+        EXPECT_EQ(res, find_result::success);
+        EXPECT_NE(leaf, nullptr);
+        EXPECT_TRUE(leaf->has_value());
+        EXPECT_EQ(leaf->value(), value1);
+    }
+
+    {
+        auto [leaf, res] = find_blocking(nullptr, root.get(), key2);
+        EXPECT_EQ(res, find_result::success);
+        EXPECT_NE(leaf, nullptr);
+        EXPECT_TRUE(leaf->has_value());
+        EXPECT_EQ(leaf->value(), value2);
+    }
+}

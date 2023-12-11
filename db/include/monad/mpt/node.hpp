@@ -19,7 +19,7 @@ class NibblesView;
 class Node;
 struct TrieStateMachine;
 
-static constexpr size_t size_of_node = 8;
+static constexpr size_t size_of_node = 10;
 
 constexpr size_t calculate_node_size(
     size_t const number_of_children, size_t const total_child_data_size,
@@ -69,12 +69,7 @@ class Node
     };
 
 public:
-    static constexpr size_t max_value_size = rlp::list_length( // account rlp
-        rlp::list_length(32) // balance
-        + rlp::list_length(32) // code hash
-        + rlp::list_length(32) // storage hash
-        + rlp::list_length(8) // nonce
-    );
+    static constexpr size_t max_value_size = 0x6000; // max code size
     static constexpr size_t max_children = 16;
     static constexpr size_t max_size = calculate_node_size(
         max_children, max_children * 32, max_value_size, 32, 32);
@@ -84,9 +79,9 @@ public:
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
         round_up<size_t>(size_of_node, allocator_divisor),
         round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
-    static_assert(max_size == 1046);
-    static_assert(max_disk_size == 918);
-    static_assert(BytesAllocator::allocation_upper_bound == 1056);
+    static_assert(max_size == 25514);
+    static_assert(max_disk_size == 25386);
+    static_assert(BytesAllocator::allocation_upper_bound == 25520);
 #else
     using BytesAllocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -114,7 +109,7 @@ public:
     static_assert(sizeof(bitpacked) == 1);
 
     /* size (in byte) of user-passed leaf data */
-    uint8_t value_len{0};
+    uint16_t value_len{0};
     /* size (in byte) of intermediate cache for branch hash */
     uint8_t data_len{0};
     uint8_t path_nibble_index_end{0};
@@ -238,7 +233,7 @@ public:
 
 static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
 static_assert(sizeof(Node) == size_of_node);
-static_assert(sizeof(Node) == 8);
+static_assert(sizeof(Node) == 10);
 static_assert(alignof(Node) == 2);
 
 // ChildData is for temporarily holding a child's info, including child ptr,
