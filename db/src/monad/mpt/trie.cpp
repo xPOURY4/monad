@@ -918,7 +918,9 @@ async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
     aux.io->flush();
     // write new root offset and slow ring's latest offset to the front of disk
     aux.advance_offsets_to(
-        ret.offset_written_to, aux.node_writer_slow->sender().offset());
+        ret.offset_written_to,
+        aux.node_writer_fast->sender().offset(),
+        aux.node_writer_slow->sender().offset());
     return ret;
 }
 

@@ -325,15 +325,8 @@ int main(int argc, char *argv[])
 
         Node::UniquePtr root{};
         if (append) {
-            auto root_off = aux.get_root_offset();
-            root.reset(read_node_blocking(io.storage_pool(), root_off));
-
-            chunk_offset_t const fast_offset = round_up_align<DISK_PAGE_BITS>(
-                root_off.add_to_offset(root->get_disk_size()));
-            // destroy contents after fast_offset.id chunck, and reset
-            // node_writer's offset.
-            aux.rewind_to_match_offset(fast_offset);
-
+            root.reset(
+                read_node_blocking(io.storage_pool(), aux.get_root_offset()));
             Nibbles max_block =
                 find_max_key_blocking(&io.storage_pool(), *root);
             // always start from the last valid block num + 1

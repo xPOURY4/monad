@@ -49,12 +49,11 @@ namespace detail
         // last valid root offset which is always in fast list, and the start of
         // wip slow list offset.
         chunk_offset_t root_offset;
-        chunk_offset_t
-            start_of_wip_slow_offset; // start of current wip db block's
-                                      // contents in slow list. all contents
-                                      // starting this point are not yet
-                                      // validated, and should be rewound if
-                                      // restart.
+        // starting offsets of current wip db block's contents. all contents
+        // starting this point are not yet validated, and should be rewound if
+        // restart.
+        chunk_offset_t start_of_wip_fast_offset;
+        chunk_offset_t start_of_wip_slow_offset;
 
         // used to know if the metadata was being
         // updated when the process suddenly exited
@@ -355,6 +354,16 @@ namespace detail
         {
             auto g = hold_dirty();
             capacity_in_free_list -= bytes;
+        }
+
+        void advance_offsets_to_(
+            chunk_offset_t const root_off, chunk_offset_t const fast_off,
+            chunk_offset_t const slow_off) noexcept
+        {
+            auto g = hold_dirty();
+            root_offset = root_off;
+            start_of_wip_fast_offset = fast_off;
+            start_of_wip_slow_offset = slow_off;
         }
     };
 

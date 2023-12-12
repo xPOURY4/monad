@@ -112,9 +112,10 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
+void UpdateAux::rewind_to_match_offsets()
 {
     // Free all chunks after fast_offset.id
+    auto const fast_offset = db_metadata_[0]->start_of_wip_fast_offset;
     auto *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
         auto const idx = db_metadata_[0]->fast_list.end;
@@ -125,14 +126,6 @@ void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
     auto fast_offset_chunk =
         io->storage_pool().chunk(storage_pool::seq, fast_offset.id);
     MONAD_ASSERT(fast_offset_chunk->try_trim_contents(fast_offset.offset));
-
-    // Reset node_writer's offset, and buffer too
-    node_writer_fast->sender().reset(
-        fast_offset,
-        {node_writer_fast->sender().buffer().data(),
-         std::min(
-             AsyncIO::WRITE_BUFFER_SIZE,
-             size_t(fast_offset_chunk->capacity() - fast_offset.offset))});
 
     // Same for slow list
     auto const slow_offset = db_metadata_[0]->start_of_wip_slow_offset;
@@ -147,13 +140,8 @@ void UpdateAux::rewind_to_match_offset(chunk_offset_t const fast_offset)
         io->storage_pool().chunk(storage_pool::seq, slow_offset.id);
     MONAD_ASSERT(slow_offset_chunk->try_trim_contents(slow_offset.offset));
 
-    // Reset node_writer's offset, and buffer too
-    node_writer_slow->sender().reset(
-        slow_offset,
-        {node_writer_slow->sender().buffer().data(),
-         std::min(
-             AsyncIO::WRITE_BUFFER_SIZE,
-             size_t(slow_offset_chunk->capacity() - slow_offset.offset))});
+    // Reset node_writers offset to the same offsets in db_metadata
+    reset_node_writers();
 }
 
 UpdateAux::~UpdateAux()
@@ -255,8 +243,8 @@ void UpdateAux::set_io(AsyncIO *io_)
         random_shuffle(chunks.begin(), chunks.end(), rand);
 #endif
         // root offset is the front of fast list
-        chunk_offset_t const root_offset(chunks.front(), 0);
-        append(chunk_list::fast, root_offset.id);
+        chunk_offset_t const fast_offset(chunks.front(), 0);
+        append(chunk_list::fast, fast_offset.id);
         // init the first slow chunk and slow_offset
         chunk_offset_t const slow_offset(chunks[1], 0);
         append(chunk_list::slow, slow_offset.id);
@@ -268,16 +256,20 @@ void UpdateAux::set_io(AsyncIO *io_)
         }
 
         // Mark as done
-        db_metadata_[0]->root_offset = root_offset;
-        db_metadata_[1]->root_offset = root_offset;
-        db_metadata_[0]->start_of_wip_slow_offset = slow_offset;
-        db_metadata_[1]->start_of_wip_slow_offset = slow_offset;
+        advance_offsets_to(fast_offset, fast_offset, slow_offset);
+        MONAD_ASSERT(get_root_offset().id == db_metadata()->fast_list.begin);
+
         std::atomic_signal_fence(
             std::memory_order_seq_cst); // no compiler reordering here
         memcpy(db_metadata_[0]->magic, "MND0", 4);
         memcpy(db_metadata_[1]->magic, "MND0", 4);
+
+        // Default behavior: initialize node writers to start at the start of
+        // available slow and fast list respectively. Make sure the initial
+        // fast/slow offset points into a block in use as a sanity check
+        reset_node_writers();
     }
-    else {
+    else { // resume from an existing db and underlying storage devices
         auto build_insertion_count_to_chunk_id =
             [&](auto &lst, detail::db_metadata::chunk_info_t const *i) {
                 for (; i != nullptr; i = i->next(db_metadata())) {
@@ -293,21 +285,21 @@ void UpdateAux::set_io(AsyncIO *io_)
         build_insertion_count_to_chunk_id(
             insertion_count_to_chunk_id_[uint8_t(chunk_list::slow)],
             db_metadata()->slow_list_begin());
+        // Reset/init node writer's offsets, destroy contents after
+        // fast_offset.id chunck
+        rewind_to_match_offsets();
     }
     // If the pool has changed since we configured the metadata, this will fail
     MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
+}
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+#endif
 
-    // Default behavior: initialize node writers to start at the front of
-    // slow and fast list respectively, and they will be reset later in
-    // `rewind_to_match_offset()`.
-    // Make sure the initial fast/slow offset points into a block in use as
-    // a sanity check
-    auto init_node_writer =
-        [&](bool const is_fast) -> node_writer_unique_ptr_type {
-        chunk_offset_t const node_writer_offset{
-            is_fast ? db_metadata_[0]->fast_list.begin
-                    : db_metadata_[0]->slow_list.begin,
-            0};
+void UpdateAux::reset_node_writers()
+{
+    auto init_node_writer = [&](chunk_offset_t const node_writer_offset)
+        -> node_writer_unique_ptr_type {
         auto chunk =
             io->storage_pool().chunk(storage_pool::seq, node_writer_offset.id);
         MONAD_ASSERT(chunk->size() >= node_writer_offset.offset);
@@ -323,11 +315,10 @@ void UpdateAux::set_io(AsyncIO *io_)
                         write_operation_io_receiver{})
                   : node_writer_unique_ptr_type{};
     };
-    node_writer_fast = init_node_writer(true);
-    node_writer_slow = init_node_writer(false);
+    node_writer_fast =
+        init_node_writer(db_metadata_[0]->start_of_wip_fast_offset);
+    node_writer_slow =
+        init_node_writer(db_metadata_[0]->start_of_wip_slow_offset);
 }
-#if defined(__GNUC__) && !defined(__clang__)
-    #pragma GCC diagnostic pop
-#endif
 
 MONAD_MPT_NAMESPACE_END

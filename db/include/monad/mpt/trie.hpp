@@ -71,6 +71,8 @@ class UpdateAux
 
     ::boost::container::devector<uint32_t> insertion_count_to_chunk_id_[3];
 
+    void reset_node_writers();
+
 public:
     enum class chunk_list : uint8_t
     {
@@ -95,18 +97,18 @@ public:
     void remove(uint32_t idx) noexcept;
 
     void advance_offsets_to(
-        chunk_offset_t root_offset, chunk_offset_t slow_offset) noexcept
+        chunk_offset_t const root_offset, chunk_offset_t const fast_offset,
+        chunk_offset_t const slow_offset) noexcept
     {
         auto do_ = [&](detail::db_metadata *m) {
-            m->root_offset = root_offset;
-            m->start_of_wip_slow_offset = slow_offset;
+            m->advance_offsets_to_(root_offset, fast_offset, slow_offset);
         };
         do_(db_metadata_[0]);
         do_(db_metadata_[1]);
     }
 
     // WARNING: This is destructive
-    void rewind_to_match_offset(chunk_offset_t fast_offset);
+    void rewind_to_match_offsets();
 
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
     node_writer_unique_ptr_type node_writer_fast{};
@@ -155,6 +157,12 @@ public:
     {
         MONAD_ASSERT(this->is_on_disk());
         return db_metadata_[0]->start_of_wip_slow_offset;
+    }
+
+    chunk_offset_t get_start_of_wip_fast_offset() const noexcept
+    {
+        MONAD_ASSERT(this->is_on_disk());
+        return db_metadata_[0]->start_of_wip_fast_offset;
     }
 
     file_offset_t get_lower_bound_free_space() const noexcept
