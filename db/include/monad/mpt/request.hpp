@@ -10,6 +10,7 @@
 #include <optional>
 
 MONAD_MPT_NAMESPACE_BEGIN
+
 struct Requests
 {
     uint16_t mask{0};
@@ -33,6 +34,7 @@ struct Requests
 
     constexpr unsigned get_first_branch() const noexcept
     {
+        MONAD_DEBUG_ASSERT(mask);
         return static_cast<unsigned>(std::countr_zero(mask));
     }
 

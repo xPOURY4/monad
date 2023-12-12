@@ -175,12 +175,14 @@ public:
     unsigned number_of_children() const noexcept;
 
     //! fnext
-    chunk_offset_t &fnext(unsigned index) noexcept;
+    chunk_offset_t fnext(unsigned index) noexcept;
+    void set_fnext(unsigned index, chunk_offset_t) noexcept;
 
     //! min_block_no array
     unsigned char *child_min_count_data() noexcept;
     unsigned char const *child_min_count_data() const noexcept;
-    detail::unsigned_20 &min_count(unsigned index) noexcept;
+    detail::unsigned_20 min_count(unsigned index) noexcept;
+    void set_min_count(unsigned index, detail::unsigned_20 count) noexcept;
 
     //! data_offset array
     unsigned char *child_off_data() noexcept;

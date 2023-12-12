@@ -85,10 +85,19 @@ unsigned Node::number_of_children() const noexcept
     return static_cast<unsigned>(std::popcount(mask));
 }
 
-chunk_offset_t &Node::fnext(unsigned const index) noexcept
+chunk_offset_t Node::fnext(unsigned const index) noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
-    return reinterpret_cast<chunk_offset_t *>(fnext_data)[index];
+    return unaligned_load<chunk_offset_t>(
+        fnext_data + index * sizeof(chunk_offset_t));
+}
+
+void Node::set_fnext(unsigned const index, chunk_offset_t const off) noexcept
+{
+    std::memcpy(
+        fnext_data + index * sizeof(chunk_offset_t),
+        &off,
+        sizeof(chunk_offset_t));
 }
 
 unsigned char *Node::child_min_count_data() noexcept
@@ -101,10 +110,19 @@ unsigned char const *Node::child_min_count_data() const noexcept
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-detail::unsigned_20 &Node::min_count(unsigned const index) noexcept
+detail::unsigned_20 Node::min_count(unsigned const index) noexcept
 {
-    return reinterpret_cast<detail::unsigned_20 *>(
-        child_min_count_data())[index];
+    return unaligned_load<detail::unsigned_20>(
+        child_min_count_data() + index * sizeof(detail::unsigned_20));
+}
+
+void Node::set_min_count(
+    unsigned const index, detail::unsigned_20 const count) noexcept
+{
+    std::memcpy(
+        child_min_count_data() + index * sizeof(detail::unsigned_20),
+        &count,
+        sizeof(detail::unsigned_20));
 }
 
 unsigned char *Node::child_off_data() noexcept
@@ -123,14 +141,8 @@ uint16_t Node::child_data_offset(unsigned const index) const noexcept
     if (index == 0) {
         return 0;
     }
-    else {
-        uint16_t res;
-        memcpy(
-            &res,
-            child_off_data() + (index - 1) * sizeof(uint16_t),
-            sizeof(uint16_t));
-        return res;
-    }
+    return unaligned_load<uint16_t>(
+        child_off_data() + (index - 1) * sizeof(uint16_t));
 }
 
 unsigned Node::child_data_len(unsigned const index)
@@ -447,8 +459,8 @@ Node::UniquePtr make_node(
 
     for (unsigned index = 0; auto const &child : children) {
         if (child.is_valid()) {
-            node->fnext(index) = child.offset;
-            node->min_count(index) = child.min_count;
+            node->set_fnext(index, child.offset);
+            node->set_min_count(index, child.min_count);
             node->set_next(index, child.ptr);
             node->set_child_data(index, {child.data, child.len});
             ++index;
