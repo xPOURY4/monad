@@ -4,6 +4,7 @@
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
+#include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/upward_tnode.hpp>
 #include <monad/mpt/util.hpp>
@@ -188,7 +189,7 @@ static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested
 Node::UniquePtr
-upsert(UpdateAux &, TrieStateMachine &, Node::UniquePtr old, UpdateList &&);
+upsert(UpdateAux &, StateMachine &, Node::UniquePtr old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 

@@ -127,7 +127,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                 if constexpr (std::is_same_v<type, ::boost::json::string>) {
                     self->root = upsert_updates(
                         self->aux,
-                        self->sm,
+                        *self->sm,
                         std::move(self->root),
                         make_update(
                             to_byte_string(i.key()), to_byte_string(item)));
@@ -141,7 +141,7 @@ inline void do_upsert_corpus(State *self, ::boost::json::object const &updates)
                               << std::endl;
                     self->root = upsert_updates(
                         self->aux,
-                        self->sm,
+                        *self->sm,
                         std::move(self->root),
                         make_update(
                             to_byte_string(i.key()),
@@ -164,7 +164,7 @@ inline void do_erase_corpus(State *self, ::boost::json::object const &updates)
     for (auto const &i : updates) {
         self->root = upsert_updates(
             self->aux,
-            self->sm,
+            *self->sm,
             std::move(self->root),
             make_erase(to_byte_string(i.key())));
     }
@@ -181,7 +181,7 @@ TYPED_TEST(ManyNestedUpdates, simple_fixed_test_not_from_json)
 
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         nullptr,
         make_update(key1, val1),
         make_update(key2, val2));

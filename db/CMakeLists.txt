@@ -45,6 +45,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view_fmt.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/request.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/state_machine.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/traverse.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/trie.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"

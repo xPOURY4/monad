@@ -45,7 +45,7 @@ TYPED_TEST(PlainTrieTest, leaf_nodes_persist)
 {
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(0x11_hex, monad::byte_string_view{}),
         make_update(0x1111_hex, monad::byte_string_view{}),
@@ -53,7 +53,7 @@ TYPED_TEST(PlainTrieTest, leaf_nodes_persist)
     EXPECT_EQ(this->root->mask, 0b110);
 
     this->root = upsert_updates(
-        this->aux, this->sm, std::move(this->root), make_erase(0x1111_hex));
+        this->aux, *this->sm, std::move(this->root), make_erase(0x1111_hex));
     EXPECT_EQ(this->root->mask, 0b100);
 }
 
@@ -63,7 +63,7 @@ TYPED_TEST(PlainTrieTest, var_length)
     // insert kv 0,1,2,3
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -120,7 +120,7 @@ TYPED_TEST(PlainTrieTest, var_length)
     // insert kv 4,5
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[4].first, kv[4].second),
         make_update(kv[5].first, kv[5].second));
@@ -158,7 +158,7 @@ TYPED_TEST(PlainTrieTest, var_length)
     // insert kv 6,7
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[6].first, kv[6].second),
         make_update(kv[7].first, kv[7].second));
@@ -206,7 +206,7 @@ TYPED_TEST(PlainTrieTest, mismatch)
     */
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -239,7 +239,7 @@ TYPED_TEST(PlainTrieTest, mismatch)
     */
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[3].first, kv[3].second),
         make_update(kv[4].first, kv[4].second));
@@ -281,7 +281,7 @@ TYPED_TEST(PlainTrieTest, delete_wo_incarnation)
     // insert all
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[0].first, kv[0].second),
         make_update(kv[1].first, kv[1].second),
@@ -293,7 +293,7 @@ TYPED_TEST(PlainTrieTest, delete_wo_incarnation)
         make_update(kv[7].first, kv[7].second));
     // erase 0
     this->root = upsert_updates(
-        this->aux, this->sm, std::move(this->root), make_erase(kv[0].first));
+        this->aux, *this->sm, std::move(this->root), make_erase(kv[0].first));
     EXPECT_EQ(this->root->mask, 2 | 1u << 0xa | 1u << 0xb);
     EXPECT_EQ(
         this->root->path_nibble_view(),
@@ -301,7 +301,7 @@ TYPED_TEST(PlainTrieTest, delete_wo_incarnation)
 
     // erase 5, a leaf with children (consequently 6 and 7 are erased)
     this->root = upsert_updates(
-        this->aux, this->sm, std::move(this->root), make_erase(kv[5].first));
+        this->aux, *this->sm, std::move(this->root), make_erase(kv[5].first));
     EXPECT_EQ(this->root->mask, 2 | 1u << 0xa);
     EXPECT_EQ(
         this->root->path_nibble_view(),
@@ -309,7 +309,7 @@ TYPED_TEST(PlainTrieTest, delete_wo_incarnation)
 
     // erase 1, consequently 2,3 are erased
     this->root = upsert_updates(
-        this->aux, this->sm, std::move(this->root), make_erase(kv[1].first));
+        this->aux, *this->sm, std::move(this->root), make_erase(kv[1].first));
     EXPECT_EQ(this->root->mask, 0);
     EXPECT_EQ(this->root->value(), kv[4].second);
     EXPECT_EQ(
@@ -324,7 +324,7 @@ TYPED_TEST(PlainTrieTest, delete_with_incarnation)
     // insert
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[0].first, kv[0].second), // 0x01111111
         make_update(kv[1].first, kv[1].second), // 0x11111111
@@ -342,7 +342,7 @@ TYPED_TEST(PlainTrieTest, delete_with_incarnation)
     // upsert a bunch of new kvs, with incarnation flag set
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(kv[1].first, kv[1].second, true), // 0x11111111
         make_update(kv[3].first, kv[3].second)); // 0x11111111aacd
@@ -368,7 +368,7 @@ TYPED_TEST(PlainTrieTest, large_values)
 
     this->root = upsert_updates(
         this->aux,
-        this->sm,
+        *this->sm,
         std::move(this->root),
         make_update(key1, value1),
         make_update(key2, value2));

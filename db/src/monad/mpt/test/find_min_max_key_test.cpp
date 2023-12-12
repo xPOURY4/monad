@@ -32,7 +32,7 @@ TYPED_TEST(TrieTest, find_min_max_block_num)
             .incarnation = false,
             .next = {}});
     }
-    this->root = upsert_vector(this->aux, this->sm, {}, std::move(update_vec));
+    this->root = upsert_vector(this->aux, *this->sm, {}, std::move(update_vec));
 
     Nibbles min_block = find_min_key_blocking(this->aux, *this->root);
     EXPECT_EQ(NibblesView{min_block}.nibble_size(), 12);
@@ -47,7 +47,7 @@ TYPED_TEST(TrieTest, find_min_max_block_num)
         update_vec.push_back(make_erase(blocknums[i]));
     }
     this->root = upsert_vector(
-        this->aux, this->sm, std::move(this->root), std::move(update_vec));
+        this->aux, *this->sm, std::move(this->root), std::move(update_vec));
 
     min_block = find_min_key_blocking(this->aux, *this->root);
     EXPECT_EQ(min_block, NibblesView{blocknums[10]});

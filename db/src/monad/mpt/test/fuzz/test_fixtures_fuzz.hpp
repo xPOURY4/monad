@@ -217,7 +217,7 @@ namespace monad::test
                 count += input.size();
                 this->root = upsert_vector(
                     this->aux,
-                    this->sm,
+                    *this->sm,
                     std::move(this->root),
                     std::move(input));
             }
@@ -241,7 +241,7 @@ namespace monad::test
                 }
                 this->root = upsert_vector(
                     this->aux,
-                    this->sm,
+                    *this->sm,
                     std::move(this->root),
                     std::move(correct));
             }
@@ -283,7 +283,7 @@ namespace monad::test
             if (!updates.empty()) {
                 this->root = upsert_vector(
                     this->aux,
-                    this->sm,
+                    *this->sm,
                     std::move(this->root),
                     std::move(updates));
             }

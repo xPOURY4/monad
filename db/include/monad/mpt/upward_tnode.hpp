@@ -24,7 +24,6 @@ struct UpwardTreeNode
     uint16_t orig_mask{0};
     uint8_t branch{INVALID_BRANCH};
     uint8_t npending{0};
-    uint8_t trie_section{0}; // max 255 diff sections in trie
     uint8_t prefix_index{0};
 
     [[nodiscard]] unsigned number_of_children() const
@@ -37,16 +36,20 @@ struct UpwardTreeNode
         MONAD_ASSERT(parent != nullptr);
         return static_cast<uint8_t>(bitmask_index(parent->orig_mask, branch));
     }
+
     using allocator_type =
         allocators::boost_unordered_pool_allocator<UpwardTreeNode>;
+
     static allocator_type &pool()
     {
         static allocator_type v;
         return v;
     }
+
     using unique_ptr_type = std::unique_ptr<
         UpwardTreeNode, allocators::unique_ptr_allocator_deleter<
                             allocator_type, &UpwardTreeNode::pool>>;
+
     static unique_ptr_type make(UpwardTreeNode v)
     {
         return allocators::
@@ -54,11 +57,12 @@ struct UpwardTreeNode
                 std::move(v));
     }
 };
+
 using tnode_unique_ptr = UpwardTreeNode::unique_ptr_type;
 
 inline tnode_unique_ptr make_tnode(
     uint16_t const orig_mask, unsigned const prefix_index,
-    uint8_t const trie_section, UpwardTreeNode *const parent = nullptr,
+    UpwardTreeNode *const parent = nullptr,
     uint8_t const branch = INVALID_BRANCH, NibblesView const path = {},
     std::optional<byte_string_view> const opt_leaf_data = std::nullopt,
     Node::UniquePtr old = {})
@@ -74,7 +78,6 @@ inline tnode_unique_ptr make_tnode(
         .orig_mask = orig_mask,
         .branch = branch,
         .npending = n,
-        .trie_section = trie_section,
         .prefix_index = static_cast<uint8_t>(prefix_index)});
 }
 

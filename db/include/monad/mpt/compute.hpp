@@ -33,26 +33,6 @@ struct Compute
     virtual unsigned compute(unsigned char *buffer, Node *node) = 0;
 };
 
-struct TrieStateMachine
-{
-    virtual ~TrieStateMachine(){};
-    virtual std::unique_ptr<TrieStateMachine> clone() const = 0;
-    //! reset state to default
-    virtual void reset(std::optional<uint8_t> sec = std::nullopt) = 0;
-    //! forward transition down the trie, with a possible input value
-    virtual void forward(byte_string_view = {}) = 0;
-    //! transform back up the trie
-    virtual void backward() = 0;
-    //! get the current compute implementation
-    virtual Compute &get_compute() = 0;
-    virtual Compute &get_compute(uint8_t sec) = 0;
-    //! get current state in uint8_t. It is up to the user to design what
-    //! each value means in the state enum
-    virtual uint8_t get_state() const = 0;
-    //! get the current cache option in CacheOption enum type.
-    virtual CacheOption get_cache_option() const = 0;
-};
-
 template <typename T>
 concept compute_leaf_data = requires {
     {

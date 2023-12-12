@@ -14,9 +14,7 @@ using namespace ::monad::mpt;
 
 TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
 {
-    this->sm =
-        StateMachineWithBlockNo(0); // default section = 0, which is block_no
-                                    // section. Thus we cache all nodes.
+    // state machine always caches nodes
     this->aux.alternate_slow_fast_node_writer_unit_testing_only(true);
     constexpr size_t const eightMB = 8 * 1024 * 1024;
 
@@ -46,7 +44,7 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
                     make_update(keys.back().first, keys.back().first));
                 update_ls.push_front(updates.back());
             }
-            root = upsert(aux, sm, std::move(root), std::move(update_ls));
+            root = upsert(aux, *sm, std::move(root), std::move(update_ls));
             size_t count_fast = 0;
             for (auto const *ci = aux.db_metadata()->fast_list_begin();
                  ci != nullptr;

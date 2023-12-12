@@ -32,10 +32,10 @@ struct Requests
         return std::move(sublists[i]);
     }
 
-    constexpr unsigned get_first_branch() const noexcept
+    constexpr unsigned char get_first_branch() const noexcept
     {
         MONAD_DEBUG_ASSERT(mask);
-        return static_cast<unsigned>(std::countr_zero(mask));
+        return static_cast<unsigned char>(std::countr_zero(mask));
     }
 
     constexpr UpdateList &&first_and_only_list() && noexcept

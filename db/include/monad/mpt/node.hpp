@@ -17,7 +17,6 @@ MONAD_MPT_NAMESPACE_BEGIN
 struct Compute;
 class NibblesView;
 class Node;
-struct TrieStateMachine;
 
 static constexpr size_t size_of_node = 10;
 
@@ -267,18 +266,10 @@ struct ChildData
 
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
-    /* Why parent_trie_section? We compute data here by the child node
-     * recursion, where trie section in the state machine is in the context of
-     * the child, but computing data should be in the context of parent's trie
-     * state, which is set by `set_branch_and_section()` in the parent
-     * recursion.
-     */
-    uint8_t parent_trie_section{uint8_t(-1)};
 
     bool is_valid() const;
     void erase();
-    void set_branch_and_section(unsigned i, uint8_t sec);
-    void set_node_and_compute_data(Node *node, TrieStateMachine &sm);
+    void set_node_and_compute_data(Node *, Compute &);
     void copy_old_child(Node *old, unsigned i);
 };
 

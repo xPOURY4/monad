@@ -3,6 +3,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include <monad/core/assert.h>
 #include <monad/core/small_prng.hpp>
 
 #include <array>
@@ -44,154 +45,79 @@ namespace monad::test
         }
     };
 
-    class StateMachineWithBlockNo final : public TrieStateMachine
+    struct RootMerkleCompute : public MerkleCompute
+    {
+        virtual unsigned compute(unsigned char *const, Node *const) override
+        {
+            return 0;
+        }
+    };
+
+    class StateMachineWithBlockNo final : public StateMachine
     {
     private:
-        enum class TrieSection : uint8_t
-    {
-        BlockNo = 0,
-        Account,
-        Storage,
-        Receipt, // not used yet
-        Invalid
-    }  default_section_, curr_section_;
-
-        static std::pair<Compute &, Compute &> candidate_computes()
-        {
-            // candidate impls to use
-            static MerkleCompute m{};
-            static EmptyCompute e{};
-            return {m, e};
-        }
+        static constexpr auto block_num_size = 12;
+        size_t depth{0};
 
     public:
-        StateMachineWithBlockNo(uint8_t const sec = 0)
-            : default_section_(static_cast<TrieSection>(sec))
-            , curr_section_(default_section_)
+        virtual std::unique_ptr<StateMachine> clone() const override
         {
+            return std::make_unique<StateMachineWithBlockNo>(*this);
         }
 
-        virtual std::unique_ptr<TrieStateMachine> clone() const override
+        virtual void down(unsigned char) override
         {
-            auto cloned = std::make_unique<StateMachineWithBlockNo>(
-                static_cast<uint8_t>(default_section_));
-            cloned->reset(this->get_state());
-            return cloned;
+            ++depth;
         }
 
-        virtual void reset(std::optional<uint8_t> sec) override
+        virtual void up(size_t n) override
         {
-            curr_section_ = sec.has_value()
-                                ? static_cast<TrieSection>(sec.value())
-                                : default_section_;
+            MONAD_DEBUG_ASSERT(n <= depth);
+            depth -= n;
         }
 
-        virtual void forward(byte_string_view = {}) override
+        virtual Compute &get_compute() override
         {
-            switch (curr_section_) {
-            case (TrieSection::BlockNo):
-                curr_section_ = TrieSection::Account;
-                break;
-            case (TrieSection::Account):
-                curr_section_ = TrieSection::Storage;
-                break;
-            default:
-                curr_section_ = TrieSection::Invalid;
+            static MerkleCompute m{};
+            static RootMerkleCompute rm{};
+            static EmptyCompute e{};
+            if (MONAD_LIKELY(depth > block_num_size)) {
+                return m;
             }
+            else if (depth < block_num_size) {
+                return e;
+            }
+            return rm;
         }
 
-        virtual void backward() override
+        virtual CacheOption get_cache_option() const override
         {
-            switch (curr_section_) {
-            case (TrieSection::Storage):
-                curr_section_ = TrieSection::Account;
-                break;
-            case (TrieSection::Account):
-                curr_section_ = TrieSection::BlockNo;
-                break;
-            default:
-                curr_section_ = TrieSection::Invalid;
-            }
-        }
-
-        virtual constexpr Compute &get_compute() override
-        {
-            if (curr_section_ == TrieSection::BlockNo) {
-                return candidate_computes().second;
-            }
-            else {
-                return candidate_computes().first;
-            }
-        }
-
-        virtual constexpr Compute &get_compute(uint8_t sec) override
-        {
-            auto section = static_cast<TrieSection>(sec);
-            if (section == TrieSection::BlockNo) {
-                return candidate_computes().second;
-            }
-            else {
-                return candidate_computes().first;
-            }
-        }
-
-        virtual constexpr uint8_t get_state() const override
-        {
-            return static_cast<uint8_t>(curr_section_);
-        }
-
-        virtual constexpr CacheOption get_cache_option() const override
-        {
-            switch (curr_section_) {
-            case (TrieSection::BlockNo):
-                return CacheOption::CacheAll;
-            case (TrieSection::Account):
-                return CacheOption::ApplyLevelBasedCache;
-            default:
-                return CacheOption::DisposeAll;
-            }
+            return CacheOption::CacheAll;
         }
     };
 
     static_assert(sizeof(StateMachineWithBlockNo) == 16);
     static_assert(alignof(StateMachineWithBlockNo) == 8);
 
-    class StateMachineAlwaysEmpty final : public TrieStateMachine
+    template <class Compute>
+    class StateMachineAlways final : public StateMachine
     {
-        static Compute &candidate_computes()
-        {
-            // candidate impls to use
-            static EmptyCompute e{};
-            return e;
-        }
-
     public:
-        StateMachineAlwaysEmpty() = default;
+        StateMachineAlways() = default;
 
-        virtual std::unique_ptr<TrieStateMachine> clone() const override
+        virtual std::unique_ptr<StateMachine> clone() const override
         {
-            return std::make_unique<StateMachineAlwaysEmpty>();
+            return std::make_unique<StateMachineAlways<Compute>>(*this);
         }
 
-        virtual void reset(std::optional<uint8_t>) override {}
+        virtual void down(unsigned char) override {}
 
-        virtual void forward(monad::byte_string_view = {}) override {}
-
-        virtual void backward() override {}
+        virtual void up(size_t) override {}
 
         virtual Compute &get_compute() override
         {
-            return candidate_computes();
-        }
-
-        virtual Compute &get_compute(uint8_t) override
-        {
-            return candidate_computes();
-        }
-
-        virtual constexpr uint8_t get_state() const override
-        {
-            return 0;
+            static Compute c{};
+            return c;
         }
 
         virtual constexpr CacheOption get_cache_option() const override
@@ -200,8 +126,11 @@ namespace monad::test
         }
     };
 
+    using StateMachineAlwaysEmpty = StateMachineAlways<EmptyCompute>;
+    using StateMachineAlwaysMerkle = StateMachineAlways<MerkleCompute>;
+
     Node::UniquePtr upsert_vector(
-        UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
+        UpdateAux &aux, StateMachine &sm, Node::UniquePtr old,
         std::vector<Update> &&update_vec)
     {
         UpdateList update_ls;
@@ -213,7 +142,7 @@ namespace monad::test
 
     template <class... Updates>
     [[nodiscard]] constexpr Node::UniquePtr upsert_updates(
-        UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
+        UpdateAux &aux, StateMachine &sm, Node::UniquePtr old,
         Updates... updates)
     {
         UpdateList update_ls;
@@ -342,13 +271,14 @@ namespace monad::test
     class MerkleTrie : public Base
     {
     public:
-        StateMachineWithBlockNo sm{1};
+        std::unique_ptr<StateMachine> sm =
+            std::make_unique<StateMachineAlwaysMerkle>();
 
         monad::byte_string root_hash()
         {
             if (this->root.get()) {
                 monad::byte_string res(32, 0);
-                auto const len = this->sm.get_compute().compute(
+                auto const len = this->sm->get_compute().compute(
                     res.data(), this->root.get());
                 if (len < KECCAK256_SIZE) {
                     keccak256(res.data(), len, res.data());
@@ -363,7 +293,8 @@ namespace monad::test
     class PlainTrie : public Base
     {
     public:
-        StateMachineAlwaysEmpty sm;
+        std::unique_ptr<StateMachine> sm =
+            std::make_unique<StateMachineAlwaysEmpty>();
     };
 
     template <typename BaseTrie>
@@ -382,7 +313,7 @@ namespace monad::test
                     return make_update(k, v);
                 });
             this->root = upsert_vector(
-                this->aux, this->sm, nullptr, std::move(update_vec));
+                this->aux, *this->sm, nullptr, std::move(update_vec));
         }
     };
 
@@ -405,7 +336,7 @@ namespace monad::test
             MONAD_ASYNC_NAMESPACE::AsyncIO io{pool, ring, rwbuf};
             MerkleCompute comp;
             Node::UniquePtr root;
-            StateMachineWithBlockNo sm{1};
+            StateMachineAlwaysMerkle sm;
             UpdateAux aux{&io}; // trie section starts from account
             monad::small_prng rand;
             std::vector<std::pair<monad::byte_string, size_t>> keys;
@@ -562,5 +493,4 @@ namespace monad::test
             delete state();
         }
     };
-
 }

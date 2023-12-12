@@ -59,7 +59,7 @@ namespace
             updates.emplace_back(make_update(i.first, i.second));
         }
         this->root = upsert_vector(
-            this->aux, this->sm, std::move(this->root), std::move(updates));
+            this->aux, *this->sm, std::move(this->root), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);
@@ -86,7 +86,7 @@ namespace
             updates.emplace_back(make_update(i.first, i.second));
         }
         this->root = upsert_vector(
-            this->aux, this->sm, std::move(this->root), std::move(updates));
+            this->aux, *this->sm, std::move(this->root), std::move(updates));
         EXPECT_EQ(
             root_hash(),
             0xcbb6d81afdc76fec144f6a1a283205d42c03c102a94fc210b3a1bcfdcb625884_hex);

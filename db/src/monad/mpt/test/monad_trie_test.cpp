@@ -86,7 +86,7 @@ inline Node::UniquePtr batch_upsert_commit(
     uint64_t key_offset, uint64_t nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool erase,
-    Node::UniquePtr prev_root, UpdateAux &aux, TrieStateMachine &sm)
+    Node::UniquePtr prev_root, UpdateAux &aux, StateMachine &sm)
 {
     fprintf(stdout, "Insert block_id %lu\n", block_id);
     auto const block_no = serialize_as_big_endian<6>(block_id);

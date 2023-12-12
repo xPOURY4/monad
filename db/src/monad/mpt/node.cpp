@@ -355,21 +355,12 @@ void ChildData::erase()
     branch = INVALID_BRANCH;
 }
 
-void ChildData::set_branch_and_section(unsigned const i, uint8_t const sec)
-{
-    MONAD_DEBUG_ASSERT(i < 16);
-    branch = static_cast<uint8_t>(i);
-    parent_trie_section = sec;
-    MONAD_DEBUG_ASSERT(is_valid());
-}
-
-void ChildData::set_node_and_compute_data(
-    Node *const node, TrieStateMachine &sm)
+void ChildData::set_node_and_compute_data(Node *const node, Compute &compute)
 {
     MONAD_DEBUG_ASSERT(is_valid());
     ptr = node;
-    auto const length = sm.get_compute(parent_trie_section).compute(data, ptr);
-    MONAD_DEBUG_ASSERT(len <= std::numeric_limits<uint8_t>::max());
+    auto const length = compute.compute(data, ptr);
+    MONAD_DEBUG_ASSERT(length <= std::numeric_limits<uint8_t>::max());
     len = static_cast<uint8_t>(length);
 }
 
