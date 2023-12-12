@@ -2,14 +2,16 @@
 
 #include <monad/core/cmemory.hpp>
 
+#include <bit>
+
 MONAD_NAMESPACE_BEGIN
 
 template <class T>
-constexpr T unaligned_load(const unsigned char *const buf)
+constexpr T unaligned_load(unsigned char const *const buf)
 {
-    T res;
-    cmemcpy(reinterpret_cast<unsigned char *>(&res), buf, sizeof(T));
-    return res;
+    unsigned char data[sizeof(T)];
+    cmemcpy(data, buf, sizeof(T));
+    return std::bit_cast<T>(data);
 }
 
 MONAD_NAMESPACE_END
