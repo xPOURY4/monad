@@ -78,7 +78,10 @@ function(add_trie_test)
   )
   gtest_discover_tests(
     ${ADD_TRIE_TEST_TARGET}
-    TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER ${ADD_TRIE_TEST_TEST_FILTER})
+    TEST_PREFIX ${PROJECT_NAME}/ TEST_FILTER ${ADD_TRIE_TEST_TEST_FILTER}
+    PROPERTIES ENVIRONMENT ASAN_OPTIONS=abort_on_error=1
+    ENVIRONMENT UBSAN_OPTIONS=halt_on_error=1,print_stacktrace=1
+    ENVIRONMENT TSAN_OPTIONS=external_symbolizer_path=/usr/bin/llvm-symbolizer)
 endfunction()
 
 add_subdirectory("src/monad/mpt/test")
