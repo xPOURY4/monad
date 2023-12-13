@@ -25,7 +25,7 @@ struct page_t
     spin_lock lock_;
 };
 
-void init(page_t *const page, size_t const block_size)
+void init_page(page_t *const page, size_t const block_size)
 {
     page->next_ = page->prev_ = nullptr;
     page->free_block_ = (uintptr_t) nullptr;
@@ -68,7 +68,7 @@ bool is_full(page_t const *const page)
     return false;
 }
 
-void *alloc(page_t *const page)
+void *alloc_block(page_t *const page)
 {
     MONAD_DEBUG_ASSERT(page->lock_.lock_ == get_tl_tid());
     void *ret_addr = nullptr;
@@ -85,7 +85,7 @@ void *alloc(page_t *const page)
     return ret_addr;
 }
 
-void dealloc(page_t *const page, void const *const addr)
+void dealloc_block(page_t *const page, void const *const addr)
 {
     MONAD_DEBUG_ASSERT(page->lock_.lock_ == get_tl_tid());
     *(char **)addr = (char *)(page->free_block_);

@@ -1,5 +1,10 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #include <monad/core/likely.h>
 
 extern __thread int tl_tid;
@@ -13,3 +18,7 @@ static inline int get_tl_tid()
     }
     return tl_tid;
 }
+
+#ifdef __cplusplus
+}
+#endif
