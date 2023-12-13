@@ -2,18 +2,12 @@
 	path = third_party/ethash
 	url = https://github.com/monad-crypto/ethash.git
 	branch = monad
-[submodule "third_party/expected"]
-	path = third_party/expected
-	url = https://github.com/TartanLlama/expected.git
 [submodule "third_party/nanobench"]
 	path = third_party/nanobench
 	url = https://github.com/martinus/nanobench.git
 [submodule "third_party/nlohmann_json"]
 	path = third_party/nlohmann_json
 	url = https://github.com/nlohmann/json.git
-[submodule "third_party/optional"]
-	path = third_party/optional
-	url = https://github.com/TartanLlama/optional.git
 [submodule "third_party/quill"]
 	path = third_party/quill
 	url = https://github.com/odygrd/quill.git

@@ -17,13 +17,6 @@ find_our_dependency(mimalloc REQUIRED)
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
-set(EXPECTED_BUILD_PACKAGE OFF)
-set(EXPECTED_BUILD_TESTS OFF)
-add_subdirectory("third_party/expected" SYSTEM)
-set(OPTIONAL_BUILD_PACKAGE OFF)
-set(OPTIONAL_BUILD_TESTS OFF)
-add_subdirectory("third_party/optional" SYSTEM)
-
 add_subdirectory("third_party/nanobench")
 
 add_subdirectory("third_party/nlohmann_json" SYSTEM)
