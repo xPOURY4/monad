@@ -282,6 +282,15 @@ TYPED_TEST(EraseTrieTest, none)
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 }
 
+TYPED_TEST(EraseTrieTest, empty_update_list)
+{
+    // no update
+    this->root = upsert_updates(this->aux, this->sm, std::move(this->root));
+    EXPECT_EQ(
+        this->root_hash(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+}
+
 TYPED_TEST(EraseTrieTest, remove_everything)
 {
     auto kv = fixed_updates::kv;

@@ -84,6 +84,9 @@ Node::UniquePtr upsert(
     UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
     UpdateList &&updates)
 {
+    if (updates.empty()) {
+        return old;
+    }
     sm.reset();
     auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/, sm.get_state());
     ChildData &entry = sentinel->children[0];
