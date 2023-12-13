@@ -14,22 +14,9 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Node *read_node_blocking_(
-    MONAD_ASYNC_NAMESPACE::storage_pool &pool, Node *parent,
-    unsigned char branch)
-{
-    auto offset = parent->fnext(parent->to_child_index(branch));
-    // top 2 bits are for no_pages
-    auto const num_pages_to_load_node = offset.spare;
-    assert(num_pages_to_load_node <= 3);
-    auto const bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
-    return read_node_blocking(
-        pool, offset, static_cast<unsigned int>(bytes_to_read));
-}
-
 find_result_type find_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *node,
-    NibblesView const key, std::optional<unsigned> opt_node_prefix_index)
+    UpdateAux &aux, Node *node, NibblesView const key,
+    std::optional<unsigned> opt_node_prefix_index)
 {
     if (!node) {
         return {nullptr, find_result::root_node_is_null_failure};
@@ -47,10 +34,13 @@ find_result_type find_blocking(
             // go to node's matched child
             if (!node->next(node->to_child_index(nibble))) {
                 // read node if not yet in mem
-                MONAD_ASSERT(pool != nullptr);
+                MONAD_ASSERT(aux.is_on_disk());
                 node->set_next(
                     node->to_child_index(nibble),
-                    read_node_blocking_(*pool, node, nibble));
+                    read_node_blocking(
+                        aux.io->storage_pool(),
+                        aux.virtual_to_physical(
+                            node->fnext(node->to_child_index(nibble)))));
             }
             node = node->next(node->to_child_index(nibble));
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory
@@ -72,8 +62,7 @@ find_result_type find_blocking(
     return {node, find_result::success};
 }
 
-Nibbles
-find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
+Nibbles find_min_key_blocking(UpdateAux &aux, Node &root)
 {
     Nibbles path;
     Node *node = &root;
@@ -85,16 +74,19 @@ find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
             static_cast<unsigned char>(std::countr_zero(node->mask)));
         // go to next node
         if (!node->next(0)) {
-            MONAD_ASSERT(pool);
-            node->set_next(0, read_node_blocking(*pool, node->fnext(0)));
+            MONAD_ASSERT(aux.is_on_disk());
+            node->set_next(
+                0,
+                read_node_blocking(
+                    aux.io->storage_pool(),
+                    aux.virtual_to_physical(node->fnext(0))));
         }
         node = node->next(0);
     }
     return concat(NibblesView{path}, node->path_nibble_view());
 }
 
-Nibbles
-find_max_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
+Nibbles find_max_key_blocking(UpdateAux &aux, Node &root)
 {
     Nibbles path;
     Node *node = &root;
@@ -106,11 +98,13 @@ find_max_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root)
             static_cast<unsigned char>(15 - std::countl_zero(node->mask)));
         // go to next node
         if (!node->next(node->number_of_children() - 1)) {
-            MONAD_ASSERT(pool);
+            MONAD_ASSERT(aux.is_on_disk());
             node->set_next(
                 node->number_of_children() - 1,
                 read_node_blocking(
-                    *pool, node->fnext(node->number_of_children() - 1)));
+                    aux.io->storage_pool(),
+                    aux.virtual_to_physical(
+                        node->fnext(node->number_of_children() - 1))));
         }
         node = node->next(node->number_of_children() - 1);
     }

@@ -518,9 +518,14 @@ Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
 }
 
 Node *read_node_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool &pool, chunk_offset_t node_offset,
-    unsigned bytes_to_read)
+    MONAD_ASYNC_NAMESPACE::storage_pool &pool, chunk_offset_t node_offset)
 {
+    MONAD_ASSERT(
+        node_offset.spare <=
+        round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
+    // spare bits are number of pages needed to load node
+    unsigned const num_pages_to_load_node = node_offset.spare;
+    unsigned const bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
     file_offset_t rd_offset =
         round_down_align<DISK_PAGE_BITS>(node_offset.offset);
     uint16_t buffer_off = uint16_t(node_offset.offset - rd_offset);

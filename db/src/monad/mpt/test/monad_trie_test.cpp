@@ -96,10 +96,8 @@ inline Node::UniquePtr batch_upsert_commit(
             aux, std::move(prev_root), old_block_no, block_no);
         // For test purpose only: verify that earlier blocks are valid, no
         // change in db
-        auto [state_root, res] = find_blocking(
-            aux.is_on_disk() ? &aux.io->storage_pool() : nullptr,
-            prev_root.get(),
-            old_block_no);
+        auto [state_root, res] =
+            find_blocking(aux, prev_root.get(), old_block_no);
         MONAD_ASSERT(res == find_result::success);
         MONAD_ASSERT(state_root->data_len == 32);
     }
@@ -128,10 +126,7 @@ inline Node::UniquePtr batch_upsert_commit(
                      .count()) /
              1000000000.0;
 
-    auto [state_root, res] = find_blocking(
-        aux.is_on_disk() ? &aux.io->storage_pool() : nullptr,
-        new_root.get(),
-        block_no);
+    auto [state_root, res] = find_blocking(aux, new_root.get(), block_no);
     MONAD_ASSERT(res == find_result::success);
     fprintf(stdout, "root->data : ");
     __print_bytes_in_hex(state_root->data());
@@ -329,8 +324,7 @@ int main(int argc, char *argv[])
         if (append) {
             root.reset(
                 read_node_blocking(io.storage_pool(), aux.get_root_offset()));
-            Nibbles max_block =
-                find_max_key_blocking(&io.storage_pool(), *root);
+            Nibbles max_block = find_max_key_blocking(aux, *root);
             // always start from the last valid block num + 1
             block_no = deserialize_from_big_endian<uint64_t>(max_block) + 1;
         }

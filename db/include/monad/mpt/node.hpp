@@ -288,8 +288,9 @@ void serialize_node_to_buffer(unsigned char *write_pos, Node const &);
 
 Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos);
 
+//! input argument is node's physical offset
+//! chunk_offset_t spare bits store the num page to read
 Node *read_node_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool &, chunk_offset_t node_offset,
-    unsigned bytes_to_read = 3U << DISK_PAGE_BITS);
+    MONAD_ASYNC_NAMESPACE::storage_pool &, chunk_offset_t node_offset);
 
 MONAD_MPT_NAMESPACE_END

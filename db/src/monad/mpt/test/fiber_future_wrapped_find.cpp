@@ -28,7 +28,7 @@ namespace
     using namespace MONAD_ASYNC_NAMESPACE;
 
     void find(
-        AsyncIO *const io, inflight_map_t *const inflights, Node *const root,
+        UpdateAux *aux, inflight_map_t *const inflights, Node *const root,
         monad::byte_string_view const key, monad::byte_string_view const value)
     {
         boost::fibers::promise<monad::mpt::find_result_type> promise;
@@ -37,7 +37,7 @@ namespace
             .root = root,
             .key = key,
             .node_prefix_index = std::nullopt};
-        find_notify_fiber_future(*io, *inflights, request);
+        find_notify_fiber_future(*aux, *inflights, request);
         auto const [node, errc] = request.promise->get_future().get();
         ASSERT_TRUE(node != nullptr);
         EXPECT_EQ(errc, monad::mpt::find_result::success);
@@ -67,7 +67,7 @@ namespace
         inflight_map_t inflights;
         boost::fibers::fiber find_fiber(
             find,
-            aux.io,
+            &this->aux,
             &inflights,
             root.get(),
             one_hundred_updates[0].first,
@@ -94,7 +94,8 @@ namespace
         inflight_map_t inflights;
         std::vector<boost::fibers::fiber> fibers;
         for (auto const &[key, val] : one_hundred_updates) {
-            fibers.emplace_back(find, aux.io, &inflights, root.get(), key, val);
+            fibers.emplace_back(
+                find, &this->aux, &inflights, root.get(), key, val);
         }
 
         bool signal_done = false;

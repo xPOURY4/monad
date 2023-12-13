@@ -78,7 +78,7 @@ struct async_write_node_result
 };
 
 // invoke at the end of each block upsert
-async_write_node_result write_new_root_node(UpdateAux &, Node const &);
+chunk_offset_t write_new_root_node(UpdateAux &, Node &);
 
 Node::UniquePtr upsert(
     UpdateAux &aux, TrieStateMachine &sm, Node::UniquePtr old,
@@ -157,17 +157,20 @@ struct update_receiver
         , updates(std::move(updates))
         , parent(parent)
         , entry(entry)
-        , rd_offset(round_down_align<DISK_PAGE_BITS>(offset))
+        , rd_offset(round_down_align<DISK_PAGE_BITS>(
+              aux->virtual_to_physical(offset)))
         , prefix_index(static_cast<uint8_t>(prefix_index))
     {
         // prep uring data
-        rd_offset.spare = 0;
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
-        auto const num_pages_to_load_node =
-            offset.spare; // top 2 bits are for no_pages
-        assert(num_pages_to_load_node <= 3);
+        // spare bits are number of pages needed to load node
+        auto const num_pages_to_load_node = rd_offset.spare;
+        assert(
+            num_pages_to_load_node <=
+            round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
+        rd_offset.spare = 0;
     }
 
     void set_value(
@@ -219,13 +222,16 @@ struct read_single_child_receiver
         , sm(std::move(sm))
     {
         // prep uring data
-        auto offset = child.offset;
+        // translate virtual offset to physical offset on disk for read
+        auto offset = aux->virtual_to_physical(child.offset);
         rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
         rd_offset.spare = 0;
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
-        auto const num_pages_to_load_node =
-            offset.spare; // top 2 bits are for no_pages
-        assert(num_pages_to_load_node <= 3);
+        // spare bits are number of pages needed to load node
+        auto const num_pages_to_load_node = offset.spare;
+        assert(
+            num_pages_to_load_node <=
+            round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
     }
@@ -808,6 +814,7 @@ node_writer_unique_ptr_type replace_node_writer(
     return ret;
 }
 
+// return physical offset the node is written at
 async_write_node_result async_write_node(
     UpdateAux &aux, node_writer_unique_ptr_type &node_writer, Node const &node)
 {
@@ -879,6 +886,8 @@ async_write_node_result async_write_node(
     return ret;
 }
 
+// Return node's virtual offset the node is written at
+// hide the physical offset detail from triedb
 chunk_offset_t
 async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
 {
@@ -895,12 +904,14 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
     auto const pages = num_pages(off.offset, node.get_disk_size());
     MONAD_DEBUG_ASSERT(pages <= std::numeric_limits<uint16_t>::max());
     off.spare = static_cast<uint16_t>(pages);
-    return off;
+    return aux.physical_to_virtual(off);
 }
 
-async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
+// return virtual offset of root
+chunk_offset_t write_new_root_node(UpdateAux &aux, Node &root)
 {
-    auto const ret = async_write_node(aux, aux.node_writer_fast, root);
+    auto const virtual_offset_written_to =
+        async_write_node_set_spare(aux, root, true);
     // Round up with all bits zero
     auto replace = [&](node_writer_unique_ptr_type &node_writer) {
         auto *sender = &node_writer->sender();
@@ -927,10 +938,10 @@ async_write_node_result write_new_root_node(UpdateAux &aux, Node const &root)
     aux.io->flush();
     // write new root offset and slow ring's latest offset to the front of disk
     aux.advance_offsets_to(
-        ret.offset_written_to,
+        aux.virtual_to_physical(virtual_offset_written_to),
         aux.node_writer_fast->sender().offset(),
         aux.node_writer_slow->sender().offset());
-    return ret;
+    return virtual_offset_written_to;
 }
 
 MONAD_MPT_NAMESPACE_END

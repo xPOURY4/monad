@@ -35,6 +35,7 @@ struct chunk_offset_t
 
     static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
     static constexpr file_offset_t max_id = (1U << 20) - 1;
+    static constexpr file_offset_t top_bit_mask_in_spare = 1U << 15;
 
     static constexpr chunk_offset_t invalid_value() noexcept
     {
@@ -49,10 +50,12 @@ struct chunk_offset_t
         assert(id_ <= max_id);
         assert(offset_ <= max_offset);
     }
+
     constexpr bool operator==(chunk_offset_t const &o) const noexcept
     {
         return offset == o.offset && id == o.id;
     }
+
     constexpr auto operator<=>(chunk_offset_t const &o) const noexcept
     {
         if (offset == o.offset && id == o.id) {
@@ -72,23 +75,42 @@ struct chunk_offset_t
         ret.offset = offset_ & max_offset;
         return ret;
     }
+
     constexpr file_offset_t raw() const noexcept
     {
         union _
         {
             file_offset_t ret;
             chunk_offset_t self;
+
             constexpr _()
                 : ret{}
             {
             }
         } u;
+
         u.self = *this;
         u.self.spare =
             0; // must be flattened, otherwise can't go into the rbtree key
         return u.ret;
     }
+
+    constexpr bool get_highest_bit() const noexcept
+    {
+        return spare & top_bit_mask_in_spare;
+    }
+
+    void set_highest_bit(bool const value) noexcept
+    {
+        if (value) {
+            spare |= top_bit_mask_in_spare;
+        }
+        else {
+            spare = (spare & ~top_bit_mask_in_spare) & 0xffff;
+        }
+    }
 };
+
 static_assert(sizeof(chunk_offset_t) == 8);
 static_assert(alignof(chunk_offset_t) == 8);
 static_assert(std::is_trivially_copyable_v<chunk_offset_t>);

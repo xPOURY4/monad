@@ -89,7 +89,11 @@ public:
     uint32_t chunk_id_from_insertion_count(
         chunk_list list_type,
         detail::unsigned_20 insertion_count) const noexcept;
+    // translate between virtual and physical addresses chunk_offset_t
+    chunk_offset_t physical_to_virtual(chunk_offset_t) const noexcept;
+    chunk_offset_t virtual_to_physical(chunk_offset_t) const noexcept;
 
+    // age is relative to the beginning chunk's count
     std::pair<chunk_list, detail::unsigned_20>
     chunk_list_and_age(uint32_t idx) const noexcept;
 
@@ -224,8 +228,7 @@ using inflight_map_t = unordered_dense_map<
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
 // not race free.
 void find_notify_fiber_future(
-    MONAD_ASYNC_NAMESPACE::AsyncIO &, inflight_map_t &inflights,
-    find_request_t);
+    UpdateAux &, inflight_map_t &inflights, find_request_t);
 
 /*! \brief Copy a leaf node under prefix `src` to prefix `dest`. Invoked before
 committing block updates to triedb. By copy we mean everything other than
@@ -243,13 +246,11 @@ through blocking read.
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
-    MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node *root, NibblesView key,
+    UpdateAux &, Node *root, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
-Nibbles
-find_min_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root);
-Nibbles
-find_max_key_blocking(MONAD_ASYNC_NAMESPACE::storage_pool *pool, Node &root);
+Nibbles find_min_key_blocking(UpdateAux &, Node &root);
+Nibbles find_max_key_blocking(UpdateAux &, Node &root);
 
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)

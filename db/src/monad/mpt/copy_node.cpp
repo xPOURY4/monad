@@ -1,6 +1,5 @@
 #include <monad/async/config.hpp>
 
-#include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
@@ -21,9 +20,7 @@ Node::UniquePtr copy_node(
     UpdateAux &aux, Node::UniquePtr root, NibblesView const src,
     NibblesView const dest)
 {
-    MONAD_ASYNC_NAMESPACE::storage_pool *pool =
-        aux.is_on_disk() ? &aux.io->storage_pool() : nullptr;
-    auto [src_leaf, res] = find_blocking(pool, root.get(), src);
+    auto [src_leaf, res] = find_blocking(aux, root.get(), src);
     MONAD_ASSERT(res == find_result::success);
 
     Node *parent = nullptr;

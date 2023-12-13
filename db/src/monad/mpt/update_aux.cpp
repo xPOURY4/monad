@@ -35,6 +35,32 @@ uint32_t UpdateAux::chunk_id_from_insertion_count(
     return map[idx];
 }
 
+chunk_offset_t
+UpdateAux::physical_to_virtual(chunk_offset_t offset) const noexcept
+{
+    MONAD_DEBUG_ASSERT(offset.get_highest_bit() == false);
+    auto const *ci = db_metadata_[0]->at(offset.id);
+    // free list offset never enter this function
+    MONAD_DEBUG_ASSERT(ci->in_fast_list || ci->in_slow_list);
+    // Use top bit in id for slow or fast list
+    offset.id = uint32_t(ci->insertion_count()) & chunk_offset_t::max_id;
+    offset.set_highest_bit(ci->in_fast_list);
+    return offset;
+}
+
+chunk_offset_t
+UpdateAux::virtual_to_physical(chunk_offset_t offset) const noexcept
+{
+    MONAD_DEBUG_ASSERT(offset.spare != 0xffff); // not max
+    // get top bit in spare and then clear it
+    bool const in_fast = offset.get_highest_bit();
+    offset.set_highest_bit(false);
+    offset.id = chunk_id_from_insertion_count(
+                    in_fast ? chunk_list::fast : chunk_list::slow, offset.id) &
+                chunk_offset_t::max_id;
+    return offset;
+}
+
 std::pair<UpdateAux::chunk_list, detail::unsigned_20>
 UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
 {
