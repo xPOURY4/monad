@@ -10,4 +10,4 @@ if [ "${CC}" != "clang" ] || [ "${CMAKE_BUILD_TYPE}" != "RelWithDebInfo" ]; then
   PYTEST_MATCH_ARGS="-k not test_callgrind and not test_disas"
 fi
 
-pytest --pyargs monad ${PYTEST_MATCH_ARGS:+"${PYTEST_MATCH_ARGS}"} || [ $? -eq 5 ]
+pytest-3 --pyargs monad ${PYTEST_MATCH_ARGS:+"${PYTEST_MATCH_ARGS}"} || [ $? -eq 5 ]
