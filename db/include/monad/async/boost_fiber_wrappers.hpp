@@ -4,7 +4,14 @@
 
 #include <boost/fiber/condition_variable.hpp>
 #include <boost/fiber/fiber.hpp>
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #include <boost/fiber/future.hpp>
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -17,13 +24,14 @@ namespace boost_fibers
             ::boost::fibers::context *context{nullptr};
             ::boost::fibers::condition_variable *cond{nullptr};
         };
+
         extern void detach_fiber_from_current_thread_and_initiate(
             detached_thread_context &context,
             ::boost::fibers::context *todetach,
             erased_connected_operation *initiate);
         extern void attach_fiber_to_current_thread_and_resume(
             ::boost::fibers::context *onto,
-            const detached_thread_context &context);
+            detached_thread_context const &context);
     }
 
     template <class T, bool reattach_scheduler>
@@ -49,11 +57,13 @@ namespace boost_fibers
             }
             promise.set_value(std::move(res));
         }
+
         void reset()
         {
             promise = {};
         }
     };
+
     static_assert(receiver<promise_receiver<int, false>>);
 
     template <sender Sender>
@@ -63,6 +73,7 @@ namespace boost_fibers
         using receiver_type = promise_receiver<result_type, false>;
         using connected_state_ptr_type =
             AsyncIO::connected_operation_unique_ptr_type<Sender, receiver_type>;
+
         class future_with_connected_state
             : public ::boost::fibers::future<result_type>
         {
@@ -101,10 +112,12 @@ namespace boost_fibers
         using connected_state_type = decltype(connect(
             std::declval<AsyncIO &>(), std::declval<Sender>(),
             std::declval<receiver_type>()));
+
         struct future_with_connected_state_storage
         {
             connected_state_type _state;
         };
+
         struct future_with_connected_state
             : public future_with_connected_state_storage
             , public ::boost::fibers::future<result_type>
@@ -161,4 +174,5 @@ namespace boost_fibers
     using resume_execution_upon =
         io_wrap<threadsafe_sender, true>::future_with_connected_state;
 }
+
 MONAD_ASYNC_NAMESPACE_END

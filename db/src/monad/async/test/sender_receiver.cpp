@@ -17,7 +17,14 @@
 #include <monad/io/ring.hpp>
 
 #include <boost/fiber/fiber.hpp>
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #include <boost/fiber/future.hpp>
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
 #include <boost/fiber/future/promise.hpp>
 #include <boost/fiber/operations.hpp>
 #include <boost/outcome/config.hpp>
@@ -50,6 +57,7 @@ struct read_single_buffer_operation_states_base_
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
         std::span<std::byte const> buffer) = 0;
 };
+
 template <MONAD_ASYNC_NAMESPACE::receiver Receiver>
 class read_single_buffer_operation_states_ final
     : public read_single_buffer_operation_states_base_
@@ -83,14 +91,17 @@ public:
                 Receiver{this, std::forward<Args>(args)...}));
         }
     }
+
     ~read_single_buffer_operation_states_()
     {
         stop();
     }
+
     unsigned count() const noexcept
     {
         return op_count_;
     }
+
     void initiate()
     {
         test_is_done_ = false;
@@ -99,11 +110,13 @@ public:
         }
         op_count_ = static_cast<unsigned int>(states_.size());
     }
+
     void stop()
     {
         test_is_done_ = true;
         fixture_shared_state_->testio->wait_until_done();
     }
+
     virtual bool reinitiate(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
         std::span<std::byte const> buffer) override final
@@ -128,11 +141,13 @@ public:
         }
         return false;
     }
+
     MONAD_ASYNC_NAMESPACE::read_single_buffer_sender &
     sender(size_t idx) noexcept
     {
         return states_[idx]->sender();
     }
+
     Receiver &receiver(size_t idx) noexcept
     {
         return states_[idx]->receiver();
@@ -206,6 +221,7 @@ TEST_F(AsyncIO, timed_delay_sender_receiver)
 TEST_F(AsyncIO, threadsafe_sender_receiver)
 {
     using namespace MONAD_ASYNC_NAMESPACE;
+
     struct receiver_t
     {
         enum : bool
@@ -215,13 +231,16 @@ TEST_F(AsyncIO, threadsafe_sender_receiver)
 
         std::atomic<bool> done{false};
         receiver_t() = default;
+
         receiver_t(receiver_t const &) {}
+
         void set_value(erased_connected_operation *, result<void> res)
         {
             ASSERT_TRUE(res);
             done = true;
         }
     };
+
     auto state =
         connect(*shared_state_()->testio, threadsafe_sender{}, receiver_t{});
     auto fut = std::async(std::launch::async, [&state] { state.initiate(); });
@@ -237,6 +256,7 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
     static constexpr size_t COUNT = 1000;
     static std::atomic<int> done{0};
     static size_t count = 0;
+
     struct reinitiating_receiver_t
     {
         enum : bool
@@ -253,6 +273,7 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
             }
         }
     };
+
     struct nonreinitiating_receiver_t
     {
         enum : bool
@@ -266,6 +287,7 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
             count++;
         }
     };
+
     auto benchmark = [&](char const *desc, auto &&initiate) {
         std::cout << "Benchmarking " << desc << " ..." << std::endl;
         done = false;
@@ -387,6 +409,7 @@ struct completion_handler_io_receiver
         : state(s)
     {
     }
+
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
         MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
@@ -394,6 +417,7 @@ struct completion_handler_io_receiver
         ASSERT_TRUE(buffer);
         state->reinitiate(rawstate, buffer.assume_value());
     }
+
     void reset() {}
 };
 
@@ -439,6 +463,7 @@ struct cpp_suspend_resume_io_receiver
         read_single_buffer_operation_states_base_ *)
     {
     }
+
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
         MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
@@ -447,6 +472,7 @@ struct cpp_suspend_resume_io_receiver
         res = {rawstate, std::move(buffer)};
         _h.resume();
     }
+
     void reset()
     {
         _h = {};
@@ -459,11 +485,13 @@ struct cpp_suspend_resume_io_receiver
     {
         return res.has_value();
     }
+
     void await_suspend(std::coroutine_handle<> h)
     {
         assert(!res.has_value());
         _h = h;
     }
+
     result_type await_resume()
     {
         assert(res.has_value());
@@ -534,12 +562,14 @@ struct fiber_suspend_resume_io_receiver
         read_single_buffer_operation_states_base_ *)
     {
     }
+
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
         MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
     {
         promise.set_value({rawstate, std::move(buffer)});
     }
+
     void reset()
     {
         promise = {};
@@ -595,6 +625,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
     // Do NOT use this for i/o, as we reuse testio's io_uring state
     static monad::io::Ring controller_executor_ring(1, 0);
     static std::unique_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> controller_executor;
+
     struct controller_notifying_io_receiver
     {
         enum : bool
@@ -610,6 +641,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             };
 
             controller_notifying_io_receiver *parent{nullptr};
+
             void set_value(erased_connected_operation *, result<void> res)
             {
                 ASSERT_TRUE(res);
@@ -618,8 +650,10 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
                 // the i/o
                 parent->state3->initiate();
             }
+
             void reset() {}
         };
+
         struct worker_initiating_io_receiver
         {
             enum : bool
@@ -628,6 +662,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             };
 
             controller_notifying_io_receiver *parent{nullptr};
+
             void set_value(erased_connected_operation *, result<void> res)
             {
                 ASSERT_TRUE(res);
@@ -635,8 +670,10 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
                 // are safe to reinitialise the i/o
                 parent->do_reinitiate();
             }
+
             void reset() {}
         };
+
         read_single_buffer_operation_states_base_ *state1;
         std::unique_ptr<connected_operation<
             threadsafe_sender, controller_initiating_io_receiver>>
@@ -661,6 +698,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
                   worker_initiating_io_receiver{})))
         {
         }
+
         void set_value(
             erased_connected_operation *rawstate,
             result<std::span<std::byte const>> buffer)
@@ -673,6 +711,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             state3->receiver().parent = this;
             state2->initiate();
         }
+
         void reset()
         {
             state2->reset({}, {});
@@ -680,11 +719,13 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             original_rawstate = nullptr;
             original_buffer = {};
         }
+
         void do_reinitiate()
         {
             state1->reinitiate(original_rawstate, original_buffer);
         }
     };
+
     static std::atomic<int> latch{-1};
     std::thread controller([] {
         storage_pool pool{use_anonymous_inode_tag{}};
@@ -736,6 +777,7 @@ TEST_F(AsyncIO, stack_overflow_avoided)
     static unsigned counter = 0;
     static unsigned last_receiver_count = unsigned(-1);
     ops.reserve(COUNT);
+
     struct receiver_t
     {
         enum : bool
@@ -744,6 +786,7 @@ TEST_F(AsyncIO, stack_overflow_avoided)
         };
 
         unsigned count;
+
         void set_value(erased_connected_operation *, result<void> res)
         {
             static thread_local unsigned stack_level = 0;
@@ -780,6 +823,7 @@ TEST_F(AsyncIO, stack_overflow_avoided)
             }
         }
     };
+
     receiver_t{counter++}.set_value(nullptr, success());
     shared_state_()->testio->wait_until_done();
     EXPECT_GE(ops.size(), COUNT);
