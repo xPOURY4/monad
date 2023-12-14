@@ -14,6 +14,13 @@ include("cmake/find_our_dependency.cmake")
 find_our_dependency(absl REQUIRED)
 find_our_dependency(mimalloc REQUIRED)
 
+cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
+if(linux_flavour MATCHES "debian|ubuntu")
+  find_package(Boost REQUIRED COMPONENTS fiber stacktrace_backtrace)
+else()
+  find_package(Boost REQUIRED COMPONENTS fiber stacktrace_addr2line)
+endif()
+
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
@@ -110,19 +117,15 @@ add_library(
 )
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_core_compile_options(monad_core)
-target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
-cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
-if(linux_flavour MATCHES "debian|ubuntu" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-  # This produces the best backtraces on Debian/Ubuntu, addr2line doesn't work well on those
-  # backtrace.h is within GCC's internal headers, so clang doesn't find it.
+target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_LINK=1")
+if(linux_flavour MATCHES "debian|ubuntu")
   target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_BACKTRACE=1")
-  target_link_libraries(monad_core PUBLIC "backtrace")
+  target_link_libraries(monad_core PUBLIC Boost::stacktrace_backtrace)
 else()
-  # This produces lovely backtraces on CentOS
   target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
-  target_link_libraries(monad_core PUBLIC "dl")
-  target_link_options(monad_core PUBLIC "-rdynamic")  # needed for quality stack backtracing
+  target_link_libraries(monad_core PUBLIC Boost::stacktrace_addr2line)
 endif()
+target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
 add_library(
   monad_core_disas SHARED
@@ -138,7 +141,6 @@ target_link_libraries(monad_core_disas PUBLIC monad_core)
 enable_testing()
 
 find_package(GTest REQUIRED)
-find_package(Boost REQUIRED COMPONENTS fiber)
 
 add_subdirectory("test")
 
