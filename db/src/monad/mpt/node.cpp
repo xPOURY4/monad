@@ -100,39 +100,68 @@ void Node::set_fnext(unsigned const index, chunk_offset_t const off) noexcept
         sizeof(chunk_offset_t));
 }
 
-unsigned char *Node::child_min_count_data() noexcept
+unsigned char *Node::child_min_offset_fast_data() noexcept
 {
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-unsigned char const *Node::child_min_count_data() const noexcept
+unsigned char const *Node::child_min_offset_fast_data() const noexcept
 {
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-detail::unsigned_20 Node::min_count(unsigned const index) noexcept
+uint32_t Node::min_offset_fast(unsigned const index) noexcept
 {
-    return unaligned_load<detail::unsigned_20>(
-        child_min_count_data() + index * sizeof(detail::unsigned_20));
+    return unaligned_load<uint32_t>(
+        child_min_offset_fast_data() + index * sizeof(uint32_t));
 }
 
-void Node::set_min_count(
-    unsigned const index, detail::unsigned_20 const count) noexcept
+void Node::set_min_offset_fast(
+    unsigned const index, uint32_t const offset) noexcept
 {
     std::memcpy(
-        child_min_count_data() + index * sizeof(detail::unsigned_20),
-        &count,
-        sizeof(detail::unsigned_20));
+        child_min_offset_fast_data() + index * sizeof(uint32_t),
+        &offset,
+        sizeof(uint32_t));
+}
+
+unsigned char *Node::child_min_offset_slow_data() noexcept
+{
+    return child_min_offset_fast_data() +
+           number_of_children() * sizeof(uint32_t);
+}
+
+unsigned char const *Node::child_min_offset_slow_data() const noexcept
+{
+    return child_min_offset_fast_data() +
+           number_of_children() * sizeof(uint32_t);
+}
+
+uint32_t Node::min_offset_slow(unsigned const index) noexcept
+{
+    return unaligned_load<uint32_t>(
+        child_min_offset_slow_data() + index * sizeof(uint32_t));
+}
+
+void Node::set_min_offset_slow(
+    unsigned const index, uint32_t const offset) noexcept
+{
+    std::memcpy(
+        child_min_offset_slow_data() + index * sizeof(uint32_t),
+        &offset,
+        sizeof(uint32_t));
 }
 
 unsigned char *Node::child_off_data() noexcept
 {
-    return child_min_count_data() + number_of_children() * sizeof(uint32_t);
+    return child_min_offset_slow_data() +
+           number_of_children() * sizeof(uint32_t);
 }
 
 unsigned char const *Node::child_off_data() const noexcept
 {
-    return child_min_count_data() + number_of_children() * sizeof(uint32_t);
+    return child_min_offset_slow_data() +
+           number_of_children() * sizeof(uint32_t);
 }
 
 uint16_t Node::child_data_offset(unsigned const index) const noexcept
@@ -357,22 +386,10 @@ void ChildData::copy_old_child(Node *const old, unsigned const i)
     MONAD_DEBUG_ASSERT(i < 16);
     branch = static_cast<uint8_t>(i);
     offset = old->fnext(index);
-    min_count = old->min_count(index);
-    MONAD_DEBUG_ASSERT(is_valid());
-}
+    min_offset_fast = old->min_offset_fast(index);
+    min_offset_slow = old->min_offset_slow(index);
 
-detail::unsigned_20
-calc_min_count(Node *const node, detail::unsigned_20 const curr_count)
-{
-    if (!node->mask) {
-        return curr_count;
-    }
-    detail::unsigned_20 ret{uint32_t(-1)};
-    for (unsigned index = 0; index < node->number_of_children(); ++index) {
-        ret = std::min(ret, node->min_count(index));
-    }
-    MONAD_ASSERT(ret != detail::unsigned_20(uint32_t(-1)));
-    return ret;
+    MONAD_DEBUG_ASSERT(is_valid());
 }
 
 Node::UniquePtr make_node(
@@ -460,7 +477,8 @@ Node::UniquePtr make_node(
     for (unsigned index = 0; auto const &child : children) {
         if (child.is_valid()) {
             node->set_fnext(index, child.offset);
-            node->set_min_count(index, child.min_count);
+            node->set_min_offset_fast(index, child.min_offset_fast);
+            node->set_min_offset_slow(index, child.min_offset_slow);
             node->set_next(index, child.ptr);
             node->set_child_data(index, {child.data, child.len});
             ++index;
@@ -549,6 +567,28 @@ Node *read_node_blocking(
             strerror(errno));
     }
     return deserialize_node_from_buffer(buffer + buffer_off).release();
+}
+
+std::pair<uint32_t, uint32_t>
+calc_min_offsets(Node &node, chunk_offset_t node_virtual_offset)
+{
+    uint32_t fast_ret = uint32_t(-1);
+    uint32_t slow_ret = uint32_t(-1);
+    if (node_virtual_offset != INVALID_OFFSET) {
+        auto const truncated_offset = truncate_offset(node_virtual_offset);
+        bool const node_in_fast = node_virtual_offset.get_highest_bit();
+        if (node_in_fast) {
+            fast_ret = truncated_offset;
+        }
+        else {
+            slow_ret = truncated_offset;
+        }
+    }
+    for (unsigned i = 0; i < node.number_of_children(); ++i) {
+        fast_ret = std::min(fast_ret, node.min_offset_fast(i));
+        slow_ret = std::min(slow_ret, node.min_offset_slow(i));
+    }
+    return {fast_ret, slow_ret};
 }
 
 MONAD_MPT_NAMESPACE_END

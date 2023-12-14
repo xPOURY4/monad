@@ -70,7 +70,10 @@ Node::UniquePtr copy_node(
                         children[i].branch = i;
                         auto const old_index = node->to_child_index(i);
                         if (aux.is_on_disk()) {
-                            children[i].min_count = node->min_count(old_index);
+                            children[i].min_offset_fast =
+                                node->min_offset_fast(old_index);
+                            children[i].min_offset_slow =
+                                node->min_offset_slow(old_index);
                             children[i].offset = node->fnext(old_index);
                             node->next_ptr(old_index).reset();
                         }

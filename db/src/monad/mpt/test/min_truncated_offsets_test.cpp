@@ -1,0 +1,172 @@
+#include "gtest/gtest.h"
+
+#include "test_fixtures_gtest.hpp"
+
+#include <monad/mpt/traverse.hpp>
+#include <monad/mpt/trie.hpp>
+
+#include <algorithm>
+#include <stack>
+#include <vector>
+
+using namespace ::monad::test;
+using namespace ::monad::mpt;
+
+TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
+{
+    this->sm =
+        StateMachineWithBlockNo(0); // default section = 0, which is block_no
+                                    // section. Thus we cache all nodes.
+    this->aux.alternate_slow_fast_node_writer_unit_testing_only(true);
+    constexpr size_t const eightMB = 8 * 1024 * 1024;
+
+    // ensure total bytes written on both fast and slow lists
+    auto ensure_total_bytes_written = [&](size_t fast_chunks,
+                                          size_t chunk_inner_offset_fast,
+                                          size_t slow_chunks,
+                                          size_t chunk_inner_offset_slow) {
+        monad::small_prng rand;
+        std::vector<std::pair<monad::byte_string, size_t>> keys;
+
+        std::vector<Update> updates;
+        updates.reserve(1000);
+        for (;;) {
+            UpdateList update_ls;
+            updates.clear();
+            for (size_t n = 0; n < 1000; n++) {
+                {
+                    monad::byte_string key(
+                        0x1234567812345678123456781234567812345678123456781234567812345678_hex);
+                    for (size_t n = 0; n < key.size(); n += 4) {
+                        *(uint32_t *)(key.data() + n) = rand();
+                    }
+                    keys.emplace_back(std::move(key), aux.get_root_offset().id);
+                }
+                updates.push_back(
+                    make_update(keys.back().first, keys.back().first));
+                update_ls.push_front(updates.back());
+            }
+            root = upsert(aux, sm, std::move(root), std::move(update_ls));
+            size_t count_fast = 0;
+            for (auto const *ci = aux.db_metadata()->fast_list_begin();
+                 ci != nullptr;
+                 count_fast++, ci = ci->next(aux.db_metadata())) {
+            }
+            size_t count_slow = 0;
+            for (auto const *ci = aux.db_metadata()->slow_list_begin();
+                 ci != nullptr;
+                 count_slow++, ci = ci->next(aux.db_metadata())) {
+            }
+            if (count_fast >= fast_chunks &&
+                aux.node_writer_fast->sender().offset().offset >=
+                    chunk_inner_offset_fast &&
+                count_slow >= slow_chunks &&
+                aux.node_writer_slow->sender().offset().offset >=
+                    chunk_inner_offset_slow) {
+                break;
+            }
+        }
+    };
+    ensure_total_bytes_written(0, eightMB, 0, eightMB);
+
+    auto [trie_min_offset_fast, trie_min_offset_slow] =
+        calc_min_offsets(*this->root);
+    EXPECT_EQ(trie_min_offset_fast, 0);
+    EXPECT_EQ(trie_min_offset_slow, 0);
+
+    struct TraverseCalculateAndVerifyMinTruncatedOffsets
+        : public TraverseMachine
+    {
+        UpdateAux &aux; // for chunk count lookup
+        size_t level{0};
+
+        struct traverse_record_t
+        {
+            Node const *node{nullptr};
+            // record the calculated min truncated inorder offsets of trie
+            // rooted at node in traversal
+            uint32_t test_min_offset_fast{uint32_t(-1)};
+            uint32_t test_min_offset_slow{uint32_t(-1)};
+        };
+
+        std::stack<traverse_record_t> root_to_node_records;
+
+        TraverseCalculateAndVerifyMinTruncatedOffsets(UpdateAux &aux)
+            : aux(aux)
+        {
+        }
+
+        virtual void
+        down(unsigned char const branch_in_parent, Node const &node) override
+        {
+            ++level; // increment level counter
+
+            if (root_to_node_records.empty()) { // indicates node is root
+                root_to_node_records.push(traverse_record_t{.node = &node});
+                return;
+            }
+            Node *const parent =
+                const_cast<Node *>(root_to_node_records.top().node);
+            MONAD_ASSERT(parent != nullptr);
+            auto const node_offset =
+                parent->fnext(parent->to_child_index(branch_in_parent));
+            bool const node_in_fast = node_offset.get_highest_bit();
+            if (node_in_fast) {
+                root_to_node_records.push(
+                    {&node, truncate_offset(node_offset), uint32_t(-1)});
+            }
+            else {
+                root_to_node_records.push(
+                    {&node, uint32_t(-1), truncate_offset(node_offset)});
+            }
+        }
+
+        virtual void
+        up(unsigned char const branch_in_parent, Node const &node) override
+        {
+            --level;
+
+            auto const node_record = root_to_node_records.top();
+            root_to_node_records.pop();
+            if (root_to_node_records.empty()) { // node is root
+                // verify that offset equals calculated one in traversal
+                auto [node_branch_min_fast_off, node_branch_min_slow_off] =
+                    calc_min_offsets(
+                        *const_cast<Node *>(&node),
+                        aux.physical_to_virtual(
+                            aux.db_metadata()->root_offset));
+                EXPECT_EQ(
+                    node_record.test_min_offset_fast, node_branch_min_fast_off);
+                EXPECT_EQ(
+                    node_record.test_min_offset_slow, node_branch_min_slow_off);
+            }
+            else {
+                auto &parent_record = root_to_node_records.top();
+                Node *const parent = const_cast<Node *>(parent_record.node);
+                auto const node_branch_min_fast_off = parent->min_offset_fast(
+                    parent->to_child_index(branch_in_parent));
+                auto const node_branch_min_slow_off = parent->min_offset_slow(
+                    parent->to_child_index(branch_in_parent));
+                // verify that min offset stored in parent equals the calculated
+                // one during traversal
+                EXPECT_EQ(
+                    node_branch_min_fast_off, node_record.test_min_offset_fast);
+                EXPECT_EQ(
+                    node_branch_min_slow_off, node_record.test_min_offset_slow);
+
+                // update parent record,
+                parent_record.test_min_offset_fast = std::min(
+                    parent_record.test_min_offset_fast,
+                    node_record.test_min_offset_fast);
+                parent_record.test_min_offset_slow = std::min(
+                    parent_record.test_min_offset_slow,
+                    node_record.test_min_offset_slow);
+            }
+        }
+
+    } traverse{this->aux};
+
+    preorder_traverse(*this->root, traverse);
+    EXPECT_EQ(traverse.level, 0);
+    EXPECT_EQ(traverse.root_to_node_records.empty(), true);
+}

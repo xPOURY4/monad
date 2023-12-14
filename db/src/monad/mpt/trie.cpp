@@ -318,12 +318,12 @@ Node *create_node_from_children_if_any(
                 // won't duplicate write of unchanged old child
                 MONAD_DEBUG_ASSERT(child.branch < 16);
                 MONAD_DEBUG_ASSERT(child.ptr);
-                MONAD_DEBUG_ASSERT(child.min_count == uint32_t(-1));
+                MONAD_DEBUG_ASSERT(child.min_offset_slow == uint32_t(-1));
+                MONAD_DEBUG_ASSERT(child.min_offset_fast == uint32_t(-1));
                 child.offset =
                     async_write_node_set_spare(aux, *child.ptr, true);
-                child.min_count = calc_min_count(
-                    child.ptr,
-                    aux.db_metadata()->at(child.offset.id)->insertion_count());
+                std::tie(child.min_offset_fast, child.min_offset_slow) =
+                    calc_min_offsets(*child.ptr, child.offset);
                 // free node if path longer than CACHE_LEVEL
                 // do not free if n == 1, that's when parent is a leaf node
                 // with branches

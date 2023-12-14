@@ -8,6 +8,7 @@ add_trie_test(TARGET fiber_future_wrapped_read_test SOURCES
 add_trie_test(TARGET find_min_max_key_test SOURCES "find_min_max_key_test.cpp")
 add_trie_test(TARGET many_nested_updates SOURCES "many_nested_updates.cpp" LINK_LIBRARIES Boost::json)
 add_trie_test(TARGET merkle_trie_test SOURCES "merkle_trie_test.cpp")
+add_trie_test(TARGET min_truncated_offsets_test SOURCES "min_truncated_offsets_test.cpp")
 add_trie_test(TARGET nibbles_view_test SOURCES "nibbles_view_test.cpp")
 add_trie_test(TARGET node_test SOURCES "node_test.cpp")
 add_trie_test(TARGET plain_trie_test SOURCES "plain_trie_test.cpp")

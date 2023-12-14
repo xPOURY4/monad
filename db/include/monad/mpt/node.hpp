@@ -29,7 +29,7 @@ constexpr size_t calculate_node_size(
     MONAD_DEBUG_ASSERT(number_of_children || total_child_data_size == 0);
     return size_of_node +
            (sizeof(uint16_t) // child data offset
-            + sizeof(detail::unsigned_20) // min count
+            + sizeof(uint32_t) * 2 // min truncated offset
             + sizeof(chunk_offset_t) + sizeof(Node *)) *
                number_of_children +
            total_child_data_size + value_size + path_size + data_size;
@@ -74,14 +74,14 @@ public:
     static constexpr size_t max_size = calculate_node_size(
         max_children, max_children * 32, max_value_size, 32, 32);
     static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
+    static_assert(max_size == 25578);
+    static_assert(max_disk_size == 25450);
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     static constexpr size_t allocator_divisor = 16;
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
         round_up<size_t>(size_of_node, allocator_divisor),
         round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
-    static_assert(max_size == 25514);
-    static_assert(max_disk_size == 25386);
-    static_assert(BytesAllocator::allocation_upper_bound == 25520);
+    static_assert(BytesAllocator::allocation_upper_bound == 25584);
 #else
     using BytesAllocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -179,10 +179,17 @@ public:
     void set_fnext(unsigned index, chunk_offset_t) noexcept;
 
     //! min_block_no array
-    unsigned char *child_min_count_data() noexcept;
-    unsigned char const *child_min_count_data() const noexcept;
-    detail::unsigned_20 min_count(unsigned index) noexcept;
-    void set_min_count(unsigned index, detail::unsigned_20 count) noexcept;
+    //! fastlist min_offset array
+    unsigned char *child_min_offset_fast_data() noexcept;
+    unsigned char const *child_min_offset_fast_data() const noexcept;
+    uint32_t min_offset_fast(unsigned index) noexcept;
+
+    void set_min_offset_fast(unsigned index, uint32_t) noexcept;
+    //! slowlist min_offset array
+    unsigned char *child_min_offset_slow_data() noexcept;
+    unsigned char const *child_min_offset_slow_data() const noexcept;
+    uint32_t min_offset_slow(unsigned index) noexcept;
+    void set_min_offset_slow(unsigned index, uint32_t) noexcept;
 
     //! data_offset array
     unsigned char *child_off_data() noexcept;
@@ -238,6 +245,16 @@ static_assert(sizeof(Node) == size_of_node);
 static_assert(sizeof(Node) == 10);
 static_assert(alignof(Node) == 2);
 
+inline uint32_t truncate_offset(chunk_offset_t const offset)
+{
+    constexpr unsigned const bits_to_truncate = 48 - sizeof(uint32_t) * 8;
+    return static_cast<uint32_t>(offset.raw() >> bits_to_truncate);
+}
+
+// calculate on virtual offsets
+std::pair<uint32_t, uint32_t>
+calc_min_offsets(Node &, chunk_offset_t = INVALID_OFFSET);
+
 // ChildData is for temporarily holding a child's info, including child ptr,
 // file offset and hash data, in the update recursion.
 struct ChildData
@@ -245,7 +262,9 @@ struct ChildData
     Node *ptr{nullptr};
     chunk_offset_t offset{INVALID_OFFSET};
     unsigned char data[32] = {0};
-    detail::unsigned_20 min_count{uint32_t(-1)};
+    uint32_t min_offset_fast{uint32_t(-1)};
+    uint32_t min_offset_slow{uint32_t(-1)};
+
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
     /* Why parent_trie_section? We compute data here by the child node
@@ -263,10 +282,8 @@ struct ChildData
     void copy_old_child(Node *old, unsigned i);
 };
 
-static_assert(sizeof(ChildData) == 56);
+static_assert(sizeof(ChildData) == 64);
 static_assert(alignof(ChildData) == 8);
-
-detail::unsigned_20 calc_min_count(Node *, detail::unsigned_20 curr_count);
 
 Node::UniquePtr
 make_node(Node &from, NibblesView path, std::optional<byte_string_view> value);
