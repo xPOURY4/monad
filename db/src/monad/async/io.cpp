@@ -1,6 +1,5 @@
 #include <monad/async/io.hpp>
 
-#include <boost/outcome/experimental/status-code/config.hpp>
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/detail/connected_operation_storage.hpp>
