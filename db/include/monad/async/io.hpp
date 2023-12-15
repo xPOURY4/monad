@@ -338,11 +338,12 @@ private:
             if (mem != nullptr) {
                 break;
             }
-            // Reap completions until a buffer frees up
             // If this assert fails, there genuinely
             // are not enough i/o buffers. This can happen if the caller
             // initiates more i/o than there are buffers available.
-            MONAD_ASSERT(poll_nonblocking(1) > 0);
+            MONAD_ASSERT(io_in_flight() > 0);
+            // Reap completions until a buffer frees up
+            poll_blocking(1);
         }
         assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
         auto read_size =

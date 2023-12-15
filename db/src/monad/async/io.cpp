@@ -389,6 +389,8 @@ bool AsyncIO::poll_uring_(bool blocking)
         MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
     }
     else {
+        // If nothing in io_uring and there are no threadsafe ops in flight,
+        // return false
         if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
             return false;
         }

@@ -12,6 +12,8 @@ add_trie_test(TARGET cpp_coroutine_wrappers_test SOURCES
 
 add_trie_test(TARGET io_test SOURCES "io.cpp")
 
+add_trie_test(TARGET io_death_test SOURCES "io_death.cpp")
+
 add_trie_test(TARGET io_worker_pool_test SOURCES "io_worker_pool.cpp")
 target_link_options(io_worker_pool_test PUBLIC "-rdynamic")
 execute_process(

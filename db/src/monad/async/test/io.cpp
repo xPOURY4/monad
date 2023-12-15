@@ -65,6 +65,7 @@ namespace
             monad::async::erased_connected_operation *,
             monad::async::result<void>);
     };
+
     TEST(AsyncIO, poll_does_not_recurse)
     {
         int count = 1000000;
@@ -99,6 +100,7 @@ namespace
                   << " recursions on stack occurred." << std::endl;
         EXPECT_LT(max_recursion_count, 2);
     }
+
     inline void poll_does_not_recurse_receiver_t::set_value(
         monad::async::erased_connected_operation *iostate,
         monad::async::result<void> res)
@@ -125,5 +127,46 @@ namespace
             io.poll_nonblocking_if_not_within_completions(1);
         }
         --recursion_count;
+    }
+
+    TEST(AsyncIO, buffer_exhaustion_does_not_cause_death)
+    {
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        monad::io::Ring testring(128, 0);
+        monad::io::Buffers testrwbuf{
+            testring,
+            1,
+            1,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+
+        struct empty_receiver
+        {
+            enum
+            {
+                lifetime_managed_internally = true
+            };
+
+            void set_value(
+                monad::async::erased_connected_operation *,
+                monad::async::read_single_buffer_sender::result_type r)
+            {
+                MONAD_ASSERT(r);
+            }
+        };
+
+        for (size_t n = 0; n < 10; n++) {
+            auto state(testio.make_connected(
+                monad::async::write_single_buffer_sender(
+                    {0, 0},
+                    {(std::byte *)nullptr, monad::async::DISK_PAGE_SIZE}),
+                empty_receiver{}));
+            // Exactly the same test as the death test, except for this line
+            state->initiate();
+            state.release();
+        }
+        testio.wait_until_done();
     }
 }
