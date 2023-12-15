@@ -281,15 +281,10 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
 
 storage_pool::device storage_pool::make_device_(
     mode op, device::type_t_ type, std::filesystem::path const &path, int fd,
-    size_t chunk_capacity)
+    creation_flags flags)
 {
     int readwritefd = fd;
-    // chunk capacity must be a power of two, or Linux gets upset
-    {
-        auto const bitpos = std::countl_zero(uint64_t(chunk_capacity));
-        MONAD_ASSERT(bitpos <= 63);
-        MONAD_ASSERT(chunk_capacity == (1ULL << size_t(63 - bitpos)));
-    }
+    uint64_t const chunk_capacity = 1ULL << flags.chunk_capacity;
     if (!path.empty()) {
         readwritefd = ::open(path.c_str(), O_RDWR | O_CLOEXEC);
         if (-1 == readwritefd) {
@@ -419,10 +414,12 @@ storage_pool::device storage_pool::make_device_(
         readwritefd, type, static_cast<size_t>(stat.st_size), metadata);
 }
 
-void storage_pool::fill_chunks_(bool interleavechunks__evenly)
+void storage_pool::fill_chunks_(
+    bool interleave_chunks_evenly, creation_flags flags)
 {
+    (void)flags;
     auto hashshouldbe = fnv1a_hash<uint32_t>::begin();
-    fnv1a_hash<uint32_t>::add(hashshouldbe, 1 + interleavechunks__evenly);
+    fnv1a_hash<uint32_t>::add(hashshouldbe, 1 + interleave_chunks_evenly);
     std::vector<size_t> chunks;
     size_t total = 0;
     chunks.reserve(devices_.size());
@@ -464,7 +461,7 @@ void storage_pool::fill_chunks_(bool interleavechunks__evenly)
         chunks_[cnv].emplace_back(std::weak_ptr<class chunk>{}, device, 0);
     }
     chunks_[seq].reserve(total);
-    if (interleavechunks__evenly) {
+    if (interleave_chunks_evenly) {
         // We now need to evenly spread the sequential chunks such that if
         // device A has 20, device B has 10 and device C has 5, the interleaving
         // would be ABACABA i.e. a ratio of 4:2:1
@@ -507,7 +504,7 @@ void storage_pool::fill_chunks_(bool interleavechunks__evenly)
 
 storage_pool::storage_pool(
     std::span<std::filesystem::path> sources, mode mode,
-    bool interleavechunks__evenly)
+    bool interleave_chunks_evenly)
 {
     devices_.reserve(sources.size());
     for (auto &source : sources) {
@@ -543,10 +540,10 @@ storage_pool::storage_pool(
             throw std::runtime_error(std::move(str).str());
         }());
     }
-    fill_chunks_(interleavechunks__evenly);
+    fill_chunks_(interleave_chunks_evenly);
 }
 
-storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
+storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
 {
     int const fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
@@ -554,10 +551,10 @@ storage_pool::storage_pool(use_anonymous_inode_tag, size_t chunk_capacity)
         ::ftruncate(fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
         throw std::system_error(errno, std::system_category());
     }
-    devices_.push_back(make_device_(
-        mode::truncate, device::type_t_::file, {}, fd, chunk_capacity));
+    devices_.push_back(
+        make_device_(mode::truncate, device::type_t_::file, {}, fd, flags));
     unfd.release();
-    fill_chunks_(false);
+    fill_chunks_(false, flags);
 }
 
 storage_pool::~storage_pool()

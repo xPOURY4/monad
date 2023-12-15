@@ -71,6 +71,7 @@ public:
             zoned_device
         } type_;
         file_offset_t const size_of_file_;
+
         struct metadata_t
         {
             // Preceding this is an array of uint32_t of chunk bytes used
@@ -96,6 +97,7 @@ public:
                 }
                 return ret;
             }
+
             std::span<std::atomic<uint32_t>>
             chunk_bytes_used(file_offset_t end_of_this_offset) const noexcept
             {
@@ -107,6 +109,7 @@ public:
                         (std::byte *)this - count * sizeof(uint32_t), count),
                     count};
             }
+
             size_t total_size(file_offset_t end_of_this_offset) const noexcept
             {
                 auto count = chunks(end_of_this_offset);
@@ -129,27 +132,32 @@ public:
     public:
         //! The current filesystem path of the device (it can change over time)
         std::filesystem::path current_path() const;
+
         //! Returns if this device is a file on a filesystem
         bool is_file() const noexcept
         {
             return type_ == type_t_::file;
         }
+
         //! Returns if this device is a block device e.g. a raw partition
         bool is_block_device() const noexcept
         {
             return type_ == type_t_::block_device;
         }
+
         //! Returns if this device is a zonefs mount
         bool is_zoned_device() const noexcept
         {
             return type_ == type_t_::zoned_device;
         }
+
         //! Returns the number of chunks on this device
         size_t chunks() const;
         //! Returns the capacity of the device, and how much of that is
         //! currently filled with data, in that order.
         std::pair<file_offset_t, file_offset_t> capacity() const;
     };
+
     /*! \brief A zone chunk from storage, which is always managed by a shared
     ptr. When the shared ptr count reaches zero, any file descriptors or other
     resources associated with the chunk are released.
@@ -193,41 +201,49 @@ public:
         {
             return device_;
         }
+
         //! \brief Returns the storage device this chunk is stored upon
         const class device &device() const noexcept
         {
             return device_;
         }
+
         //! \brief Returns whether this chunk is a conventional write chunk
         bool is_conventional_write() const noexcept
         {
             return !append_only_;
         }
+
         //! \brief Returns whether this chunk is a sequential write chunk
         bool is_sequential_write() const noexcept
         {
             return append_only_;
         }
+
         //! \brief Returns a file descriptor able to read from the chunk, along
         //! with any offset which needs to be added to any i/o performed with it
         std::pair<int, file_offset_t> read_fd() const noexcept
         {
             return {read_fd_, offset_};
         }
+
         //! \brief Returns a file descriptor able to write to the chunk, along
         //! with any offset which needs to be added to any i/o performed with it
         std::pair<int, file_offset_t>
         write_fd(size_t bytes_which_shall_be_written) noexcept;
+
         //! \brief Returns the capacity of the zone
         file_offset_t capacity() const noexcept
         {
             return capacity_;
         }
+
         //! \brief Returns the chunk id of this zone on its device
         uint32_t device_zone_id() const noexcept
         {
             return chunkid_;
         }
+
         //! \brief Returns the current amount of the zone filled with data (note
         //! the OS syscall can sometimes lag reality for a few milliseconds)
         file_offset_t size() const;
@@ -248,6 +264,7 @@ public:
         */
         bool try_trim_contents(uint32_t bytes);
     };
+
     /*! \brief A conventional zone chunk from the `cnv` subdirectory.
      */
     class cnv_chunk final : public chunk
@@ -261,11 +278,13 @@ public:
         {
             return true;
         }
+
         bool is_sequential_write() const noexcept
         {
             return false;
         }
     };
+
     /*! \brief An append-only sequential write zone chunk from the `seq`
      * subdirectory.
      */
@@ -280,6 +299,7 @@ public:
         {
             return false;
         }
+
         bool is_sequential_write() const noexcept
         {
             return true;
@@ -294,6 +314,19 @@ public:
         truncate
     };
 
+    //! \brief Flags for storage pool creation
+    struct creation_flags
+    {
+        //! How much to shift left a bit to set chunk capacity. The maximum is
+        //! 32 (4Gb).
+        uint32_t chunk_capacity : 5;
+
+        constexpr creation_flags()
+            : chunk_capacity(28)
+        {
+        }
+    };
+
     using chunk_ptr = std::shared_ptr<class chunk>;
     using cnv_chunk_ptr = std::shared_ptr<cnv_chunk>;
     using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
@@ -303,36 +336,40 @@ private:
 
     // Lock protects everything below this
     mutable std::mutex lock_;
+
     struct chunk_info_
     {
         std::weak_ptr<class chunk> chunk;
         class device &device;
         uint32_t const zone_id;
     };
+
     std::vector<chunk_info_> chunks_[2];
 
     device make_device_(
         mode op, device::type_t_ type, std::filesystem::path const &path,
-        int fd, size_t chunk_capacity = 256ULL * 1024 * 1024);
+        int fd, creation_flags flags = {});
 
-    void fill_chunks_(bool interleave_chunks_evenly);
+    void fill_chunks_(bool interleave_chunks_evenly, creation_flags flags = {});
 
 public:
+    //! \brief Type of chunk, conventional or sequential
     enum chunk_type
     {
         cnv = 0,
         seq = 1
     };
+
     //! \brief Constructs a storage pool from the list of backing storage
     //! sources
     storage_pool(
         std::span<std::filesystem::path> sources,
         mode mode = mode::create_if_needed,
         bool interleave_chunks_evenly = false);
+
     //! \brief Constructs a storage pool from a temporary anonymous inode.
     //! Useful for test code.
-    storage_pool(
-        use_anonymous_inode_tag, size_t chunk_capacity = 256ULL * 1024 * 1024);
+    storage_pool(use_anonymous_inode_tag, creation_flags flags = {});
     ~storage_pool();
 
     //! \brief Returns a list of the backing storage devices
@@ -340,6 +377,7 @@ public:
     {
         return {devices_};
     }
+
     //! \brief Returns the number of chunks for the specified type
     size_t chunks(chunk_type which) const noexcept
     {

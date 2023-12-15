@@ -336,8 +336,14 @@ namespace monad::test
         struct state_t
         {
             MONAD_ASYNC_NAMESPACE::storage_pool pool{
-                MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{},
-                MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+                MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{}, [] {
+                    MONAD_ASYNC_NAMESPACE::storage_pool::creation_flags flags;
+                    auto const bitpos =
+                        std::countr_zero(MONAD_ASYNC_NAMESPACE::AsyncIO::
+                                             MONAD_IO_BUFFERS_WRITE_SIZE);
+                    flags.chunk_capacity = bitpos;
+                    return flags;
+                }()};
             monad::io::Ring ring{1, 0};
             monad::io::Buffers rwbuf{
                 ring,

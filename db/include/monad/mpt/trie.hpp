@@ -73,6 +73,8 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast);
 // \class Auxiliaries for triedb update
 class UpdateAux
 {
+    uint32_t initial_insertion_count_on_pool_creation_{0};
+
     detail::db_metadata *db_metadata_[2]{
         nullptr, nullptr}; // two copies, to prevent sudden process
                            // exits making the DB irretrievable
@@ -137,6 +139,11 @@ public:
 
     ~UpdateAux();
 
+    void set_initial_insertion_count_unit_testing_only(uint32_t count)
+    {
+        initial_insertion_count_on_pool_creation_ = count;
+    }
+
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_);
 
     bool alternate_slow_fast_writer{false};
@@ -184,7 +191,7 @@ public:
     }
 };
 
-static_assert(sizeof(UpdateAux) == 144);
+static_assert(sizeof(UpdateAux) == 152);
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

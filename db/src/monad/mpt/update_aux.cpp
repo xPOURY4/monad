@@ -190,6 +190,7 @@ void UpdateAux::set_io(AsyncIO *io_)
 {
     io = io_;
     auto const chunk_count = io->chunk_count();
+    MONAD_ASSERT(chunk_count >= 3);
     auto const map_size =
         sizeof(detail::db_metadata) +
         chunk_count * sizeof(detail::db_metadata::chunk_info_t);
@@ -268,12 +269,31 @@ void UpdateAux::set_io(AsyncIO *io_)
         small_prng rand;
         random_shuffle(chunks.begin(), chunks.end(), rand);
 #endif
+        auto append_with_insertion_count_override = [&](chunk_list list,
+                                                        uint32_t id) {
+            append(list, id);
+            if (initial_insertion_count_on_pool_creation_ != 0) {
+                auto override_insertion_count = [&](detail::db_metadata *db) {
+                    auto g = db->hold_dirty();
+                    auto *i = db->at_(id);
+                    i->insertion_count0_ =
+                        uint32_t(initial_insertion_count_on_pool_creation_) &
+                        0x3ff;
+                    i->insertion_count1_ =
+                        uint32_t(
+                            initial_insertion_count_on_pool_creation_ >> 10) &
+                        0x3ff;
+                };
+                override_insertion_count(db_metadata_[0]);
+                override_insertion_count(db_metadata_[1]);
+            }
+        };
         // root offset is the front of fast list
         chunk_offset_t const fast_offset(chunks.front(), 0);
-        append(chunk_list::fast, fast_offset.id);
+        append_with_insertion_count_override(chunk_list::fast, fast_offset.id);
         // init the first slow chunk and slow_offset
         chunk_offset_t const slow_offset(chunks[1], 0);
-        append(chunk_list::slow, slow_offset.id);
+        append_with_insertion_count_override(chunk_list::slow, slow_offset.id);
         std::span const chunks_after_second(
             chunks.data() + 2, chunks.size() - 2);
         // insert the rest of the chunks to free list
