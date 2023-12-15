@@ -99,7 +99,7 @@ unsigned Node::number_of_children() const noexcept
     return static_cast<unsigned>(std::popcount(mask));
 }
 
-chunk_offset_t Node::fnext(unsigned const index) const noexcept
+chunk_offset_t const Node::fnext(unsigned const index) const noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
     return unaligned_load<chunk_offset_t>(
