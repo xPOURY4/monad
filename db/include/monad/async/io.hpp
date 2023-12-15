@@ -332,8 +332,18 @@ private:
     {
         using connected_type = decltype(connect());
         static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
-        auto *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
-        MONAD_ASSERT(mem != nullptr);
+        unsigned char *mem;
+        for (;;) {
+            mem = (is_write ? wr_pool_ : rd_pool_).alloc();
+            if (mem != nullptr) {
+                break;
+            }
+            // Reap completions until a buffer frees up
+            // If this assert fails, there genuinely
+            // are not enough i/o buffers. This can happen if the caller
+            // initiates more i/o than there are buffers available.
+            MONAD_ASSERT(poll_nonblocking(1) > 0);
+        }
         assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
         auto read_size =
             is_write ? rwbuf_.get_write_size() : rwbuf_.get_read_size();
