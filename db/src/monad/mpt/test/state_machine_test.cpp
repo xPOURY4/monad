@@ -1,6 +1,10 @@
+#include <monad/core/hex_literal.hpp>
+#include <monad/mpt/update.hpp>
 #include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp"
 
+#include <cstddef>
+#include <memory>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/state_machine.hpp>

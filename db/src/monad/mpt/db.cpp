@@ -1,3 +1,5 @@
+#include <monad/mpt/db.hpp>
+
 #include <monad/async/config.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/io.hpp>
@@ -6,9 +8,9 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/result.hpp>
 #include <monad/mpt/config.hpp>
-#include <monad/mpt/db.hpp>
 #include <monad/mpt/db_options.hpp>
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/node.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
@@ -23,7 +25,6 @@
 // TODO unstable paths between versions
 #if __has_include(<boost/outcome/experimental/status-code/generic_code.hpp>)
     #include <boost/outcome/experimental/status-code/generic_code.hpp>
-
 #else
     #include <boost/outcome/experimental/status-code/status-code/generic_code.hpp>
 #endif

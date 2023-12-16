@@ -216,7 +216,7 @@ void UpdateAux::set_io(AsyncIO *io_)
         nullptr,
         map_size,
         PROT_READ | PROT_WRITE,
-        MAP_SHARED,
+        io->storage_pool().is_read_only() ? MAP_PRIVATE : MAP_SHARED,
         fd.first,
         off_t(fd.second)));
     MONAD_ASSERT(db_metadata_[0] != MAP_FAILED);
@@ -224,7 +224,7 @@ void UpdateAux::set_io(AsyncIO *io_)
         nullptr,
         map_size,
         PROT_READ | PROT_WRITE,
-        MAP_SHARED,
+        io->storage_pool().is_read_only() ? MAP_PRIVATE : MAP_SHARED,
         fd.first,
         off_t(fd.second + cnv_chunk->capacity() / 2)));
     MONAD_ASSERT(db_metadata_[1] != MAP_FAILED);

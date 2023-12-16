@@ -21,6 +21,7 @@ find_package(
   Boost
   COMPONENTS fiber json
   REQUIRED)
+find_package(CLI11 REQUIRED)
   
 # ##############################################################################
 # libs
@@ -62,10 +63,13 @@ add_library(
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/update_aux.cpp")
 target_include_directories(monad_trie PUBLIC "${PROJECT_SOURCE_DIR}/include")
 monad_core_compile_options(monad_trie)
-
 target_link_libraries(monad_trie PRIVATE Boost::boost)
 target_link_libraries(monad_trie PUBLIC monad_async)
 target_link_libraries(monad_trie PUBLIC monad_core)
+add_executable(monad_mpt "${PROJECT_SOURCE_DIR}/src/monad/mpt/cli_tool_main.cpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/cli_tool_impl.cpp")
+monad_core_compile_options(monad_mpt)
+target_link_libraries(monad_mpt PUBLIC monad_trie CLI11::CLI11)
 
 function(add_trie_test)
   set(ONE_VALUE_ARGS TARGET TEST_FILTER)

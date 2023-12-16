@@ -1,3 +1,5 @@
+#include <monad/mpt/trie.hpp>
+
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/erased_connected_operation.hpp>
@@ -11,7 +13,6 @@
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/request.hpp>
 #include <monad/mpt/state_machine.hpp>
-#include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/upward_tnode.hpp>
 #include <monad/mpt/util.hpp>

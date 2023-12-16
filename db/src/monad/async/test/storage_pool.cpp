@@ -283,10 +283,10 @@ namespace
                     std::filesystem::remove(p);
                 }
             });
+            storage_pool::creation_flags flags;
+            flags.interleave_chunks_evenly = enable_interleaving;
             storage_pool pool(
-                devs,
-                storage_pool::mode::create_if_needed,
-                enable_interleaving);
+                devs, storage_pool::mode::create_if_needed, flags);
             std::array<size_t, 3> counts{0, 0, 0};
             std::array<std::vector<size_t>, 3> indices;
             for (size_t n = 0; n < pool.chunks(storage_pool::seq); n++) {

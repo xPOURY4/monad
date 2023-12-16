@@ -292,12 +292,18 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
 
 storage_pool::device storage_pool::make_device_(
     mode op, device::type_t_ type, std::filesystem::path const &path, int fd,
-    creation_flags flags)
+    uint64_t dev_no, creation_flags flags)
 {
     int readwritefd = fd;
     uint64_t const chunk_capacity = 1ULL << flags.chunk_capacity;
+    auto unique_hash = fnv1a_hash<uint32_t>::begin();
+    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(type));
+    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(dev_no));
+    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(dev_no >> 32));
     if (!path.empty()) {
-        readwritefd = ::open(path.c_str(), O_RDWR | O_CLOEXEC);
+        readwritefd = ::open(
+            path.c_str(),
+            (flags.open_read_only ? O_RDONLY : O_RDWR) | O_CLOEXEC);
         if (-1 == readwritefd) {
             throw std::system_error(errno, std::system_category());
         }
@@ -330,6 +336,7 @@ storage_pool::device storage_pool::make_device_(
                "pool";
         throw std::runtime_error(std::move(str).str());
     }
+    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(stat.st_size));
     size_t total_size = 0;
     {
         auto *buffer =
@@ -412,7 +419,7 @@ storage_pool::device storage_pool::make_device_(
         nullptr,
         bytestomap,
         PROT_READ | PROT_WRITE,
-        MAP_SHARED,
+        flags.open_read_only ? MAP_PRIVATE : MAP_SHARED,
         readwritefd,
         static_cast<off_t>(offset));
     if (MAP_FAILED == addr) {
@@ -422,15 +429,22 @@ storage_pool::device storage_pool::make_device_(
         (std::byte *)addr + stat.st_size - offset - sizeof(device::metadata_t));
     assert(0 == memcmp(metadata->magic, "MND0", 4));
     return device(
-        readwritefd, type, static_cast<size_t>(stat.st_size), metadata);
+        readwritefd,
+        type,
+        unique_hash,
+        static_cast<size_t>(stat.st_size),
+        metadata);
 }
 
-void storage_pool::fill_chunks_(
-    bool interleave_chunks_evenly, creation_flags flags)
+void storage_pool::fill_chunks_(creation_flags flags)
 {
     (void)flags;
     auto hashshouldbe = fnv1a_hash<uint32_t>::begin();
-    fnv1a_hash<uint32_t>::add(hashshouldbe, 1 + interleave_chunks_evenly);
+    for (auto &device : devices_) {
+        fnv1a_hash<uint32_t>::add(hashshouldbe, uint32_t(device.unique_hash_));
+        fnv1a_hash<uint32_t>::add(
+            hashshouldbe, uint32_t(device.unique_hash_ >> 32));
+    }
     std::vector<size_t> chunks;
     size_t total = 0;
     chunks.reserve(devices_.size());
@@ -461,7 +475,8 @@ void storage_pool::fill_chunks_(
             std::stringstream str;
             str << "Storage pool source " << device.current_path()
                 << " was initialised with a configuration different to this "
-                   "storage pool";
+                   "storage pool. Is a device missing or is there an extra "
+                   "device from when the pool was first created?";
             throw std::runtime_error(std::move(str).str());
         }
     }
@@ -472,7 +487,7 @@ void storage_pool::fill_chunks_(
         chunks_[cnv].emplace_back(std::weak_ptr<class chunk>{}, device, 0);
     }
     chunks_[seq].reserve(total);
-    if (interleave_chunks_evenly) {
+    if (flags.interleave_chunks_evenly) {
         // We now need to evenly spread the sequential chunks such that if
         // device A has 20, device B has 10 and device C has 5, the interleaving
         // would be ABACABA i.e. a ratio of 4:2:1
@@ -514,8 +529,8 @@ void storage_pool::fill_chunks_(
 }
 
 storage_pool::storage_pool(
-    std::span<std::filesystem::path const> sources, mode mode,
-    bool interleave_chunks_evenly)
+    std::span<std::filesystem::path const> sources, mode mode, creation_flags flags)
+    : is_read_only_(flags.open_read_only)
 {
     devices_.reserve(sources.size());
     for (auto const &source : sources) {
@@ -539,11 +554,21 @@ storage_pool::storage_pool(
             }
             if ((stat.st_mode & S_IFMT) == S_IFBLK) {
                 return make_device_(
-                    mode, device::type_t_::block_device, source.c_str(), fd);
+                    mode,
+                    device::type_t_::block_device,
+                    source.c_str(),
+                    fd,
+                    stat.st_rdev,
+                    flags);
             }
             if ((stat.st_mode & S_IFMT) == S_IFREG) {
                 return make_device_(
-                    mode, device::type_t_::file, source.c_str(), fd);
+                    mode,
+                    device::type_t_::file,
+                    source.c_str(),
+                    fd,
+                    stat.st_dev ^ stat.st_ino,
+                    flags);
             }
             std::stringstream str;
             str << "Storage pool source " << source
@@ -551,10 +576,11 @@ storage_pool::storage_pool(
             throw std::runtime_error(std::move(str).str());
         }());
     }
-    fill_chunks_(interleave_chunks_evenly);
+    fill_chunks_(flags);
 }
 
 storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
+    : is_read_only_(flags.open_read_only)
 {
     int const fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
@@ -563,9 +589,9 @@ storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
         throw std::system_error(errno, std::system_category());
     }
     devices_.push_back(
-        make_device_(mode::truncate, device::type_t_::file, {}, fd, flags));
+        make_device_(mode::truncate, device::type_t_::file, {}, fd, 0, flags));
     unfd.release();
-    fill_chunks_(false, flags);
+    fill_chunks_(flags);
 }
 
 storage_pool::~storage_pool()
@@ -678,8 +704,10 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
                 if (-1 == fds[0]) {
                     throw std::system_error(errno, std::system_category());
                 }
-                fds[1] = chunkinfo.device.uncached_writefd_ =
-                    ::open(devicepath.c_str(), O_WRONLY | O_DIRECT | O_CLOEXEC);
+                fds[1] = chunkinfo.device.uncached_writefd_ = ::open(
+                    devicepath.c_str(),
+                    (is_read_only() ? O_RDONLY : O_WRONLY) | O_DIRECT |
+                        O_CLOEXEC);
                 if (-1 == fds[1]) {
                     throw std::system_error(errno, std::system_category());
                 }

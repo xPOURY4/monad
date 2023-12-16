@@ -70,6 +70,7 @@ public:
             block_device,
             zoned_device
         } type_;
+        uint64_t const unique_hash_;
         file_offset_t const size_of_file_;
 
         struct metadata_t
@@ -118,12 +119,13 @@ public:
         } *const metadata_;
 
         constexpr device(
-            int cached_readwritefd, type_t_ type, file_offset_t size_of_file,
-            metadata_t *metadata)
+            int cached_readwritefd, type_t_ type, uint64_t unique_hash,
+            file_offset_t size_of_file, metadata_t *metadata)
             : cached_readwritefd_(cached_readwritefd)
             , uncached_readfd_(-1)
             , uncached_writefd_(-1)
             , type_(type)
+            , unique_hash_(unique_hash)
             , size_of_file_(size_of_file)
             , metadata_(metadata)
         {
@@ -317,12 +319,18 @@ public:
     //! \brief Flags for storage pool creation
     struct creation_flags
     {
-        //! How much to shift left a bit to set chunk capacity. The maximum is
-        //! 32 (4Gb).
+        //! How much to shift left a bit to set chunk capacity during creation.
+        //! The maximum is 32 (4Gb).
         uint32_t chunk_capacity : 5;
+        //! Whether to interleave chunks evenly during creation
+        uint32_t interleave_chunks_evenly : 1;
+        //! Whether to open the database read-only
+        uint32_t open_read_only : 1;
 
         constexpr creation_flags()
             : chunk_capacity(28)
+            , interleave_chunks_evenly(false)
+            , open_read_only(false)
         {
         }
     };
@@ -332,6 +340,7 @@ public:
     using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
 
 private:
+    bool const is_read_only_;
     std::vector<device> devices_;
 
     // Lock protects everything below this
@@ -348,9 +357,9 @@ private:
 
     device make_device_(
         mode op, device::type_t_ type, std::filesystem::path const &path,
-        int fd, creation_flags flags = {});
+        int fd, uint64_t dev_no, creation_flags flags);
 
-    void fill_chunks_(bool interleave_chunks_evenly, creation_flags flags = {});
+    void fill_chunks_(creation_flags flags);
 
 public:
     //! \brief Type of chunk, conventional or sequential
@@ -364,13 +373,18 @@ public:
     //! sources
     storage_pool(
         std::span<std::filesystem::path const> sources,
-        mode mode = mode::create_if_needed,
-        bool interleave_chunks_evenly = false);
+        mode mode = mode::create_if_needed, creation_flags flags = {});
 
     //! \brief Constructs a storage pool from a temporary anonymous inode.
     //! Useful for test code.
     storage_pool(use_anonymous_inode_tag, creation_flags flags = {});
     ~storage_pool();
+
+    //! \brief True if the storage pool was opened read only
+    bool is_read_only() const noexcept
+    {
+        return is_read_only_;
+    }
 
     //! \brief Returns a list of the backing storage devices
     std::span<device const> devices() const noexcept
