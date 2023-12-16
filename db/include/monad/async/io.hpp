@@ -327,23 +327,16 @@ public:
         registered_io_buffer_with_connected_operation_unique_ptr_deleter>;
 
 private:
+    unsigned char *poll_uring_while_no_io_buffers_(bool is_write);
+
     template <bool is_write, class buffer_value_type, class F>
     auto make_connected_impl_(F &&connect)
     {
         using connected_type = decltype(connect());
         static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
-        unsigned char *mem;
-        for (;;) {
-            mem = (is_write ? wr_pool_ : rd_pool_).alloc();
-            if (mem != nullptr) {
-                break;
-            }
-            // If this assert fails, there genuinely
-            // are not enough i/o buffers. This can happen if the caller
-            // initiates more i/o than there are buffers available.
-            MONAD_ASSERT(io_in_flight() > 0);
-            // Reap completions until a buffer frees up
-            poll_blocking(1);
+        unsigned char *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
+        if (mem == nullptr) {
+            mem = poll_uring_while_no_io_buffers_(is_write);
         }
         assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
         auto read_size =

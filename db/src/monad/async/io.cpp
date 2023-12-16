@@ -530,4 +530,24 @@ void AsyncIO::submit_threadsafe_invocation_request(
     }
 }
 
+unsigned char *AsyncIO::poll_uring_while_no_io_buffers_(bool is_write)
+{
+    /* Prevent any new i/o initiation as we cannot exit until an i/o
+    buffer becomes freed.
+    */
+    auto h = detail::AsyncIO_per_thread_state().enter_completions();
+    for (;;) {
+        // If this assert fails, there genuinely
+        // are not enough i/o buffers. This can happen if the caller
+        // initiates more i/o than there are buffers available.
+        MONAD_ASSERT(io_in_flight() > 0);
+        // Reap completions until a buffer frees up
+        poll_blocking(1);
+        auto *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
+        if (mem != nullptr) {
+            return mem;
+        }
+    }
+}
+
 MONAD_ASYNC_NAMESPACE_END
