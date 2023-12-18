@@ -113,22 +113,24 @@ add_library(
   "include/monad/rlp/config.hpp"
   "include/monad/rlp/encode.hpp"
   # test
-  "include/monad/test/gtest_signal_stacktrace_printer.hpp"
-)
+  "include/monad/test/gtest_signal_stacktrace_printer.hpp")
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_core_compile_options(monad_core)
 target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_LINK=1")
 if(linux_flavour MATCHES "debian|ubuntu")
-  target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_BACKTRACE=1")
+  target_compile_definitions(monad_core
+                             PUBLIC "BOOST_STACKTRACE_USE_BACKTRACE=1")
   target_link_libraries(monad_core PUBLIC Boost::stacktrace_backtrace)
 else()
-  target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
+  target_compile_definitions(monad_core
+                             PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
   target_link_libraries(monad_core PUBLIC Boost::stacktrace_addr2line)
 endif()
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
 add_library(
   monad_core_disas STATIC
+  "c/src/monad/core/spinlock_disas.c"
   "src/monad/core/math_disas.cpp" "src/monad/core/offset_disas.cpp"
   "src/monad/mem/cpool_disas.c" "src/monad/rlp/encode_disas.cpp")
 monad_core_compile_options(monad_core_disas)

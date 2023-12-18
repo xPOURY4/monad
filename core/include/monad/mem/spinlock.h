@@ -6,10 +6,10 @@
 
 struct spin_lock
 {
-    _Atomic(int) lock_ = 0; // 0 when unlocked, thread_id when locked
+    _Atomic(int) lock_; // 0 when unlocked, thread_id when locked
 };
 
-void lock(spin_lock *const lock)
+void lock(struct spin_lock *const lock)
 {
     for (;;) {
         while (atomic_load_explicit(&lock->lock_, memory_order_relaxed)) {
@@ -27,12 +27,12 @@ void lock(spin_lock *const lock)
     }
 }
 
-void unlock(spin_lock *const lock)
+void unlock(struct spin_lock *const lock)
 {
     atomic_store_explicit(&lock->lock_, 0, memory_order_release);
 }
 
-bool try_lock(spin_lock *const lock)
+bool try_lock(struct spin_lock *const lock)
 {
     int old_val = 0;
     if (atomic_compare_exchange_weak_explicit(

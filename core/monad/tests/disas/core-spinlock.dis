@@ -1,0 +1,63 @@
+<try_lock_disas>:
+	41 56                   	push   %r14
+	53                      	push   %rbx
+	50                      	push   %rax
+	48 8b 1d 00 00 00 00    	mov    0x0(%rip),%rbx        # <try_lock_disas+0xb>
+			R_X86_64_GOTTPOFF	tl_tid-0x4
+	64 8b 0b                	mov    %fs:(%rbx),%ecx
+	85 c9                   	test   %ecx,%ecx
+	74 11                   	je     <try_lock_disas+0x23>
+	31 c0                   	xor    %eax,%eax
+	f0 0f b1 0f             	lock cmpxchg %ecx,(%rdi)
+	0f 94 c0                	sete   %al
+	48 83 c4 08             	add    $0x8,%rsp
+	5b                      	pop    %rbx
+	41 5e                   	pop    %r14
+	c3                      	ret    
+	64 48 03 1c 25 00 00 00 	add    %fs:0x0,%rbx
+	00 
+	49 89 fe                	mov    %rdi,%r14
+	e8 00 00 00 00          	call   <try_lock_disas+0x34>
+			R_X86_64_PLT32	init_tl_tid-0x4
+	4c 89 f7                	mov    %r14,%rdi
+	8b 0b                   	mov    (%rbx),%ecx
+	eb d7                   	jmp    <try_lock_disas+0x12>
+	0f 1f 44 00 00          	nopl   0x0(%rax,%rax,1)
+
+<lock_disas>:
+	41 56                   	push   %r14
+	53                      	push   %rbx
+	50                      	push   %rax
+	64 48 8b 1c 25 00 00 00 	mov    %fs:0x0,%rbx
+	00 
+	48 03 1d 00 00 00 00    	add    0x0(%rip),%rbx        # <lock_disas+0x14>
+			R_X86_64_GOTTPOFF	tl_tid-0x4
+	eb 0c                   	jmp    <lock_disas+0x22>
+	66 2e 0f 1f 84 00 00 00 	cs nopw 0x0(%rax,%rax,1)
+	00 00 
+	f3 90                   	pause  
+	8b 07                   	mov    (%rdi),%eax
+	85 c0                   	test   %eax,%eax
+	75 f8                   	jne    <lock_disas+0x20>
+	8b 0b                   	mov    (%rbx),%ecx
+	85 c9                   	test   %ecx,%ecx
+	74 0a                   	je     <lock_disas+0x38>
+	31 c0                   	xor    %eax,%eax
+	f0 0f b1 0f             	lock cmpxchg %ecx,(%rdi)
+	75 ec                   	jne    <lock_disas+0x22>
+	eb 0f                   	jmp    <lock_disas+0x47>
+	49 89 fe                	mov    %rdi,%r14
+	e8 00 00 00 00          	call   <lock_disas+0x40>
+			R_X86_64_PLT32	init_tl_tid-0x4
+	4c 89 f7                	mov    %r14,%rdi
+	8b 0b                   	mov    (%rbx),%ecx
+	eb e7                   	jmp    <lock_disas+0x2e>
+	48 83 c4 08             	add    $0x8,%rsp
+	5b                      	pop    %rbx
+	41 5e                   	pop    %r14
+	c3                      	ret    
+	90                      	nop
+
+<unlock_disas>:
+	c7 07 00 00 00 00       	movl   $0x0,(%rdi)
+	c3                      	ret    
