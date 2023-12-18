@@ -336,11 +336,11 @@ unsigned Node::get_mem_size() noexcept
     return mem_size;
 }
 
-uint16_t Node::get_disk_size() noexcept
+uint32_t Node::get_disk_size() noexcept
 {
     MONAD_DEBUG_ASSERT(next_data() >= (unsigned char *)this);
     auto const disk_size =
-        static_cast<uint16_t>(next_data() - (unsigned char *)this);
+        static_cast<uint32_t>(next_data() - (unsigned char *)this);
     MONAD_DEBUG_ASSERT(disk_size <= Node::max_disk_size);
     return disk_size;
 }
@@ -518,9 +518,9 @@ Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
     auto const mask = unaligned_load<uint16_t>(read_pos);
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     auto const disk_size =
-        unaligned_load<uint16_t>(read_pos + offsetof(Node, disk_size));
+        unaligned_load<uint32_t>(read_pos + offsetof(Node, disk_size));
     auto const alloc_size =
-        static_cast<uint16_t>(disk_size + number_of_children * sizeof(Node *));
+        static_cast<uint32_t>(disk_size + number_of_children * sizeof(Node *));
     MONAD_ASSERT(disk_size > 0 && disk_size <= Node::max_disk_size);
     auto node = Node::make(alloc_size);
     std::copy_n(read_pos, disk_size, (unsigned char *)node.get());

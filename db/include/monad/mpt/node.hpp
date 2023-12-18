@@ -18,7 +18,7 @@ struct Compute;
 class NibblesView;
 class Node;
 
-static constexpr size_t size_of_node = 10;
+static constexpr size_t size_of_node = 12;
 
 constexpr size_t calculate_node_size(
     size_t const number_of_children, size_t const total_child_data_size,
@@ -68,19 +68,20 @@ class Node
     };
 
 public:
-    static constexpr size_t max_value_size = 0x6000; // max code size
+    static constexpr size_t max_value_size =
+        std::numeric_limits<uint16_t>::max();
     static constexpr size_t max_children = 16;
     static constexpr size_t max_size = calculate_node_size(
         max_children, max_children * 32, max_value_size, 32, 32);
     static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
-    static_assert(max_size == 25578);
-    static_assert(max_disk_size == 25450);
+    static_assert(max_size == 66539);
+    static_assert(max_disk_size == 66411);
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
     static constexpr size_t allocator_divisor = 16;
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
         round_up<size_t>(size_of_node, allocator_divisor),
         round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
-    static_assert(BytesAllocator::allocation_upper_bound == 25584);
+    static_assert(BytesAllocator::allocation_upper_bound == 66544);
 #else
     using BytesAllocator = allocators::malloc_free_allocator<std::byte>;
 #endif
@@ -113,7 +114,7 @@ public:
     uint8_t data_len{0};
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
-    uint16_t disk_size{0};
+    uint32_t disk_size{0};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -236,13 +237,13 @@ public:
 
     //! node size in memory
     unsigned get_mem_size() noexcept;
-    uint16_t get_disk_size() noexcept;
+    uint32_t get_disk_size() noexcept;
 };
 
 static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
 static_assert(sizeof(Node) == size_of_node);
-static_assert(sizeof(Node) == 10);
-static_assert(alignof(Node) == 2);
+static_assert(sizeof(Node) == 12);
+static_assert(alignof(Node) == 4);
 
 inline uint32_t truncate_offset(chunk_offset_t const offset)
 {
