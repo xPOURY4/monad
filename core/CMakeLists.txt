@@ -60,11 +60,13 @@ add_library(
   "c/include/monad/core/assert.h"
   "c/include/monad/core/bit_util.h"
   "c/include/monad/core/likely.h"
+  "c/include/monad/core/spinlock.h"
   "c/include/monad/core/tl_tid.h"
   "c/include/monad/mem/huge_mem.h"
   "c/src/monad/core/assert.c"
   "c/src/monad/core/tl_tid.c"
   "c/src/monad/mem/huge_mem.c"
+  # config
   "include/monad/config.hpp"
   # core
   "include/monad/core/array.hpp"
