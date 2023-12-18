@@ -57,6 +57,7 @@ namespace monad::test
     {
     private:
         static constexpr auto block_num_size = 12;
+        static constexpr auto cache_depth = block_num_size + 5;
         size_t depth{0};
 
     public:
@@ -90,29 +91,40 @@ namespace monad::test
             return rm;
         }
 
-        virtual CacheOption get_cache_option() const override
+        virtual constexpr bool cache() const override
         {
-            return CacheOption::CacheAll;
+            return depth < cache_depth;
         }
     };
 
     static_assert(sizeof(StateMachineWithBlockNo) == 16);
     static_assert(alignof(StateMachineWithBlockNo) == 8);
 
-    template <class Compute>
+    template <class Compute, size_t cache_depth = 5>
     class StateMachineAlways final : public StateMachine
     {
+    private:
+        size_t depth{0};
+
     public:
         StateMachineAlways() = default;
 
         virtual std::unique_ptr<StateMachine> clone() const override
         {
-            return std::make_unique<StateMachineAlways<Compute>>(*this);
+            return std::make_unique<StateMachineAlways<Compute, cache_depth>>(
+                *this);
         }
 
-        virtual void down(unsigned char) override {}
+        virtual void down(unsigned char) override
+        {
+            ++depth;
+        }
 
-        virtual void up(size_t) override {}
+        virtual void up(size_t n) override
+        {
+            MONAD_DEBUG_ASSERT(n <= depth);
+            depth -= n;
+        }
 
         virtual Compute &get_compute() override
         {
@@ -120,9 +132,9 @@ namespace monad::test
             return c;
         }
 
-        virtual constexpr CacheOption get_cache_option() const override
+        virtual constexpr bool cache() const override
         {
-            return CacheOption::CacheAll;
+            return depth < cache_depth;
         }
     };
 

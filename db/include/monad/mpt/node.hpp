@@ -266,10 +266,11 @@ struct ChildData
 
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};
+    bool cache_node{true};
 
     bool is_valid() const;
     void erase();
-    void set_node_and_compute_data(Node *, Compute &);
+    void finalize(Node *, Compute &, bool cache);
     void copy_old_child(Node *old, unsigned i);
 };
 

@@ -17,7 +17,7 @@ struct StateMachine
     virtual void down(unsigned char nibble) = 0;
     virtual void up(size_t) = 0;
     virtual Compute &get_compute() = 0;
-    virtual CacheOption get_cache_option() const = 0;
+    virtual bool cache() const = 0;
 };
 
 MONAD_MPT_NAMESPACE_END

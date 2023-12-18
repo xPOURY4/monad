@@ -6,7 +6,6 @@
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
-#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
@@ -129,7 +128,7 @@ void upward_update(UpdateAux &aux, StateMachine &sm, UpwardTreeNode *tnode)
         auto &entry = parent->children[tnode->child_index()];
         // put created node and compute to entry in parent
         size_t const level_up =
-            NibblesView{tnode->path}.nibble_size() + (parent->parent ? 1 : 0);
+            NibblesView{tnode->path}.nibble_size() + !parent->is_sentinel();
         create_node_compute_data_possibly_async(
             aux, sm, *parent, entry, tnode_unique_ptr{tnode});
         sm.up(level_up);
@@ -258,7 +257,7 @@ struct read_single_child_receiver
         auto const path_size = NibblesView{tnode->path}.nibble_size();
         create_node_compute_data_possibly_async(
             *aux, *sm, *parent, entry, tnode_unique_ptr{tnode}, false);
-        sm->up(path_size + (parent->parent ? 1 : 0));
+        sm->up(path_size + !parent->is_sentinel());
         upward_update(*aux, *sm, parent);
     }
 };
@@ -283,8 +282,7 @@ void async_read(UpdateAux &aux, Receiver &&receiver)
 /////////////////////////////////////////////////////
 Node *create_node_from_children_if_any(
     UpdateAux &aux, StateMachine &sm, uint16_t const orig_mask,
-    uint16_t const mask, std::span<ChildData> children,
-    unsigned const prefix_index, NibblesView const path,
+    uint16_t const mask, std::span<ChildData> children, NibblesView const path,
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
     // handle non child and single child cases
@@ -327,20 +325,14 @@ Node *create_node_from_children_if_any(
                     async_write_node_set_spare(aux, *child.ptr, true);
                 std::tie(child.min_offset_fast, child.min_offset_slow) =
                     calc_min_offsets(*child.ptr, child.offset);
-                // free node if path longer than CACHE_LEVEL
-                // do not free if n == 1, that's when parent is a leaf node
-                // with branches
-                auto cache_opt = sm.get_cache_option();
-                if (number_of_children > 1 && prefix_index > 0 &&
-                    (cache_opt == CacheOption::DisposeAll ||
-                     (cache_opt == CacheOption::ApplyLevelBasedCache &&
-                      (prefix_index + 1 + child.ptr->path_nibbles_len() >
-                       CACHE_LEVEL)))) {
-                    {
-                        Node::UniquePtr const _{child.ptr};
-                    }
-                    child.ptr = nullptr;
+            }
+            // apply cache based on state machine state, always cache node that
+            // is a single child
+            if (child.ptr && number_of_children > 1 && !child.cache_node) {
+                {
+                    Node::UniquePtr const _{child.ptr};
                 }
+                child.ptr = nullptr;
             }
         }
     }
@@ -370,12 +362,11 @@ void create_node_compute_data_possibly_async(
         tnode->orig_mask,
         tnode->mask,
         tnode->children,
-        tnode->prefix_index,
         tnode->path,
         tnode->opt_leaf_data);
     MONAD_DEBUG_ASSERT(entry.branch < 16);
     if (node) {
-        entry.set_node_and_compute_data(node, sm.get_compute());
+        entry.finalize(node, sm.get_compute(), sm.cache());
     }
     else {
         parent.mask &=
@@ -430,7 +421,7 @@ void update_leaf_data_(
             ? make_node(0, {}, path, update.value.value(), {}).release()
             : make_node(*old.get(), path, update.value).release();
     MONAD_ASSERT(node);
-    entry.set_node_and_compute_data(node, sm.get_compute());
+    entry.finalize(node, sm.get_compute(), sm.cache());
     --parent.npending;
 }
 
@@ -457,9 +448,10 @@ void create_new_trie_(
                 aux, sm, entry, requests, path, 0, update.value);
         }
         else {
-            entry.set_node_and_compute_data(
+            entry.finalize(
                 make_node(0, {}, path, update.value.value(), {}).release(),
-                sm.get_compute());
+                sm.get_compute(),
+                sm.cache());
         }
 
         if (path.nibble_size()) {
@@ -511,10 +503,11 @@ void create_new_trie_from_requests_(
             ++j;
         }
     }
-    entry.set_node_and_compute_data(
+    entry.finalize(
         create_node_from_children_if_any(
-            aux, sm, mask, mask, children, prefix_index, path, opt_leaf_data),
-        sm.get_compute());
+            aux, sm, mask, mask, children, path, opt_leaf_data),
+        sm.get_compute(),
+        sm.cache());
 }
 
 /////////////////////////////////////////////////////
@@ -782,9 +775,10 @@ void mismatch_handler_(
                 sm.down(path_suffix.get(i));
             }
             children[j] = ChildData{.branch = static_cast<uint8_t>(i)};
-            children[j].set_node_and_compute_data(
+            children[j].finalize(
                 make_node(old, path_suffix, old.opt_value()).release(),
-                sm.get_compute());
+                sm.get_compute(),
+                sm.cache());
             --tnode->npending;
             ++j;
             sm.up(path_suffix.nibble_size() + 1);

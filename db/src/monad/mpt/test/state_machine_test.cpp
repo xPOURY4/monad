@@ -2,7 +2,6 @@
 #include "test_fixtures_gtest.hpp"
 
 #include <monad/core/byte_string.hpp>
-#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/trie.hpp>
 
@@ -21,20 +20,23 @@ namespace
     using DownCalls = std::set<std::pair<byte_string, unsigned char>>;
     using UpCalls = std::set<std::pair<byte_string, size_t>>;
     using ComputeCalls = std::set<byte_string>;
+    using CacheCalls = std::set<byte_string>;
 
     struct TestStateMachine : public StateMachine
     {
         DownCalls &down_calls;
         UpCalls &up_calls;
         ComputeCalls &compute_calls;
+        CacheCalls &cache_calls;
         byte_string path;
 
         TestStateMachine(
             DownCalls &down_calls, UpCalls &up_calls,
-            ComputeCalls &compute_calls)
+            ComputeCalls &compute_calls, CacheCalls &cache_calls)
             : down_calls(down_calls)
             , up_calls(up_calls)
             , compute_calls(compute_calls)
+            , cache_calls(cache_calls)
         {
         }
 
@@ -56,8 +58,8 @@ namespace
         virtual void up(size_t n) override
         {
             EXPECT_LE(n, path.size());
-            auto const [_, success] = up_calls.emplace(path, n);
-            EXPECT_TRUE(success);
+            // can invoke up() at same path for multiple times with async
+            up_calls.emplace(path, n);
             path = path.substr(0, path.size() - n);
         }
 
@@ -68,9 +70,10 @@ namespace
             return compute;
         }
 
-        virtual CacheOption get_cache_option() const override
+        virtual bool cache() const override
         {
-            return CacheOption::CacheAll;
+            cache_calls.emplace(path);
+            return path.size() < 2;
         };
     };
 }
@@ -81,11 +84,12 @@ struct StateMachineTestFixture : public Base
     DownCalls down_calls;
     UpCalls up_calls;
     ComputeCalls compute_calls;
+    CacheCalls cache_calls;
 
     StateMachineTestFixture()
     {
         this->sm = std::make_unique<TestStateMachine>(
-            down_calls, up_calls, compute_calls);
+            down_calls, up_calls, compute_calls, cache_calls);
 
         UpdateList updates;
         UpdateList sub;
@@ -127,6 +131,14 @@ struct StateMachineTestFixture : public Base
             EXPECT_THAT(compute_calls, testing::Contains(e));
         }
     }
+
+    void validate_cache_calls(CacheCalls const &expected)
+    {
+        EXPECT_EQ(cache_calls.size(), expected.size());
+        for (auto const &e : expected) {
+            EXPECT_THAT(cache_calls, testing::Contains(e));
+        }
+    }
 };
 
 template <typename TFixture>
@@ -158,6 +170,11 @@ TYPED_TEST(StateMachineTest, create_new_trie)
 
     this->validate_compute_calls(
         ComputeCalls{{1, 1, 1, 1}, {1, 1, 2, 2}, {1, 1}});
+
+    if (this->aux.is_on_disk()) {
+        this->validate_cache_calls(
+            CacheCalls{{1, 1}, {1, 1, 1, 1}, {1, 1, 2, 2}});
+    }
 }
 
 TYPED_TEST(StateMachineTest, modify_existing)
@@ -165,6 +182,7 @@ TYPED_TEST(StateMachineTest, modify_existing)
     this->down_calls.clear();
     this->up_calls.clear();
     this->compute_calls.clear();
+    this->cache_calls.clear();
 
     this->root = upsert_updates(
         this->aux,
@@ -179,6 +197,10 @@ TYPED_TEST(StateMachineTest, modify_existing)
         UpCalls{{{1, 1, 2, 2}, 1}, {{1, 1, 2}, 1}, {{1, 1}, 2}});
 
     this->validate_compute_calls(ComputeCalls{{1, 1, 2, 2}, {1, 1}});
+
+    if (this->aux.is_on_disk()) {
+        this->validate_cache_calls(CacheCalls{{1, 1}, {1, 1, 2, 2}});
+    }
 }
 
 TYPED_TEST(StateMachineTest, mismatch)
@@ -186,6 +208,7 @@ TYPED_TEST(StateMachineTest, mismatch)
     this->down_calls.clear();
     this->up_calls.clear();
     this->compute_calls.clear();
+    this->cache_calls.clear();
 
     this->root = upsert_updates(
         this->aux,
@@ -200,6 +223,10 @@ TYPED_TEST(StateMachineTest, mismatch)
         UpCalls{{{1, 2, 2, 2}, 2}, {{1, 2}, 1}, {{1}, 1}, {{1, 1}, 1}});
 
     this->validate_compute_calls(ComputeCalls{{1}, {1, 1}, {1, 2, 2, 2}});
+
+    if (this->aux.is_on_disk()) {
+        this->validate_cache_calls(CacheCalls{{1}, {1, 1}, {1, 2, 2, 2}});
+    }
 }
 
 TYPED_TEST(StateMachineTest, mismatch_with_extension)
@@ -207,6 +234,7 @@ TYPED_TEST(StateMachineTest, mismatch_with_extension)
     this->down_calls.clear();
     this->up_calls.clear();
     this->compute_calls.clear();
+    this->cache_calls.clear();
 
     this->root = upsert_updates(
         this->aux,
@@ -220,6 +248,10 @@ TYPED_TEST(StateMachineTest, mismatch_with_extension)
     this->validate_up_calls(UpCalls{{{1, 1}, 2}, {{2, 2, 2, 2}, 3}, {{2}, 1}});
 
     this->validate_compute_calls(ComputeCalls{{}, {1, 1}, {2, 2, 2, 2}});
+
+    if (this->aux.is_on_disk()) {
+        this->validate_cache_calls(CacheCalls{{}, {1, 1}, {2, 2, 2, 2}});
+    }
 }
 
 TYPED_TEST(StateMachineTest, add_to_branch)
@@ -227,6 +259,7 @@ TYPED_TEST(StateMachineTest, add_to_branch)
     this->down_calls.clear();
     this->up_calls.clear();
     this->compute_calls.clear();
+    this->cache_calls.clear();
 
     this->root = upsert_updates(
         this->aux,
@@ -241,4 +274,8 @@ TYPED_TEST(StateMachineTest, add_to_branch)
         UpCalls{{{1, 1, 3, 3}, 1}, {{1, 1, 3}, 1}, {{1, 1}, 2}});
 
     this->validate_compute_calls(ComputeCalls{{1, 1}, {1, 1, 3, 3}});
+
+    if (this->aux.is_on_disk()) {
+        this->validate_cache_calls(CacheCalls{{1, 1}, {1, 1, 3, 3}});
+    }
 }

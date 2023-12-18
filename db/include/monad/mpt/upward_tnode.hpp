@@ -37,6 +37,11 @@ struct UpwardTreeNode
         return static_cast<uint8_t>(bitmask_index(parent->orig_mask, branch));
     }
 
+    bool is_sentinel() const noexcept
+    {
+        return !parent;
+    }
+
     using allocator_type =
         allocators::boost_unordered_pool_allocator<UpwardTreeNode>;
 

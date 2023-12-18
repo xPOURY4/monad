@@ -14,7 +14,9 @@ using namespace ::monad::mpt;
 
 TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
 {
-    // state machine always caches nodes
+    // state machine caches all nodes, currently max depth less than 256
+    this->sm = std::make_unique<StateMachineAlways<MerkleCompute, 256>>();
+
     this->aux.alternate_slow_fast_node_writer_unit_testing_only(true);
     constexpr size_t const eightMB = 8 * 1024 * 1024;
 

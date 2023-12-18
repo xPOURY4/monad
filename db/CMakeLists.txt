@@ -38,7 +38,6 @@ target_link_libraries(monad_async PUBLIC monad_core Boost::fiber)
 add_library(
   monad_trie STATIC
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
-  "${PROJECT_SOURCE_DIR}/include/monad/mpt/cache_option.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"

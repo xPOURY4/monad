@@ -4,7 +4,6 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/rlp/encode.hpp>
 
-#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/merkle/compact_encode.hpp>
 #include <monad/mpt/merkle/node_reference.hpp>

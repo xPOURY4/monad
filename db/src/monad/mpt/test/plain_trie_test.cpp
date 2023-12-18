@@ -3,7 +3,6 @@
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
-#include <monad/mpt/cache_option.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>

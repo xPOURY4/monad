@@ -355,13 +355,14 @@ void ChildData::erase()
     branch = INVALID_BRANCH;
 }
 
-void ChildData::set_node_and_compute_data(Node *const node, Compute &compute)
+void ChildData::finalize(Node *const node, Compute &compute, bool const cache)
 {
     MONAD_DEBUG_ASSERT(is_valid());
     ptr = node;
     auto const length = compute.compute(data, ptr);
     MONAD_DEBUG_ASSERT(length <= std::numeric_limits<uint8_t>::max());
     len = static_cast<uint8_t>(length);
+    cache_node = cache;
 }
 
 void ChildData::copy_old_child(Node *const old, unsigned const i)
@@ -379,6 +380,7 @@ void ChildData::copy_old_child(Node *const old, unsigned const i)
     offset = old->fnext(index);
     min_offset_fast = old->min_offset_fast(index);
     min_offset_slow = old->min_offset_slow(index);
+    cache_node = true;
 
     MONAD_DEBUG_ASSERT(is_valid());
 }
