@@ -17,7 +17,7 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 struct Compute
 {
-    virtual ~Compute(){};
+    virtual ~Compute() = default;
     //! compute length of hash from a span of child data, which include the node
     //! pointer, file offset and calculated hash
     virtual unsigned
