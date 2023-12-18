@@ -104,7 +104,6 @@ def _create_test_class(test_dir):
                 "--demangle",
                 "--disassemble",
                 "--reloc",
-                "--no-addresses",
                 "--insn-width=8",
                 obj,
             ]
