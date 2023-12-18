@@ -3,7 +3,7 @@
 	89 07                   	mov    %eax,(%rdi)
 	48 c1 e8 20             	shr    $0x20,%rax
 	66 89 47 04             	mov    %ax,0x4(%rdi)
-	c3                      	ret
+	c3                      	ret    
 	66 90                   	xchg   %ax,%ax
 
 <monad::disas::off48_to_int(long*, monad::off48_t const*)>:
@@ -12,7 +12,4 @@
 	48 c1 e1 20             	shl    $0x20,%rcx
 	48 09 c1                	or     %rax,%rcx
 	48 89 0f                	mov    %rcx,(%rdi)
-	c3                      	ret
-	66 2e 0f 1f 84 00 00 00 	cs nopw 0x0(%rax,%rax,1)
-	00 00 
-	0f 1f 44 00 00          	nopl   0x0(%rax,%rax,1)
+	c3                      	ret    

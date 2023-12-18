@@ -128,7 +128,7 @@ endif()
 target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
 add_library(
-  monad_core_disas SHARED
+  monad_core_disas STATIC
   "src/monad/core/math_disas.cpp" "src/monad/core/offset_disas.cpp"
   "src/monad/mem/cpool_disas.c" "src/monad/rlp/encode_disas.cpp")
 monad_core_compile_options(monad_core_disas)
