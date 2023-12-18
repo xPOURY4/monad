@@ -35,10 +35,10 @@ TYPED_TEST(TrieTest, find_min_max_block_num)
     this->root = upsert_vector(this->aux, *this->sm, {}, std::move(update_vec));
 
     Nibbles min_block = find_min_key_blocking(this->aux, *this->root);
-    EXPECT_EQ(NibblesView{min_block}.nibble_size(), 12);
+    EXPECT_EQ(min_block.nibble_size(), 12);
     EXPECT_EQ(min_block, NibblesView{blocknums[0]});
     Nibbles max_block = find_max_key_blocking(this->aux, *this->root);
-    EXPECT_EQ(NibblesView{max_block}.nibble_size(), 12);
+    EXPECT_EQ(max_block.nibble_size(), 12);
     EXPECT_EQ(max_block, NibblesView{blocknums.back()});
 
     // erase the first 10 blocks

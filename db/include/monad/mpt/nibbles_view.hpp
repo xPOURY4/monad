@@ -49,6 +49,11 @@ public:
                    : ((end_nibble_ + 1) / 2);
     }
 
+    constexpr size_type nibble_size() const
+    {
+        return end_nibble_ - static_cast<size_type>(begin_nibble_);
+    }
+
     constexpr void set(unsigned const i, unsigned char const value)
     {
         MONAD_DEBUG_ASSERT(value <= 0xF);

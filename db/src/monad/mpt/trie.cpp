@@ -128,7 +128,7 @@ void upward_update(UpdateAux &aux, StateMachine &sm, UpwardTreeNode *tnode)
         auto &entry = parent->children[tnode->child_index()];
         // put created node and compute to entry in parent
         size_t const level_up =
-            NibblesView{tnode->path}.nibble_size() + !parent->is_sentinel();
+            tnode->path.nibble_size() + !parent->is_sentinel();
         create_node_compute_data_possibly_async(
             aux, sm, *parent, entry, tnode_unique_ptr{tnode});
         sm.up(level_up);
@@ -254,7 +254,7 @@ struct read_single_child_receiver
         child.ptr = deserialize_node_from_buffer(
                         (unsigned char *)buffer.data() + buffer_off)
                         .release();
-        auto const path_size = NibblesView{tnode->path}.nibble_size();
+        auto const path_size = tnode->path.nibble_size();
         create_node_compute_data_possibly_async(
             *aux, *sm, *parent, entry, tnode_unique_ptr{tnode}, false);
         sm->up(path_size + !parent->is_sentinel());

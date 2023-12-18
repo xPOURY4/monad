@@ -43,4 +43,8 @@ TEST(NibblesTest, concat_nibbles)
     EXPECT_EQ(b, (NibblesView{12, 20, path.data()}));
 }
 
-TEST(NibblesTest, concat) {}
+TEST(NibblesTest, nibbles_size)
+{
+    Nibbles nibbles{16};
+    EXPECT_EQ(nibbles.nibble_size(), 16);
+}
