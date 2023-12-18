@@ -32,7 +32,7 @@
 			R_X86_64_GOTTPOFF	tl_tid-0x4
 	64 8b 0b                	mov    %fs:(%rbx),%ecx
 	85 c9                   	test   %ecx,%ecx
-	75 20                   	jne    <lock_disas+0x32>
+	75 1e                   	jne    <lock_disas+0x30>
 	64 48 03 1c 25 00 00 00 	add    %fs:0x0,%rbx
 	00 
 	49 89 fe                	mov    %rdi,%r14
@@ -40,20 +40,21 @@
 			R_X86_64_PLT32	init_tl_tid-0x4
 	4c 89 f7                	mov    %r14,%rdi
 	8b 0b                   	mov    (%rbx),%ecx
-	eb 08                   	jmp    <lock_disas+0x32>
-	66 0f 1f 44 00 00       	nopw   0x0(%rax,%rax,1)
+	eb 06                   	jmp    <lock_disas+0x30>
 	f3 90                   	pause  
+	0f 1f 40 00             	nopl   0x0(%rax)
 	8b 07                   	mov    (%rdi),%eax
 	85 c0                   	test   %eax,%eax
-	75 f8                   	jne    <lock_disas+0x30>
+	75 f4                   	jne    <lock_disas+0x2a>
 	31 c0                   	xor    %eax,%eax
 	f0 0f b1 0f             	lock cmpxchg %ecx,(%rdi)
-	75 f2                   	jne    <lock_disas+0x32>
+	75 f2                   	jne    <lock_disas+0x30>
 	48 83 c4 08             	add    $0x8,%rsp
 	5b                      	pop    %rbx
 	41 5e                   	pop    %r14
 	c3                      	ret    
-	0f 1f 84 00 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+	66 2e 0f 1f 84 00 00 00 	cs nopw 0x0(%rax,%rax,1)
+	00 00 
 
 <unlock_disas>:
 	c7 07 00 00 00 00       	movl   $0x0,(%rdi)

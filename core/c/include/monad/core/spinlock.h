@@ -22,7 +22,8 @@ static inline void lock(spin_lock_t *const lock)
 {
     int const desired = get_tl_tid();
     for (;;) {
-        while (atomic_load_explicit(lock, memory_order_relaxed)) {
+        while (
+            MONAD_UNLIKELY(atomic_load_explicit(lock, memory_order_relaxed))) {
             __builtin_ia32_pause();
         }
         int expected = 0;
