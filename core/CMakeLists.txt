@@ -59,6 +59,7 @@ add_library(
   monad_core STATIC
   "c/include/monad/core/assert.h"
   "c/include/monad/core/bit_util.h"
+  "c/include/monad/core/cpu_relax.h"
   "c/include/monad/core/likely.h"
   "c/include/monad/core/spinlock.h"
   "c/include/monad/core/tl_tid.h"

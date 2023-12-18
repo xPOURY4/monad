@@ -1,5 +1,7 @@
 #pragma once
 
+#include <monad/core/cpu_relax.h>
+#include <monad/core/likely.h>
 #include <monad/core/tl_tid.h>
 
 #include <assert.h>
@@ -24,7 +26,7 @@ static inline void lock(spin_lock_t *const lock)
     for (;;) {
         while (
             MONAD_UNLIKELY(atomic_load_explicit(lock, memory_order_relaxed))) {
-            __builtin_ia32_pause();
+            cpu_relax();
         }
         int expected = 0;
         if (MONAD_LIKELY(atomic_compare_exchange_weak_explicit(
