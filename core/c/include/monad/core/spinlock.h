@@ -27,12 +27,12 @@ static inline void lock(spin_lock_t *const lock)
             __builtin_ia32_pause();
         }
         int expected = 0;
-        if (atomic_compare_exchange_weak_explicit(
+        if (MONAD_LIKELY(atomic_compare_exchange_weak_explicit(
                 lock,
                 &expected,
                 desired,
                 memory_order_acquire,
-                memory_order_relaxed)) {
+                memory_order_relaxed))) {
             break;
         }
     }
