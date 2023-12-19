@@ -1,19 +1,28 @@
 # docker build -f docker/Dockerfile .
 
-FROM fedora:39
+FROM ubuntu:22.04
 
-RUN yum -y install dnf-plugins-core dnf-utils
+RUN apt update
 
-RUN yum -y update
+RUN apt upgrade -y
 
-RUN --mount=target=src src/monad-core/scripts/fedora/install_tools.sh
+RUN apt install -y apt-utils
 
-RUN --mount=target=src src/monad-core/scripts/fedora/install_deps.sh
+RUN apt install -y dialog
 
-RUN --mount=target=src src/monad-core/scripts/fedora/install_devel.sh
+RUN apt install -y ca-certificates curl gnupg software-properties-common wget
 
-RUN yum -y install \
-  cli11-devel
+COPY monad-core/scripts/ubuntu-build/ /opt
+
+RUN /opt/install-gcc.sh
+RUN /opt/install-clang.sh
+RUN /opt/install-boost.sh
+RUN /opt/install-cmake.sh
+RUN /opt/install-tools.sh
+RUN /opt/install-deps.sh
+
+RUN apt install -y \
+ libcli11-dev
 
 COPY . src
 
@@ -21,7 +30,9 @@ ARG CC
 ARG CXX
 ARG CMAKE_BUILD_TYPE
 
-RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ASMFLAGS="-march=haswell" ./monad-core/scripts/configure.sh
+RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} \
+   CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ASMFLAGS="-march=haswell" \
+   ./monad-core/scripts/configure.sh
 
 RUN cd src && ./monad-core/scripts/build.sh
 
