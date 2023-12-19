@@ -32,8 +32,8 @@ TYPED_TEST(AppendTest, works)
     auto const last_fast_off =
         this->state()->aux.get_start_of_wip_fast_offset();
     auto const root_hash_before = this->state()->root_hash();
-    auto const rand_state = this->state()->rand;
 
+    this->state()->keys.clear();
     this->state()->ensure_total_chunks(3);
     auto const root_hash_after1 = this->state()->root_hash();
 
@@ -56,14 +56,48 @@ TYPED_TEST(AppendTest, works)
 
     std::cout << "\nAfter rewind:";
     this->state()->print(std::cout);
+    // Check number of chunks in use and current starting offsets are of the
+    // same as before rewind
+    EXPECT_EQ(this->state()->fast_list_ids().size(), 2);
+    if (this->state()->aux.alternate_slow_fast_writer) {
+        EXPECT_EQ(this->state()->slow_list_ids().size(), 2);
+    }
+    EXPECT_EQ(this->state()->aux.get_root_offset(), last_root_off);
+    EXPECT_EQ(this->state()->aux.get_start_of_wip_fast_offset(), last_fast_off);
+    EXPECT_EQ(this->state()->aux.get_start_of_wip_slow_offset(), last_slow_off);
+    EXPECT_EQ(
+        this->state()->aux.node_writer_fast->sender().offset(), last_fast_off);
+    EXPECT_EQ(
+        this->state()->aux.node_writer_slow->sender().offset(), last_slow_off);
 
     // Has the root hash returned to what it should be?
     EXPECT_EQ(this->state()->root_hash(), root_hash_before);
 
-    this->state()->rand = rand_state;
-    this->state()->ensure_total_chunks(3);
-    auto const root_hash_after2 = this->state()->root_hash();
+    // Reinsert the same set of keys in `ensure_total_chunks(3)` earlier
+    // Use the following snippet instead when async works with single read and
+    // write buffer. Now have to limit upsert batch to not exhaust read buffers
+    /*
+    std::vector<Update> updates;
+    updates.reserve(this->state()->keys.size());
+    for (auto &e : this->state()->keys.size()) {
+        updates.push_back(make_update(e.first, e.first));
+    }
+    */
+    auto it = this->state()->keys.begin();
+    while (it != this->state()->keys.end()) {
+        std::vector<Update> updates;
+        updates.reserve(1000);
+        for (auto i = 0; i < 1000; ++i, ++it) {
+            updates.push_back(make_update(it->first, it->first));
+        }
+        this->state()->root = upsert_vector(
+            this->state()->aux,
+            this->state()->sm,
+            std::move(this->state()->root),
+            std::move(updates));
+    }
 
+    auto const root_hash_after2 = this->state()->root_hash();
     // Has the root hash returned to what it should be?
     EXPECT_EQ(root_hash_after1, root_hash_after2);
 
