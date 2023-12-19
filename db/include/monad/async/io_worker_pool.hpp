@@ -29,6 +29,7 @@ namespace detail
     {
         template <sender Sender>
         friend class MONAD_ASYNC_NAMESPACE::execute_on_worker_pool;
+
         virtual ~AsyncReadIoWorkerPoolBase() {}
 
         //! Threadsafe. Returns the master `AsyncIO` instance for this worker
@@ -41,12 +42,14 @@ namespace detail
         struct customisation_points
         {
             virtual ~customisation_points() {}
+
             //! If the worker thread is idle, this customisation point lets
             //! subclasses begin other new work. If sleeping the worker thread
             //! is desired, return false. Return true to keep the worker thread
             //! spin looping.
             virtual bool try_initiate_other_work(bool io_is_pending) = 0;
         };
+
         //! If the worker thread is idle, this customisation point lets
         //! subclasses begin other new work. If sleeping the worker thread
         //! is desired, return false. Return true to keep the worker thread
@@ -78,6 +81,7 @@ namespace detail
 
     template <class T, class QueueOptions>
     struct BoostLockfreeQueueFactory;
+
     template <
         class T, template <class...> class TypeList, class... QueueOptions>
     struct BoostLockfreeQueueFactory<T, TypeList<QueueOptions...>>
@@ -98,6 +102,7 @@ namespace detail
             idle_io_pending,
             working
         };
+
         struct worker_t_
         {
             struct thread_state_t
@@ -120,6 +125,7 @@ namespace detail
                           buf)
                 {
                 }
+
                 void iterate()
                 {
                     // If there are i/o completions ready, process those first
@@ -167,6 +173,7 @@ namespace detail
                     }
                 }
             };
+
             std::atomic<thread_state_t *> thread_state{nullptr};
             std::jthread thread;
 
@@ -190,14 +197,18 @@ namespace detail
                 })
             {
             }
-            worker_t_(const worker_t_ &) = delete;
+
+            worker_t_(worker_t_ const &) = delete;
+
             worker_t_(worker_t_ &&o) noexcept
                 : thread_state(o.thread_state.exchange(
                       nullptr, std::memory_order_acq_rel))
                 , thread(std::move(o.thread))
             {
             }
-            worker_t_ &operator=(const worker_t_ &) = delete;
+
+            worker_t_ &operator=(worker_t_ const &) = delete;
+
             worker_t_ &operator=(worker_t_ &&o) noexcept
             {
                 if (this != &o) {
@@ -206,6 +217,7 @@ namespace detail
                 }
                 return *this;
             }
+
             ~worker_t_()
             {
                 delete thread_state.load(std::memory_order_acquire);
@@ -280,12 +292,14 @@ namespace detail
         {
             return workers_.size();
         }
+
         //! Threadsafe. True if all submitted items are being worked upon, which
         //! includes no items
         [[nodiscard]] bool no_items_waiting() const noexcept
         {
             return enqueued_workitems_.empty();
         }
+
         //! Threadsafe but can be false positive and false negative. True if the
         //! worker pool is currently idle and has no work
         [[nodiscard]] bool currently_idle() const noexcept
@@ -300,6 +314,7 @@ namespace detail
             }
             return no_items_waiting();
         }
+
         //! Threadsafe but unstable. Return an estimate of how busy the workers
         //! are, with `1.0` = completely busy.
         [[nodiscard]] float busy_estimate() const noexcept
@@ -402,6 +417,14 @@ class execute_on_worker_pool : public Sender
 {
 public:
     using result_type = typename Sender::result_type;
+    static constexpr operation_type my_operation_type = [] {
+        if constexpr (requires(Sender x) { x.my_operation_type; }) {
+            return Sender::my_operation_type;
+        }
+        else {
+            return operation_type::unknown;
+        }
+    }();
 
 private:
     static constexpr bool
@@ -421,6 +444,7 @@ private:
         completed_pre_defer,
         completed_post_defer
     };
+
     struct invoke_receiver_receiver_
     {
         static constexpr bool lifetime_managed_internally = false;
@@ -446,6 +470,7 @@ private:
             // completion
             original_io_state->completed(std::move(original_input_result));
         }
+
         void reset() {}
     };
     friend struct invoke_receiver_receiver_;
@@ -457,6 +482,7 @@ private:
     detail::AsyncReadIoWorkerPoolBase *const pool_{nullptr};
     pid_t const initiating_tid_{0};
     std::atomic<state_t_> state_{state_t_::uninitiated};
+
     // Stop the connected state making this type immovable
     union reschedule_back_to_master_op_t_
     {
@@ -468,12 +494,16 @@ private:
         std::byte storage[storage_bytes];
         defer_back_to_master_connected_state_type_ defer_state;
         reschedule_back_to_master_connected_state_type_ reschedule_state;
+
         reschedule_back_to_master_op_t_() {}
+
         ~reschedule_back_to_master_op_t_() {}
+
         void destroy_defer_state()
         {
             defer_state.~defer_back_to_master_connected_state_type_();
         }
+
         void destroy_reschedule_state()
         {
             reschedule_state.~reschedule_back_to_master_connected_state_type_();
@@ -485,6 +515,7 @@ private:
 
 public:
     execute_on_worker_pool() = default;
+
     template <class... Args>
         requires(std::is_constructible_v<Sender, Args...>)
     execute_on_worker_pool(
@@ -494,7 +525,9 @@ public:
         , initiating_tid_(gettid())
     {
     }
+
     execute_on_worker_pool(execute_on_worker_pool const &) = delete;
+
     execute_on_worker_pool(execute_on_worker_pool &&o) noexcept
         : Sender(std::move(o))
         , pool_(o.pool_)
@@ -504,7 +537,9 @@ public:
         MONAD_ASSERT(
             o.state_.load(std::memory_order_acquire) == state_t_::uninitiated);
     }
+
     execute_on_worker_pool &operator=(execute_on_worker_pool const &) = delete;
+
     execute_on_worker_pool &operator=(execute_on_worker_pool &&o) noexcept
     {
         if (this != &o) {
@@ -513,6 +548,7 @@ public:
         }
         return *this;
     }
+
     ~execute_on_worker_pool()
     {
         switch (state_.load(std::memory_order_acquire)) {
@@ -639,6 +675,7 @@ public:
         }
     }
 };
+
 static_assert(
     sizeof(execute_on_worker_pool<read_single_buffer_sender>) -
         sizeof(read_single_buffer_sender) ==

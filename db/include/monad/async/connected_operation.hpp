@@ -84,6 +84,7 @@ namespace detail
         using Base::Base;
         static constexpr bool void_completed_enabled_ = false;
     };
+
     template <
         class Base, sender Sender, receiver Receiver,
         bool enable =
@@ -113,39 +114,10 @@ namespace detail
         // These will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<void> res) override final
         {
-            this->being_executed_ = false;
-            auto *thisio = this->executor();
-            if (thisio != nullptr) {
-                thisio->notify_operation_completed_(this, res);
-            }
-            if constexpr (requires(Sender x) {
-                              x.completed(this, std::move(res));
-                          }) {
-                auto r = this->sender_.completed(this, std::move(res));
-                [[unlikely]] if (
-                    !r && r.assume_error() ==
-                              sender_errc::operation_must_be_reinitiated) {
-                    // Completions are allowed to be triggered from threads
-                    // different to initiation, but if completion then
-                    // reinitiates, this operation state needs a new owner
-                    this->io_.store(
-                        detail::AsyncIO_thread_instance(),
-                        std::memory_order_release);
-                    // Also, it is permitted for the completion to completely
-                    // replace the operation state with a brand new type with
-                    // new vptr, so we must also launder this else the old vptr
-                    // will get used on some compilers (currently only clang)
-                    std::launder(this)->initiate();
-                }
-                else {
-                    this->receiver_.set_value(this, std::move(r));
-                }
-            }
-            else {
-                this->receiver_.set_value(this, std::move(res));
-            }
+            this->completed_impl_(std::move(res));
         }
     };
+
     template <class Base, sender Sender, receiver Receiver>
     struct connected_operation_bytes_completed_implementation<
         Base, Sender, Receiver, true> : public Base
@@ -157,38 +129,7 @@ namespace detail
         // This will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<size_t> bytes_transferred) override final
         {
-            this->being_executed_ = false;
-            auto *thisio = this->executor();
-            if (thisio != nullptr) {
-                thisio->notify_operation_completed_(this, bytes_transferred);
-            }
-            if constexpr (requires(Sender x) {
-                              x.completed(this, std::move(bytes_transferred));
-                          }) {
-                auto r =
-                    this->sender_.completed(this, std::move(bytes_transferred));
-                [[unlikely]] if (
-                    !r && r.assume_error() ==
-                              sender_errc::operation_must_be_reinitiated) {
-                    // Completions are allowed to be triggered from threads
-                    // different to initiation, but if completion then
-                    // reinitiates, this operation state needs a new owner
-                    this->io_.store(
-                        detail::AsyncIO_thread_instance(),
-                        std::memory_order_release);
-                    // Also, it is permitted for the completion to completely
-                    // replace the operation state with a brand new type with
-                    // new vptr, so we must also launder this else the old vptr
-                    // will get used on some compilers (currently only clang)
-                    std::launder(this)->initiate();
-                }
-                else {
-                    this->receiver_.set_value(this, std::move(r));
-                }
-            }
-            else {
-                this->receiver_.set_value(this, std::move(bytes_transferred));
-            }
+            this->completed_impl_(std::move(bytes_transferred));
         }
     };
 }
@@ -237,6 +178,7 @@ public:
     connected_operation &operator=(connected_operation const &) = delete;
     connected_operation &operator=(connected_operation &&) = delete;
 };
+
 //! Default connect customisation point taking sender and receiver by value,
 //! requires receiver to be compatible with sender.
 template <sender Sender, receiver Receiver>
@@ -247,6 +189,7 @@ connect(Sender &&sender, Receiver &&receiver)
     return connected_operation<Sender, Receiver>(
         static_cast<Sender &&>(sender), static_cast<Receiver &&>(receiver));
 }
+
 //! \overload
 template <sender Sender, receiver Receiver>
     requires(compatible_sender_receiver<Sender, Receiver>)
@@ -266,6 +209,7 @@ connect(AsyncIO &io, Sender &&sender, Receiver &&receiver)
         static_cast<Sender &&>(sender),
         static_cast<Receiver &&>(receiver));
 }
+
 //! Alternative connect customisation point taking piecewise construction args,
 //! requires receiver to be compatible with sender
 template <
@@ -282,6 +226,7 @@ inline connected_operation<Sender, Receiver> connect(
     return connected_operation<Sender, Receiver>(
         _, std::move(sender_args), std::move(receiver_args));
 }
+
 //! \overload
 template <
     sender Sender, receiver Receiver, class... SenderArgs,

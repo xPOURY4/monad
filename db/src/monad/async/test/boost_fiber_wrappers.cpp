@@ -41,17 +41,15 @@ TEST_F(BoostFiberWrappers, fiber_read)
         // This initiates the i/o reading DISK_PAGE_SIZE bytes from offset
         // 0, returning a boost fiber future like object
         auto fut = boost_fibers::read_single_buffer(
-            *shared_state_()->testio,
-            chunk_offset_t{0, 0},
-            std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
+            *shared_state_()->testio, chunk_offset_t{0, 0}, DISK_PAGE_SIZE);
         // You can do other stuff here, like initiate more i/o or do compute
 
         // When you really do need the result to progress further, suspend
         // execution until the i/o completes. The TRY operation will
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
-        BOOST_OUTCOME_TRY(
-            std::span<const std::byte> const bytesread, fut.get());
+        BOOST_OUTCOME_TRY(auto bytesread_, fut.get());
+        auto &bytesread = bytesread_.get();
 
         // Return a copy of the registered buffer with lifetime held by fut
         return std::vector<std::byte>(bytesread.begin(), bytesread.end());

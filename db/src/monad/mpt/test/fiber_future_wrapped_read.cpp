@@ -34,7 +34,9 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
     struct receiver_t
     {
         FiberFutureWrappedFind::shared_state_t *const fixture_shared_state;
-        ::boost::fibers::promise<std::span<std::byte const>> promise;
+        ::boost::fibers::promise<
+            MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type>
+            promise;
         chunk_offset_t offset;
 
         enum : bool
@@ -46,7 +48,9 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
 
         receiver_t(
             FiberFutureWrappedFind::shared_state_t *fixture_shared_state_,
-            ::boost::fibers::promise<std::span<std::byte const>> &&p,
+            ::boost::fibers::promise<
+                MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type>
+                &&p,
             chunk_offset_t const offset_)
             : fixture_shared_state(fixture_shared_state_)
             , promise(std::move(p))
@@ -56,10 +60,10 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
 
         void set_value(
             erased_connected_operation *,
-            result<std::span<std::byte const>> res)
+            MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type res)
         {
             ASSERT_TRUE(res);
-            std::span<std::byte const> buffer = std::move(res).assume_value();
+            auto &buffer = res.assume_value().get();
 
             EXPECT_EQ(
                 buffer.front(),
@@ -75,15 +79,15 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
     auto impl_sender = [&]() -> result<std::vector<std::byte>> {
         // This initiates the i/o reading DISK_PAGE_SIZE bytes from a
         // randomized offset
-        using promise_result_t = std::span<std::byte const>;
+        using promise_result_t =
+            MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type;
 
         chunk_offset_t const offset(
             0,
             round_down_align<DISK_PAGE_BITS>(
                 shared_state_()->test_rand() %
                 (TEST_FILE_SIZE - DISK_PAGE_SIZE)));
-        auto sender = read_single_buffer_sender(
-            offset, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
+        auto sender = read_single_buffer_sender(offset, DISK_PAGE_SIZE);
         ::boost::fibers::promise<promise_result_t> promise;
         auto fut = promise.get_future();
         auto iostate = shared_state_()->testio->make_connected(
@@ -101,9 +105,7 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
         // This initiates the i/o reading DISK_PAGE_SIZE bytes from offset
         // 0, returning a boost fiber future like object
         auto fut = boost_fibers::read_single_buffer(
-            *shared_state_()->testio,
-            chunk_offset_t{0, 0},
-            std::span{(std::byte *)nullptr, DISK_PAGE_SIZE});
+            *shared_state_()->testio, chunk_offset_t{0, 0}, DISK_PAGE_SIZE);
         std::cout << "fiber wrapped sender..." << std::endl;
         // You can do other stuff here, like initiate more i/o or do compute
 
@@ -111,8 +113,8 @@ TEST_F(FiberFutureWrappedFind, single_thread_fibers_read)
         // execution until the i/o completes. The TRY operation will
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
-        BOOST_OUTCOME_TRY(
-            std::span<const std::byte> const bytesread, fut.get());
+        BOOST_OUTCOME_TRY(auto bytesread_, fut.get());
+        auto &bytesread = bytesread_.get();
 
         EXPECT_EQ(DISK_PAGE_SIZE, bytesread.size());
         EXPECT_EQ(

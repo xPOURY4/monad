@@ -48,6 +48,7 @@ TEST_F(AsyncReadIoWorkerPool, construct_dynamic)
 
 template <class... Args>
 struct TypeList;
+
 TEST_F(AsyncReadIoWorkerPool, construct_fixed)
 {
     // boost::lockfree::capacity causes overalignment
@@ -71,9 +72,11 @@ TEST_F(AsyncReadIoWorkerPool, works)
         queue<pid_t, ::boost::lockfree::capacity<MAX_CONCURRENCY * 2>>
             thread_ids;
     static std::atomic<int> count(0);
+
     struct sender_t
     {
         using result_type = result<void>;
+
         result_type operator()(erased_connected_operation *) noexcept
         {
             MONAD_ASSERT(thread_ids.push(gettid()));
@@ -85,7 +88,9 @@ TEST_F(AsyncReadIoWorkerPool, works)
             return sender_errc::initiation_immediately_completed;
         }
     };
+
     static_assert(sender<sender_t>);
+
     struct receiver_t
     {
         enum : bool
@@ -99,6 +104,7 @@ TEST_F(AsyncReadIoWorkerPool, works)
             MONAD_ASSERT(thread_ids.push(gettid()));
         }
     };
+
     static_assert(receiver<receiver_t>);
     using connected_type = decltype(connect(
         *shared_state_()->testio,
@@ -157,9 +163,11 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_reinitiate)
         queue<pid_t, ::boost::lockfree::capacity<MAX_CONCURRENCY * 2>>
             thread_ids;
     static std::atomic<int> count(MAX_CONCURRENCY);
+
     struct sender_t
     {
         using result_type = result<void>;
+
         result_type operator()(erased_connected_operation *) noexcept
         {
             MONAD_ASSERT(thread_ids.push(gettid()));
@@ -168,13 +176,16 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_reinitiate)
                        : sender_errc::operation_must_be_reinitiated;
         }
     };
+
     static_assert(sender<sender_t>);
+
     struct receiver_t
     {
         enum : bool
         {
             lifetime_managed_internally = false
         };
+
         bool done{false};
 
         void set_value(erased_connected_operation *, result<void> res)
@@ -183,6 +194,7 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_reinitiate)
             done = true;
         }
     };
+
     static_assert(receiver<receiver_t>);
     auto state = connect(
         *shared_state_()->testio,
@@ -218,10 +230,12 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
     static auto &workerpool = *workerpool_;
     static ::boost::lockfree::queue<pid_t> thread_ids(8);
     static std::atomic<int> count(MAX_CONCURRENCY);
+
     struct sender2_t
     {
         using result_type = result<void>;
         pid_t mytid{0};
+
         result_type operator()(erased_connected_operation *) noexcept
         {
             mytid = gettid();
@@ -229,13 +243,16 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             return sender_errc::initiation_immediately_completed;
         }
     };
+
     static_assert(sender<sender2_t>);
+
     struct receiver2_t
     {
         enum : bool
         {
             lifetime_managed_internally = false
         };
+
         erased_connected_operation *original_io_state{nullptr};
         sender2_t *sender{nullptr};
 
@@ -254,7 +271,9 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             }
         }
     };
+
     static_assert(receiver<receiver2_t>);
+
     struct sender1_t
     {
         using result_type = result<void>;
@@ -263,6 +282,7 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             execute_on_worker_pool<sender2_t>{workerpool},
             receiver2_t{std::declval<erased_connected_operation *>()}));
         std::unique_ptr<connected_state_type> states[MAX_CONCURRENCY];
+
         result_type operator()(erased_connected_operation *st) noexcept
         {
             MONAD_ASSERT(thread_ids.push(gettid()));
@@ -280,7 +300,9 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             return success();
         }
     };
+
     static_assert(sender<sender1_t>);
+
     struct receiver1_t
     {
         enum : bool
@@ -294,6 +316,7 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
             MONAD_ASSERT(thread_ids.push(gettid()));
         }
     };
+
     auto state = connect(
         *shared_state_()->testio,
         execute_on_worker_pool<sender1_t>{workerpool},
@@ -323,18 +346,21 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_do_read_io)
         MAX_CONCURRENCY,
         shared_state_()->make_ring,
         shared_state_()->make_buffers);
+
     struct sender_t
     {
         using result_type = result<void>;
 
         chunk_offset_t const offset;
+
         struct receiver_t
         {
             chunk_offset_t const offset;
             erased_connected_operation *const original_io_state;
+
             void set_value(
                 erased_connected_operation *,
-                result<std::span<std::byte const>> res)
+                monad::async::read_single_buffer_sender::result_type res)
             {
                 if (!res) {
                     std::cerr << res.assume_error().message().c_str()
@@ -343,7 +369,7 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_do_read_io)
                 MONAD_ASSERT(res);
                 MONAD_ASSERT(
                     0 == memcmp(
-                             res.assume_value().data(),
+                             res.assume_value().get().data(),
                              shared_state_()->testfilecontents.data() +
                                  offset.offset,
                              DISK_PAGE_SIZE));
@@ -355,22 +381,22 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_do_read_io)
             : offset(offset_)
         {
         }
+
         result_type operator()(erased_connected_operation *io_state) noexcept
         {
             auto state =
                 io_state->executor()
                     ->make_connected<read_single_buffer_sender, receiver_t>(
-                        read_single_buffer_sender{
-                            offset,
-                            read_single_buffer_sender::buffer_type{
-                                (std::byte *)nullptr, DISK_PAGE_SIZE}},
+                        read_single_buffer_sender{offset, DISK_PAGE_SIZE},
                         receiver_t{offset, io_state});
             state->initiate();
             state.release();
             return success();
         }
     };
+
     static_assert(sender<sender_t>);
+
     struct receiver_t
     {
         enum : bool
@@ -379,12 +405,14 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_do_read_io)
         };
 
         bool done{false};
+
         void set_value(erased_connected_operation *, result<void> res)
         {
             MONAD_ASSERT(res);
             done = true;
         }
     };
+
     using state_type = decltype(connect(
         *shared_state_()->testio,
         execute_on_worker_pool<sender_t>{workerpool, chunk_offset_t{0, 0}},
@@ -422,10 +450,12 @@ TEST_F(AsyncReadIoWorkerPool, async_completions_are_not_racy)
         MAX_CONCURRENCY,
         shared_state_()->make_ring,
         shared_state_()->make_buffers);
+
     struct sender_t
     {
         bool defers{false};
         using result_type = result<void>;
+
         result_type operator()(erased_connected_operation *io_state) noexcept
         {
             // This needs to defer until this exits, otherwise
@@ -436,7 +466,9 @@ TEST_F(AsyncReadIoWorkerPool, async_completions_are_not_racy)
             return success();
         }
     };
+
     static_assert(sender<sender_t>);
+
     struct receiver_t
     {
         enum : bool
@@ -445,11 +477,13 @@ TEST_F(AsyncReadIoWorkerPool, async_completions_are_not_racy)
         };
 
         bool done{false};
+
         void set_value(erased_connected_operation *, result<void>)
         {
             done = true;
         }
     };
+
     static_assert(receiver<receiver_t>);
     auto state = connect(
         *shared_state_()->testio,

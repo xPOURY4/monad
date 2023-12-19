@@ -540,7 +540,14 @@ unsigned char *AsyncIO::poll_uring_while_no_io_buffers_(bool is_write)
         // If this assert fails, there genuinely
         // are not enough i/o buffers. This can happen if the caller
         // initiates more i/o than there are buffers available.
-        MONAD_ASSERT(io_in_flight() > 0);
+        if (0 == io_in_flight()) {
+            std::cerr
+                << "FATAL: no i/o buffers remaining. is_write = " << is_write
+                << " within_completions_count = "
+                << detail::AsyncIO_per_thread_state().within_completions_count
+                << std::endl;
+            MONAD_ASSERT("no i/o buffers remaining" == nullptr);
+        }
         // Reap completions until a buffer frees up
         poll_blocking(1);
         auto *mem = (is_write ? wr_pool_ : rd_pool_).alloc();

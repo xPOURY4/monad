@@ -48,16 +48,15 @@ TEST_F(CppCoroutineWrappers, coroutine_read)
         // 0, returning a coroutine awaitable
         auto awaitable = co_initiate(
             *shared_state_()->testio,
-            read_single_buffer_sender(
-                {0, 0}, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE}));
+            read_single_buffer_sender({0, 0}, DISK_PAGE_SIZE));
         // You can do other stuff here, like initiate more i/o or do compute
 
         // When you really do need the result to progress further, suspend
         // execution until the i/o completes. The TRY operation will
         // propagate any failures out the return type of this lambda, if the
         // operation was successful `res` get the result.
-        BOOST_OUTCOME_CO_TRY(
-            std::span<const std::byte> const bytesread, co_await awaitable);
+        BOOST_OUTCOME_CO_TRY(auto bytesread_, co_await awaitable);
+        auto &bytesread = bytesread_.get();
 
         // Return a copy of the registered buffer with lifetime held by
         // awaitable
@@ -177,13 +176,15 @@ TEST_F(
         using result_type = result<void>;
 
         chunk_offset_t const offset;
+
         struct receiver_t
         {
             chunk_offset_t const offset;
             erased_connected_operation *const original_io_state;
+
             void set_value(
                 erased_connected_operation *,
-                result<std::span<std::byte const>> res)
+                monad::async::read_single_buffer_sender::result_type res)
             {
                 if (!res) {
                     std::cerr << res.assume_error().message().c_str()
@@ -192,7 +193,7 @@ TEST_F(
                 MONAD_ASSERT(res);
                 MONAD_ASSERT(
                     0 == memcmp(
-                             res.assume_value().data(),
+                             res.assume_value().get().data(),
                              shared_state_()->testfilecontents.data() +
                                  offset.offset,
                              DISK_PAGE_SIZE));
@@ -204,21 +205,20 @@ TEST_F(
             : offset(offset_)
         {
         }
+
         result_type operator()(erased_connected_operation *io_state) noexcept
         {
             auto state =
                 io_state->executor()
                     ->make_connected<read_single_buffer_sender, receiver_t>(
-                        read_single_buffer_sender{
-                            offset,
-                            read_single_buffer_sender::buffer_type{
-                                (std::byte *)nullptr, DISK_PAGE_SIZE}},
+                        read_single_buffer_sender{offset, DISK_PAGE_SIZE},
                         receiver_t{offset, io_state});
             state->initiate();
             state.release();
             return success();
         }
     };
+
     static_assert(sender<sender_t>);
     static_assert(std::is_constructible_v<sender_t, chunk_offset_t>);
     using state_type = decltype(co_initiate(
@@ -268,14 +268,12 @@ TEST_F(
         // Initiate the read
         auto aw = co_initiate(
             *io_state->executor(),
-            read_single_buffer_sender(
-                offset, std::span{(std::byte *)nullptr, DISK_PAGE_SIZE}));
+            read_single_buffer_sender(offset, DISK_PAGE_SIZE));
         // Suspend until the read completes
-        BOOST_OUTCOME_CO_TRY(
-            std::span<const std::byte> const bytesread, co_await aw);
+        BOOST_OUTCOME_CO_TRY(auto bytesread, co_await aw);
         // Return the result of the byte comparison
         co_return memcmp(
-            bytesread.data(),
+            bytesread.get().data(),
             shared_state_()->testfilecontents.data() + offset.offset,
             DISK_PAGE_SIZE);
     };

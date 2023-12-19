@@ -55,17 +55,19 @@ namespace monad
     namespace detail
     {
         template <class T, bool v = noexcept(std::declval<T>()())>
-        constexpr inline bool is_nothrow_invocable_(int) noexcept
+        inline constexpr bool is_nothrow_invocable_(int) noexcept
         {
             return v;
         }
+
         template <class T>
-        constexpr inline bool is_nothrow_invocable_(...) noexcept
+        inline constexpr bool is_nothrow_invocable_(...) noexcept
         {
             return false;
         }
+
         template <class T>
-        constexpr inline bool is_nothrow_invocable() noexcept
+        inline constexpr bool is_nothrow_invocable() noexcept
         {
             return is_nothrow_invocable_<typename std::decay<T>::type>(5);
         }
@@ -76,6 +78,7 @@ namespace monad
             fail,
             success
         };
+
         template <class EF, scope_impl_kind kind>
         class scope_impl
         {
@@ -87,8 +90,8 @@ namespace monad
 
         public:
             scope_impl() = delete;
-            scope_impl(const scope_impl &) = delete;
-            scope_impl &operator=(const scope_impl &) = delete;
+            scope_impl(scope_impl const &) = delete;
+            scope_impl &operator=(scope_impl const &) = delete;
             scope_impl &operator=(scope_impl &&) = delete;
 
             constexpr scope_impl(scope_impl &&o) noexcept(
@@ -120,13 +123,16 @@ namespace monad
     #endif
             {
             }
-    #ifdef _MSC_VER
-        #pragma warning(push)
-        #pragma warning(disable : 4127) // conditional expression is constant
-    #endif
+
             ~scope_impl()
             {
+                reset();
+            }
+
+            constexpr void reset() noexcept
+            {
                 if (!released_) {
+                    released_ = true;
                     if (scope_impl_kind::exit == kind) {
                         _f();
                         return;
@@ -149,9 +155,7 @@ namespace monad
                     }
                 }
             }
-    #ifdef _MSC_VER
-        #pragma warning(pop)
-    #endif
+
             constexpr void release() noexcept
             {
                 released_ = true;
@@ -179,7 +183,7 @@ namespace monad
         = true
     #endif
         >
-    constexpr inline auto make_scope_exit(T &&v)
+    inline constexpr auto make_scope_exit(T &&v)
     {
         return scope_exit<typename std::decay<T>::type>(static_cast<T &&>(v));
     }
@@ -193,7 +197,7 @@ namespace monad
         = true
     #endif
         >
-    constexpr inline auto make_scope_fail(T &&v)
+    inline constexpr auto make_scope_fail(T &&v)
     {
         return scope_fail<typename std::decay<T>::type>(static_cast<T &&>(v));
     }
@@ -204,7 +208,7 @@ namespace monad
         typename = decltype(std::declval<T>()())
     #endif
         >
-    constexpr inline auto make_scope_success(T &&v)
+    inline constexpr auto make_scope_success(T &&v)
     {
         return scope_success<typename std::decay<T>::type>(
             static_cast<T &&>(v));

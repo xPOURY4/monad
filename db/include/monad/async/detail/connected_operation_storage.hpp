@@ -1,7 +1,10 @@
 #pragma once
 
+#include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/sender_errc.hpp>
+
+#include <memory>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
@@ -114,11 +117,6 @@ namespace detail
         using initiation_result = typename Base::initiation_result;
         using sender_type = Sender;
         using receiver_type = Receiver;
-        //! True if this connected operation state is resettable and reusable
-        static constexpr bool is_resettable = requires {
-            &sender_type::reset;
-            &receiver_type::reset;
-        };
 
     protected:
         Sender sender_;
@@ -175,6 +173,42 @@ namespace detail
                 thisio->notify_operation_initiation_success_(this);
             }
             return initiation_result::initiation_success;
+        }
+
+        template <class ResultType>
+        void completed_impl_(ResultType res)
+        {
+            this->being_executed_ = false;
+            auto *thisio = this->executor();
+            if (thisio != nullptr) {
+                thisio->notify_operation_completed_(this, res);
+            }
+            if constexpr (requires(Sender x) {
+                              x.completed(this, std::move(res));
+                          }) {
+                auto r = this->sender_.completed(this, std::move(res));
+                [[unlikely]] if (
+                    !r && r.assume_error() ==
+                              sender_errc::operation_must_be_reinitiated) {
+                    // Completions are allowed to be triggered from threads
+                    // different to initiation, but if completion then
+                    // reinitiates, this operation state needs a new owner
+                    this->io_.store(
+                        detail::AsyncIO_thread_instance(),
+                        std::memory_order_release);
+                    // Also, it is permitted for the completion to completely
+                    // replace the operation state with a brand new type with
+                    // new vptr, so we must also launder this else the old vptr
+                    // will get used on some compilers (currently only clang)
+                    std::launder(this)->initiate();
+                }
+                else {
+                    this->receiver_.set_value(this, std::move(r));
+                }
+            }
+            else {
+                this->receiver_.set_value(this, std::move(res));
+            }
         }
 
     public:
@@ -311,7 +345,12 @@ namespace detail
         //! Resets the operation state. Only available if both sender and
         //! receiver implement `reset()`
         template <class... SenderArgs, class... ReceiverArgs>
-            requires(is_resettable)
+            requires(requires(
+                Sender s, Receiver r, SenderArgs... sargs,
+                ReceiverArgs... rargs) {
+                s.reset(sargs...);
+                r.reset(rargs...);
+            })
         void reset(
             std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)

@@ -172,14 +172,14 @@ struct update_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<std::byte const>> buffer_)
+        monad::async::read_single_buffer_sender::result_type buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<std::byte const> const buffer =
-            std::move(buffer_).assume_value();
+        auto &buffer = buffer_.assume_value().get();
         auto old = deserialize_node_from_buffer(
             (unsigned char *)buffer.data() + buffer_off,
             buffer.size() - buffer_off);
+        buffer.reset();
         // continue recurse down the trie starting from `old`
         unsigned const old_prefix_index = old->path_start_nibble();
         upsert_(
@@ -236,11 +236,10 @@ struct read_single_child_receiver
 
     void set_value(
         erased_connected_operation *,
-        result<std::span<std::byte const>> buffer_)
+        monad::async::read_single_buffer_sender::result_type buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<std::byte const> const buffer =
-            std::move(buffer_).assume_value();
+        auto &buffer = buffer_.assume_value().get();
         // load node from read buffer
         auto *parent = tnode->parent;
         MONAD_DEBUG_ASSERT(parent);
@@ -253,6 +252,7 @@ struct read_single_child_receiver
                         (unsigned char *)buffer.data() + buffer_off,
                         buffer.size() - buffer_off)
                         .release();
+        buffer.reset();
         auto const path_size = tnode->path.nibble_size();
         create_node_compute_data_possibly_async(
             *aux, *sm, *parent, entry, tnode_unique_ptr{tnode}, false);
@@ -830,8 +830,7 @@ node_writer_unique_ptr_type replace_node_writer(
         block_size = chunk_capacity - offset;
     }
     auto ret = aux.io->make_connected(
-        write_single_buffer_sender{
-            offset_of_next_block, {(std::byte const *)nullptr, block_size}},
+        write_single_buffer_sender{offset_of_next_block, block_size},
         write_operation_io_receiver{});
     return ret;
 }

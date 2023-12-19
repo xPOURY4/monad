@@ -267,22 +267,39 @@ public:
     get i/o buffers into which to place connected i/o states.
     */
     static constexpr size_t MAX_CONNECTED_OPERATION_SIZE = DISK_PAGE_SIZE;
-    static constexpr size_t READ_BUFFER_SIZE = 7 * DISK_PAGE_SIZE;
+    static constexpr size_t READ_BUFFER_SIZE = 8 * DISK_PAGE_SIZE;
     static constexpr size_t WRITE_BUFFER_SIZE =
         8 * 1024 * 1024 - MAX_CONNECTED_OPERATION_SIZE;
-    static constexpr size_t MONAD_IO_BUFFERS_READ_SIZE =
-        round_up_align<CPU_PAGE_BITS>(
-            READ_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
+    static constexpr size_t MONAD_IO_BUFFERS_READ_SIZE = READ_BUFFER_SIZE;
     static constexpr size_t MONAD_IO_BUFFERS_WRITE_SIZE =
         round_up_align<CPU_PAGE_BITS>(
             WRITE_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
 
-    template <class ConnectedOperationType, bool is_write>
+private:
+    struct connected_operation_storage_
+    {
+        std::byte v[MAX_CONNECTED_OPERATION_SIZE];
+    };
+
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    using connected_operation_storage_allocator_type_ =
+        allocators::boost_unordered_pool_allocator<
+            connected_operation_storage_>;
+#else
+    using connected_operation_storage_allocator_type_ =
+        allocators::malloc_free_allocator<connected_operation_storage_>;
+#endif
+
+    connected_operation_storage_allocator_type_
+        connected_operation_storage_pool_;
+
+public:
+    // Only used with write ops
+    template <class ConnectedOperationType>
     struct registered_io_buffer_with_connected_operation
     {
-        // read buffer
-        alignas(DMA_PAGE_SIZE)
-            std::byte buffer[is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE];
+        alignas(DMA_PAGE_SIZE) std::byte write_buffer[WRITE_BUFFER_SIZE];
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
         ConnectedOperationType state[0];
@@ -290,101 +307,163 @@ public:
 
         constexpr registered_io_buffer_with_connected_operation() {}
     };
-    friend struct
-        registered_io_buffer_with_connected_operation_unique_ptr_deleter;
+    friend struct io_connected_operation_unique_ptr_deleter;
 
-    struct registered_io_buffer_with_connected_operation_unique_ptr_deleter
+    struct io_connected_operation_unique_ptr_deleter
     {
         void operator()(erased_connected_operation *p) const
         {
             bool const is_write = p->is_write();
-            auto *buffer = (unsigned char *)p -
-                           (is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE);
-            assert(((uintptr_t)buffer & (CPU_PAGE_SIZE - 1)) == 0);
             auto *io = p->executor();
             p->~erased_connected_operation();
 #ifndef NDEBUG
             memset((void *)p, 0xff, MAX_CONNECTED_OPERATION_SIZE);
-            memset((void *)buffer, 0xff, READ_BUFFER_SIZE);
 #endif
             if (is_write) {
+                auto *buffer = ((unsigned char *)p - WRITE_BUFFER_SIZE);
+                assert(((uintptr_t)buffer & (CPU_PAGE_SIZE - 1)) == 0);
+#ifndef NDEBUG
+                memset((void *)buffer, 0xff, READ_BUFFER_SIZE);
+#endif
                 io->wr_pool_.release(buffer);
             }
             else {
-                io->rd_pool_.release(buffer);
+                using traits = std::allocator_traits<
+                    connected_operation_storage_allocator_type_>;
+                traits::deallocate(
+                    io->connected_operation_storage_pool_,
+                    (connected_operation_storage_ *)p,
+                    1);
             }
         }
     };
 
     using erased_connected_operation_unique_ptr_type = std::unique_ptr<
-        erased_connected_operation,
-        registered_io_buffer_with_connected_operation_unique_ptr_deleter>;
+        erased_connected_operation, io_connected_operation_unique_ptr_deleter>;
     template <sender Sender, receiver Receiver>
     using connected_operation_unique_ptr_type = std::unique_ptr<
         decltype(connect(
             std::declval<AsyncIO &>(), std::declval<Sender>(),
             std::declval<Receiver>())),
-        registered_io_buffer_with_connected_operation_unique_ptr_deleter>;
+        io_connected_operation_unique_ptr_deleter>;
+
+    void do_free_read_buffer(std::byte *b) noexcept
+    {
+#ifndef NDEBUG
+        memset((void *)b, 0xff, READ_BUFFER_SIZE);
+#endif
+        rd_pool_.release((unsigned char *)b);
+    }
+
+    class read_buffer_deleter
+    {
+        AsyncIO *parent_{nullptr};
+
+    public:
+        read_buffer_deleter() = default;
+
+        explicit read_buffer_deleter(AsyncIO *parent)
+            : parent_(parent)
+        {
+            assert(parent != nullptr);
+        }
+
+        void operator()(std::byte *b)
+        {
+            parent_->do_free_read_buffer(b);
+        }
+    };
+
+    using read_buffer_ptr = std::unique_ptr<std::byte, read_buffer_deleter>;
+
+    read_buffer_ptr get_read_buffer(size_t bytes) noexcept
+    {
+        MONAD_DEBUG_ASSERT(bytes <= READ_BUFFER_SIZE);
+        unsigned char *mem = rd_pool_.alloc();
+        if (mem == nullptr) {
+            mem = poll_uring_while_no_io_buffers_(false);
+        }
+        return read_buffer_ptr((std::byte *)mem, read_buffer_deleter(this));
+    }
 
 private:
     unsigned char *poll_uring_while_no_io_buffers_(bool is_write);
 
-    template <bool is_write, class buffer_value_type, class F>
+    template <
+        bool will_use_registered_io_buffer_with_connected_operation, class F>
     auto make_connected_impl_(F &&connect)
     {
         using connected_type = decltype(connect());
         static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
-        unsigned char *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
-        if (mem == nullptr) {
-            mem = poll_uring_while_no_io_buffers_(is_write);
+        if constexpr (will_use_registered_io_buffer_with_connected_operation) {
+            unsigned char *mem = wr_pool_.alloc();
+            if (mem == nullptr) {
+                mem = poll_uring_while_no_io_buffers_(true);
+            }
+            assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
+            assert(
+                rwbuf_.get_write_size() >=
+                (WRITE_BUFFER_SIZE) + sizeof(connected_type));
+            assert(((void)mem[0], true));
+            auto *buffer = new (mem)
+                registered_io_buffer_with_connected_operation<connected_type>;
+            auto ret = std::unique_ptr<
+                connected_type,
+                io_connected_operation_unique_ptr_deleter>(
+                new (buffer->state) connected_type(connect()));
+            // Did you accidentally pass in a foreign buffer to use?
+            // Can't do that, must use buffer returned.
+            assert(ret->sender().buffer().data() == nullptr);
+            ret->sender().reset(
+                ret->sender().offset(),
+                {(std::byte const *)buffer, ret->sender().buffer().size()});
+            return ret;
         }
-        assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
-        auto read_size =
-            is_write ? rwbuf_.get_write_size() : rwbuf_.get_read_size();
-        (void)read_size;
-        assert(
-            read_size >= (is_write ? WRITE_BUFFER_SIZE : READ_BUFFER_SIZE) +
-                             sizeof(connected_type));
+        using traits =
+            std::allocator_traits<connected_operation_storage_allocator_type_>;
+        unsigned char *mem = (unsigned char *)traits::allocate(
+            connected_operation_storage_pool_, 1);
+        MONAD_ASSERT(mem != nullptr);
         assert(((void)mem[0], true));
-        auto *buffer = new (mem) registered_io_buffer_with_connected_operation<
-            connected_type,
-            is_write>;
         auto ret = std::unique_ptr<
             connected_type,
-            registered_io_buffer_with_connected_operation_unique_ptr_deleter>(
-            new (buffer->state) connected_type(connect()));
-        assert(
-            ret->sender().buffer().data() ==
-            nullptr); // Did you accidentally pass in a foreign buffer to use?
-                      // Can't do that, must use buffer returned.
-        ret->sender().reset(
-            ret->sender().offset(),
-            {(buffer_value_type *)buffer, ret->sender().buffer().size()});
+            io_connected_operation_unique_ptr_deleter>(
+            new (mem) connected_type(connect()));
+        // Did you accidentally pass in a foreign buffer to use?
+        // Can't do that, must use buffer returned.
+        assert(ret->sender().buffer().data() == nullptr);
         return ret;
     }
 
 public:
-    //! Construct into a registered i/o buffer a connected state for an i/o read
+    //! Construct into internal memory a connected state for an i/o read
     //! or write (not timed delay)
     template <sender Sender, receiver Receiver>
-        requires(requires(
-            Receiver r, erased_connected_operation *o,
-            typename Sender::result_type x) { r.set_value(o, std::move(x)); })
+        requires(
+            (Sender::my_operation_type == operation_type::read ||
+             Sender::my_operation_type == operation_type::write) &&
+            requires(
+                Receiver r, erased_connected_operation *o,
+                typename Sender::result_type x) {
+                r.set_value(o, std::move(x));
+            })
     auto make_connected(Sender &&sender, Receiver &&receiver)
     {
-        using buffer_value_type = typename Sender::buffer_type::element_type;
-        constexpr bool is_write = std::is_const_v<buffer_value_type>;
-        return make_connected_impl_<is_write, buffer_value_type>([&] {
-            return connect(*this, std::move(sender), std::move(receiver));
+        return make_connected_impl_<
+            Sender::my_operation_type == operation_type::write>([&] {
+            return connect<Sender, Receiver>(
+                *this, std::move(sender), std::move(receiver));
         });
     }
 
-    //! Construct into a registered i/o buffer a connected state for an i/o read
+    //! Construct into internal memory a connected state for an i/o read
     //! or write (not timed delay)
     template <
         sender Sender, receiver Receiver, class... SenderArgs,
         class... ReceiverArgs>
         requires(
+            (Sender::my_operation_type == operation_type::read ||
+             Sender::my_operation_type == operation_type::write) &&
             requires(
                 Receiver r, erased_connected_operation *o,
                 typename Sender::result_type x) {
@@ -396,9 +475,8 @@ public:
         std::piecewise_construct_t _, std::tuple<SenderArgs...> &&sender_args,
         std::tuple<ReceiverArgs...> &&receiver_args)
     {
-        using buffer_value_type = typename Sender::buffer_type::element_type;
-        constexpr bool is_write = std::is_const_v<buffer_value_type>;
-        return make_connected_impl_<is_write, buffer_value_type>([&] {
+        return make_connected_impl_<
+            Sender::my_operation_type == operation_type::write>([&] {
             return connect<Sender, Receiver>(
                 *this, _, std::move(sender_args), std::move(receiver_args));
         });
@@ -477,7 +555,7 @@ private:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-static_assert(sizeof(AsyncIO) == 160);
+static_assert(sizeof(AsyncIO) == 216);
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_ASYNC_NAMESPACE_END

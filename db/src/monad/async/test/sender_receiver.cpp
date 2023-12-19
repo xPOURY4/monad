@@ -55,7 +55,8 @@ struct read_single_buffer_operation_states_base_
 {
     virtual bool reinitiate(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
-        std::span<std::byte const> buffer) = 0;
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type
+            buffer) = 0;
 };
 
 template <MONAD_ASYNC_NAMESPACE::receiver Receiver>
@@ -86,8 +87,7 @@ public:
                     fixture_shared_state_->test_rand() %
                     (::AsyncIO::TEST_FILE_SIZE - DISK_PAGE_SIZE)));
             states_.push_back(fixture_shared_state_->testio->make_connected(
-                read_single_buffer_sender(
-                    offset, {(std::byte *)nullptr, DISK_PAGE_SIZE}),
+                read_single_buffer_sender(offset, DISK_PAGE_SIZE),
                 Receiver{this, std::forward<Args>(args)...}));
         }
     }
@@ -119,7 +119,8 @@ public:
 
     virtual bool reinitiate(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *i,
-        std::span<std::byte const> buffer) override final
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type buffer)
+        override final
     {
         using namespace MONAD_ASYNC_NAMESPACE;
         auto *state = static_cast<typename io_state_type_::pointer>(i);
@@ -133,8 +134,7 @@ public:
                 round_down_align<DISK_PAGE_BITS>(
                     fixture_shared_state_->test_rand() %
                     (::AsyncIO::TEST_FILE_SIZE - DISK_PAGE_SIZE)));
-            state->reset(
-                std::tuple{offset, state->sender().buffer()}, std::tuple{});
+            state->reset(std::tuple{offset, DISK_PAGE_SIZE}, std::tuple{});
             state->initiate();
             op_count_++;
             return true;
@@ -412,10 +412,10 @@ struct completion_handler_io_receiver
 
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
-        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type buffer)
     {
         ASSERT_TRUE(buffer);
-        state->reinitiate(rawstate, buffer.assume_value());
+        state->reinitiate(rawstate, std::move(buffer.assume_value().get()));
     }
 
     void reset() {}
@@ -455,7 +455,7 @@ struct cpp_suspend_resume_io_receiver
 
     using result_type = std::pair<
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>>>;
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type>;
     std::coroutine_handle<> _h;
     std::optional<result_type> res;
 
@@ -466,7 +466,7 @@ struct cpp_suspend_resume_io_receiver
 
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
-        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type buffer)
     {
         assert(!res.has_value());
         res = {rawstate, std::move(buffer)};
@@ -520,7 +520,8 @@ TEST_F(AsyncIO, cpp_coroutine_sender_receiver)
             if (!buffer) {
                 abort();
             }
-            if (!states.reinitiate(rawstate, buffer.assume_value())) {
+            if (!states.reinitiate(
+                    rawstate, std::move(buffer.assume_value().get()))) {
                 co_return;
             }
         }
@@ -555,7 +556,7 @@ struct fiber_suspend_resume_io_receiver
 
     using result_type = std::pair<
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>>>;
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type>;
     boost::fibers::promise<result_type> promise;
 
     explicit fiber_suspend_resume_io_receiver(
@@ -565,7 +566,7 @@ struct fiber_suspend_resume_io_receiver
 
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
-        MONAD_ASYNC_NAMESPACE::result<std::span<std::byte const>> buffer)
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type buffer)
     {
         promise.set_value({rawstate, std::move(buffer)});
     }
@@ -588,7 +589,8 @@ TEST_F(AsyncIO, fiber_sender_receiver)
             auto future = receiver->promise.get_future();
             auto [rawstate, buffer] = future.get();
             ASSERT_TRUE(buffer);
-            if (!states.reinitiate(rawstate, buffer.assume_value())) {
+            if (!states.reinitiate(
+                    rawstate, std::move(buffer.assume_value().get()))) {
                 return;
             }
         }
@@ -682,7 +684,8 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             threadsafe_sender, worker_initiating_io_receiver>>
             state3; // used to have controlling thread invoke worker thread
         erased_connected_operation *original_rawstate;
-        std::span<std::byte const> original_buffer;
+        MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::buffer_type
+            original_buffer;
 
         explicit controller_notifying_io_receiver(
             read_single_buffer_operation_states_base_ *s)
@@ -701,11 +704,12 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
 
         void set_value(
             erased_connected_operation *rawstate,
-            result<std::span<std::byte const>> buffer)
+            MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type
+                buffer)
         {
             ASSERT_TRUE(buffer);
             original_rawstate = rawstate;
-            original_buffer = buffer.assume_value();
+            original_buffer = std::move(buffer.assume_value().get());
             // Tell the controller kernel thread that this i/o has completed
             state2->receiver().parent = this;
             state3->receiver().parent = this;
@@ -717,12 +721,12 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
             state2->reset({}, {});
             state3->reset({}, {});
             original_rawstate = nullptr;
-            original_buffer = {};
+            original_buffer.reset();
         }
 
         void do_reinitiate()
         {
-            state1->reinitiate(original_rawstate, original_buffer);
+            state1->reinitiate(original_rawstate, std::move(original_buffer));
         }
     };
 

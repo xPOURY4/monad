@@ -129,7 +129,7 @@ namespace
         --recursion_count;
     }
 
-    TEST(AsyncIO, buffer_exhaustion_does_not_cause_death)
+    TEST(AsyncIO, buffer_exhaustion_pauses_until_io_completes_write)
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
@@ -151,7 +151,7 @@ namespace
 
             void set_value(
                 monad::async::erased_connected_operation *,
-                monad::async::read_single_buffer_sender::result_type r)
+                monad::async::write_single_buffer_sender::result_type r)
             {
                 MONAD_ASSERT(r);
             }
@@ -160,11 +160,56 @@ namespace
         for (size_t n = 0; n < 10; n++) {
             auto state(testio.make_connected(
                 monad::async::write_single_buffer_sender(
-                    {0, 0},
-                    {(std::byte *)nullptr, monad::async::DISK_PAGE_SIZE}),
+                    {0, 0}, monad::async::DISK_PAGE_SIZE),
                 empty_receiver{}));
             // Exactly the same test as the death test, except for this line
-            state->initiate();
+            state->initiate(); // will reap completions if no buffers free
+            state.release();
+        }
+        testio.wait_until_done();
+    }
+
+    TEST(AsyncIO, buffer_exhaustion_pauses_until_io_completes_read)
+    {
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        monad::io::Ring testring(128, 0);
+        monad::io::Buffers testrwbuf{
+            testring,
+            1,
+            1,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        static std::vector<monad::async::read_single_buffer_sender::buffer_type>
+            bufs;
+
+        struct empty_receiver
+        {
+            std::vector<monad::async::read_single_buffer_sender::buffer_type>
+                &bufs;
+
+            enum
+            {
+                lifetime_managed_internally = true
+            };
+
+            void set_value(
+                monad::async::erased_connected_operation *,
+                monad::async::read_single_buffer_sender::result_type r)
+            {
+                MONAD_ASSERT(r);
+                // Exactly the same test as the death test, except for this line
+                // bufs.emplace_back(std::move(r.assume_value().get()));
+            }
+        };
+
+        for (size_t n = 0; n < 1000; n++) {
+            auto state(testio.make_connected(
+                monad::async::read_single_buffer_sender(
+                    {0, 0}, monad::async::DISK_PAGE_SIZE),
+                empty_receiver{bufs}));
+            state->initiate(); // will reap completions if no buffers free
             state.release();
         }
         testio.wait_until_done();

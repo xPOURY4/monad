@@ -68,16 +68,16 @@ struct find_receiver
     //! notify a list of requests pending on this node
     void set_value(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        result<std::span<std::byte const>> buffer_)
+        monad::async::read_single_buffer_sender::result_type buffer_)
     {
         MONAD_ASSERT(buffer_);
-        std::span<std::byte const> const buffer =
-            std::move(buffer_).assume_value();
+        auto &buffer = std::move(buffer_).assume_value().get();
         MONAD_ASSERT(parent->next(branch_index) == nullptr);
         Node *node = deserialize_node_from_buffer(
                          (unsigned char *)buffer.data() + buffer_off,
                          buffer.size() - buffer_off)
                          .release();
+        buffer.reset();
         parent->set_next(branch_index, node);
         auto const offset = parent->fnext(branch_index);
         auto &pendings = inflights.at(offset);

@@ -31,11 +31,13 @@ namespace detail
     struct is_io_internal_buffer_sender_type : std::false_type
     {
     };
+
     template <>
     struct is_io_internal_buffer_sender_type<read_single_buffer_sender>
         : std::true_type
     {
     };
+
     template <>
     struct is_io_internal_buffer_sender_type<write_single_buffer_sender>
         : std::true_type
@@ -50,10 +52,12 @@ namespace detail
         using connected_state_type = decltype(connect(
             std::declval<AsyncIO &>(), std::declval<Sender>(),
             std::declval<Receiver>()));
+
         static connected_state_type make(AsyncIO &io, Sender &&sender)
         {
             return connect(io, std::move(sender), Receiver{});
         }
+
         template <class... SenderArgs>
         static connected_state_type make(
             AsyncIO &io, std::piecewise_construct_t _,
@@ -62,24 +66,29 @@ namespace detail
             return connect<Sender, Receiver>(
                 io, _, std::move(sender_args), std::tuple{});
         }
+
         static connected_state_type &access(connected_state_type &v)
         {
             return v;
         }
-        static const connected_state_type &access(const connected_state_type &v)
+
+        static connected_state_type const &access(connected_state_type const &v)
         {
             return v;
         }
     };
+
     template <sender Sender, receiver Receiver>
     struct connected_stateimpl_<Sender, Receiver, true>
     {
         using connected_state_type =
             AsyncIO::connected_operation_unique_ptr_type<Sender, Receiver>;
+
         static connected_state_type make(AsyncIO &io, Sender &&sender)
         {
             return io.make_connected(std::move(sender), Receiver{});
         }
+
         template <class... SenderArgs>
         static connected_state_type make(
             AsyncIO &io, std::piecewise_construct_t _,
@@ -88,13 +97,15 @@ namespace detail
             return io.make_connected<Sender, Receiver>(
                 _, std::move(sender_args), std::tuple{});
         }
+
         static connected_state_type::element_type &
         access(connected_state_type &v)
         {
             return *v;
         }
-        static const connected_state_type::element_type &
-        access(const connected_state_type &v)
+
+        static connected_state_type::element_type const &
+        access(connected_state_type const &v)
         {
             return *v;
         }
@@ -104,6 +115,7 @@ namespace detail
     class awaitable
     {
         using result_type_ = typename Sender::result_type;
+
         class receiver_t_
         {
             friend class awaitable;
@@ -130,12 +142,14 @@ namespace detail
                     cont_.resume();
                 }
             }
+
             void reset()
             {
                 result_ = {};
                 cont_ = {};
             }
         };
+
         using impl_ = detail::connected_stateimpl_<Sender, receiver_t_>;
         using connected_state_type_ = typename impl_::connected_state_type;
 
@@ -159,6 +173,7 @@ namespace detail
                 << impl_::access(state_).receiver().result_.has_value());
             return impl_::access(state_).receiver().result_.has_value();
         }
+
         void await_suspend(std::coroutine_handle<> cont)
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
@@ -167,6 +182,7 @@ namespace detail
             assert(impl_::access(state_).receiver().cont_ == nullptr);
             impl_::access(state_).receiver().cont_ = cont;
         }
+
         result_type_ await_resume()
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
@@ -208,6 +224,7 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
     using co_return_type =
         decltype(f(std::declval<erased_connected_operation *>())
                      .await_resume());
+
     struct invoke_coroutine_sender
     {
         using result_type = co_return_type;
@@ -220,11 +237,13 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
             : f(std::move(_f))
         {
         }
+
         result<void> operator()(erased_connected_operation *io_state) noexcept
         {
             aw.emplace(co_initiate(io_state));
             return success();
         }
+
         awaitables::eager<void>
         co_initiate(erased_connected_operation *io_state)
         {
@@ -232,12 +251,14 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
             io_state->completed(success());
             co_return;
         }
+
         result_type
         completed(erased_connected_operation *, result<void>) noexcept
         {
             return std::move(res).value();
         }
     };
+
     return detail::awaitable<execute_on_worker_pool<invoke_coroutine_sender>>{
         io,
         execute_on_worker_pool<invoke_coroutine_sender>(pool, std::move(f))};
@@ -274,12 +295,14 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
                     cont_.resume();
                 }
             }
+
             void reset()
             {
                 result_ = {};
                 cont_ = {};
             }
         };
+
         using impl_ =
             detail::connected_stateimpl_<threadsafe_sender, receiver_t_>;
         using connected_state_type_ = typename impl_::connected_state_type;
@@ -297,18 +320,21 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
             return impl_::access(state_).receiver().ready_.load(
                 std::memory_order_acquire);
         }
+
         void await_suspend(std::coroutine_handle<> cont)
         {
             assert(impl_::access(state_).receiver().cont_ == nullptr);
             impl_::access(state_).receiver().cont_ = cont;
             impl_::access(state_).initiate();
         }
+
         result<void> await_resume()
         {
             assert(await_ready());
             return std::move(*impl_::access(state_).receiver().result_);
         }
     };
+
     return awaitable{io};
 }
 

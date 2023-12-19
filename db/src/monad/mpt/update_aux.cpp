@@ -352,12 +352,11 @@ void UpdateAux::reset_node_writers()
         return io ? io->make_connected(
                         write_single_buffer_sender{
                             node_writer_offset,
-                            {(std::byte const *)nullptr,
-                             std::min(
-                                 AsyncIO::WRITE_BUFFER_SIZE,
-                                 size_t(
-                                     chunk->capacity() -
-                                     node_writer_offset.offset))}},
+                            std::min(
+                                AsyncIO::WRITE_BUFFER_SIZE,
+                                size_t(
+                                    chunk->capacity() -
+                                    node_writer_offset.offset))},
                         write_operation_io_receiver{})
                   : node_writer_unique_ptr_type{};
     };
