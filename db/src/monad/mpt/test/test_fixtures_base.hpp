@@ -95,6 +95,11 @@ namespace monad::test
         {
             return depth < cache_depth;
         }
+
+        virtual constexpr bool compact() const override
+        {
+            return depth >= block_num_size;
+        }
     };
 
     static_assert(sizeof(StateMachineWithBlockNo) == 16);
@@ -135,6 +140,11 @@ namespace monad::test
         virtual constexpr bool cache() const override
         {
             return depth < cache_depth;
+        }
+
+        virtual constexpr bool compact() const override
+        {
+            return true;
         }
     };
 

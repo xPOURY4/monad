@@ -83,6 +83,11 @@ namespace
             cache_calls.emplace(path);
             return path.size() < 2;
         };
+
+        virtual bool compact() const override
+        {
+            return false;
+        }
     };
 }
 

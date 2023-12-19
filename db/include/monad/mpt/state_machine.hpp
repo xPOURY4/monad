@@ -18,6 +18,7 @@ struct StateMachine
     virtual void up(size_t) = 0;
     virtual Compute &get_compute() const = 0;
     virtual bool cache() const = 0;
+    virtual bool compact() const = 0;
 };
 
 MONAD_MPT_NAMESPACE_END
