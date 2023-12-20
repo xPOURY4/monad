@@ -793,7 +793,8 @@ void mismatch_handler_(
 /////////////////////////////////////////////////////
 node_writer_unique_ptr_type replace_node_writer(
     UpdateAux &aux, node_writer_unique_ptr_type &node_writer,
-    size_t bytes_yet_to_be_appended_to_existing = 0)
+    size_t bytes_yet_to_be_appended_to_existing = 0,
+    size_t bytes_to_write_to_new_writer = 0)
 {
     // Can't use add_to_offset(), because it asserts if we go past the
     // capacity
@@ -807,7 +808,11 @@ node_writer_unique_ptr_type replace_node_writer(
     auto block_size = AsyncIO::WRITE_BUFFER_SIZE;
     auto const chunk_capacity = aux.io->chunk_capacity(offset_of_next_block.id);
     MONAD_ASSERT(offset <= chunk_capacity);
-    if (offset == chunk_capacity) {
+    if (offset == chunk_capacity ||
+        offset + bytes_to_write_to_new_writer > chunk_capacity) {
+        // If after the current write buffer we're hitting chunk capacity or the
+        // remaining bytes in current chunk not enough for the second half of
+        // node, we replace writer to the start of next chunk.
         auto const *ci_ = aux.db_metadata()->free_list_end();
         MONAD_ASSERT(ci_ != nullptr); // we are out of free blocks!
         auto idx = ci_->index(aux.db_metadata());
@@ -850,8 +855,8 @@ async_write_node_result async_write_node(
     }
     else {
         // renew write sender
-        auto new_node_writer =
-            replace_node_writer(aux, node_writer, remaining_bytes);
+        auto new_node_writer = replace_node_writer(
+            aux, node_writer, remaining_bytes, size - remaining_bytes);
         auto *new_sender = &new_node_writer->sender();
         auto *where_to_serialize = (unsigned char *)new_sender->buffer().data();
         assert(where_to_serialize != nullptr);
