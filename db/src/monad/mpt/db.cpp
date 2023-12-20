@@ -73,7 +73,7 @@ void Db::traverse(NibblesView const root, TraverseMachine &machine)
         return;
     }
     MONAD_DEBUG_ASSERT(node != nullptr);
-    preorder_traverse(*node, machine);
+    preorder_traverse(aux_, *node, machine);
 }
 
 MONAD_MPT_NAMESPACE_END

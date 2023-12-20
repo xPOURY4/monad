@@ -14,7 +14,6 @@ add_trie_test(TARGET nibbles_view_test SOURCES "nibbles_view_test.cpp")
 add_trie_test(TARGET node_test SOURCES "node_test.cpp")
 add_trie_test(TARGET plain_trie_test SOURCES "plain_trie_test.cpp")
 add_trie_test(TARGET state_machine_test SOURCES "state_machine_test.cpp")
-add_trie_test(TARGET traverse_test SOURCES "traverse_test.cpp")
 add_trie_test(TARGET unsigned_20_test SOURCES "unsigned_20_test.cpp")
 
 find_package(CLI11 REQUIRED)

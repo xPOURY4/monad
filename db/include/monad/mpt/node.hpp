@@ -175,7 +175,7 @@ public:
     unsigned number_of_children() const noexcept;
 
     //! fnext
-    chunk_offset_t fnext(unsigned index) noexcept;
+    chunk_offset_t fnext(unsigned index) const noexcept;
     void set_fnext(unsigned index, chunk_offset_t) noexcept;
 
     //! min_block_no array
