@@ -793,8 +793,8 @@ void mismatch_handler_(
 /////////////////////////////////////////////////////
 node_writer_unique_ptr_type replace_node_writer(
     UpdateAux &aux, node_writer_unique_ptr_type &node_writer,
-    size_t bytes_yet_to_be_appended_to_existing = 0,
-    size_t bytes_to_write_to_new_writer = 0)
+    size_t bytes_yet_to_be_appended_to_existing,
+    size_t bytes_to_write_to_new_writer)
 {
     // Can't use add_to_offset(), because it asserts if we go past the
     // capacity
