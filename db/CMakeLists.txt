@@ -39,6 +39,8 @@ add_library(
   monad_trie STATIC
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/config.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/compute.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/db.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/db_options.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/mem.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view_fmt.hpp"
@@ -50,6 +52,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/copy_node.cpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/db.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/mem.cpp"
