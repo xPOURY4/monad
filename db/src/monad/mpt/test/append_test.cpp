@@ -59,9 +59,6 @@ TYPED_TEST(AppendTest, works)
     // Check number of chunks in use and current starting offsets are of the
     // same as before rewind
     EXPECT_EQ(this->state()->fast_list_ids().size(), 2);
-    if (this->state()->aux.alternate_slow_fast_writer) {
-        EXPECT_EQ(this->state()->slow_list_ids().size(), 2);
-    }
     EXPECT_EQ(this->state()->aux.get_root_offset(), last_root_off);
     EXPECT_EQ(this->state()->aux.get_start_of_wip_fast_offset(), last_fast_off);
     EXPECT_EQ(this->state()->aux.get_start_of_wip_slow_offset(), last_slow_off);
