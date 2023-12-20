@@ -44,6 +44,7 @@
 #include <unistd.h> // for syscall()
 
 #define SLICE_LEN 100000
+#define MAX_NUM_KEYS 250000000
 
 using namespace monad::mpt;
 
@@ -136,7 +137,7 @@ inline Node::UniquePtr batch_upsert_commit(
         "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in "
         "RAM: "
         "%f /s, total_t %.4f s\n",
-        key_offset + vec_idx + nkeys,
+        (key_offset + vec_idx + nkeys) % MAX_NUM_KEYS,
         nkeys,
         (double)nkeys / tm_ram,
         tm_ram);
@@ -159,7 +160,7 @@ void prepare_keccak(
     // prepare keccak
     for (size_t i = 0; i < nkeys; ++i) {
         // assign keccak256 on i to key
-        key = i + key_offset;
+        key = (i + key_offset) % MAX_NUM_KEYS;
         keccak_keys[i].resize(32);
         keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
 
