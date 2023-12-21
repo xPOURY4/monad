@@ -1,6 +1,6 @@
 # docker build -f docker/Dockerfile .
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 as base
 
 RUN apt update
 
@@ -23,6 +23,8 @@ RUN /opt/install-deps.sh
 
 RUN apt install -y \
  libcli11-dev
+
+FROM base as build_and_test
 
 COPY . src
 
