@@ -62,7 +62,6 @@ struct Requests
     unsigned
     split_into_sublists(UpdateList &&updates, unsigned const prefix_index)
     {
-        assert(updates.size());
         mask = 0;
         unsigned n = 0;
         while (!updates.empty()) {

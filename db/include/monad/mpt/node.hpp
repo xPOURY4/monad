@@ -271,7 +271,7 @@ struct ChildData
 
     bool is_valid() const;
     void erase();
-    void finalize(Node *, Compute &, bool cache);
+    void finalize(Node &, Compute &, bool cache);
     void copy_old_child(Node *old, unsigned i);
 };
 

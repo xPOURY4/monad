@@ -355,10 +355,10 @@ void ChildData::erase()
     branch = INVALID_BRANCH;
 }
 
-void ChildData::finalize(Node *const node, Compute &compute, bool const cache)
+void ChildData::finalize(Node &node, Compute &compute, bool const cache)
 {
     MONAD_DEBUG_ASSERT(is_valid());
-    ptr = node;
+    ptr = &node;
     auto const length = compute.compute(data, ptr);
     MONAD_DEBUG_ASSERT(length <= std::numeric_limits<uint8_t>::max());
     len = static_cast<uint8_t>(length);

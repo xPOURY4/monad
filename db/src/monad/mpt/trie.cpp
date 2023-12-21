@@ -83,9 +83,6 @@ chunk_offset_t write_new_root_node(UpdateAux &, Node &);
 Node::UniquePtr upsert(
     UpdateAux &aux, StateMachine &sm, Node::UniquePtr old, UpdateList &&updates)
 {
-    if (updates.empty()) {
-        return old;
-    }
     auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/);
     ChildData &entry = sentinel->children[0];
     sentinel->children[0] = ChildData{.branch = 0};
@@ -366,7 +363,7 @@ void create_node_compute_data_possibly_async(
         tnode->opt_leaf_data);
     MONAD_DEBUG_ASSERT(entry.branch < 16);
     if (node) {
-        entry.finalize(node, sm.get_compute(), sm.cache());
+        entry.finalize(*node, sm.get_compute(), sm.cache());
     }
     else {
         parent.mask &=
@@ -376,8 +373,7 @@ void create_node_compute_data_possibly_async(
     --parent.npending;
 }
 
-// update leaf data of old, old can have branches
-void update_leaf_data_(
+void update_value_and_subtrie_(
     UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
     Node::UniquePtr old, NibblesView const path, Update &update)
 {
@@ -388,41 +384,32 @@ void update_leaf_data_(
         --parent.npending;
         return;
     }
-    if (!update.next.empty()) {
-        Requests requests;
-        requests.split_into_sublists(std::move(update.next), 0);
-        MONAD_ASSERT(requests.opt_leaf == std::nullopt);
-        if (update.incarnation) {
-            create_new_trie_from_requests_(
-                aux, sm, entry, requests, path, 0, update.value);
-            --parent.npending;
-        }
-        else {
-            auto const opt_leaf =
-                update.value.has_value() ? update.value : old->opt_value();
-            dispatch_updates_impl_(
-                aux,
-                sm,
-                parent,
-                entry,
-                std::move(old),
-                requests,
-                0,
-                path,
-                opt_leaf);
-        }
-        return;
+    // No need to check next is empty or not, following branches will handle it
+    Requests requests;
+    requests.split_into_sublists(std::move(update.next), 0);
+    MONAD_ASSERT(requests.opt_leaf == std::nullopt);
+    if (update.incarnation) {
+        // handles empty requests sublist too
+        create_new_trie_from_requests_(
+            aux, sm, entry, requests, path, 0, update.value);
+        --parent.npending;
     }
-    // only value update but not subtrie updates
-    MONAD_ASSERT(update.value.has_value());
-    // TODO if not incarnation, should check whether children need compaction;
-    Node *node =
-        update.incarnation
-            ? make_node(0, {}, path, update.value.value(), {}).release()
-            : make_node(*old.get(), path, update.value).release();
-    MONAD_ASSERT(node);
-    entry.finalize(node, sm.get_compute(), sm.cache());
-    --parent.npending;
+    else {
+        auto const opt_leaf =
+            update.value.has_value() ? update.value : old->opt_value();
+        // TODO will check if children need compaction
+        dispatch_updates_impl_(
+            aux,
+            sm,
+            parent,
+            entry,
+            std::move(old),
+            requests,
+            0,
+            path,
+            opt_leaf);
+    }
+    return;
 }
 
 /////////////////////////////////////////////////////
@@ -432,7 +419,9 @@ void create_new_trie_(
     UpdateAux &aux, StateMachine &sm, ChildData &entry, UpdateList &&updates,
     unsigned prefix_index)
 {
-    MONAD_DEBUG_ASSERT(updates.size());
+    if (updates.empty()) {
+        return;
+    }
     if (updates.size() == 1) {
         Update &update = updates.front();
         MONAD_DEBUG_ASSERT(update.value.has_value());
@@ -449,7 +438,7 @@ void create_new_trie_(
         }
         else {
             entry.finalize(
-                make_node(0, {}, path, update.value.value(), {}).release(),
+                *make_node(0, {}, path, update.value.value(), {}).release(),
                 sm.get_compute(),
                 sm.cache());
         }
@@ -503,11 +492,11 @@ void create_new_trie_from_requests_(
             ++j;
         }
     }
-    entry.finalize(
-        create_node_from_children_if_any(
-            aux, sm, mask, mask, children, path, opt_leaf_data),
-        sm.get_compute(),
-        sm.cache());
+    // can have empty children
+    auto *node = create_node_from_children_if_any(
+        aux, sm, mask, mask, children, path, opt_leaf_data);
+    MONAD_ASSERT(node);
+    entry.finalize(*node, sm.get_compute(), sm.cache());
 }
 
 /////////////////////////////////////////////////////
@@ -536,21 +525,34 @@ void upsert_(
         MONAD_DEBUG_ASSERT(old_prefix_index != INVALID_PATH_INDEX);
     }
     unsigned const old_prefix_index_start = old_prefix_index;
-    Requests requests;
     auto const prefix_index_start = prefix_index;
+    Requests requests;
     while (true) {
         NibblesView path{
             old_prefix_index_start, old_prefix_index, old->path_data()};
         if (updates.size() == 1 &&
             prefix_index == updates.front().key.nibble_size()) {
             auto &update = updates.front();
-            update_leaf_data_(
+            MONAD_ASSERT(old->path_nibble_index_end == old_prefix_index);
+            MONAD_ASSERT(old->has_value());
+            update_value_and_subtrie_(
                 aux, sm, parent, entry, std::move(old), path, update);
             break;
         }
         unsigned const number_of_sublists = requests.split_into_sublists(
             std::move(updates), prefix_index); // NOLINT
-        MONAD_DEBUG_ASSERT(number_of_sublists);
+        if (!number_of_sublists) { // no updates at all
+            for (unsigned n = 0;
+                 n < old->path_nibble_index_end - old_prefix_index;
+                 ++n) {
+                sm.down(old->path_nibble_view().get(n));
+            }
+            MONAD_ASSERT(requests.opt_leaf == std::nullopt);
+            prefix_index += old->path_nibble_index_end - old_prefix_index;
+            old_prefix_index = old->path_nibble_index_end;
+            path = NibblesView{
+                old_prefix_index_start, old_prefix_index, old->path_data()};
+        }
         if (old_prefix_index == old->path_nibble_index_end) {
             dispatch_updates_flat_list_(
                 aux,
@@ -622,8 +624,7 @@ void dispatch_updates_impl_(
         path,
         opt_leaf_data,
         opt_leaf_data.has_value() ? std::move(old_ptr) : Node::UniquePtr{});
-    MONAD_DEBUG_ASSERT(
-        tnode->children.size() == number_of_children && number_of_children > 0);
+    MONAD_DEBUG_ASSERT(tnode->children.size() == number_of_children);
     auto &children = tnode->children;
 
     for (unsigned i = 0, j = 0, bit = 1; j < number_of_children;
@@ -776,7 +777,7 @@ void mismatch_handler_(
             }
             children[j] = ChildData{.branch = static_cast<uint8_t>(i)};
             children[j].finalize(
-                make_node(old, path_suffix, old.opt_value()).release(),
+                *make_node(old, path_suffix, old.opt_value()).release(),
                 sm.get_compute(),
                 sm.cache());
             --tnode->npending;
