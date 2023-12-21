@@ -1,6 +1,6 @@
 # docker build -f docker/Dockerfile .
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 as base
 
 RUN apt update
 
@@ -20,6 +20,8 @@ RUN /opt/install-boost.sh
 RUN /opt/install-cmake.sh
 RUN /opt/install-tools.sh
 RUN /opt/install-deps.sh
+
+FROM base as build_and_test
 
 COPY . src
 
