@@ -270,6 +270,15 @@ TYPED_TEST(TrieTest, inserts_shorter_leaf_data)
         0xb796133251968233b84f3fcf8af88cdb42eeabe793f27835c10e8b46c91dfa4a_hex);
 }
 
+TYPED_TEST(TrieTest, empty_trie_with_empty_update)
+{
+    // no update
+    this->root = upsert_updates(this->aux, *this->sm, std::move(this->root));
+    EXPECT_EQ(
+        this->root_hash(),
+        0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex);
+}
+
 ////////////////////////////////////////////////////////////////////
 // Erase Trie Tests
 ////////////////////////////////////////////////////////////////////
@@ -636,15 +645,15 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     Update s2 = make_update(kv[1].first, kv[1].second);
     state_changes.push_front(s1);
     state_changes.push_front(s2);
-    auto blockno = 0x000000000001_hex;
-    auto blockno2 = 00000000000002_hex;
+    auto block_num = 0x000000000001_hex;
+    auto block_num2 = 00000000000002_hex;
     this->root = upsert_updates(
         this->aux,
         *this->sm,
         {},
-        make_update(blockno, {}, false, std::move(state_changes)));
+        make_update(block_num, {}, false, std::move(state_changes)));
     auto [state_root, res] =
-        find_blocking(this->aux, this->root.get(), blockno);
+        find_blocking(this->aux, this->root.get(), block_num);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->data(),
@@ -658,9 +667,10 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
             this->aux,
             *this->sm,
             std::move(this->root),
-            make_update(blockno, leaf_value, false, std::move(state_changes)));
+            make_update(
+                block_num, leaf_value, false, std::move(state_changes)));
         auto [state_root, res] =
-            find_blocking(this->aux, this->root.get(), blockno);
+            find_blocking(this->aux, this->root.get(), block_num);
         EXPECT_EQ(res, monad::mpt::find_result::success);
         EXPECT_EQ(
             state_root->value(), leaf_value); // state_root leaf has updated
@@ -668,16 +678,17 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
             state_root->data(), // hash for state trie remains the same
             0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     }
-    // copy state root to blockno2
-    this->root = copy_node(this->aux, std::move(this->root), blockno, blockno2);
+    // copy state root to block_num2
+    this->root =
+        copy_node(this->aux, std::move(this->root), block_num, block_num2);
     this->root = upsert_updates(
         this->aux,
         *this->sm,
         std::move(this->root),
-        make_update(blockno2, monad::byte_string_view{}));
+        make_update(block_num2, monad::byte_string_view{}));
 
     std::tie(state_root, res) =
-        find_blocking(this->aux, this->root.get(), blockno2);
+        find_blocking(this->aux, this->root.get(), block_num2);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->data(),
@@ -685,24 +696,24 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
 
     Node *old_state_root;
     std::tie(old_state_root, res) =
-        find_blocking(this->aux, this->root.get(), blockno);
+        find_blocking(this->aux, this->root.get(), block_num);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(old_state_root->next(0), nullptr);
     EXPECT_EQ(
         old_state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
 
-    // copy state root to blockno3, update blockno3's leaf data
-    auto blockno3 = 0x00000003_hex;
+    // copy state root to block_num3, update block_num3's leaf data
+    auto block_num3 = 0x000000000003_hex;
     this->root =
-        copy_node(this->aux, std::move(this->root), blockno2, blockno3);
+        copy_node(this->aux, std::move(this->root), block_num2, block_num3);
     this->root = upsert_updates(
         this->aux,
         *this->sm,
         std::move(this->root),
-        make_update(blockno3, 0xdeadbeef03_hex));
+        make_update(block_num3, 0xdeadbeef03_hex));
     std::tie(state_root, res) =
-        find_blocking(this->aux, this->root.get(), blockno3);
+        find_blocking(this->aux, this->root.get(), block_num3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->data(),
@@ -710,21 +721,21 @@ TYPED_TEST(TrieTest, nested_updates_block_no)
     EXPECT_EQ(state_root->value(), 0xdeadbeef03_hex);
 
     std::tie(state_root, res) =
-        find_blocking(this->aux, this->root.get(), blockno2);
+        find_blocking(this->aux, this->root.get(), block_num2);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->data(),
         0x9050b05948c3aab28121ad71b3298a887cdadc55674a5f234c34aa277fbd0325_hex);
     EXPECT_EQ(state_root->value(), monad::byte_string_view{});
 
-    // copy state root from blockno2 to blockno3 again. In on-disk trie case,
-    // blockno2 leaf is on disk and blockno3 leaf in memory, find_blocking()
-    // will read for leaf of blockno2, and update curr blockno3 leaf to the same
-    // as blockno2.
+    // copy state root from block_num2 to block_num3 again. In on-disk trie
+    // case, block_num2 leaf is on disk and block_num3 leaf in memory,
+    // find_blocking() will read for leaf of block_num2, and update curr
+    // block_num3 leaf to the same as block_num2.
     this->root =
-        copy_node(this->aux, std::move(this->root), blockno2, blockno3);
+        copy_node(this->aux, std::move(this->root), block_num2, block_num3);
     std::tie(state_root, res) =
-        find_blocking(this->aux, this->root.get(), blockno3);
+        find_blocking(this->aux, this->root.get(), block_num3);
     EXPECT_EQ(res, monad::mpt::find_result::success);
     EXPECT_EQ(
         state_root->data(),
