@@ -14,13 +14,13 @@ namespace
     struct InMemoryDbFixture : public ::testing::Test
     {
         StateMachineAlwaysMerkle machine{};
-        Db db{DbOptions{machine, false}};
+        Db db{machine, DbOptions{.on_disk = false}};
     };
 
     struct OnDiskDbFixture : public ::testing::Test
     {
         StateMachineAlwaysMerkle machine{};
-        Db db{DbOptions{machine, true}};
+        Db db{machine, DbOptions{.on_disk = true}};
     };
 }
 

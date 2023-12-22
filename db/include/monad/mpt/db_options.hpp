@@ -8,7 +8,6 @@ struct StateMachine;
 
 struct DbOptions
 {
-    StateMachine &machine;
     bool on_disk;
 };
 

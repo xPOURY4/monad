@@ -35,7 +35,7 @@ private:
     StateMachine &machine_;
 
 public:
-    Db(DbOptions const &);
+    Db(StateMachine &, DbOptions const &);
 
     Result<byte_string_view> get(NibblesView);
     Result<byte_string_view> get_data(NibblesView);
