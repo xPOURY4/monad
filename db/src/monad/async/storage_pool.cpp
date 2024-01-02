@@ -220,9 +220,12 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
         return true;
     }
     if (device().is_block_device()) {
+        // Round where our current append point is down to its nearest
+        // DISK_PAGE_SIZE, aiming to TRIM all disk pages between that
+        // and the end of our chunk in a single go
         uint64_t range[2] = {
             round_down_align<DISK_PAGE_BITS>(offset_ + bytes), 0};
-        range[1] = capacity_ - range[0];
+        range[1] = offset_ + capacity_ - range[0];
 
         // TODO(niall): Should really read
         // /sys/block/nvmeXXX/queue/discard_granularity and
@@ -233,6 +236,8 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
             (std::byte *)aligned_alloc(DISK_PAGE_SIZE, DISK_PAGE_SIZE);
         auto unbuffer = make_scope_exit([&]() noexcept { ::free(buffer); });
         auto const remainder = offset_ + bytes - range[0];
+        // Copy any fragment of DISK_PAGE_SIZE about to get TRIMed to a
+        // temporary buffer
         auto const bytesread = (remainder == 0)
                                    ? 0
                                    : ::pread(
@@ -243,16 +248,23 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
         if (-1 == bytesread) {
             throw std::system_error(errno, std::system_category());
         }
+        // As writes must be in DISK_PAGE_SIZE units, no point in TRIMing a
+        // block only to immediately overwrite it
         if (remainder > 0) {
             range[0] += DISK_PAGE_SIZE;
             range[1] -= DISK_PAGE_SIZE;
         }
         if (range[1] > 0) {
+            assert(range[0] >= offset_ && range[0] < offset_ + capacity_);
+            assert(range[1] <= capacity_);
+            assert((range[1] & (DISK_PAGE_SIZE - 1)) == 0);
             if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
                 throw std::system_error(errno, std::system_category());
             }
         }
         if (remainder > 0) {
+            // Overwrite the final DISK_PAGE_SIZE unit with all bits after
+            // truncation point set to zero
             memset(buffer + remainder, 0, DISK_PAGE_SIZE - remainder);
             if (-1 == ::pwrite(
                           write_fd_,
