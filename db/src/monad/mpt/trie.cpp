@@ -178,7 +178,8 @@ struct update_receiver
         std::span<std::byte const> const buffer =
             std::move(buffer_).assume_value();
         auto old = deserialize_node_from_buffer(
-            (unsigned char *)buffer.data() + buffer_off);
+            (unsigned char *)buffer.data() + buffer_off,
+            buffer.size() - buffer_off);
         // continue recurse down the trie starting from `old`
         unsigned const old_prefix_index = old->path_start_nibble();
         upsert_(
@@ -249,7 +250,8 @@ struct read_single_child_receiver
             tnode->orig_mask,
             static_cast<unsigned>(std::countr_zero(tnode->mask)))];
         child.ptr = deserialize_node_from_buffer(
-                        (unsigned char *)buffer.data() + buffer_off)
+                        (unsigned char *)buffer.data() + buffer_off,
+                        buffer.size() - buffer_off)
                         .release();
         auto const path_size = tnode->path.nibble_size();
         create_node_compute_data_possibly_async(

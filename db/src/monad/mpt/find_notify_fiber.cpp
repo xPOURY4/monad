@@ -75,7 +75,8 @@ struct find_receiver
             std::move(buffer_).assume_value();
         MONAD_ASSERT(parent->next(branch_index) == nullptr);
         Node *node = deserialize_node_from_buffer(
-                         (unsigned char *)buffer.data() + buffer_off)
+                         (unsigned char *)buffer.data() + buffer_off,
+                         buffer.size() - buffer_off)
                          .release();
         parent->set_next(branch_index, node);
         auto const offset = parent->fnext(branch_index);

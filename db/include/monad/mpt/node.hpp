@@ -296,7 +296,8 @@ Node *create_node(
 
 void serialize_node_to_buffer(unsigned char *write_pos, Node const &);
 
-Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos);
+Node::UniquePtr
+deserialize_node_from_buffer(unsigned char const *read_pos, size_t max_bytes);
 
 //! input argument is node's physical offset
 //! chunk_offset_t spare bits store the num page to read

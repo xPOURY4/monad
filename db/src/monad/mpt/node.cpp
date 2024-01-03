@@ -513,8 +513,12 @@ void serialize_node_to_buffer(unsigned char *const write_pos, Node const &node)
     memcpy(write_pos, &node, node.disk_size);
 }
 
-Node::UniquePtr deserialize_node_from_buffer(unsigned char const *read_pos)
+Node::UniquePtr
+deserialize_node_from_buffer(unsigned char const *read_pos, size_t max_bytes)
 {
+    for (size_t n = 0; n < max_bytes; n += 64) {
+        __builtin_prefetch(read_pos + n, 0, 0);
+    }
     auto const mask = unaligned_load<uint16_t>(read_pos);
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     auto const disk_size =
@@ -559,7 +563,9 @@ Node *read_node_blocking(
             rd_offset,
             strerror(errno));
     }
-    return deserialize_node_from_buffer(buffer + buffer_off).release();
+    return deserialize_node_from_buffer(
+               buffer + buffer_off, size_t(bytes_read) - buffer_off)
+        .release();
 }
 
 std::pair<uint32_t, uint32_t>
