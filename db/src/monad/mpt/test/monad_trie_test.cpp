@@ -33,6 +33,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -153,7 +154,7 @@ inline Node::UniquePtr batch_upsert_commit(
 void prepare_keccak(
     size_t nkeys, std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, size_t key_offset,
-    bool realistic_corpus)
+    bool realistic_corpus, bool is_random = false)
 {
     size_t val;
     // prepare keccak
@@ -207,16 +208,31 @@ void prepare_keccak(
         }
     }
     else {
-        // Random fixed size key-values based on hash of key_offset to create
-        // always forward progression
+        std::random_device rd; // a seed source for the random number engine
+        std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+        std::uniform_int_distribution<> distrib(0, MAX_NUM_KEYS - 1);
+        MONAD_ASSERT(distrib.min() == 0 && distrib.max() == MAX_NUM_KEYS - 1);
+
         size_t key;
+        monad::unordered_flat_set<size_t> keys_per_slice; // dedup
+        // prepare keccak
         for (size_t i = 0; i < nkeys; ++i) {
-            // assign keccak256 on i to key
-            key = (i + key_offset) % MAX_NUM_KEYS;
+            if (i % SLICE_LEN == 0) {
+                keys_per_slice.clear();
+            }
+            if (is_random) {
+                do {
+                    key = (size_t)distrib(gen);
+                }
+                while (keys_per_slice.find(key) != keys_per_slice.end());
+                keys_per_slice.insert(key);
+            }
+            else {
+                key = i + key_offset;
+            }
             keccak_keys[i].resize(32);
             keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
-
-            val = (i + key_offset) * 2;
+            val = key * 2;
             keccak_values[i].resize(32);
             keccak256((unsigned char const *)&val, 8, keccak_values[i].data());
         }
@@ -242,8 +258,8 @@ int main(int argc, char *argv[])
     bool in_memory = false; // default is on disk
     bool empty_cpu_caches = false;
     bool realistic_corpus = false;
+    bool random_keys = false;
 
-    // TODO: add block num in trie update, cache level should be 1,
     CLI::App cli{"monad_merge_trie_test"};
     try {
         printf("main() runs on tid %ld\n", syscall(SYS_gettid));
@@ -268,9 +284,14 @@ int main(int argc, char *argv[])
             "--realistic-corpus",
             realistic_corpus,
             "use test corpus resembling historical patterns");
+        cli.add_flag(
+            "--random-keys", random_keys, "generate random integers as keys");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
+        if (realistic_corpus) {
+            random_keys = false;
+        }
 
         std::ofstream csv_writer;
         if (!csv_stats_path.empty()) {
@@ -404,7 +425,8 @@ int main(int argc, char *argv[])
                     keccak_keys,
                     keccak_values,
                     key_offset,
-                    realistic_corpus);
+                    realistic_corpus,
+                    random_keys);
                 fprintf(
                     stdout, "Finish preparing keccak.\nStart transactions\n");
                 fflush(stdout);
