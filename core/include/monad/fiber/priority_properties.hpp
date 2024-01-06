@@ -10,14 +10,15 @@
 MONAD_FIBER_NAMESPACE_BEGIN
 
 using boost::fibers::context;
+using boost::fibers::fiber_properties;
 
-class PriorityProperties final : public boost::fibers::fiber_properties
+class PriorityProperties final : public fiber_properties
 {
     uint64_t priority_ = 0;
 
 public:
     explicit PriorityProperties(context *const ctx) noexcept
-        : boost::fibers::fiber_properties{ctx}
+        : fiber_properties{ctx}
     {
     }
 
