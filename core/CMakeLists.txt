@@ -90,12 +90,12 @@ add_library(
   "src/monad/core/keccak.c"
   "src/monad/core/keccak_impl.S"
   # fiber
-  "include/monad/fiber/algorithm.hpp"
   "include/monad/fiber/config.hpp"
+  "include/monad/fiber/priority_algorithm.hpp"
   "include/monad/fiber/priority_properties.hpp"
   "include/monad/fiber/priority_queue.hpp"
   "include/monad/fiber/shared_mutex.hpp"
-  "src/monad/fiber/algorithm.cpp"
+  "src/monad/fiber/priority_algorithm.cpp"
   "src/monad/fiber/priority_queue.cpp"
   # io
   "include/monad/io/buffer_pool.hpp"

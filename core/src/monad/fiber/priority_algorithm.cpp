@@ -1,4 +1,4 @@
-#include <monad/fiber/algorithm.hpp>
+#include <monad/fiber/priority_algorithm.hpp>
 
 #include <monad/core/likely.h>
 #include <monad/fiber/config.hpp>
@@ -14,12 +14,12 @@
 
 MONAD_FIBER_NAMESPACE_BEGIN
 
-shared_work::shared_work(PriorityQueue &rqueue)
+PriorityAlgorithm::PriorityAlgorithm(PriorityQueue &rqueue)
     : rqueue_{rqueue}
 {
 }
 
-void shared_work::awakened(
+void PriorityAlgorithm::awakened(
     boost::fibers::context *const ctx, PriorityProperties &) noexcept
 {
     if (MONAD_UNLIKELY(ctx->is_context(boost::fibers::type::pinned_context))) {
@@ -31,7 +31,7 @@ void shared_work::awakened(
     }
 }
 
-context *shared_work::pick_next() noexcept
+context *PriorityAlgorithm::pick_next() noexcept
 {
     context *ctx = rqueue_.pop();
     if (MONAD_LIKELY(ctx)) {
@@ -44,7 +44,7 @@ context *shared_work::pick_next() noexcept
     return ctx;
 }
 
-bool shared_work::has_ready_fibers() const noexcept
+bool PriorityAlgorithm::has_ready_fibers() const noexcept
 {
     if (MONAD_LIKELY(!lqueue_.empty())) {
         return true;

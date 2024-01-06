@@ -14,7 +14,7 @@ MONAD_FIBER_NAMESPACE_BEGIN
 
 using boost::fibers::context;
 
-class shared_work final
+class PriorityAlgorithm final
     : public boost::fibers::algo::algorithm_with_properties<PriorityProperties>
 {
     PriorityQueue &rqueue_;
@@ -24,13 +24,13 @@ class shared_work final
     lqueue_type lqueue_{};
 
 public:
-    shared_work(PriorityQueue &);
+    PriorityAlgorithm(PriorityQueue &);
 
-    shared_work(shared_work const &) = delete;
-    shared_work(shared_work &&) = delete;
+    PriorityAlgorithm(PriorityAlgorithm const &) = delete;
+    PriorityAlgorithm(PriorityAlgorithm &&) = delete;
 
-    shared_work &operator=(shared_work const &) = delete;
-    shared_work &operator=(shared_work &&) = delete;
+    PriorityAlgorithm &operator=(PriorityAlgorithm const &) = delete;
+    PriorityAlgorithm &operator=(PriorityAlgorithm &&) = delete;
 
     void awakened(context *, PriorityProperties &) noexcept override;
 
