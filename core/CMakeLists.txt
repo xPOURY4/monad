@@ -92,8 +92,8 @@ add_library(
   # fiber
   "include/monad/fiber/algorithm.hpp"
   "include/monad/fiber/config.hpp"
+  "include/monad/fiber/priority_properties.hpp"
   "include/monad/fiber/priority_queue.hpp"
-  "include/monad/fiber/properties.hpp"
   "include/monad/fiber/shared_mutex.hpp"
   "src/monad/fiber/algorithm.cpp"
   "src/monad/fiber/priority_queue.cpp"

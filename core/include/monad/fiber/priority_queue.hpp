@@ -3,7 +3,7 @@
 #include <monad/core/assert.h>
 #include <monad/core/likely.h>
 #include <monad/fiber/config.hpp>
-#include <monad/fiber/properties.hpp>
+#include <monad/fiber/priority_properties.hpp>
 
 #include <boost/fiber/context.hpp>
 
@@ -22,9 +22,9 @@ class PriorityQueue final
         static constexpr uint64_t get_priority(context const *const ctx)
         {
             auto const *const properties =
-                static_cast<fiber_properties const *>(ctx->get_properties());
+                static_cast<PriorityProperties const *>(ctx->get_properties());
             MONAD_ASSERT(properties); // TODO debug assert
-            return properties->getPriority();
+            return properties->get_priority();
         }
 
         constexpr bool operator()(context *const ctx1, context *const ctx2)

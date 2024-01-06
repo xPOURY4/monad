@@ -1,9 +1,8 @@
 #include <monad/fiber/algorithm.hpp>
 
 #include <monad/core/likely.h>
-
 #include <monad/fiber/config.hpp>
-#include <monad/fiber/properties.hpp>
+#include <monad/fiber/priority_properties.hpp>
 
 #include <boost/assert.hpp>
 #include <boost/fiber/context.hpp>
@@ -19,14 +18,14 @@ shared_work::rqueue_type shared_work::rqueue_{};
 std::mutex shared_work::rqueue_mtx_{};
 
 shared_work::shared_work()
-    : lqueue_{}  // NOLINT
+    : lqueue_{} // NOLINT
 {
 }
 
 void shared_work::awakened(
-    boost::fibers::context *const ctx, fiber_properties &props) noexcept
+    boost::fibers::context *const ctx, PriorityProperties &props) noexcept
 {
-    uint64_t const priority = props.getPriority();
+    uint64_t const priority = props.get_priority();
     if (MONAD_UNLIKELY(ctx->is_context(boost::fibers::type::pinned_context))) {
         lqueue_.push_back(*ctx);
     }
@@ -36,7 +35,7 @@ void shared_work::awakened(
         auto it = rqueue_.begin();
         auto const end = rqueue_.end();
         for (; it != end; ++it) {
-            if (properties(&*it).getPriority() > priority) {
+            if (properties(&*it).get_priority() > priority) {
                 break;
             }
         }
@@ -80,7 +79,7 @@ void shared_work::suspend_until(
 void shared_work::notify() noexcept {}
 
 void shared_work::property_change(
-    boost::fibers::context *const ctx, fiber_properties &props) noexcept
+    boost::fibers::context *const ctx, PriorityProperties &props) noexcept
 {
     if (MONAD_UNLIKELY(ctx->ready_is_linked())) {
         ctx->ready_unlink();

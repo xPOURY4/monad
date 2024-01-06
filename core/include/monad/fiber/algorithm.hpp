@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/fiber/config.hpp>
-#include <monad/fiber/properties.hpp>
+#include <monad/fiber/priority_properties.hpp>
 
 #include <boost/fiber/algo/algorithm.hpp>
 #include <boost/fiber/context.hpp>
@@ -13,7 +13,7 @@
 MONAD_FIBER_NAMESPACE_BEGIN
 
 class shared_work final
-    : public boost::fibers::algo::algorithm_with_properties<fiber_properties>
+    : public boost::fibers::algo::algorithm_with_properties<PriorityProperties>
 {
     using rqueue_type = boost::fibers::scheduler::ready_queue_type;
     using lqueue_type = boost::fibers::scheduler::ready_queue_type;
@@ -33,7 +33,7 @@ public:
     shared_work &operator=(shared_work &&) = delete;
 
     void
-    awakened(boost::fibers::context *, fiber_properties &) noexcept override;
+    awakened(boost::fibers::context *, PriorityProperties &) noexcept override;
 
     boost::fibers::context *pick_next() noexcept override;
 
@@ -45,7 +45,7 @@ public:
     void notify() noexcept override;
 
     void property_change(
-        boost::fibers::context *, fiber_properties &) noexcept override;
+        boost::fibers::context *, PriorityProperties &) noexcept override;
 };
 
 MONAD_FIBER_NAMESPACE_END
