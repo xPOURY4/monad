@@ -14,9 +14,8 @@ TARGET_PATTERN = re.compile(TARGET_REGEX)
 
 def _get_test_ids(test_dir):
     test_ids = []
-    files = glob(path.join(test_dir, "*.py"))
+    files = glob("**/*.py", root_dir=test_dir, recursive=True)
     for file in files:
-        file = path.basename(file)
         if file.startswith("_"):
             continue
         test_id = file[0:-3]
@@ -151,6 +150,8 @@ def _create_test_class(test_dir):
 
         setattr(TestDisas, "test_%s" % (test_id,), test_func)
 
+    setattr(TestDisas, "test_ids", test_ids)
+
     return TestDisas
 
 
@@ -164,8 +165,7 @@ def main():
     parser.add_argument("cmd", choices=("generate",))
     args = parser.parse_args()
     if args.cmd == "generate":
-        test_ids = _get_test_ids(__test_dir)
-        for test_id in test_ids:
+        for test_id in TestDisas.test_ids:
             TestDisas._save_result(test_id)
 
 
