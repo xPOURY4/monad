@@ -92,9 +92,11 @@ add_library(
   # fiber
   "include/monad/fiber/algorithm.hpp"
   "include/monad/fiber/config.hpp"
+  "include/monad/fiber/priority_queue.hpp"
   "include/monad/fiber/properties.hpp"
   "include/monad/fiber/shared_mutex.hpp"
   "src/monad/fiber/algorithm.cpp"
+  "src/monad/fiber/priority_queue.cpp"
   # io
   "include/monad/io/buffer_pool.hpp"
   "include/monad/io/buffers.hpp"
@@ -133,9 +135,14 @@ target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
 
 add_library(
   monad_core_disas STATIC
+  # core
   "c/src/monad/core/spinlock_disas.c"
-  "src/monad/core/math_disas.cpp" "src/monad/core/offset_disas.cpp"
-  "src/monad/mem/cpool_disas.c" "src/monad/rlp/encode_disas.cpp")
+  # core
+  "src/monad/core/math_disas.cpp"
+  "src/monad/core/offset_disas.cpp"
+  "src/monad/mem/cpool_disas.c"
+  # rlp
+  "src/monad/rlp/encode_disas.cpp")
 monad_core_compile_options(monad_core_disas)
 target_link_libraries(monad_core_disas PUBLIC monad_core)
 
