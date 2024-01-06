@@ -7,6 +7,12 @@
 
 MONAD_FIBER_NAMESPACE_BEGIN
 
+bool PriorityQueue::empty() const
+{
+    std::unique_lock<std::mutex> const lock{mutex_};
+    return queue_.empty();
+}
+
 context *PriorityQueue::pop()
 {
     std::unique_lock<std::mutex> const lock{mutex_};

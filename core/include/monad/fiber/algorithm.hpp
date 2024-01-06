@@ -2,29 +2,29 @@
 
 #include <monad/fiber/config.hpp>
 #include <monad/fiber/priority_properties.hpp>
+#include <monad/fiber/priority_queue.hpp>
 
 #include <boost/fiber/algo/algorithm.hpp>
 #include <boost/fiber/context.hpp>
 #include <boost/fiber/scheduler.hpp>
 
 #include <chrono>
-#include <mutex>
 
 MONAD_FIBER_NAMESPACE_BEGIN
+
+using boost::fibers::context;
 
 class shared_work final
     : public boost::fibers::algo::algorithm_with_properties<PriorityProperties>
 {
-    using rqueue_type = boost::fibers::scheduler::ready_queue_type;
+    PriorityQueue &rqueue_;
+
     using lqueue_type = boost::fibers::scheduler::ready_queue_type;
 
-    static rqueue_type rqueue_;
-    static std::mutex rqueue_mtx_; // TODO use spin lock
-
-    lqueue_type lqueue_;
+    lqueue_type lqueue_{};
 
 public:
-    shared_work();
+    shared_work(PriorityQueue &);
 
     shared_work(shared_work const &) = delete;
     shared_work(shared_work &&) = delete;
@@ -32,20 +32,18 @@ public:
     shared_work &operator=(shared_work const &) = delete;
     shared_work &operator=(shared_work &&) = delete;
 
-    void
-    awakened(boost::fibers::context *, PriorityProperties &) noexcept override;
+    void awakened(context *, PriorityProperties &) noexcept override;
 
-    boost::fibers::context *pick_next() noexcept override;
+    context *pick_next() noexcept override;
 
     bool has_ready_fibers() const noexcept override;
 
     void suspend_until(
-        std::chrono::steady_clock::time_point const &) noexcept override;
+        std::chrono::steady_clock::time_point const &) noexcept override
+    {
+    }
 
-    void notify() noexcept override;
-
-    void property_change(
-        boost::fibers::context *, PriorityProperties &) noexcept override;
+    void notify() noexcept override {}
 };
 
 MONAD_FIBER_NAMESPACE_END

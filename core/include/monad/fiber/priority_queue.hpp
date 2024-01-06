@@ -35,9 +35,11 @@ class PriorityQueue final
 
     std::priority_queue<context *, std::vector<context *>, Compare>
         queue_{}; // TODO intrusive
-    std::mutex mutex_{}; // TODO spinlock / concurrent
+    std::mutex mutable mutex_{}; // TODO spinlock / concurrent
 
 public:
+    bool empty() const;
+
     context *pop();
 
     void push(context *);
