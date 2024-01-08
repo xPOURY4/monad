@@ -92,10 +92,13 @@ add_library(
   # fiber
   "include/monad/fiber/config.hpp"
   "include/monad/fiber/priority_algorithm.hpp"
+  "include/monad/fiber/priority_pool.hpp"
   "include/monad/fiber/priority_properties.hpp"
   "include/monad/fiber/priority_queue.hpp"
+  "include/monad/fiber/priority_task.hpp"
   "include/monad/fiber/shared_mutex.hpp"
   "src/monad/fiber/priority_algorithm.cpp"
+  "src/monad/fiber/priority_pool.cpp"
   "src/monad/fiber/priority_queue.cpp"
   # io
   "include/monad/io/buffer_pool.hpp"
