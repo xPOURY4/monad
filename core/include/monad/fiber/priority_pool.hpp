@@ -14,6 +14,7 @@
 
 #include <mutex>
 #include <thread>
+#include <utility>
 
 MONAD_FIBER_NAMESPACE_BEGIN
 
@@ -32,11 +33,14 @@ class PriorityPool final
 public:
     PriorityPool(unsigned n_threads, unsigned n_fibers);
 
+    PriorityPool(PriorityPool const &) = delete;
+    PriorityPool &operator=(PriorityPool const &) = delete;
+
     ~PriorityPool();
 
-    void submit(uint64_t const priority, std::function<void()> const task)
+    void submit(uint64_t const priority, std::function<void()> task)
     {
-        channel_.push({priority, task});
+        channel_.push({priority, std::move(task)});
     }
 };
 
