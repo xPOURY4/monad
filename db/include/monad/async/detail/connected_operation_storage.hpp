@@ -95,24 +95,6 @@ namespace detail
     {
         friend class AsyncIO;
 
-        virtual void completed(result<void>) override
-        {
-            // If you reach here, somebody called a void completed()
-            // on a bytes transferred type connected operation
-            abort();
-        }
-
-        virtual void completed(result<size_t> res) override
-        {
-            // Decay to the void type
-            if (!res) {
-                completed(result<void>(std::move(res).as_failure()));
-            }
-            else {
-                completed(result<void>(success()));
-            }
-        }
-
     public:
         using initiation_result = typename Base::initiation_result;
         using sender_type = Sender;
@@ -157,15 +139,37 @@ namespace detail
             auto r = sender_(this);
             if (!r) {
                 this->being_executed_ = false;
-                if (r.assume_error() == MONAD_ASYNC_NAMESPACE::sender_errc::
-                                            initiation_immediately_completed) {
-                    sender_errc_code sec(std::move(r).assume_error());
-                    size_t bytes_transferred = sec.value().value;
-                    completed(bytes_transferred);
+                static constexpr auto initiation_immediately_completed =
+                    make_status_code(MONAD_ASYNC_NAMESPACE::sender_errc::
+                                         initiation_immediately_completed);
+                if (r.assume_error() == initiation_immediately_completed) {
+                    [[likely]] if (
+                        r.assume_error().domain() ==
+                        BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::
+                            quick_status_code_from_enum_domain<sender_errc>) {
+                        this->completed(success());
+                    }
+                    else {
+                        nested_sender_errc_with_payload_code sec(
+                            std::move(r).assume_error());
+                        std::visit(
+                            [&](auto &v) {
+                                using type = std::decay_t<decltype(v)>;
+                                if constexpr (std::is_same_v<
+                                                  type,
+                                                  std::monostate>) {
+                                    this->completed(success());
+                                }
+                                else {
+                                    this->completed(v);
+                                }
+                            },
+                            sec.value()->value().payload);
+                    }
                     return initiation_result::initiation_immediately_completed;
                 }
                 else {
-                    completed(std::move(r));
+                    this->completed(std::move(r));
                     return initiation_result::initiation_failed_told_receiver;
                 }
             }
@@ -348,8 +352,8 @@ namespace detail
             requires(requires(
                 Sender s, Receiver r, SenderArgs... sargs,
                 ReceiverArgs... rargs) {
-                s.reset(sargs...);
-                r.reset(rargs...);
+                s.reset(std::forward<decltype(sargs)>(sargs)...);
+                r.reset(std::forward<decltype(rargs)>(rargs)...);
             })
         void reset(
             std::tuple<SenderArgs...> sender_args,
@@ -358,10 +362,14 @@ namespace detail
             MONAD_ASSERT(!this->being_executed_);
             erased_connected_operation::reset();
             std::apply(
-                [this](auto &&...args) { sender_.reset(std::move(args)...); },
+                [this]<typename... Ts>(Ts &&...args) {
+                    sender_.reset(std::forward<Ts>(args)...);
+                },
                 std::move(sender_args));
             std::apply(
-                [this](auto &&...args) { receiver_.reset(std::move(args)...); },
+                [this]<typename... Ts>(Ts &&...args) {
+                    receiver_.reset(std::forward<Ts>(args)...);
+                },
                 std::move(receiver_args));
             auto *thisio = this->executor();
             if (thisio != nullptr) {

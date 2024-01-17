@@ -6,17 +6,37 @@
 
 #include <boost/intrusive/rbtree_algorithms.hpp>
 
+#include <cstddef>
+#include <memory>
+#include <span>
+
 MONAD_ASYNC_NAMESPACE_BEGIN
 
 class AsyncIO;
-template <sender Sender, receiver Receiver>
-class connected_operation;
 
 namespace detail
 {
     struct AsyncIO_per_thread_state_t;
     template <class QueueOptions>
     class AsyncReadIoWorkerPoolImpl;
+
+    class read_buffer_deleter
+    {
+        AsyncIO *parent_{nullptr};
+
+    public:
+        read_buffer_deleter() = default;
+
+        constexpr explicit read_buffer_deleter(AsyncIO *parent)
+            : parent_(parent)
+        {
+            assert(parent != nullptr);
+        }
+
+        inline void operator()(std::byte *b);
+    };
+
+    using read_buffer_ptr = std::unique_ptr<std::byte, read_buffer_deleter>;
 };
 
 enum class operation_type : uint8_t
@@ -28,6 +48,189 @@ enum class operation_type : uint8_t
     threadsafeop
 };
 
+/*! \class filled_read_buffer
+\brief A span denoting how much of a `AsyncIO::read_buffer_ptr` has been filled,
+also holding lifetime to the i/o buffer.
+*/
+class filled_read_buffer : protected std::span<std::byte const>
+{
+    using base_ = std::span<std::byte const>;
+    detail::read_buffer_ptr buffer_;
+
+public:
+    using element_type = typename base_::element_type;
+    using value_type = typename base_::value_type;
+    using size_type = typename base_::size_type;
+    using difference_type = typename base_::difference_type;
+    using pointer = typename base_::pointer;
+    using const_pointer = typename base_::const_pointer;
+    using reference = typename base_::reference;
+    using const_reference = typename base_::const_reference;
+    using iterator = typename base_::iterator;
+    using reverse_iterator = typename base_::reverse_iterator;
+
+    using base_::begin;
+    using base_::end;
+    using base_::front;
+    using base_::rbegin;
+    using base_::rend;
+    using base_::operator[];
+    using base_::data;
+    using base_::empty;
+    using base_::first;
+    using base_::last;
+    using base_::size;
+    using base_::size_bytes;
+    using base_::subspan;
+
+    constexpr filled_read_buffer() {}
+
+    filled_read_buffer(filled_read_buffer const &) = delete;
+    filled_read_buffer(filled_read_buffer &&) = default;
+    filled_read_buffer &operator=(filled_read_buffer const &) = delete;
+    filled_read_buffer &operator=(filled_read_buffer &&) = default;
+
+    constexpr explicit filled_read_buffer(size_t bytes_to_read)
+        : base_((std::byte const *)nullptr, bytes_to_read)
+    {
+    }
+
+    //! True if read buffer has been allocated
+    explicit operator bool() const noexcept
+    {
+        return !!buffer_;
+    }
+
+    //! Allocates the i/o buffer
+    void set_read_buffer(detail::read_buffer_ptr b) noexcept
+    {
+        buffer_ = std::move(b);
+        auto *self = static_cast<base_ *>(this);
+        *self = {buffer_.get(), self->size()};
+    }
+
+    //! Sets the span length
+    void set_bytes_transferred(size_t bytes) noexcept
+    {
+        auto *span = static_cast<base_ *>(this);
+        *span = span->subspan(0, bytes);
+    }
+
+    //! Reset the filled read buffer, releasing its i/o buffer
+    void reset()
+    {
+        this->~filled_read_buffer();
+        new (this) filled_read_buffer;
+    }
+
+    //! Return this as a span
+    std::span<std::byte const> const &as_span() const noexcept
+    {
+        return *this;
+    }
+
+    //! Return a mutable span to this data
+    std::span<std::byte> to_mutable_span() const noexcept
+    {
+        return {const_cast<std::byte *>(this->data()), this->size()};
+    }
+};
+
+static_assert(sizeof(filled_read_buffer) == 32);
+static_assert(alignof(filled_read_buffer) == 8);
+
+/*! \class filled_write_buffer
+\brief Currently a wrapper of `std::span<T>` for consistency with
+`filled_read_buffer`.
+*/
+class filled_write_buffer : protected std::span<std::byte const>
+{
+    using base_ = std::span<std::byte const>;
+
+public:
+    using element_type = typename base_::element_type;
+    using value_type = typename base_::value_type;
+    using size_type = typename base_::size_type;
+    using difference_type = typename base_::difference_type;
+    using pointer = typename base_::pointer;
+    using const_pointer = typename base_::const_pointer;
+    using reference = typename base_::reference;
+    using const_reference = typename base_::const_reference;
+    using iterator = typename base_::iterator;
+    using reverse_iterator = typename base_::reverse_iterator;
+
+    using base_::begin;
+    using base_::end;
+    using base_::front;
+    using base_::rbegin;
+    using base_::rend;
+    using base_::operator[];
+    using base_::data;
+    using base_::empty;
+    using base_::first;
+    using base_::last;
+    using base_::size;
+    using base_::size_bytes;
+    using base_::subspan;
+
+    constexpr filled_write_buffer() {}
+
+    filled_write_buffer(filled_write_buffer const &) = delete;
+    filled_write_buffer(filled_write_buffer &&) = default;
+    filled_write_buffer &operator=(filled_write_buffer const &) = delete;
+    filled_write_buffer &operator=(filled_write_buffer &&) = default;
+
+    constexpr explicit filled_write_buffer(size_t bytes_to_write)
+        : base_((std::byte const *)nullptr, bytes_to_write)
+    {
+    }
+
+    constexpr explicit filled_write_buffer(std::span<std::byte const> buffer)
+        : base_(buffer)
+    {
+    }
+
+    constexpr filled_write_buffer(std::byte const *data, size_t len)
+        : base_(data, len)
+    {
+    }
+
+    //! True if write buffer has been allocated
+    constexpr explicit operator bool() const noexcept
+    {
+        return true;
+    }
+
+    //! Sets the span length
+    void set_bytes_transferred(size_t bytes) noexcept
+    {
+        auto *span = static_cast<base_ *>(this);
+        *span = span->subspan(0, bytes);
+    }
+
+    //! Reset the filled write buffer
+    void reset()
+    {
+        this->~filled_write_buffer();
+        new (this) filled_write_buffer;
+    }
+
+    //! Return this as a span
+    std::span<std::byte const> const &as_span() const noexcept
+    {
+        return *this;
+    }
+
+    //! Return a mutable span to this data
+    std::span<std::byte> to_mutable_span() const noexcept
+    {
+        return {const_cast<std::byte *>(this->data()), this->size()};
+    }
+};
+
+static_assert(sizeof(filled_write_buffer) == 16);
+static_assert(alignof(filled_write_buffer) == 8);
+
 /* \class erased_connected_operation
 \brief A type erased abstract base class of a connected operation. Lets you
 work with connection operation states with a type you are unaware of.
@@ -35,8 +238,6 @@ work with connection operation states with a type you are unaware of.
 class erased_connected_operation
 {
 public:
-    template <sender Sender, receiver Receiver>
-    friend class connected_operation;
     template <class QueueOptions>
     friend class detail::AsyncReadIoWorkerPoolImpl;
     friend struct detail::AsyncIO_per_thread_state_t;
@@ -273,13 +474,23 @@ public:
     }
 
     //! Invoke completion. The Sender will send the value to the Receiver. If
-    //! the Receiver expects bytes transferred and the Sender does not send a
-    //! value, terminates the program.
+    //! the Receiver expects an i/o buffer and the Sender does not transform
+    //! this into an i/o buffer, terminates the program.
     virtual void completed(result<void> res) = 0;
-    //! Invoke completion usually of an i/o, specifying the number of bytes
+    //! Invoke completion specifying the number of bytes
     //! transferred. If the Receiver does not expect bytes transferred, this
-    //! will silently decay into the other `completed()` overload.
+    //! will silently decay into the void `completed()` overload.
     virtual void completed(result<size_t> bytes_transferred) = 0;
+    //! Invoke completion specifying the read buffer filled by reference. If the
+    //! Receiver does not expect the read buffer filled, this will silently
+    //! decay into the bytes transferred `completed()` overload.
+    virtual void completed(result<std::reference_wrapper<filled_read_buffer>>
+                               read_buffer_filled) = 0;
+    //! Invoke completion specifying the write buffer written by reference. If
+    //! the Receiver does not expect the write buffer written, this will
+    //! silently decay into the bytes transferred `completed()` overload.
+    virtual void completed(result<std::reference_wrapper<filled_write_buffer>>
+                               write_buffer_written) = 0;
 
     // Overload ambiguity resolver so you can write `completed(success())`
     // without ambiguous overload warnings.

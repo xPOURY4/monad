@@ -355,26 +355,7 @@ public:
         rd_pool_.release((unsigned char *)b);
     }
 
-    class read_buffer_deleter
-    {
-        AsyncIO *parent_{nullptr};
-
-    public:
-        read_buffer_deleter() = default;
-
-        explicit read_buffer_deleter(AsyncIO *parent)
-            : parent_(parent)
-        {
-            assert(parent != nullptr);
-        }
-
-        void operator()(std::byte *b)
-        {
-            parent_->do_free_read_buffer(b);
-        }
-    };
-
-    using read_buffer_ptr = std::unique_ptr<std::byte, read_buffer_deleter>;
+    using read_buffer_ptr = detail::read_buffer_ptr;
 
     read_buffer_ptr get_read_buffer(size_t bytes) noexcept
     {
@@ -383,7 +364,8 @@ public:
         if (mem == nullptr) {
             mem = poll_uring_while_no_io_buffers_(false);
         }
-        return read_buffer_ptr((std::byte *)mem, read_buffer_deleter(this));
+        return read_buffer_ptr(
+            (std::byte *)mem, detail::read_buffer_deleter(this));
     }
 
 private:
@@ -561,5 +543,13 @@ static_assert(sizeof(AsyncIO) == 160);
 static_assert(sizeof(AsyncIO) == 216);
 #endif
 static_assert(alignof(AsyncIO) == 8);
+
+namespace detail
+{
+    inline void read_buffer_deleter::operator()(std::byte *b)
+    {
+        parent_->do_free_read_buffer(b);
+    }
+}
 
 MONAD_ASYNC_NAMESPACE_END

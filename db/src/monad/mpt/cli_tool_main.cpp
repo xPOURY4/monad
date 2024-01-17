@@ -1,6 +1,8 @@
 #include "cli_tool_impl.hpp"
 
+#include <cstddef>
 #include <iostream>
+#include <string_view>
 #include <vector>
 
 int main(int argc_, char *argv[])

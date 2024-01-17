@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 

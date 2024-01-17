@@ -20,6 +20,7 @@
 #include <iostream>
 #include <map>
 #include <span>
+#include <stdlib.h>
 #include <string>
 #include <system_error>
 #include <thread>

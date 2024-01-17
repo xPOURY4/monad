@@ -2,18 +2,29 @@
 
 #include "cli_tool_impl.hpp"
 
-#include <monad/async/detail/scope_polyfill.hpp>
+#include <monad/async/config.hpp>
+#include <monad/async/io.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
+#include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/db_metadata.hpp>
+
 #include <monad/async/storage_pool.hpp>
 #include <monad/mpt/detail/kbhit.hpp>
 #include <monad/mpt/trie.hpp>
 
+#include <cctype>
+#include <cstdint>
+#include <exception>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
+#include <span>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
-
-#include <fcntl.h>
 
 std::string print_bytes(MONAD_ASYNC_NAMESPACE::file_offset_t bytes_)
 {

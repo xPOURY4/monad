@@ -3,62 +3,8 @@
 #include <monad/async/io.hpp>
 
 #include <chrono>
-#include <cstddef>
-#include <span>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
-
-/*! \class filled_read_buffer
-\brief A span denoting how much of a `AsyncIO::read_buffer_ptr` has been filled,
-also holding lifetime to the i/o buffer.
-*/
-template <class T>
-class filled_read_buffer : public std::span<T>
-{
-    using base_ = std::span<T>;
-    AsyncIO::read_buffer_ptr buffer_;
-
-public:
-    constexpr filled_read_buffer() {}
-
-    filled_read_buffer(filled_read_buffer const &) = delete;
-    filled_read_buffer(filled_read_buffer &&) = default;
-    filled_read_buffer &operator=(filled_read_buffer const &) = delete;
-    filled_read_buffer &operator=(filled_read_buffer &&) = default;
-
-    constexpr explicit filled_read_buffer(size_t bytes_to_read)
-        : base_((T *)nullptr, bytes_to_read)
-    {
-    }
-
-    //! True if read buffer has been allocated
-    explicit operator bool() const noexcept
-    {
-        return !!buffer_;
-    }
-
-    //! Allocates the i/o buffer
-    void set_read_buffer(AsyncIO::read_buffer_ptr b) noexcept
-    {
-        buffer_ = std::move(b);
-        auto *self = static_cast<base_ *>(this);
-        *self = {buffer_.get(), self->size()};
-    }
-
-    //! Sets the span length
-    void set_bytes_transferred(size_t bytes) noexcept
-    {
-        auto *span = static_cast<base_ *>(this);
-        *span = span->subspan(0, bytes);
-    }
-
-    //! Reset the filled read buffer, releasing its i/o buffer
-    void reset()
-    {
-        this->~filled_read_buffer();
-        new (this) filled_read_buffer;
-    }
-};
 
 /*! \class read_single_buffer_sender
 \brief A Sender which (possibly partially) fills a single buffer of bytes
@@ -67,8 +13,8 @@ read from an offset in a file.
 class read_single_buffer_sender
 {
 public:
-    using buffer_type = filled_read_buffer<std::byte>;
-    using const_buffer_type = filled_read_buffer<std::byte const>;
+    using buffer_type = filled_read_buffer;
+    using const_buffer_type = filled_read_buffer;
     using result_type = result<std::reference_wrapper<buffer_type>>;
 
     static constexpr operation_type my_operation_type = operation_type::read;
@@ -126,7 +72,7 @@ public:
                 io_state->executor()->get_read_buffer(buffer_.size()));
         }
         if (io_state->executor()->submit_read_request(
-                buffer_, offset_, io_state)) {
+                buffer_.to_mutable_span(), offset_, io_state)) {
             // It completed early
             return make_status_code(
                 sender_errc::initiation_immediately_completed, buffer_.size());
@@ -147,59 +93,6 @@ static_assert(sizeof(read_single_buffer_sender) == 40);
 static_assert(alignof(read_single_buffer_sender) == 8);
 static_assert(sender<read_single_buffer_sender>);
 
-/*! \class filled_write_buffer
-\brief Currently a wrapper of `std::span<T>` for consistency with
-`filled_read_buffer`.
-*/
-template <class T>
-class filled_write_buffer : public std::span<T>
-{
-    using base_ = std::span<T>;
-
-public:
-    constexpr filled_write_buffer() {}
-
-    filled_write_buffer(filled_write_buffer const &) = delete;
-    filled_write_buffer(filled_write_buffer &&) = default;
-    filled_write_buffer &operator=(filled_write_buffer const &) = delete;
-    filled_write_buffer &operator=(filled_write_buffer &&) = default;
-
-    constexpr explicit filled_write_buffer(size_t bytes_to_write)
-        : base_((T *)nullptr, bytes_to_write)
-    {
-    }
-
-    constexpr explicit filled_write_buffer(std::span<T> buffer)
-        : base_(buffer)
-    {
-    }
-
-    constexpr filled_write_buffer(T *data, size_t len)
-        : base_(data, len)
-    {
-    }
-
-    //! True if write buffer has been allocated
-    constexpr explicit operator bool() const noexcept
-    {
-        return true;
-    }
-
-    //! Sets the span length
-    void set_bytes_transferred(size_t bytes) noexcept
-    {
-        auto *span = static_cast<base_ *>(this);
-        *span = span->subspan(0, bytes);
-    }
-
-    //! Reset the filled write buffer
-    void reset()
-    {
-        this->~filled_write_buffer();
-        new (this) filled_write_buffer;
-    }
-};
-
 /*! \class write_single_buffer_sender
 \brief A Sender which (possibly partially) writes a single buffer of bytes
 into an offset in a file.
@@ -207,8 +100,8 @@ into an offset in a file.
 class write_single_buffer_sender
 {
 public:
-    using buffer_type = filled_write_buffer<std::byte const>;
-    using const_buffer_type = filled_write_buffer<std::byte const>;
+    using buffer_type = filled_write_buffer;
+    using const_buffer_type = filled_write_buffer;
     using result_type = result<std::reference_wrapper<buffer_type>>;
 
     static constexpr operation_type my_operation_type = operation_type::write;

@@ -10,6 +10,7 @@
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/io.hpp>
 #include <monad/async/io_senders.hpp>
+#include <monad/async/sender_errc.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/async/util.hpp>
 #include <monad/core/array.hpp>
@@ -36,6 +37,7 @@
 #include <chrono>
 #include <coroutine>
 #include <cstddef>
+#include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
@@ -43,7 +45,9 @@
 #include <ostream>
 #include <thread>
 #include <tuple>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 struct AsyncIO : public monad::test::AsyncTestFixture<::testing::Test>
@@ -826,4 +830,351 @@ TEST_F(AsyncIO, stack_overflow_avoided)
     receiver_t{counter++}.set_value(nullptr, success());
     shared_state_()->testio->wait_until_done();
     EXPECT_GE(ops.size(), COUNT);
+}
+
+TEST_F(AsyncIO, erased_complete_overloads_decay_to_void)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    struct void_sender
+    {
+        using result_type = result<void>;
+
+        result<void> operator()(erased_connected_operation *) noexcept
+        {
+            return success();
+        }
+
+        void reset() {}
+    };
+
+    struct void_receiver
+    {
+        std::optional<result<void>> &out;
+
+        void set_value(erased_connected_operation *, result<void> res)
+        {
+            out = std::move(res);
+        }
+
+        void reset() {}
+    };
+
+    // void
+    std::optional<result<void>> out;
+    auto state = connect(void_sender{}, void_receiver{out});
+    state.initiate();
+    state.completed(success());
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out);
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<void>(errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+
+    // size_t
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(5);
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<size_t>(errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+
+    // filled_read_buffer
+    filled_read_buffer rb(5);
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_read_buffer>>(rb));
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_read_buffer>>(
+        errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+
+    // filled_write_buffer
+    filled_write_buffer wb(5);
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_write_buffer>>(wb));
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_write_buffer>>(
+        errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+}
+
+TEST_F(AsyncIO, erased_complete_overloads_decay_to_bytes_transferred)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    struct bytes_transferred_sender
+    {
+        using result_type = result<size_t>;
+
+        result<void> operator()(erased_connected_operation *) noexcept
+        {
+            return success();
+        }
+
+        void reset() {}
+    };
+
+    struct bytes_transferred_receiver
+    {
+        std::optional<result<size_t>> &out;
+
+        void set_value(erased_connected_operation *, result<size_t> res)
+        {
+            out = std::move(res);
+        }
+
+        void reset() {}
+    };
+
+    // size_t
+    std::optional<result<size_t>> out;
+    auto state =
+        connect(bytes_transferred_sender{}, bytes_transferred_receiver{out});
+    state.initiate();
+    state.completed(5);
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<size_t>(errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+
+    // filled_read_buffer
+    filled_read_buffer rb(5);
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_read_buffer>>(rb));
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_read_buffer>>(
+        errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+
+    // filled_write_buffer
+    filled_write_buffer wb(5);
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_write_buffer>>(wb));
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
+
+    out.reset();
+    state.reset(std::tuple{}, std::tuple{});
+    state.initiate();
+    state.completed(result<std::reference_wrapper<filled_write_buffer>>(
+        errc::address_in_use));
+    ASSERT_TRUE(out.has_value());
+    ASSERT_FALSE(*out);
+    ASSERT_EQ(out->error(), errc::address_in_use);
+}
+
+TEST_F(AsyncIO, immediate_completion_decays_to_bytes_transferred)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    struct void_sender
+    {
+        using result_type = result<void>;
+
+        std::variant<
+            std::monostate, size_t, filled_read_buffer, filled_write_buffer>
+            payload_to_immediately_complete;
+
+        result<void> operator()(erased_connected_operation *) noexcept
+        {
+            return std::visit(
+                [&](auto &v) -> result<void> {
+                    using type = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<type, std::monostate>) {
+                        return make_status_code(
+                            sender_errc::initiation_immediately_completed);
+                    }
+                    else {
+                        return make_status_code(
+                            sender_errc::initiation_immediately_completed,
+                            std::ref(v));
+                    }
+                },
+                payload_to_immediately_complete);
+        }
+
+        void reset(size_t v)
+        {
+            payload_to_immediately_complete = v;
+        }
+
+        void reset(filled_read_buffer v)
+        {
+            payload_to_immediately_complete = std::move(v);
+        }
+
+        void reset(filled_write_buffer v)
+        {
+            payload_to_immediately_complete = std::move(v);
+        }
+    };
+
+    struct void_receiver
+    {
+        std::optional<result<void>> &out;
+
+        void set_value(erased_connected_operation *, result<void> res)
+        {
+            out = std::move(res);
+        }
+
+        void reset() {}
+    };
+
+    // void
+    std::optional<result<void>> out;
+    auto state = connect(void_sender{}, void_receiver{out});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out);
+
+    // size_t
+    out.reset();
+    state.reset(std::tuple{5u}, std::tuple{});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+
+    // filled_read_buffer
+    out.reset();
+    state.reset(std::tuple{filled_read_buffer(5)}, std::tuple{});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+
+    // filled_write_buffer
+    out.reset();
+    state.reset(std::tuple{filled_write_buffer(5)}, std::tuple{});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_TRUE(*out); // value is thrown away, but is successful
+}
+
+TEST_F(AsyncIO, immediate_completion_decays_to_void)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    struct bytes_transferred_sender
+    {
+        using result_type = result<size_t>;
+
+        std::variant<
+            std::monostate, size_t, filled_read_buffer, filled_write_buffer>
+            payload_to_immediately_complete;
+
+        result<void> operator()(erased_connected_operation *) noexcept
+        {
+            return std::visit(
+                [&](auto &v) -> result<void> {
+                    using type = std::decay_t<decltype(v)>;
+                    if constexpr (std::is_same_v<type, std::monostate>) {
+                        return make_status_code(
+                            sender_errc::initiation_immediately_completed);
+                    }
+                    else {
+                        return make_status_code(
+                            sender_errc::initiation_immediately_completed,
+                            std::ref(v));
+                    }
+                },
+                payload_to_immediately_complete);
+        }
+
+        void reset(size_t v)
+        {
+            payload_to_immediately_complete = v;
+        }
+
+        void reset(filled_read_buffer v)
+        {
+            payload_to_immediately_complete = std::move(v);
+        }
+
+        void reset(filled_write_buffer v)
+        {
+            payload_to_immediately_complete = std::move(v);
+        }
+    };
+
+    struct bytes_transferred_receiver
+    {
+        std::optional<result<size_t>> &out;
+
+        void set_value(erased_connected_operation *, result<size_t> res)
+        {
+            out = std::move(res);
+        }
+
+        void reset() {}
+    };
+
+    // void
+    std::optional<result<size_t>> out;
+    auto state =
+        connect(bytes_transferred_sender{5u}, bytes_transferred_receiver{out});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
+
+    // filled_read_buffer
+    out.reset();
+    state.reset(std::tuple{filled_read_buffer(5)}, std::tuple{});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
+
+    // filled_write_buffer
+    out.reset();
+    state.reset(std::tuple{filled_write_buffer(5)}, std::tuple{});
+    state.initiate();
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(out->value(), 5);
 }

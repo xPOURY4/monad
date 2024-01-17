@@ -65,71 +65,311 @@ which will also call `reset()` on its sender and receiver.
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
+//! \brief Concept match of a void taking Sender-Receiver pair
+template <typename Sender, typename Receiver>
+concept void_taking_sender_receiver_pair =
+    sender<Sender> && receiver<Receiver> &&
+    ((
+         !requires { &Sender::completed; } &&
+         requires(Receiver r, erased_connected_operation *o, result<void> res) {
+             r.set_value(o, std::move(res));
+         }) ||
+     requires(
+         Sender s, Receiver r, erased_connected_operation *o,
+         result<void> res) { r.set_value(o, s.completed(o, std::move(res))); });
+
+//! \brief Concept match of a bytes transferred taking Sender-Receiver pair
+template <typename Sender, typename Receiver>
+concept size_t_taking_sender_receiver_pair =
+    sender<Sender> && receiver<Receiver> &&
+    ((
+         !requires { &Sender::completed; } &&
+         requires(
+             Receiver r, erased_connected_operation *o, result<size_t> res) {
+             r.set_value(o, std::move(res));
+         }) ||
+     requires(
+         Sender s, Receiver r, erased_connected_operation *o,
+         result<size_t> res) {
+         r.set_value(o, s.completed(o, std::move(res)));
+     });
+
+//! \brief Concept match of a filled read buffer taking Sender-Receiver pair
+template <typename Sender, typename Receiver>
+concept filled_read_buffer_taking_sender_receiver_pair =
+    sender<Sender> && receiver<Receiver> &&
+    ((
+         !requires { &Sender::completed; } &&
+         requires(
+             Receiver r, erased_connected_operation *o,
+             result<std::reference_wrapper<filled_read_buffer>> res) {
+             r.set_value(o, std::move(res));
+         }) ||
+     requires(
+         Sender s, Receiver r, erased_connected_operation *o,
+         result<std::reference_wrapper<filled_read_buffer>> res) {
+         r.set_value(o, s.completed(o, std::move(res)));
+     });
+
+//! \brief Concept match of a filled write buffer taking Sender-Receiver pair
+template <typename Sender, typename Receiver>
+concept filled_write_buffer_taking_sender_receiver_pair =
+    sender<Sender> && receiver<Receiver> &&
+    ((
+         !requires { &Sender::completed; } &&
+         requires(
+             Receiver r, erased_connected_operation *o,
+             result<std::reference_wrapper<filled_write_buffer>> res) {
+             r.set_value(o, std::move(res));
+         }) ||
+     requires(
+         Sender s, Receiver r, erased_connected_operation *o,
+         result<std::reference_wrapper<filled_write_buffer>> res) {
+         r.set_value(o, s.completed(o, std::move(res)));
+     });
+
 namespace detail
 {
     template <
         class Base, sender Sender, receiver Receiver,
-        bool enable =
-            requires(
-                Receiver r, erased_connected_operation *o, result<void> res) {
-                r.set_value(o, std::move(res));
-            } ||
-            requires(
-                Sender s, Receiver r, erased_connected_operation *o,
-                result<void> res) {
-                r.set_value(o, s.completed(o, std::move(res)));
-            }>
-    struct connected_operation_void_completed_implementation : public Base
+        bool is_void_taking_sender_receiver_pair =
+            void_taking_sender_receiver_pair<Sender, Receiver>,
+        bool is_size_t_taking_sender_receiver_pair =
+            size_t_taking_sender_receiver_pair<Sender, Receiver>,
+        bool is_filled_read_buffer_taking_sender_receiver_pair =
+            filled_read_buffer_taking_sender_receiver_pair<Sender, Receiver>,
+        bool is_filled_write_buffer_taking_sender_receiver_pair =
+            filled_write_buffer_taking_sender_receiver_pair<Sender, Receiver>>
+    struct connected_operation_completed_implementation : public Base
     {
         using Base::Base;
-        static constexpr bool void_completed_enabled_ = false;
-    };
+        static_assert(
+            is_void_taking_sender_receiver_pair +
+                    is_size_t_taking_sender_receiver_pair +
+                    is_filled_read_buffer_taking_sender_receiver_pair +
+                    is_filled_write_buffer_taking_sender_receiver_pair >
+                0,
+            "If Sender's result_type is not one of: (i) result<void> (ii) "
+            "result<size_t> (iii) result<filled_read_buffer> (iv) "
+            "result<filled_write_buffer>, it must provide a completed(T) "
+            "for one of those types to transform a completion into the "
+            "appropriate result_type value for the Receiver.");
+        static_assert(
+            is_void_taking_sender_receiver_pair +
+                    is_size_t_taking_sender_receiver_pair +
+                    is_filled_read_buffer_taking_sender_receiver_pair +
+                    is_filled_write_buffer_taking_sender_receiver_pair <
+                2,
+            "Multiple Sender::result_type to Receiver::set_value() paths "
+            "detected (possibly via Sender::complete()), it is ambiguous which "
+            "is meant.");
 
-    template <
-        class Base, sender Sender, receiver Receiver,
-        bool enable =
-            requires(
-                Receiver r, erased_connected_operation *o, result<size_t> res) {
-                r.set_value(o, std::move(res));
-            } ||
-            requires(
-                Sender s, Receiver r, erased_connected_operation *o,
-                result<size_t> res) {
-                r.set_value(o, s.completed(o, std::move(res)));
-            }>
-    struct connected_operation_bytes_completed_implementation : public Base
-    {
-        using Base::Base;
-        static constexpr bool bytes_completed_enabled_ = false;
+    private:
+        virtual void completed(result<void>) override final
+        {
+            abort();
+        }
+
+        virtual void completed(result<size_t>) override final
+        {
+            abort();
+        }
+
+        virtual void completed(
+            result<std::reference_wrapper<filled_read_buffer>>) override final
+        {
+            abort();
+        }
+
+        virtual void completed(
+            result<std::reference_wrapper<filled_write_buffer>>) override final
+        {
+            abort();
+        }
     };
 
     template <class Base, sender Sender, receiver Receiver>
-    struct connected_operation_void_completed_implementation<
-        Base, Sender, Receiver, true> : public Base
+    struct connected_operation_completed_implementation<
+        Base, Sender, Receiver, true, false, false, false> : public Base
     {
         using Base::Base;
-        static constexpr bool void_completed_enabled_ = true;
 
-    private:
+        // Overload ambiguity resolver so you can write `completed(success())`
+        // without ambiguous overload warnings.
+        void completed(BOOST_OUTCOME_V2_NAMESPACE::success_type<void> _)
+        {
+            completed(result<void>(_));
+        }
+
         // These will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<void> res) override final
         {
             this->completed_impl_(std::move(res));
         }
+
+        virtual void completed(result<size_t> res) override final
+        {
+            // Decay to the void type
+            if (!res) {
+                completed(result<void>(std::move(res).as_failure()));
+            }
+            else {
+                completed(result<void>(success()));
+            }
+        }
+
+        virtual void
+        completed(result<std::reference_wrapper<filled_read_buffer>> res)
+            override final
+        {
+            // Decay to the void type
+            if (!res) {
+                completed(result<void>(std::move(res).as_failure()));
+            }
+            else {
+                completed(result<void>(success()));
+            }
+        }
+
+        virtual void
+        completed(result<std::reference_wrapper<filled_write_buffer>> res)
+            override final
+        {
+            // Decay to the void type
+            if (!res) {
+                completed(result<void>(std::move(res).as_failure()));
+            }
+            else {
+                completed(result<void>(success()));
+            }
+        }
     };
 
     template <class Base, sender Sender, receiver Receiver>
-    struct connected_operation_bytes_completed_implementation<
-        Base, Sender, Receiver, true> : public Base
+    struct connected_operation_completed_implementation<
+        Base, Sender, Receiver, false, true, false, false> : public Base
     {
         using Base::Base;
-        static constexpr bool bytes_completed_enabled_ = true;
 
     private:
+        virtual void completed(result<void>) override final
+        {
+            // If you reach here, somebody called a void completed()
+            // on a bytes transferred type connected operation
+            abort();
+        }
+
+    public:
         // This will devirtualise and usually disappear entirely from codegen
         virtual void completed(result<size_t> bytes_transferred) override final
         {
             this->completed_impl_(std::move(bytes_transferred));
+        }
+
+        virtual void
+        completed(result<std::reference_wrapper<filled_read_buffer>> res)
+            override final
+        {
+            // Decay to the bytes transferred type
+            if (!res) {
+                completed(result<size_t>(std::move(res).as_failure()));
+            }
+            else {
+                completed(
+                    result<size_t>(success(res.assume_value().get().size())));
+            }
+        }
+
+        virtual void
+        completed(result<std::reference_wrapper<filled_write_buffer>> res)
+            override final
+        {
+            // Decay to the bytes transferred type
+            if (!res) {
+                completed(result<size_t>(std::move(res).as_failure()));
+            }
+            else {
+                completed(
+                    result<size_t>(success(res.assume_value().get().size())));
+            }
+        }
+    };
+
+    template <class Base, sender Sender, receiver Receiver>
+    struct connected_operation_completed_implementation<
+        Base, Sender, Receiver, false, false, true, false> : public Base
+    {
+        using Base::Base;
+
+    private:
+        // This will devirtualise and usually disappear entirely from codegen
+        virtual void completed(result<void>) override final
+        {
+            // If you reach here, somebody called a void completed()
+            // on a filled read buffer type connected operation
+            abort();
+        }
+
+        virtual void completed(result<size_t>) override final
+        {
+            // If you reach here, somebody called a bytes transferred
+            // completed() on a filled read buffer type connected operation
+            abort();
+        }
+
+        virtual void completed(
+            result<std::reference_wrapper<filled_write_buffer>>) override final
+        {
+            // If you reach here, somebody called a filled write buffer
+            // completed() on a filled read buffer type connected operation
+            abort();
+        }
+
+    public:
+        virtual void
+        completed(result<std::reference_wrapper<filled_read_buffer>>
+                      read_buffer_filled) override final
+        {
+            this->completed_impl_(std::move(read_buffer_filled));
+        }
+    };
+
+    template <class Base, sender Sender, receiver Receiver>
+    struct connected_operation_completed_implementation<
+        Base, Sender, Receiver, false, false, false, true> : public Base
+    {
+        using Base::Base;
+
+    private:
+        // This will devirtualise and usually disappear entirely from codegen
+        virtual void completed(result<void>) override final
+        {
+            // If you reach here, somebody called a void completed()
+            // on a filled write buffer type connected operation
+            abort();
+        }
+
+        virtual void completed(result<size_t>) override final
+        {
+            // If you reach here, somebody called a bytes transferred
+            // completed() on a filled write buffer type connected operation
+            abort();
+        }
+
+        virtual void completed(
+            result<std::reference_wrapper<filled_read_buffer>>) override final
+        {
+            // If you reach here, somebody called a filled read buffer
+            // completed() on a filled write buffer type connected operation
+            abort();
+        }
+
+    public:
+        virtual void
+        completed(result<std::reference_wrapper<filled_write_buffer>>
+                      write_buffer_filled) override final
+        {
+            this->completed_impl_(std::move(write_buffer_filled));
         }
     };
 }
@@ -149,25 +389,15 @@ that.
 */
 template <sender Sender, receiver Receiver>
 class connected_operation final
-    : public detail::connected_operation_void_completed_implementation<
-          detail::connected_operation_bytes_completed_implementation<
-              detail::connected_operation_storage<
-                  erased_connected_operation, Sender, Receiver>,
-              Sender, Receiver>,
+    : public detail::connected_operation_completed_implementation<
+          detail::connected_operation_storage<
+              erased_connected_operation, Sender, Receiver>,
           Sender, Receiver>
 {
-    using base_ = detail::connected_operation_void_completed_implementation<
-        detail::connected_operation_bytes_completed_implementation<
-            detail::connected_operation_storage<
-                erased_connected_operation, Sender, Receiver>,
-            Sender, Receiver>,
+    using base_ = detail::connected_operation_completed_implementation<
+        detail::connected_operation_storage<
+            erased_connected_operation, Sender, Receiver>,
         Sender, Receiver>;
-    static_assert(
-        base_::void_completed_enabled_ || base_::bytes_completed_enabled_,
-        "If Sender's result_type is neither result<void> nor "
-        "result<size_t>, it must provide a completed(result<void>) or "
-        "completed(result<size_t>) to transform a completion into the "
-        "appropriate result_type value for the Receiver.");
 
 public:
     using base_::base_;
