@@ -26,7 +26,7 @@ private:
         io::Buffers rwbuf;
         async::AsyncIO io;
 
-        OnDisk();
+        OnDisk(DbOptions const &);
     };
 
     std::optional<OnDisk> on_disk_;

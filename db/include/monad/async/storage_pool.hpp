@@ -363,7 +363,7 @@ public:
     //! \brief Constructs a storage pool from the list of backing storage
     //! sources
     storage_pool(
-        std::span<std::filesystem::path> sources,
+        std::span<std::filesystem::path const> sources,
         mode mode = mode::create_if_needed,
         bool interleave_chunks_evenly = false);
 

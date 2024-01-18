@@ -1,11 +1,14 @@
 #include <monad/mpt/db.hpp>
 
 #include <monad/async/config.hpp>
+#include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/core/assert.h>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/db_options.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
+
+#include <fcntl.h>
 
 // TODO unstable paths between versions
 #if __has_include(<boost/outcome/experimental/status-code/generic_code.hpp>)
@@ -19,16 +22,43 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Db::OnDisk::OnDisk()
-    : pool{async::use_anonymous_inode_tag{}}
-    , ring{io::Ring{2, 0}}
-    , rwbuf{ring, 2, 4, async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE, async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE}
+Db::OnDisk::OnDisk(DbOptions const &options)
+    : pool{[&] -> async::storage_pool {
+        MONAD_ASSERT(options.on_disk);
+        if (options.dbname_paths.empty()) {
+            return async::storage_pool{async::use_anonymous_inode_tag{}};
+        }
+        // initialize db file on disk
+        for (auto const &dbname_path : options.dbname_paths) {
+            if (!std::filesystem::exists(dbname_path)) {
+                int const fd = ::open(
+                    dbname_path.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+                if (-1 == fd) {
+                    throw std::system_error(errno, std::system_category());
+                }
+                auto unfd =
+                    monad::make_scope_exit([fd]() noexcept { ::close(fd); });
+                if (-1 ==
+                    ::ftruncate(
+                        fd,
+                        1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
+                    throw std::system_error(errno, std::system_category());
+                }
+            }
+        }
+        return async::storage_pool{
+            options.dbname_paths,
+            options.append ? async::storage_pool::mode::open_existing
+                           : async::storage_pool::mode::truncate};
+    }()}
+    , ring{io::Ring{options.uring_entries, options.sq_thread_cpu}}
+    , rwbuf{ring, options.rd_buffers, options.wr_buffers, async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE, async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE}
     , io{pool, ring, rwbuf}
 {
 }
 
 Db::Db(StateMachine &machine, DbOptions const &options)
-    : on_disk_{options.on_disk ? std::make_optional<OnDisk>() : std::nullopt}
+    : on_disk_{options.on_disk ? std::make_optional<OnDisk>(options) : std::nullopt}
     , aux_{options.on_disk ? &on_disk_.value().io : nullptr}
     , machine_{machine}
 {

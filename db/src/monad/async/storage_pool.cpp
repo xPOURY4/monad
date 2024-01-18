@@ -515,7 +515,7 @@ void storage_pool::fill_chunks_(
 }
 
 storage_pool::storage_pool(
-    std::span<std::filesystem::path> sources, mode mode,
+    std::span<std::filesystem::path const> sources, mode mode,
     bool interleave_chunks_evenly)
 {
     devices_.reserve(sources.size());
