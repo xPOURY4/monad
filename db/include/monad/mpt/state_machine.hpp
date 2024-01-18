@@ -16,7 +16,7 @@ struct StateMachine
     virtual std::unique_ptr<StateMachine> clone() const = 0;
     virtual void down(unsigned char nibble) = 0;
     virtual void up(size_t) = 0;
-    virtual Compute &get_compute() = 0;
+    virtual Compute &get_compute() const = 0;
     virtual bool cache() const = 0;
 };
 

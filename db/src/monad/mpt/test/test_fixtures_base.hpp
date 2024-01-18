@@ -77,7 +77,7 @@ namespace monad::test
             depth -= n;
         }
 
-        virtual Compute &get_compute() override
+        virtual Compute &get_compute() const override
         {
             static MerkleCompute m{};
             static RootMerkleCompute rm{};
@@ -126,7 +126,7 @@ namespace monad::test
             depth -= n;
         }
 
-        virtual Compute &get_compute() override
+        virtual Compute &get_compute() const override
         {
             static Compute c{};
             return c;

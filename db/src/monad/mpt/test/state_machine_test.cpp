@@ -63,7 +63,7 @@ namespace
             path = path.substr(0, path.size() - n);
         }
 
-        virtual Compute &get_compute() override
+        virtual Compute &get_compute() const override
         {
             static test::EmptyCompute compute{};
             compute_calls.emplace(path);
