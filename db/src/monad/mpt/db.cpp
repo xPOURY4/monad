@@ -60,6 +60,11 @@ Db::OnDisk::OnDisk(DbOptions const &options)
 Db::Db(StateMachine &machine, DbOptions const &options)
     : on_disk_{options.on_disk ? std::make_optional<OnDisk>(options) : std::nullopt}
     , aux_{options.on_disk ? &on_disk_.value().io : nullptr}
+    , root_(
+          (options.on_disk && options.append)
+              ? Node::UniquePtr{read_node_blocking(
+                    on_disk_.value().pool, aux_.get_root_offset())}
+              : Node::UniquePtr{})
     , machine_{machine}
 {
     MONAD_DEBUG_ASSERT(aux_.is_in_memory() || on_disk_.has_value());
