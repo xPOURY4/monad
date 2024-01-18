@@ -1,7 +1,11 @@
 #include "test_fixtures_gtest.hpp"
 
+#include <monad/async/config.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/trie.hpp>
+
+#include <cstddef>
+#include <cstdint>
 
 using namespace MONAD_MPT_NAMESPACE;
 using namespace MONAD_ASYNC_NAMESPACE;

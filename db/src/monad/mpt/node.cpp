@@ -1,20 +1,31 @@
+#include <monad/async/config.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
+#include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/unaligned.hpp>
+#include <monad/mem/allocators.hpp>
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <algorithm>
 #include <bit>
 #include <cassert>
+#include <cerrno>
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
+#include <unistd.h>
+#include <utility>
 #include <vector>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -67,7 +78,10 @@ Node::Node(
 Node::~Node()
 {
     for (uint8_t index = 0; index < number_of_children(); ++index) {
-        UniquePtr{next(index)};
+        {
+            UniquePtr const _{next(index)};
+            (void)_;
+        }
         set_next(index, nullptr);
     }
 }
@@ -541,16 +555,16 @@ Node *read_node_blocking(
     // spare bits are number of pages needed to load node
     unsigned const num_pages_to_load_node = node_offset.spare;
     unsigned const bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
-    file_offset_t rd_offset =
+    file_offset_t const rd_offset =
         round_down_align<DISK_PAGE_BITS>(node_offset.offset);
-    uint16_t buffer_off = uint16_t(node_offset.offset - rd_offset);
+    uint16_t const buffer_off = uint16_t(node_offset.offset - rd_offset);
     auto *buffer =
         (unsigned char *)aligned_alloc(DISK_PAGE_SIZE, bytes_to_read);
     auto unbuffer = make_scope_exit([buffer]() noexcept { ::free(buffer); });
 
     auto chunk = pool.activate_chunk(pool.seq, node_offset.id);
     auto fd = chunk->read_fd();
-    ssize_t bytes_read = pread(
+    ssize_t const bytes_read = pread(
         fd.first,
         buffer,
         bytes_to_read,

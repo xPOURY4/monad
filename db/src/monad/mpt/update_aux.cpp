@@ -1,8 +1,24 @@
+#include <monad/async/config.hpp>
+#include <monad/core/assert.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/mpt/config.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/util.hpp>
 
+#include <monad/async/detail/start_lifetime_as_polyfill.hpp>
+#include <monad/mpt/detail/unsigned_20.hpp>
+
+#include <algorithm>
+#include <atomic>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <span>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -142,7 +158,7 @@ void UpdateAux::rewind_to_match_offsets()
 {
     // Free all chunks after fast_offset.id
     auto const fast_offset = db_metadata_[0]->start_of_wip_fast_offset;
-    auto *ci = db_metadata_[0]->at(fast_offset.id);
+    auto const *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
         auto const idx = db_metadata_[0]->fast_list.end;
         remove(idx);
@@ -155,7 +171,7 @@ void UpdateAux::rewind_to_match_offsets()
 
     // Same for slow list
     auto const slow_offset = db_metadata_[0]->start_of_wip_slow_offset;
-    auto *slow_ci = db_metadata_[0]->at(slow_offset.id);
+    auto const *slow_ci = db_metadata_[0]->at(slow_offset.id);
     while (slow_ci != db_metadata_[0]->slow_list_end()) {
         auto const idx = db_metadata_[0]->slow_list.end;
         remove(idx);

@@ -15,12 +15,10 @@
 #include <boost/fiber/future/promise.hpp>
 
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <list>
 #include <optional>
-#include <span>
 #include <utility>
 
 MONAD_MPT_NAMESPACE_BEGIN

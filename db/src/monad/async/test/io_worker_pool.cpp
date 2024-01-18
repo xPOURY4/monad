@@ -24,7 +24,6 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
-#include <span>
 #include <thread>
 #include <utility>
 #include <vector>

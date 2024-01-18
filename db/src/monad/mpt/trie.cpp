@@ -1,14 +1,12 @@
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
-#include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/io_senders.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
-#include <monad/mpt/compute.hpp>
+#include <monad/mem/allocators.hpp>
 #include <monad/mpt/config.hpp>
-#include <monad/mpt/detail/unsigned_20.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/request.hpp>
@@ -19,7 +17,6 @@
 #include <monad/mpt/util.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <bit>
 #include <cassert>
 #include <cstddef>
@@ -29,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <tuple>
 #include <utility>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -484,7 +482,7 @@ void create_new_trie_from_requests_(
     auto const number_of_children =
         static_cast<unsigned>(std::popcount(requests.mask));
     uint16_t const mask = requests.mask;
-    allocators::owning_span<ChildData> children(number_of_children);
+    allocators::owning_span<ChildData> const children(number_of_children);
     for (unsigned i = 0, j = 0, bit = 1; j < number_of_children;
          ++i, bit <<= 1) {
         if (bit & requests.mask) {
@@ -807,7 +805,7 @@ node_writer_unique_ptr_type replace_node_writer(
     // Can't use add_to_offset(), because it asserts if we go past the
     // capacity
     auto offset_of_next_block = node_writer->sender().offset();
-    bool in_fast_list =
+    bool const in_fast_list =
         aux.db_metadata()->at(offset_of_next_block.id)->in_fast_list;
     file_offset_t offset = offset_of_next_block.offset;
     offset += node_writer->sender().written_buffer_bytes() +

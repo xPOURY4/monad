@@ -20,7 +20,6 @@
 #include <cstring>
 #include <iostream>
 #include <ostream>
-#include <span>
 #include <stop_token>
 #include <thread>
 #include <vector>

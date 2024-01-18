@@ -1,15 +1,29 @@
 #include <CLI/CLI.hpp>
 
+#include <algorithm>
+// #include <asm-generic/int-ll64.h>  NOLINT
+#include <bit>
 #include <cassert>
+#include <cerrno>
+#include <chrono>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <format>
+#include <fstream>
+#include <functional>
 #include <future>
 #include <iostream>
+#include <map>
 #include <span>
+#include <string>
+#include <system_error>
 #include <thread>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <fcntl.h>
@@ -140,7 +154,7 @@ public:
         {
             auto do_mmap = [](void *addr, std::filesystem::path const &p)
                 -> std::span<std::byte const> {
-                int fd = ::open(p.c_str(), O_RDONLY);
+                int const fd = ::open(p.c_str(), O_RDONLY);
                 if (-1 == fd) {
                     throw std::system_error(errno, std::system_category());
                 }
@@ -346,7 +360,7 @@ public:
                 }
                 __builtin_unreachable();
             };
-            auto *ret = calculate();
+            auto const *ret = calculate();
             if ((std::byte const *)ret >= maximum) {
                 return nullptr;
             }
@@ -402,7 +416,7 @@ public:
     {
         dbpath /= "chain";
         std::map<std::filesystem::path, file_offset_t> indices;
-        for (auto &entry : std::filesystem::directory_iterator(dbpath)) {
+        for (auto const &entry : std::filesystem::directory_iterator(dbpath)) {
             auto path = entry.path();
             auto const ext = path.extension();
             if (ext == ".cdat") {
@@ -467,8 +481,9 @@ uint32_t calculate_histogram_by_transaction(
     unordered_dense_map<eth_address, uint32_t> map;
     std::vector<uint32_t> transactions_per_block(blockno_end - blockno_begin);
     std::byte buffer[4 * 1024 * 1024];
-    uint32_t largest_count = 0, total_transactions = 0,
-             unparsed_transactions = 0;
+    uint32_t largest_count = 0;
+    uint32_t total_transactions = 0;
+    uint32_t unparsed_transactions = 0;
     for (size_t idx = blockno_begin; idx < blockno_end; idx++) {
         auto const contents = bodies_table.contents(buffer, idx);
         auto const bodies_list =
@@ -506,7 +521,8 @@ uint32_t calculate_histogram_by_transaction(
                  item = item->next(txn_list_end)) {
                 auto const to_address = item->value();
                 if (to_address.size() == 20) {
-                    auto *to_address2 = (eth_address const *)to_address.data();
+                    auto const *to_address2 =
+                        (eth_address const *)to_address.data();
                     if (seen.end() == seen.find(*to_address2)) {
                         auto v = ++map[*to_address2];
                         if (v > largest_count) {
@@ -532,8 +548,9 @@ uint32_t calculate_histogram_by_transaction(
         ranked.emplace_back(i.second, i.first);
     }
     std::sort(ranked.rbegin(), ranked.rend());
-    uint32_t cutoff = uint32_t(total_transactions / CUTOFFS),
-             accounts[CUTOFFS + 1]{}, accum[CUTOFFS + 1]{};
+    uint32_t const cutoff = uint32_t(total_transactions / CUTOFFS);
+    uint32_t accounts[CUTOFFS + 1]{};
+    uint32_t accum[CUTOFFS + 1]{};
     size_t n = 0;
     for (auto &i : ranked) {
         if (accum[n] + i.first >= cutoff) {
@@ -584,7 +601,7 @@ int main(int argc, char *argv[])
         FreezerDB db(dbpath);
         std::cout << "Opened geth freezer db at " << dbpath
                   << ". It has tables:";
-        for (auto &table : db.tables()) {
+        for (auto const &table : db.tables()) {
             std::cout << "\n   " << table.name() << " type "
                       << (table.is_compressed() ? "compressed" : "uncompressed")
                       << " with " << table.size() << " entries consuming "
@@ -612,7 +629,9 @@ int main(int argc, char *argv[])
                 for (size_t n = 0; n < indent; n++) {
                     std::cout << " ";
                 }
-                for (auto *i = (const FreezerDB::rlp_item *)contents.data(); i;
+                for (auto const *i =
+                         (FreezerDB::rlp_item const *)contents.data();
+                     i;
                      i = i->next(contents.data() + contents.size())) {
                     auto v = i->value();
                     if (!v.empty()) {

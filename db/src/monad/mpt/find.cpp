@@ -1,14 +1,11 @@
-#include <monad/async/config.hpp>
-
-#include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/nibble.h>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
-#include <monad/mpt/util.hpp>
 
+#include <bit>
 #include <cassert>
 #include <optional>
 

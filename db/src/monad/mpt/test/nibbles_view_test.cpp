@@ -45,6 +45,6 @@ TEST(NibblesTest, concat_nibbles)
 
 TEST(NibblesTest, nibbles_size)
 {
-    Nibbles nibbles{16};
+    Nibbles const nibbles{16};
     EXPECT_EQ(nibbles.nibble_size(), 16);
 }

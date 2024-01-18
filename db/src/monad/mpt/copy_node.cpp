@@ -1,5 +1,3 @@
-#include <monad/async/config.hpp>
-
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/nibble.h>
@@ -9,6 +7,7 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <limits>

@@ -1,8 +1,8 @@
-#include <monad/core/assert.h>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/util.hpp>
 
 MONAD_MPT_NAMESPACE_BEGIN
 

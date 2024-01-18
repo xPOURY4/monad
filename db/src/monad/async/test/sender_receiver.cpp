@@ -41,7 +41,6 @@
 #include <memory>
 #include <optional>
 #include <ostream>
-#include <span>
 #include <thread>
 #include <tuple>
 #include <utility>

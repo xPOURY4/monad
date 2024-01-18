@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <bit>
 #include <cassert>
 #include <cerrno>
 #include <cstddef>
@@ -519,7 +518,7 @@ storage_pool::storage_pool(
     bool interleave_chunks_evenly)
 {
     devices_.reserve(sources.size());
-    for (auto &source : sources) {
+    for (auto const &source : sources) {
         devices_.push_back([&] {
             int const fd = ::open(source.c_str(), O_PATH | O_CLOEXEC);
             if (-1 == fd) {

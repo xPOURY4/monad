@@ -2,15 +2,18 @@
 
 #include <monad/async/config.hpp>
 #include <monad/async/detail/scope_polyfill.hpp>
+#include <monad/async/io.hpp>
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/core/unordered_map.hpp>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
-#include <monad/mpt/compute.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
+#include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
@@ -22,6 +25,7 @@
 #include <cassert>
 #include <cerrno>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
@@ -404,7 +408,7 @@ int main(int argc, char *argv[])
         if (append) {
             root.reset(
                 read_node_blocking(io.storage_pool(), aux.get_root_offset()));
-            Nibbles max_block = find_max_key_blocking(aux, *root);
+            Nibbles const max_block = find_max_key_blocking(aux, *root);
             // always start from the last valid block num + 1
             block_no = deserialize_from_big_endian<uint64_t>(max_block) + 1;
         }
@@ -489,7 +493,7 @@ int main(int argc, char *argv[])
                     .count()) /
             1000000.0;
         uint64_t bytes_used = 0;
-        for (auto &device : pool.devices()) {
+        for (auto const &device : pool.devices()) {
             bytes_used += device.capacity().second;
         }
         printf(

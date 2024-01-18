@@ -1,23 +1,23 @@
 #include "gtest/gtest.h"
 
 #include <monad/core/hex_literal.hpp>
-#include <monad/mpt/config.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <cstdint>
+#include <stdexcept>
 
 using namespace monad::mpt;
 using namespace monad::literals;
 
 TEST(serialize_to_big_endian, test)
 {
-    uint64_t n = 0x1122334455667788;
+    uint64_t const n = 0x1122334455667788;
     EXPECT_EQ(serialize_as_big_endian<8>(n), 0x1122334455667788_hex);
     EXPECT_EQ(serialize_as_big_endian<6>(n), 0x334455667788_hex);
     EXPECT_EQ(serialize_as_big_endian<2>(n), 0x7788_hex);
 
-    uint32_t n2 = 0x11223344;
+    uint32_t const n2 = 0x11223344;
     EXPECT_EQ(serialize_as_big_endian<4>(n2), 0x11223344_hex);
     EXPECT_EQ(serialize_as_big_endian<2>(n2), 0x3344_hex);
 }

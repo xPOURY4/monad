@@ -14,17 +14,11 @@
 // DO NOT include gtest_signal_stacktrace_printer.hpp here, it interferes with
 // Google Test's death test handling
 
-#include <chrono>
+#include <csignal>
 #include <cstddef>
-#include <filesystem>
-#include <iostream>
 #include <memory>
-#include <ostream>
-#include <system_error>
 #include <utility>
 #include <vector>
-
-#include <unistd.h>
 
 namespace
 {

@@ -1,14 +1,13 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <mutex>
-#include <thread>
 #include <vector>
 
-#include <monad/core/cmemory.hpp>
 #include <monad/core/small_prng.hpp>
 #include <monad/core/unordered_map.hpp>
 
@@ -48,7 +47,7 @@ static constexpr uint32_t BUCKETS = 20;
 static constexpr uint32_t TOTAL_KEYS = 500000000;
 static double const MAX_RAND = double(monad::small_prng::max());
 
-int main(void)
+int main()
 {
     std::vector<uint32_t> arr;
     if (!std::filesystem::exists("array_sorted.bin") &&
@@ -62,7 +61,7 @@ int main(void)
             for (uint64_t y = 0; y < SLICE_LEN; y++) {
                 double r = double(rand()) / MAX_RAND;
                 r = pow(MULTIPLIER, MULTIPLIER * r) / DIVISOR;
-                uint32_t j = uint32_t(double(TOTAL_KEYS) * r);
+                uint32_t const j = uint32_t(double(TOTAL_KEYS) * r);
                 if (!seen.contains(j)) {
                     auto &v = map[j];
                     v += 1;
@@ -142,7 +141,8 @@ int main(void)
          n++) {
         histogram[n * step] = float(counts[n]);
     }
-    size_t sidx = 0, eidx = 0;
+    size_t sidx = 0;
+    size_t eidx = 0;
     for (bool done = false; !done;) {
         done = true;
         for (;;) {

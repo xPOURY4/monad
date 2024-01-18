@@ -4,6 +4,7 @@
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/erased_connected_operation.hpp>
+#include <monad/async/io_senders.hpp>
 #include <monad/async/util.hpp>
 #include <monad/core/small_prng.hpp>
 
@@ -18,7 +19,6 @@
 #include <cstring>
 #include <iostream>
 #include <ostream>
-#include <span>
 #include <utility>
 #include <vector>
 

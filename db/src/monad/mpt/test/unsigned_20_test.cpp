@@ -12,7 +12,7 @@ TEST(unsigned_20, works)
     using MONAD_MPT_NAMESPACE::detail::unsigned_20;
 
     unsigned_20 a(5);
-    unsigned_20 b(6);
+    unsigned_20 const b(6);
     EXPECT_EQ(b - a, 1);
     EXPECT_EQ(a - b, 0xfffff);
 

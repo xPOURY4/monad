@@ -1,10 +1,20 @@
 #include "test_fixtures_base.hpp"
 
+#include <monad/core/assert.h>
+#include <monad/core/hex_literal.hpp>
 #include <monad/mpt/db.hpp>
 #include <monad/mpt/db_options.hpp>
+#include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/traverse.hpp>
+#include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
 
+#include <cstddef>
+#include <cstdint>
 #include <gtest/gtest.h>
+#include <initializer_list>
+#include <iterator>
+#include <utility>
 
 using namespace monad::mpt;
 using namespace monad::test;
@@ -203,7 +213,7 @@ TYPED_TEST(DbTest, traverse)
         Nibbles make_nibbles(std::initializer_list<uint8_t> nibbles)
         {
             Nibbles ret{nibbles.size()};
-            for (auto it = nibbles.begin(); it < nibbles.end(); ++it) {
+            for (auto const *it = nibbles.begin(); it < nibbles.end(); ++it) {
                 MONAD_ASSERT(*it <= 0xf);
                 ret.set(
                     static_cast<unsigned>(std::distance(nibbles.begin(), it)),

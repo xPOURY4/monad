@@ -4,8 +4,12 @@
 #include "test_fixtures_gtest.hpp"
 
 #include <monad/core/byte_string.hpp>
-#include <monad/core/hex_literal.hpp>
+#include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
 
+#include <cstdint>
+#include <utility>
 #include <vector>
 
 using namespace ::monad::test;
@@ -20,7 +24,7 @@ TYPED_TEST_SUITE(TrieTest, TrieTypes);
 
 TYPED_TEST(TrieTest, find_min_max_block_num)
 {
-    uint64_t number_of_blocks = 128;
+    uint64_t const number_of_blocks = 128;
     std::vector<monad::byte_string> blocknums;
     blocknums.reserve(number_of_blocks);
     std::vector<Update> update_vec;

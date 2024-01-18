@@ -240,7 +240,7 @@ namespace
 
     TEST(StoragePool, raw_partitions)
     {
-        std::filesystem::path devs[] = {
+        std::filesystem::path const devs[] = {
             "/dev/mapper/raid0-rawblk0", "/dev/mapper/raid0-rawblk1"};
         try {
             storage_pool pool(devs, storage_pool::mode::truncate);
@@ -399,7 +399,7 @@ namespace
         {
             storage_pool const _{devs};
         }
-        std::filesystem::path devs2[] = {devs[0], devs[1]};
+        std::filesystem::path const devs2[] = {devs[0], devs[1]};
         EXPECT_THROW(storage_pool{devs2}, std::runtime_error);
         storage_pool{devs2, storage_pool::mode::truncate};
     }

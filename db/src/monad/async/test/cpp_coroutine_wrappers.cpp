@@ -24,7 +24,6 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
-#include <span>
 #include <stop_token>
 #include <thread>
 #include <type_traits>
