@@ -167,12 +167,13 @@ struct update_receiver
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
+        MONAD_ASSERT(bytes_to_read <= AsyncIO::READ_BUFFER_SIZE);
         rd_offset.spare = 0;
     }
 
     void set_value(
         erased_connected_operation *,
-        monad::async::read_single_buffer_sender::result_type buffer_)
+        read_single_buffer_sender::result_type buffer_)
     {
         MONAD_ASSERT(buffer_);
         auto &buffer = buffer_.assume_value().get();
@@ -232,11 +233,12 @@ struct read_single_child_receiver
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
+        MONAD_ASSERT(bytes_to_read <= AsyncIO::READ_BUFFER_SIZE);
     }
 
     void set_value(
         erased_connected_operation *,
-        monad::async::read_single_buffer_sender::result_type buffer_)
+        read_single_buffer_sender::result_type buffer_)
     {
         MONAD_ASSERT(buffer_);
         auto &buffer = buffer_.assume_value().get();
