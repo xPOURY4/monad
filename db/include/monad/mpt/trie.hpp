@@ -207,7 +207,8 @@ public:
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *);
 
-    void restore_state_history_disk_infos(Node &root);
+    void restore_state_history_disk_infos(
+        Node &root, std::optional<uint64_t> const max_block_id = std::nullopt);
 
     //! Copy state from last block to new block, erase outdated history block
     //! if any, do compaction if specified, and then upsert
@@ -406,11 +407,11 @@ through blocking read.
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
-    UpdateAux &, Node *root, NibblesView key,
+    UpdateAux const &, Node *root, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
-Nibbles find_min_key_blocking(UpdateAux &, Node &root);
-Nibbles find_max_key_blocking(UpdateAux &, Node &root);
+Nibbles find_min_key_blocking(UpdateAux const &, Node &root);
+Nibbles find_max_key_blocking(UpdateAux const &, Node &root);
 
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)

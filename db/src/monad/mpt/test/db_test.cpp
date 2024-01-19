@@ -3,8 +3,8 @@
 #include <monad/core/assert.h>
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/db.hpp>
-#include <monad/mpt/db_options.hpp>
 #include <monad/mpt/nibbles_view.hpp>
+#include <monad/mpt/ondisk_db_config.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
@@ -24,13 +24,13 @@ namespace
     struct InMemoryDbFixture : public ::testing::Test
     {
         StateMachineAlwaysMerkle machine;
-        Db db{machine, DbOptions{.on_disk = false}};
+        Db db{machine};
     };
 
     struct OnDiskDbFixture : public ::testing::Test
     {
         StateMachineAlwaysMerkle machine;
-        Db db{machine, DbOptions{.on_disk = true}};
+        Db db{machine, OnDiskDbConfig{}};
     };
 }
 

@@ -16,12 +16,11 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <utility>
 #include <vector>
 
-#include <algorithm>
+#include <sys/mman.h>
+#include <unistd.h>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -415,18 +414,22 @@ void UpdateAux::reset_node_writers()
         init_node_writer(db_metadata()->db_offsets.start_of_wip_offset_slow);
 }
 
-void UpdateAux::restore_state_history_disk_infos(Node &root)
+void UpdateAux::restore_state_history_disk_infos(
+    Node &root, std::optional<uint64_t> const opt_max_block_id)
 {
+    // only restore block histories till `opt_till_block_id.value()` if any or
+    // the max block id it has on disk
     MONAD_ASSERT(is_on_disk());
-    Nibbles const max_block = find_max_key_blocking(*this, root);
-    Nibbles const min_block = find_min_key_blocking(*this, root);
+    auto const min_block_id = deserialize_from_big_endian<uint64_t>(
+        find_min_key_blocking(*this, root));
+    auto const existing_max_block_id = deserialize_from_big_endian<uint64_t>(
+        find_max_key_blocking(*this, root));
     uint64_t const max_block_id =
-        deserialize_from_big_endian<uint64_t>(max_block);
-    uint64_t const min_block_id =
-        deserialize_from_big_endian<uint64_t>(min_block);
+        opt_max_block_id.value_or(existing_max_block_id);
+    MONAD_ASSERT(max_block_id <= existing_max_block_id);
     for (auto i = min_block_id; i <= max_block_id; i++) {
-        auto [state_root, res] =
-            find_blocking(*this, &root, serialize_as_big_endian<6>(i));
+        auto [state_root, res] = find_blocking(
+            *this, &root, serialize_as_big_endian<BLOCK_NUM_BYTES>(i));
         MONAD_ASSERT(res == find_result::success);
         auto [min_offset_fast, min_offset_slow] = calc_min_offsets(*state_root);
         if (min_offset_fast == INVALID_COMPACT_VIRTUAL_OFFSET) {
@@ -464,13 +467,13 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
     Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
     uint64_t const block_id, bool const compaction)
 {
-    auto block_num = serialize_as_big_endian<6>(block_id);
+    auto block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
     fprintf(stdout, "Insert block_id %lu\n", block_id);
     if (!state_histories.empty()) {
         MONAD_ASSERT(block_id == max_block_id_in_history() + 1);
         // copy old state if any
         auto prev_block_num =
-            serialize_as_big_endian<6>(max_block_id_in_history());
+            serialize_as_big_endian<BLOCK_NUM_BYTES>(max_block_id_in_history());
         prev_root =
             copy_node(*this, std::move(prev_root), prev_block_num, block_num);
     }
@@ -480,9 +483,10 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
     byte_string block_to_erase;
     state_disk_info_t erased_state_info;
     Update e;
-    if (block_id >= block_history_len) {
+    if (state_histories.size() > block_history_len) {
         printf("erase block id %lu\n", min_block_id_in_history());
-        block_to_erase = serialize_as_big_endian<6>(min_block_id_in_history());
+        block_to_erase =
+            serialize_as_big_endian<BLOCK_NUM_BYTES>(min_block_id_in_history());
         e = make_erase(block_to_erase);
         block_updates.push_front(e);
         erased_state_info = state_histories.front();

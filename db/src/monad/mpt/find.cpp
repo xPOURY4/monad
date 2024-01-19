@@ -12,7 +12,7 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 find_result_type find_blocking(
-    UpdateAux &aux, Node *node, NibblesView const key,
+    UpdateAux const &aux, Node *node, NibblesView const key,
     std::optional<unsigned> opt_node_prefix_index)
 {
     if (!node) {
@@ -59,7 +59,7 @@ find_result_type find_blocking(
     return {node, find_result::success};
 }
 
-Nibbles find_min_key_blocking(UpdateAux &aux, Node &root)
+Nibbles find_min_key_blocking(UpdateAux const &aux, Node &root)
 {
     Nibbles path;
     Node *node = &root;
@@ -83,7 +83,7 @@ Nibbles find_min_key_blocking(UpdateAux &aux, Node &root)
     return concat(NibblesView{path}, node->path_nibble_view());
 }
 
-Nibbles find_max_key_blocking(UpdateAux &aux, Node &root)
+Nibbles find_max_key_blocking(UpdateAux const &aux, Node &root)
 {
     Nibbles path;
     Node *node = &root;

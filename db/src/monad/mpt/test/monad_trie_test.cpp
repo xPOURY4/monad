@@ -105,7 +105,7 @@ Node::UniquePtr batch_upsert_commit(
                             .count()) /
                     1000000000.0;
 
-    auto block_num = serialize_as_big_endian<6>(block_id);
+    auto block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
     auto [state_root, res] = find_blocking(aux, new_root.get(), block_num);
     fprintf(stdout, "root->data : ");
     __print_bytes_in_hex(state_root->data());

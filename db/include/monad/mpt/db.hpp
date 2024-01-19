@@ -12,7 +12,7 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-struct DbOptions;
+struct OnDiskDbConfig;
 struct StateMachine;
 struct TraverseMachine;
 
@@ -25,8 +25,9 @@ private:
         io::Ring ring;
         io::Buffers rwbuf;
         async::AsyncIO io;
+        bool compaction;
 
-        OnDisk(DbOptions const &);
+        OnDisk(OnDiskDbConfig const &);
     };
 
     std::optional<OnDisk> on_disk_;
@@ -35,11 +36,16 @@ private:
     StateMachine &machine_;
 
 public:
-    Db(StateMachine &, DbOptions const &);
+    //! construct an in memory db
+    Db(StateMachine &);
+    //! construct an on disk db
+    Db(StateMachine &, OnDiskDbConfig const &options);
 
     Result<byte_string_view> get(NibblesView);
     Result<byte_string_view> get_data(NibblesView);
     void upsert(UpdateList);
+    //! upsert with block number prefix
+    void upsert_with_fixed_history_len(UpdateList, uint64_t);
     void traverse(NibblesView root, TraverseMachine &);
 };
 

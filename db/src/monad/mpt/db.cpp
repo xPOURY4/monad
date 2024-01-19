@@ -8,19 +8,20 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/result.hpp>
 #include <monad/mpt/config.hpp>
-#include <monad/mpt/db_options.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
+#include <monad/mpt/ondisk_db_config.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
 #include <cerrno>
-#include <fcntl.h>
 #include <filesystem>
 #include <system_error>
-#include <unistd.h>
 #include <utility>
+
+#include <fcntl.h>
+#include <unistd.h>
 
 // TODO unstable paths between versions
 #if __has_include(<boost/outcome/experimental/status-code/generic_code.hpp>)
@@ -33,9 +34,8 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-Db::OnDisk::OnDisk(DbOptions const &options)
+Db::OnDisk::OnDisk(OnDiskDbConfig const &options)
     : pool{[&] -> async::storage_pool {
-        MONAD_ASSERT(options.on_disk);
         if (options.dbname_paths.empty()) {
             return async::storage_pool{async::use_anonymous_inode_tag{}};
         }
@@ -65,20 +65,32 @@ Db::OnDisk::OnDisk(DbOptions const &options)
     , ring{io::Ring{options.uring_entries, options.sq_thread_cpu}}
     , rwbuf{ring, options.rd_buffers, options.wr_buffers, async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE, async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE}
     , io{pool, ring, rwbuf}
+    , compaction{options.compaction}
 {
 }
 
-Db::Db(StateMachine &machine, DbOptions const &options)
-    : on_disk_{options.on_disk ? std::make_optional<OnDisk>(options) : std::nullopt}
-    , aux_{options.on_disk ? &on_disk_.value().io : nullptr}
-    , root_(
-          (options.on_disk && options.append)
-              ? Node::UniquePtr{read_node_blocking(
-                    on_disk_.value().pool, aux_.get_root_offset())}
-              : Node::UniquePtr{})
+Db::Db(StateMachine &machine)
+    : on_disk_{std::nullopt}
+    , aux_{nullptr}
+    , root_{}
     , machine_{machine}
 {
-    MONAD_DEBUG_ASSERT(aux_.is_in_memory() || on_disk_.has_value());
+}
+
+Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
+    : on_disk_{std::make_optional<OnDisk>(config)}
+    , aux_{&on_disk_.value().io}
+    , root_(
+          config.append ? Node::UniquePtr{read_node_blocking(
+                              on_disk_.value().pool, aux_.get_root_offset())}
+                        : Node::UniquePtr{})
+    , machine_{machine}
+{
+    MONAD_DEBUG_ASSERT(aux_.is_on_disk());
+    if (config.append) {
+        MONAD_ASSERT(root_);
+        aux_.restore_state_history_disk_infos(*root_, config.opt_max_block_id);
+    }
 }
 
 Result<byte_string_view> Db::get(NibblesView const key)
@@ -110,6 +122,17 @@ Result<byte_string_view> Db::get_data(NibblesView const key)
 void Db::upsert(UpdateList list)
 {
     root_ = mpt::upsert(aux_, machine_, std::move(root_), std::move(list));
+}
+
+void Db::upsert_with_fixed_history_len(UpdateList list, uint64_t const block_id)
+{
+    MONAD_ASSERT(on_disk_.has_value());
+    root_ = aux_.upsert_with_fixed_history_len(
+        std::move(root_),
+        machine_,
+        std::move(list),
+        block_id,
+        on_disk_.value().compaction);
 }
 
 void Db::traverse(NibblesView const root, TraverseMachine &machine)

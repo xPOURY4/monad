@@ -29,7 +29,7 @@ TYPED_TEST(TrieTest, find_min_max_block_num)
     blocknums.reserve(number_of_blocks);
     std::vector<Update> update_vec;
     for (uint64_t i = 0; i < number_of_blocks; ++i) {
-        blocknums.push_back(serialize_as_big_endian<6>(i));
+        blocknums.push_back(serialize_as_big_endian<BLOCK_NUM_BYTES>(i));
         update_vec.push_back(Update{
             .key = blocknums.back(),
             .value = monad::byte_string_view{},
