@@ -49,6 +49,14 @@ struct Requests
         return sublists[get_first_branch()].front().key;
     }
 
+    void reset(unsigned const prefix_index) noexcept
+    {
+        mask = 0;
+        opt_leaf = std::nullopt;
+        MONAD_DEBUG_ASSERT(prefix_index <= std::numeric_limits<uint8_t>::max());
+        prefix_len = static_cast<uint8_t>(prefix_index);
+    }
+
     // clang-format: off
     // return the number of sublists it splits into, equals #distinct_nibbles
     // at prefix index i.
@@ -62,7 +70,7 @@ struct Requests
     unsigned
     split_into_sublists(UpdateList &&updates, unsigned const prefix_index)
     {
-        mask = 0;
+        reset(prefix_index);
         unsigned n = 0;
         while (!updates.empty()) {
             Update &req = updates.front();
@@ -78,8 +86,6 @@ struct Requests
             }
             sublists[branch].push_front(req);
         }
-        MONAD_DEBUG_ASSERT(prefix_index <= std::numeric_limits<uint8_t>::max());
-        prefix_len = static_cast<uint8_t>(prefix_index);
         return n;
     }
 };

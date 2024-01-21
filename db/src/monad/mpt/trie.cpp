@@ -434,9 +434,9 @@ void create_new_trie_(
             sm.down(path.get(i));
         }
         if (!update.next.empty()) { // nested updates
+            MONAD_DEBUG_ASSERT(update.value.has_value());
             Requests requests;
             requests.split_into_sublists(std::move(update.next), 0);
-            MONAD_DEBUG_ASSERT(update.value.has_value());
             create_new_trie_from_requests_(
                 aux, sm, entry, requests, path, 0, update.value);
         }
@@ -558,6 +558,7 @@ void upsert_(
             old_prefix_index = old->path_nibble_index_end;
             path = NibblesView{
                 old_prefix_index_start, old_prefix_index, old->path_data()};
+            // will just call dispatch and break;
         }
         if (old_prefix_index == old->path_nibble_index_end) {
             dispatch_updates_flat_list_(
@@ -574,6 +575,7 @@ void upsert_(
         if (auto old_nibble = get_nibble(old->path_data(), old_prefix_index);
             number_of_sublists == 1 &&
             requests.get_first_branch() == old_nibble) {
+            MONAD_DEBUG_ASSERT(requests.opt_leaf == std::nullopt);
             updates = std::move(requests)[old_nibble];
             sm.down(old_nibble);
             ++prefix_index;
