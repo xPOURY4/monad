@@ -12,7 +12,6 @@ option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include("cmake/find_our_dependency.cmake")
 find_our_dependency(absl REQUIRED)
-find_our_dependency(mimalloc REQUIRED)
 
 cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
 if(linux_flavour MATCHES "debian|ubuntu")
@@ -133,7 +132,7 @@ else()
                              PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
   target_link_libraries(monad_core PUBLIC Boost::stacktrace_addr2line)
 endif()
-target_link_libraries(monad_core PUBLIC openssl_sha3_asm mimalloc uring)
+target_link_libraries(monad_core PUBLIC openssl_sha3_asm uring Boost::fiber)
 
 add_library(
   monad_core_disas STATIC
