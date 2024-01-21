@@ -1,5 +1,8 @@
 #include <monad/fiber/priority_pool.hpp>
 
+#include <boost/fiber/protected_fixedsize_stack.hpp>
+
+#include <memory>
 #include <thread>
 #include <utility>
 
@@ -24,6 +27,8 @@ PriorityPool::PriorityPool(unsigned const n_threads, unsigned const n_fibers)
             auto *const properties = new PriorityProperties{nullptr};
             boost::fibers::fiber fiber{
                 static_cast<boost::fibers::fiber_properties *>(properties),
+                std::allocator_arg,
+                boost::fibers::protected_fixedsize_stack{8 * 1024 * 1024},
                 [this, properties] {
                     PriorityTask task;
                     while (channel_.pop(task) ==
