@@ -22,8 +22,11 @@ class PriorityPool final
 {
     PriorityQueue queue_{};
 
+    bool done_{false};
+
     boost::fibers::mutex mutex_{};
     boost::fibers::condition_variable cv_{};
+
     std::vector<std::thread> threads_{};
 
     boost::fibers::buffered_channel<PriorityTask> channel_{1024};

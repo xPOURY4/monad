@@ -3,6 +3,7 @@
 #include <boost/fiber/protected_fixedsize_stack.hpp>
 
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <utility>
 
@@ -15,7 +16,7 @@ PriorityPool::PriorityPool(unsigned const n_threads, unsigned const n_fibers)
         auto thread = std::thread([this] {
             boost::fibers::use_scheduling_algorithm<PriorityAlgorithm>(queue_);
             std::unique_lock<boost::fibers::mutex> lock{mutex_};
-            cv_.wait(lock);
+            cv_.wait(lock, [this] { return done_; });
         });
         threads_.push_back(std::move(thread));
     }
@@ -55,7 +56,13 @@ PriorityPool::~PriorityPool()
         fibers_.pop_back();
     }
 
+    {
+        std::unique_lock<boost::fibers::mutex> lock{mutex_};
+        done_ = true;
+    }
+
     cv_.notify_all();
+
     while (threads_.size()) {
         auto &thread = threads_.back();
         thread.join();
