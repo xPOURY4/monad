@@ -62,7 +62,8 @@ enum class operation_type : uint8_t
     read,
     write,
     timeout,
-    threadsafeop
+    threadsafeop,
+    read_scatter
 };
 
 /*! \class filled_read_buffer
@@ -456,6 +457,11 @@ public:
     bool is_read() const noexcept
     {
         return operation_type_ == operation_type::read;
+    }
+
+    bool is_read_scatter() const noexcept
+    {
+        return operation_type_ == operation_type::read_scatter;
     }
 
     bool is_write() const noexcept

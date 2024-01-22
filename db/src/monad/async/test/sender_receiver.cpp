@@ -254,6 +254,114 @@ TEST_F(AsyncIO, threadsafe_sender_receiver)
     fut.get();
 }
 
+TEST_F(AsyncIO, read_multiple_buffer_sender_receiver)
+{
+    using namespace MONAD_ASYNC_NAMESPACE;
+
+    struct receiver_t
+    {
+        enum : bool
+        {
+            lifetime_managed_internally = false
+        };
+
+        std::optional<read_multiple_buffer_sender::buffers_type> &v;
+
+        void set_value(
+            erased_connected_operation *,
+            read_multiple_buffer_sender::result_type res)
+        {
+            ASSERT_TRUE(res);
+            v = std::move(res).assume_value();
+        }
+
+        void reset() {}
+    };
+
+    std::byte *buffer =
+        (std::byte *)aligned_alloc(DISK_PAGE_SIZE, DISK_PAGE_SIZE * 4);
+    auto unbuffer = monad::make_scope_exit([&]() noexcept { free(buffer); });
+    std::vector<read_multiple_buffer_sender::buffer_type> inbuffers;
+    inbuffers.emplace_back(buffer + 0, DISK_PAGE_SIZE);
+    inbuffers.emplace_back(buffer + DISK_PAGE_SIZE, DISK_PAGE_SIZE);
+    inbuffers.emplace_back(buffer + DISK_PAGE_SIZE * 2, DISK_PAGE_SIZE * 2);
+    std::optional<read_multiple_buffer_sender::buffers_type> outbuffers;
+    auto state = connect(
+        *shared_state_()->testio,
+        read_multiple_buffer_sender{{0, 0}, inbuffers},
+        receiver_t{outbuffers});
+    state.initiate();
+    while (!outbuffers) {
+        shared_state_()->testio->poll_blocking(1);
+    }
+    ASSERT_EQ(outbuffers->size(), 3);
+    EXPECT_EQ((*outbuffers)[0].data(), buffer);
+    EXPECT_EQ((*outbuffers)[0].size(), DISK_PAGE_SIZE);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data(),
+            shared_state_()->testfilecontents.data(),
+            DISK_PAGE_SIZE));
+    EXPECT_EQ((*outbuffers)[1].data(), buffer + DISK_PAGE_SIZE);
+    EXPECT_EQ((*outbuffers)[1].size(), DISK_PAGE_SIZE);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data() + DISK_PAGE_SIZE,
+            shared_state_()->testfilecontents.data() + DISK_PAGE_SIZE,
+            DISK_PAGE_SIZE));
+    EXPECT_EQ((*outbuffers)[2].data(), buffer + DISK_PAGE_SIZE * 2);
+    EXPECT_EQ((*outbuffers)[2].size(), DISK_PAGE_SIZE * 2);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data() + DISK_PAGE_SIZE * 2,
+            shared_state_()->testfilecontents.data() + DISK_PAGE_SIZE * 2,
+            DISK_PAGE_SIZE * 2));
+
+    outbuffers.reset();
+    state.reset(
+        std::tuple(
+            chunk_offset_t{
+                0,
+                shared_state_()->testfilecontents.size() - DISK_PAGE_SIZE * 4},
+            read_multiple_buffer_sender::buffers_type{inbuffers}),
+        std::tuple());
+    state.initiate();
+    while (!outbuffers) {
+        shared_state_()->testio->poll_blocking(1);
+    }
+    ASSERT_EQ(outbuffers->size(), 3);
+    EXPECT_EQ((*outbuffers)[0].data(), buffer);
+    EXPECT_EQ((*outbuffers)[0].size(), DISK_PAGE_SIZE);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data(),
+            shared_state_()->testfilecontents.data() +
+                shared_state_()->testfilecontents.size() - DISK_PAGE_SIZE * 4,
+            DISK_PAGE_SIZE));
+    EXPECT_EQ((*outbuffers)[1].data(), buffer + DISK_PAGE_SIZE);
+    EXPECT_EQ((*outbuffers)[1].size(), DISK_PAGE_SIZE);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data() + DISK_PAGE_SIZE,
+            shared_state_()->testfilecontents.data() +
+                shared_state_()->testfilecontents.size() - DISK_PAGE_SIZE * 3,
+            DISK_PAGE_SIZE));
+    EXPECT_EQ((*outbuffers)[2].data(), buffer + DISK_PAGE_SIZE * 2);
+    EXPECT_EQ((*outbuffers)[2].size(), DISK_PAGE_SIZE * 2);
+    EXPECT_EQ(
+        0,
+        memcmp(
+            (*outbuffers)[0].data() + DISK_PAGE_SIZE * 2,
+            shared_state_()->testfilecontents.data() +
+                shared_state_()->testfilecontents.size() - DISK_PAGE_SIZE * 2,
+            DISK_PAGE_SIZE * 2));
+}
+
 TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
 {
     using namespace MONAD_ASYNC_NAMESPACE;

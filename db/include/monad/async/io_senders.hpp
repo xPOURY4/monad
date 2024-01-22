@@ -2,13 +2,18 @@
 
 #include <monad/async/io.hpp>
 
+#include <array>
 #include <chrono>
+#include <variant>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
 
 /*! \class read_single_buffer_sender
-\brief A Sender which (possibly partially) fills a single buffer of bytes
-read from an offset in a file.
+\brief A Sender which (possibly partially) fills a single **registered** buffer
+of bytes read from an offset in a file.
+
+To have `AsyncIO` set a suitable registered buffer, you should Connect this to
+its Receiver using `AsyncIO::make_connected()`.
 */
 class read_single_buffer_sender
 {
@@ -71,11 +76,13 @@ public:
             buffer_.set_read_buffer(
                 io_state->executor()->get_read_buffer(buffer_.size()));
         }
-        if (io_state->executor()->submit_read_request(
-                buffer_.to_mutable_span(), offset_, io_state)) {
+        size_t bytes_transferred = io_state->executor()->submit_read_request(
+            buffer_.to_mutable_span(), offset_, io_state);
+        if (bytes_transferred != size_t(-1)) {
             // It completed early
             return make_status_code(
-                sender_errc::initiation_immediately_completed, buffer_.size());
+                sender_errc::initiation_immediately_completed,
+                bytes_transferred);
         }
         return success();
     }
@@ -93,9 +100,132 @@ static_assert(sizeof(read_single_buffer_sender) == 40);
 static_assert(alignof(read_single_buffer_sender) == 8);
 static_assert(sender<read_single_buffer_sender>);
 
+/*! \class read_multiple_buffer_sender
+\brief A Sender which (possibly partially) scatter fills one or more
+**unregistered** buffers of bytes read from an offset in a file.
+
+Unlike `read_single_buffer_sender`, this scatter reads into unregistered
+buffers. You therefore should NOT use `AsyncIO::make_connected()`, in
+fact if you try it will be a compile time error.
+
+Instead simply `connect()` it as for a normal Sender-Receiver pair.
+*/
+class read_multiple_buffer_sender
+{
+    static constexpr size_t SMALL_BUFFERS_COUNT = 4;
+
+public:
+    using buffer_type = std::span<std::byte>;
+    using const_buffer_type = std::span<std::byte const>;
+    using buffers_type = std::span<buffer_type>;
+    using const_buffers_type = std::span<const_buffer_type>;
+    using result_type = result<buffers_type>;
+
+    static constexpr operation_type my_operation_type =
+        operation_type::read_scatter;
+
+private:
+    chunk_offset_t offset_;
+    buffers_type buffers_;
+    std::variant<
+        std::array<struct iovec, SMALL_BUFFERS_COUNT>,
+        std::vector<struct iovec>>
+        iovecs_;
+
+public:
+    constexpr read_multiple_buffer_sender(
+        chunk_offset_t offset, buffers_type buffers)
+        : offset_(offset)
+        , buffers_(std::move(buffers))
+    {
+    }
+
+    constexpr chunk_offset_t offset() const noexcept
+    {
+        return offset_;
+    }
+
+    constexpr buffers_type buffers() const noexcept
+    {
+        return buffers_;
+    }
+
+    void reset(chunk_offset_t offset, buffers_type buffers)
+    {
+        offset_ = offset;
+        buffers_ = std::move(buffers);
+    }
+
+    result<void> operator()(erased_connected_operation *io_state) noexcept
+    {
+        try {
+            std::span<const struct iovec> iovecs;
+            if (buffers_.size() <= SMALL_BUFFERS_COUNT) {
+                std::array<struct iovec, SMALL_BUFFERS_COUNT> temp;
+                for (size_t n = 0; n < buffers_.size(); n++) {
+                    temp[n] = {(char *)buffers_[n].data(), buffers_[n].size()};
+                }
+                iovecs_ = std::move(temp);
+                auto &v = std::get<0>(iovecs_);
+                iovecs = v;
+                iovecs = iovecs.subspan(0, buffers_.size());
+            }
+            else {
+                std::vector<struct iovec> temp;
+                temp.reserve(buffers_.size());
+                for (size_t n = 0; n < buffers_.size(); n++) {
+                    temp[n] = {(char *)buffers_[n].data(), buffers_[n].size()};
+                }
+                iovecs_ = std::move(temp);
+                auto &v = std::get<1>(iovecs_);
+                iovecs = v;
+            }
+            size_t bytes_transferred =
+                io_state->executor()->submit_read_request(
+                    iovecs, offset_, io_state);
+            if (bytes_transferred != size_t(-1)) {
+                // It completed early
+                return make_status_code(
+                    sender_errc::initiation_immediately_completed,
+                    bytes_transferred);
+            }
+            return success();
+        }
+        catch (...) {
+            return system_code_from_exception();
+        }
+    }
+
+    result_type completed(
+        erased_connected_operation *, result<size_t> bytes_transferred) noexcept
+    {
+        BOOST_OUTCOME_TRY(auto &&count, std::move(bytes_transferred));
+        for (size_t n = 0; n < buffers_.size(); n++) {
+            if (buffers_[n].size() > count) {
+                buffers_[n] = {buffers_[n].data(), count};
+                buffers_ = buffers_.subspan(0, n + 1);
+                break;
+            }
+            if (buffers_[n].size() == count) {
+                buffers_ = buffers_.subspan(0, n + 1);
+                break;
+            }
+            count -= buffers_[n].size();
+        }
+        return success(buffers_);
+    }
+};
+
+static_assert(sizeof(read_multiple_buffer_sender) == 96);
+static_assert(alignof(read_multiple_buffer_sender) == 8);
+static_assert(sender<read_multiple_buffer_sender>);
+
 /*! \class write_single_buffer_sender
-\brief A Sender which (possibly partially) writes a single buffer of bytes
-into an offset in a file.
+\brief A Sender which (possibly partially) writes a single **registered** buffer
+of bytes into an offset in a file.
+
+To have `AsyncIO` set a suitable registered buffer, you should Connect this to
+its Receiver using `AsyncIO::make_connected()`.
 */
 class write_single_buffer_sender
 {

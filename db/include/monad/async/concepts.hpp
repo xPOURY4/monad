@@ -5,6 +5,14 @@
 #include <boost/outcome/experimental/status_result.hpp>
 #include <boost/outcome/try.hpp>
 
+// TODO unstable paths between versions
+#if __has_include(                                                             \
+    <boost/outcome/experimental/status-code/system_code_from_exception.hpp>)
+    #include <boost/outcome/experimental/status-code/system_code_from_exception.hpp>
+#else
+    #include <boost/outcome/experimental/status-code/status-code/system_code_from_exception.hpp>
+#endif
+
 #include <type_traits>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
@@ -15,6 +23,7 @@ using ::boost::outcome_v2::experimental::errc;
 using ::boost::outcome_v2::experimental::failure;
 using ::boost::outcome_v2::experimental::posix_code;
 using ::boost::outcome_v2::experimental::success;
+using ::boost::outcome_v2::experimental::system_code_from_exception;
 
 class erased_connected_operation;
 

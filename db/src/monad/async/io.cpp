@@ -291,6 +291,47 @@ void AsyncIO::submit_request_(
 }
 
 void AsyncIO::submit_request_(
+    std::span<const struct iovec> buffers, chunk_offset_t chunk_and_offset,
+    void *uring_data)
+{
+    assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
+#ifndef NDEBUG
+    for (auto &buffer : buffers) {
+        assert(buffer.iov_base != nullptr);
+        memset(buffer.iov_base, 0xff, buffer.iov_len);
+    }
+#endif
+
+    poll_uring_while_submission_queue_full_();
+    struct io_uring_sqe *sqe =
+        io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
+    MONAD_ASSERT(sqe);
+
+    auto const &ci = seq_chunks_[chunk_and_offset.id];
+    if (buffers.size() == 1) {
+        io_uring_prep_read(
+            sqe,
+            ci.io_uring_read_fd,
+            buffers.front().iov_base,
+            static_cast<unsigned int>(buffers.front().iov_len),
+            ci.ptr->read_fd().second + chunk_and_offset.offset);
+    }
+    else {
+        io_uring_prep_readv(
+            sqe,
+            ci.io_uring_read_fd,
+            buffers.data(),
+            static_cast<unsigned int>(buffers.size()),
+            ci.ptr->read_fd().second + chunk_and_offset.offset);
+    }
+    sqe->flags |= IOSQE_FIXED_FILE;
+
+    io_uring_sqe_set_data(sqe, uring_data);
+    MONAD_ASSERT(
+        io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
+}
+
+void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
@@ -476,6 +517,14 @@ bool AsyncIO::poll_uring_(bool blocking)
     else if (state->is_threadsafeop()) {
         records_.inflight_ts.fetch_sub(1, std::memory_order_acq_rel);
     }
+    else if (state->is_read_scatter()) {
+        --records_.inflight_rd_scatter;
+    }
+#ifndef NDEBUG
+    else {
+        abort();
+    }
+#endif
     erased_connected_operation_unique_ptr_type h2;
     if (state->lifetime_is_managed_internally()) {
         h2 = erased_connected_operation_unique_ptr_type{state};

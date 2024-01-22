@@ -28,6 +28,7 @@ class read_single_buffer_sender;
 struct IORecord
 {
     unsigned inflight_rd{0};
+    unsigned inflight_rd_scatter{0};
     unsigned inflight_wr{0};
     unsigned inflight_tm{0};
     std::atomic<unsigned> inflight_ts{0};
@@ -86,6 +87,9 @@ private:
         std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
         void *uring_data);
     void submit_request_(
+        std::span<const struct iovec> buffers, chunk_offset_t chunk_and_offset,
+        void *uring_data);
+    void submit_request_(
         std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
         void *uring_data);
     void submit_request_(timed_invocation_state *state, void *uring_data);
@@ -135,8 +139,8 @@ public:
 
     unsigned io_in_flight() const noexcept
     {
-        return records_.inflight_rd + records_.inflight_wr +
-               records_.inflight_tm +
+        return records_.inflight_rd + records_.inflight_rd_scatter +
+               records_.inflight_wr + records_.inflight_tm +
                records_.inflight_ts.load(std::memory_order_relaxed) +
                deferred_initiations_in_flight();
     }
@@ -144,6 +148,11 @@ public:
     unsigned reads_in_flight() const noexcept
     {
         return records_.inflight_rd;
+    }
+
+    unsigned reads_scatter_in_flight() const noexcept
+    {
+        return records_.inflight_rd_scatter;
     }
 
     unsigned writes_in_flight() const noexcept
@@ -223,14 +232,24 @@ public:
         records_.nreads = 0;
     }
 
-    bool submit_read_request(
+    size_t submit_read_request(
         std::span<std::byte> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
         submit_request_(buffer, offset, uring_data);
         ++records_.inflight_rd;
         ++records_.nreads;
-        return false;
+        return size_t(-1); // we never complete immediately
+    }
+
+    size_t submit_read_request(
+        std::span<const struct iovec> buffers, chunk_offset_t offset,
+        erased_connected_operation *uring_data)
+    {
+        submit_request_(buffers, offset, uring_data);
+        ++records_.inflight_rd_scatter;
+        ++records_.nreads;
+        return size_t(-1); // we never complete immediately
     }
 
     void submit_write_request(
