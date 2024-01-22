@@ -12,7 +12,7 @@ MONAD_MPT_NAMESPACE_BEGIN
 inline constexpr unsigned
 compact_encode_len(unsigned const si, unsigned const ei)
 {
-    assert(ei >= si);
+    MONAD_DEBUG_ASSERT(ei >= si);
     return (ei - si) / 2 + 1;
 }
 

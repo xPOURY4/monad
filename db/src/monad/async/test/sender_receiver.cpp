@@ -14,6 +14,7 @@
 #include <monad/async/storage_pool.hpp>
 #include <monad/async/util.hpp>
 #include <monad/core/array.hpp>
+#include <monad/core/assert.h>
 #include <monad/core/small_prng.hpp>
 #include <monad/io/ring.hpp>
 
@@ -471,7 +472,7 @@ struct cpp_suspend_resume_io_receiver
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *rawstate,
         MONAD_ASYNC_NAMESPACE::read_single_buffer_sender::result_type buffer)
     {
-        assert(!res.has_value());
+        MONAD_DEBUG_ASSERT(!res.has_value());
         res = {rawstate, std::move(buffer)};
         _h.resume();
     }
@@ -491,13 +492,13 @@ struct cpp_suspend_resume_io_receiver
 
     void await_suspend(std::coroutine_handle<> h)
     {
-        assert(!res.has_value());
+        MONAD_DEBUG_ASSERT(!res.has_value());
         _h = h;
     }
 
     result_type await_resume()
     {
-        assert(res.has_value());
+        MONAD_DEBUG_ASSERT(res.has_value());
         auto ret = std::move(res).value();
         res.reset();
         return ret;

@@ -18,6 +18,7 @@
 
 #define MONAD_ASYNC_NAMESPACE ::monad::async
 
+#include <monad/core/assert.h>
 #include <monad/core/hash.hpp>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
@@ -47,8 +48,8 @@ struct chunk_offset_t
         , id(id_ & max_id)
         , spare{0xffff}
     {
-        assert(id_ <= max_id);
-        assert(offset_ <= max_offset);
+        MONAD_DEBUG_ASSERT(id_ <= max_id);
+        MONAD_DEBUG_ASSERT(offset_ <= max_offset);
     }
 
     constexpr bool operator==(chunk_offset_t const &o) const noexcept
@@ -71,7 +72,7 @@ struct chunk_offset_t
     {
         chunk_offset_t ret(*this);
         offset_ += ret.offset;
-        assert(offset_ <= max_offset);
+        MONAD_DEBUG_ASSERT(offset_ <= max_offset);
         ret.offset = offset_ & max_offset;
         return ret;
     }

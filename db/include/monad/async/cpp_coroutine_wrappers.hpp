@@ -133,7 +133,7 @@ namespace detail
             // The receiver machinery
             void set_value(erased_connected_operation *, result_type_ res)
             {
-                assert(!result_.has_value());
+                MONAD_DEBUG_ASSERT(!result_.has_value());
                 result_.emplace(std::move(res));
                 if (cont_) {
                     MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
@@ -179,7 +179,7 @@ namespace detail
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
                 &impl_::access(state_).receiver()
                 << " await_suspend coroutine " << cont.address());
-            assert(impl_::access(state_).receiver().cont_ == nullptr);
+            MONAD_DEBUG_ASSERT(impl_::access(state_).receiver().cont_ == nullptr);
             impl_::access(state_).receiver().cont_ = cont;
         }
 
@@ -187,7 +187,7 @@ namespace detail
         {
             MONAD_ASYNC_AWAITABLES_DEBUG_PRINTER(
                 &impl_::access(state_).receiver() << " await_resume");
-            assert(await_ready());
+            MONAD_DEBUG_ASSERT(await_ready());
             return std::move(*impl_::access(state_).receiver().result_);
         }
     };
@@ -288,7 +288,7 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
             // The receiver machinery
             void set_value(erased_connected_operation *, result<void> res)
             {
-                assert(!result_.has_value());
+                MONAD_DEBUG_ASSERT(!result_.has_value());
                 result_.emplace(std::move(res));
                 ready_.store(true, std::memory_order_release);
                 if (cont_) {
@@ -323,14 +323,14 @@ co_initiate(AsyncIO &io, AsyncReadIoWorkerPool<QueueOptions...> &pool, F f)
 
         void await_suspend(std::coroutine_handle<> cont)
         {
-            assert(impl_::access(state_).receiver().cont_ == nullptr);
+            MONAD_DEBUG_ASSERT(impl_::access(state_).receiver().cont_ == nullptr);
             impl_::access(state_).receiver().cont_ = cont;
             impl_::access(state_).initiate();
         }
 
         result<void> await_resume()
         {
-            assert(await_ready());
+            MONAD_DEBUG_ASSERT(await_ready());
             return std::move(*impl_::access(state_).receiver().result_);
         }
     };

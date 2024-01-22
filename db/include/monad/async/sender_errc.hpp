@@ -159,7 +159,7 @@ protected:
         const noexcept override
     {
         (void)code;
-        assert(code.domain() == *this);
+        MONAD_DEBUG_ASSERT(code.domain() == *this);
         return true;
     }
 
@@ -168,7 +168,7 @@ protected:
         const BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code<void> &code2)
         const noexcept override
     {
-        assert(code1.domain() == *this);
+        MONAD_DEBUG_ASSERT(code1.domain() == *this);
         auto const &c1 =
             static_cast<sender_errc_with_payload_code const &>(code1);
         if (code2.domain() == *this) {
@@ -193,7 +193,7 @@ protected:
         const noexcept override
     {
         (void)code;
-        assert(code.domain() == *this);
+        MONAD_DEBUG_ASSERT(code.domain() == *this);
         return errc::unknown;
     }
 
@@ -201,7 +201,7 @@ protected:
         const BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code<void> &code)
         const noexcept override
     {
-        assert(code.domain() == *this);
+        MONAD_DEBUG_ASSERT(code.domain() == *this);
         auto const &c =
             static_cast<sender_errc_with_payload_code const &>(code);
         switch (sender_errc(c.value().code)) {
@@ -219,7 +219,7 @@ protected:
         const BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_code<void> &code)
         const override
     {
-        assert(code.domain() == *this);
+        MONAD_DEBUG_ASSERT(code.domain() == *this);
         auto const &c =
             static_cast<sender_errc_with_payload_code const &>(code);
         throw BOOST_OUTCOME_SYSTEM_ERROR2_NAMESPACE::status_error<

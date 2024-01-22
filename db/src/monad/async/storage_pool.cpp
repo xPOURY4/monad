@@ -254,9 +254,9 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
             range[1] -= DISK_PAGE_SIZE;
         }
         if (range[1] > 0) {
-            assert(range[0] >= offset_ && range[0] < offset_ + capacity_);
-            assert(range[1] <= capacity_);
-            assert((range[1] & (DISK_PAGE_SIZE - 1)) == 0);
+            MONAD_DEBUG_ASSERT(range[0] >= offset_ && range[0] < offset_ + capacity_);
+            MONAD_DEBUG_ASSERT(range[1] <= capacity_);
+            MONAD_DEBUG_ASSERT((range[1] & (DISK_PAGE_SIZE - 1)) == 0);
             if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
                 throw std::system_error(errno, std::system_category());
             }
@@ -427,7 +427,7 @@ storage_pool::device storage_pool::make_device_(
     }
     auto *metadata = start_lifetime_as<device::metadata_t>(
         (std::byte *)addr + stat.st_size - offset - sizeof(device::metadata_t));
-    assert(0 == memcmp(metadata->magic, "MND0", 4));
+    MONAD_DEBUG_ASSERT(0 == memcmp(metadata->magic, "MND0", 4));
     return device(
         readwritefd,
         type,
@@ -514,7 +514,7 @@ void storage_pool::fill_chunks_(creation_flags flags)
 #ifndef NDEBUG
         for (size_t n = 0; n < chunks.size(); n++) {
             auto devicechunks = devices_[n].chunks();
-            assert(chunks[n] == devicechunks);
+            MONAD_DEBUG_ASSERT(chunks[n] == devicechunks);
         }
 #endif
     }
@@ -666,7 +666,7 @@ std::shared_ptr<class storage_pool::chunk>
 storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
 {
 #ifndef __clang__
-    assert(this != nullptr);
+    MONAD_DEBUG_ASSERT(this != nullptr);
 #endif
     std::unique_lock g(lock_);
     if (id >= chunks_[which].size()) {

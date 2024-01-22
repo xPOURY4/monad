@@ -159,8 +159,8 @@ Node::UniquePtr copy_node(
         dest.nibble_size()) { // found an existing dest leaf in memory
         // node is the dest_leaf, need to recreate new_node to have the same
         // children as src_leaf, then deallocate the existing one
-        assert(new_node == nullptr);
-        assert(node != root.get());
+        MONAD_DEBUG_ASSERT(new_node == nullptr);
+        MONAD_DEBUG_ASSERT(node != root.get());
         new_node =
             make_node(*src_leaf, node->path_nibble_view(), src_leaf->value())
                 .release();
@@ -180,7 +180,7 @@ Node::UniquePtr copy_node(
         parent->set_next(child_index, new_node);
     }
     else {
-        assert(node == root.get());
+        MONAD_DEBUG_ASSERT(node == root.get());
         root = Node::UniquePtr{new_node}; // deallocate root (= node)
     }
     return root;

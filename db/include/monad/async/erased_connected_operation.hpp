@@ -30,13 +30,30 @@ namespace detail
         constexpr explicit read_buffer_deleter(AsyncIO *parent)
             : parent_(parent)
         {
-            assert(parent != nullptr);
+            MONAD_DEBUG_ASSERT(parent != nullptr);
+        }
+
+        inline void operator()(std::byte *b);
+    };
+
+    class write_buffer_deleter
+    {
+        AsyncIO *parent_{nullptr};
+
+    public:
+        write_buffer_deleter() = default;
+
+        constexpr explicit write_buffer_deleter(AsyncIO *parent)
+            : parent_(parent)
+        {
+            MONAD_DEBUG_ASSERT(parent != nullptr);
         }
 
         inline void operator()(std::byte *b);
     };
 
     using read_buffer_ptr = std::unique_ptr<std::byte, read_buffer_deleter>;
+    using write_buffer_ptr = std::unique_ptr<std::byte, write_buffer_deleter>;
 };
 
 enum class operation_type : uint8_t
@@ -140,12 +157,13 @@ static_assert(sizeof(filled_read_buffer) == 32);
 static_assert(alignof(filled_read_buffer) == 8);
 
 /*! \class filled_write_buffer
-\brief Currently a wrapper of `std::span<T>` for consistency with
-`filled_read_buffer`.
+\brief A span denoting how much of a `AsyncIO::write_buffer_ptr` was written,
+also holding lifetime to the i/o buffer.
 */
 class filled_write_buffer : protected std::span<std::byte const>
 {
     using base_ = std::span<std::byte const>;
+    detail::write_buffer_ptr buffer_;
 
 public:
     using element_type = typename base_::element_type;
@@ -185,20 +203,18 @@ public:
     {
     }
 
-    constexpr explicit filled_write_buffer(std::span<std::byte const> buffer)
-        : base_(buffer)
-    {
-    }
-
-    constexpr filled_write_buffer(std::byte const *data, size_t len)
-        : base_(data, len)
-    {
-    }
-
-    //! True if write buffer has been allocated
+    //! True if write buffer is allocated
     constexpr explicit operator bool() const noexcept
     {
-        return true;
+        return !!buffer_;
+    }
+
+    //! Allocates the i/o buffer
+    void set_write_buffer(detail::write_buffer_ptr b) noexcept
+    {
+        buffer_ = std::move(b);
+        auto *self = static_cast<base_ *>(this);
+        *self = {buffer_.get(), self->size()};
     }
 
     //! Sets the span length
@@ -228,7 +244,7 @@ public:
     }
 };
 
-static_assert(sizeof(filled_write_buffer) == 16);
+static_assert(sizeof(filled_write_buffer) == 32);
 static_assert(alignof(filled_write_buffer) == 8);
 
 /* \class erased_connected_operation
@@ -291,7 +307,7 @@ protected:
         , io_(&io)
     {
 #ifndef __clang__
-        assert(&io != nullptr);
+        MONAD_DEBUG_ASSERT(&io != nullptr);
 #endif
     }
 
@@ -366,7 +382,7 @@ public:
             static constexpr file_offset_t max_key = (1ULL << 63) - 1;
             MONAD_DEBUG_ASSERT(v <= max_key);
             n->key = v & max_key;
-            assert(n->key == v);
+            MONAD_DEBUG_ASSERT(n->key == v);
         }
 
         static erased_connected_operation *
@@ -391,7 +407,7 @@ public:
             static constexpr file_offset_t max_key = (1ULL << 63) - 1;
             MONAD_DEBUG_ASSERT(v <= max_key);
             n->rbtree_.key = v & max_key;
-            assert(n->rbtree_.key == v);
+            MONAD_DEBUG_ASSERT(n->rbtree_.key == v);
         }
 
         static node_ptr to_node_ptr(erased_connected_operation *n)

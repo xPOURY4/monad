@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <monad/core/assert.h>
 #include <monad/core/cmemory.hpp>
 #include <monad/core/unordered_map.hpp>
 
@@ -266,7 +267,7 @@ public:
         size_t uncompressed_contents_length(size_t idx) const noexcept
         {
             auto const raw = raw_contents(idx);
-            assert(raw.size() > 0);
+            MONAD_DEBUG_ASSERT(raw.size() > 0);
             if (!is_compressed()) {
                 return raw.size();
             }
@@ -285,7 +286,7 @@ public:
         {
             (void)tofill;
             auto const raw = raw_contents(idx);
-            assert(raw.size() > 0);
+            MONAD_DEBUG_ASSERT(raw.size() > 0);
             if (!is_compressed()) {
                 return raw;
             }

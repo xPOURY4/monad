@@ -53,7 +53,7 @@ struct find_receiver
             aux.virtual_to_physical(parent->fnext(branch_index));
         auto const num_pages_to_load_node =
             offset.spare; // top 2 bits are for no_pages
-        assert(num_pages_to_load_node <= 3);
+        MONAD_DEBUG_ASSERT(num_pages_to_load_node <= 3);
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset = offset;

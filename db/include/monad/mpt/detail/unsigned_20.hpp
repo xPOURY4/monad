@@ -2,6 +2,8 @@
 
 #include <monad/mpt/config.hpp>
 
+#include <monad/core/assert.h>
+
 #include <compare>
 #include <concepts>
 
@@ -20,16 +22,19 @@ namespace detail
         constexpr unsigned_20(uint32_t v)
             : v_(v & 0xfffff)
         {
-            assert(v == uint32_t(-1) || (v >> 20) == 0);
+            MONAD_DEBUG_ASSERT(v == uint32_t(-1) || (v >> 20) == 0);
         }
+
         constexpr explicit operator uint32_t() const noexcept
         {
             return v_;
         }
+
         constexpr bool operator==(unsigned_20 const &o) const noexcept
         {
             return v_ == o.v_;
         }
+
         constexpr auto operator<=>(unsigned_20 const &o) const noexcept
         {
             return v_ <=> o.v_;

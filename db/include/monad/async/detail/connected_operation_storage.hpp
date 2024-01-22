@@ -30,7 +30,7 @@ namespace detail
 
         bool am_within_completions() const noexcept
         {
-            assert(within_completions_count >= 0);
+            MONAD_DEBUG_ASSERT(within_completions_count >= 0);
             return within_completions_count > 0;
         }
 

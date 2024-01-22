@@ -160,7 +160,7 @@ namespace awaitables
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     this << " promise returns value");
-                assert(!result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(!result_set.load(std::memory_order_acquire));
                 if (result_set.load(std::memory_order_acquire)) {
                     result.~container_type(); // could throw
                 }
@@ -172,7 +172,7 @@ namespace awaitables
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     this << " promise returns value");
-                assert(!result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(!result_set.load(std::memory_order_acquire));
                 if (result_set.load(std::memory_order_acquire)) {
                     result.~container_type(); // could throw
                 }
@@ -183,7 +183,7 @@ namespace awaitables
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     this << " promise unhandled exception");
-                assert(!result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(!result_set.load(std::memory_order_acquire));
                 if (result_set.load(std::memory_order_acquire)) {
                     result.~container_type();
                 }
@@ -312,14 +312,14 @@ namespace awaitables
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     this << " promise returns void");
-                assert(!result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(!result_set.load(std::memory_order_acquire));
                 result_set.store(true, std::memory_order_release);
             }
             void unhandled_exception()
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     this << " promise unhandled exception");
-                assert(!result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(!result_set.load(std::memory_order_acquire));
                 std::rethrow_exception(std::current_exception()); // throws
             }
             auto initial_suspend() noexcept
@@ -461,7 +461,7 @@ namespace awaitables
             {
                 BOOST_OUTCOME_V2_AWAITABLES_DEBUG_PRINTER(
                     &_h.promise() << " await_resume");
-                assert(_h.promise().result_set.load(std::memory_order_acquire));
+                MONAD_DEBUG_ASSERT(_h.promise().result_set.load(std::memory_order_acquire));
                 if (!_h.promise().result_set.load(std::memory_order_acquire)) {
                     std::terminate();
                 }

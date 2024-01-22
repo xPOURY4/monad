@@ -264,8 +264,8 @@ void AsyncIO::submit_request_(
     std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
-    assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
-    assert(buffer.size() <= READ_BUFFER_SIZE);
+    MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
+    MONAD_DEBUG_ASSERT(buffer.size() <= READ_BUFFER_SIZE);
 #ifndef NDEBUG
     memset(buffer.data(), 0xff, buffer.size());
 #endif
@@ -294,8 +294,8 @@ void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
-    assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
-    assert(buffer.size() <= WRITE_BUFFER_SIZE);
+    MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
+    MONAD_DEBUG_ASSERT(buffer.size() <= WRITE_BUFFER_SIZE);
 
     poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =

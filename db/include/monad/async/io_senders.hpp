@@ -159,6 +159,7 @@ public:
 
     result<void> operator()(erased_connected_operation *io_state) noexcept
     {
+        MONAD_DEBUG_ASSERT(!!buffer_);
         buffer_.set_bytes_transferred(size_t(append_ - buffer_.data()));
         io_state->executor()->submit_write_request(buffer_, offset_, io_state);
         return success();
@@ -208,7 +209,7 @@ public:
     }
 };
 
-static_assert(sizeof(write_single_buffer_sender) == 32);
+static_assert(sizeof(write_single_buffer_sender) == 48);
 static_assert(alignof(write_single_buffer_sender) == 8);
 static_assert(sender<write_single_buffer_sender>);
 

@@ -161,7 +161,7 @@ struct update_receiver
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
         // spare bits are number of pages needed to load node
         auto const num_pages_to_load_node = rd_offset.spare;
-        assert(
+        MONAD_DEBUG_ASSERT(
             num_pages_to_load_node <=
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
@@ -227,7 +227,7 @@ struct read_single_child_receiver
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
         // spare bits are number of pages needed to load node
         auto const num_pages_to_load_node = offset.spare;
-        assert(
+        MONAD_DEBUG_ASSERT(
             num_pages_to_load_node <=
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
@@ -856,7 +856,7 @@ async_write_node_result async_write_node(
         ret.offset_written_to =
             sender->offset().add_to_offset(sender->written_buffer_bytes());
         auto *where_to_serialize = sender->advance_buffer_append(size);
-        assert(where_to_serialize != nullptr);
+        MONAD_DEBUG_ASSERT(where_to_serialize != nullptr);
         serialize_node_to_buffer((unsigned char *)where_to_serialize, node);
     }
     else {
@@ -865,7 +865,7 @@ async_write_node_result async_write_node(
             aux, node_writer, remaining_bytes, size - remaining_bytes);
         auto *new_sender = &new_node_writer->sender();
         auto *where_to_serialize = (unsigned char *)new_sender->buffer().data();
-        assert(where_to_serialize != nullptr);
+        MONAD_DEBUG_ASSERT(where_to_serialize != nullptr);
         serialize_node_to_buffer(where_to_serialize, node);
         // Corner case bug is avoided: when remaining_bytes = 0 and we reach the
         // end of chunk, which can happen inside else{} branch, if we use
@@ -880,7 +880,7 @@ async_write_node_result async_write_node(
             // share the same chunk
             auto *where_to_serialize2 =
                 sender->advance_buffer_append(remaining_bytes);
-            assert(where_to_serialize2 != nullptr);
+            MONAD_DEBUG_ASSERT(where_to_serialize2 != nullptr);
             memcpy(where_to_serialize2, where_to_serialize, remaining_bytes);
             memmove(
                 where_to_serialize,
@@ -900,7 +900,7 @@ async_write_node_result async_write_node(
             MONAD_ASSERT(new_sender->advance_buffer_append(size) != nullptr);
             // Pad buffer about to get initiated so it's O_DIRECT i/o aligned
             auto *tozero = sender->advance_buffer_append(remaining_bytes);
-            assert(tozero != nullptr);
+            MONAD_DEBUG_ASSERT(tozero != nullptr);
             memset(tozero, 0, remaining_bytes);
         }
         auto to_initiate = std::move(node_writer);
@@ -945,7 +945,7 @@ chunk_offset_t write_new_root_node(UpdateAux &aux, Node &root)
         auto paddedup = round_up_align<DISK_PAGE_BITS>(written);
         auto const tozerobytes = paddedup - written;
         auto *tozero = sender->advance_buffer_append(tozerobytes);
-        assert(tozero != nullptr);
+        MONAD_DEBUG_ASSERT(tozero != nullptr);
         memset(tozero, 0, tozerobytes);
         // replace fast node writer
         auto new_node_writer = replace_node_writer(aux, node_writer);

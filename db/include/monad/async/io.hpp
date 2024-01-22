@@ -106,13 +106,13 @@ public:
 
     class storage_pool &storage_pool() noexcept
     {
-        assert(storage_pool_ != nullptr);
+        MONAD_DEBUG_ASSERT(storage_pool_ != nullptr);
         return *storage_pool_;
     }
 
     const class storage_pool &storage_pool() const noexcept
     {
-        assert(storage_pool_ != nullptr);
+        MONAD_DEBUG_ASSERT(storage_pool_ != nullptr);
         return *storage_pool_;
     }
 
@@ -268,12 +268,9 @@ public:
     */
     static constexpr size_t MAX_CONNECTED_OPERATION_SIZE = DISK_PAGE_SIZE;
     static constexpr size_t READ_BUFFER_SIZE = 8 * DISK_PAGE_SIZE;
-    static constexpr size_t WRITE_BUFFER_SIZE =
-        8 * 1024 * 1024 - MAX_CONNECTED_OPERATION_SIZE;
+    static constexpr size_t WRITE_BUFFER_SIZE = 8 * 1024 * 1024;
     static constexpr size_t MONAD_IO_BUFFERS_READ_SIZE = READ_BUFFER_SIZE;
-    static constexpr size_t MONAD_IO_BUFFERS_WRITE_SIZE =
-        round_up_align<CPU_PAGE_BITS>(
-            WRITE_BUFFER_SIZE + MAX_CONNECTED_OPERATION_SIZE);
+    static constexpr size_t MONAD_IO_BUFFERS_WRITE_SIZE = WRITE_BUFFER_SIZE;
 
 private:
     struct connected_operation_storage_
@@ -313,28 +310,17 @@ public:
     {
         void operator()(erased_connected_operation *p) const
         {
-            bool const is_write = p->is_write();
             auto *io = p->executor();
             p->~erased_connected_operation();
 #ifndef NDEBUG
             memset((void *)p, 0xff, MAX_CONNECTED_OPERATION_SIZE);
 #endif
-            if (is_write) {
-                auto *buffer = ((unsigned char *)p - WRITE_BUFFER_SIZE);
-                assert(((uintptr_t)buffer & (CPU_PAGE_SIZE - 1)) == 0);
-#ifndef NDEBUG
-                memset((void *)buffer, 0xff, READ_BUFFER_SIZE);
-#endif
-                io->wr_pool_.release(buffer);
-            }
-            else {
-                using traits = std::allocator_traits<
-                    connected_operation_storage_allocator_type_>;
-                traits::deallocate(
-                    io->connected_operation_storage_pool_,
-                    (connected_operation_storage_ *)p,
-                    1);
-            }
+            using traits = std::allocator_traits<
+                connected_operation_storage_allocator_type_>;
+            traits::deallocate(
+                io->connected_operation_storage_pool_,
+                (connected_operation_storage_ *)p,
+                1);
         }
     };
 
@@ -355,7 +341,17 @@ public:
         rd_pool_.release((unsigned char *)b);
     }
 
+    void do_free_write_buffer(std::byte *b) noexcept
+    {
+#ifndef NDEBUG
+        static_assert(WRITE_BUFFER_SIZE >= CPU_PAGE_SIZE);
+        memset((void *)b, 0xff, CPU_PAGE_SIZE);
+#endif
+        wr_pool_.release((unsigned char *)b);
+    }
+
     using read_buffer_ptr = detail::read_buffer_ptr;
+    using write_buffer_ptr = detail::write_buffer_ptr;
 
     read_buffer_ptr get_read_buffer(size_t bytes) noexcept
     {
@@ -368,52 +364,46 @@ public:
             (std::byte *)mem, detail::read_buffer_deleter(this));
     }
 
+    write_buffer_ptr get_write_buffer() noexcept
+    {
+        unsigned char *mem = wr_pool_.alloc();
+        if (mem == nullptr) {
+            mem = poll_uring_while_no_io_buffers_(true);
+        }
+        return write_buffer_ptr(
+            (std::byte *)mem, detail::write_buffer_deleter(this));
+    }
+
 private:
     unsigned char *poll_uring_while_no_io_buffers_(bool is_write);
 
-    template <
-        bool will_use_registered_io_buffer_with_connected_operation, class F>
+    template <bool is_write, class F>
     auto make_connected_impl_(F &&connect)
     {
         using connected_type = decltype(connect());
         static_assert(sizeof(connected_type) <= MAX_CONNECTED_OPERATION_SIZE);
-        if constexpr (will_use_registered_io_buffer_with_connected_operation) {
-            unsigned char *mem = wr_pool_.alloc();
-            if (mem == nullptr) {
-                mem = poll_uring_while_no_io_buffers_(true);
-            }
-            assert(((uintptr_t)mem & (CPU_PAGE_SIZE - 1)) == 0);
-            assert(
-                rwbuf_.get_write_size() >=
-                (WRITE_BUFFER_SIZE) + sizeof(connected_type));
-            assert(((void)mem[0], true));
-            auto *buffer = new (mem)
-                registered_io_buffer_with_connected_operation<connected_type>;
-            auto ret = std::unique_ptr<
-                connected_type,
-                io_connected_operation_unique_ptr_deleter>(
-                new (buffer->state) connected_type(connect()));
-            // Did you accidentally pass in a foreign buffer to use?
-            // Can't do that, must use buffer returned.
-            assert(ret->sender().buffer().data() == nullptr);
-            ret->sender().reset(
-                ret->sender().offset(),
-                {(std::byte const *)buffer, ret->sender().buffer().size()});
-            return ret;
-        }
         using traits =
             std::allocator_traits<connected_operation_storage_allocator_type_>;
         unsigned char *mem = (unsigned char *)traits::allocate(
             connected_operation_storage_pool_, 1);
         MONAD_ASSERT(mem != nullptr);
-        assert(((void)mem[0], true));
+        MONAD_DEBUG_ASSERT(((void)mem[0], true));
         auto ret = std::unique_ptr<
             connected_type,
             io_connected_operation_unique_ptr_deleter>(
             new (mem) connected_type(connect()));
         // Did you accidentally pass in a foreign buffer to use?
         // Can't do that, must use buffer returned.
-        assert(ret->sender().buffer().data() == nullptr);
+        MONAD_DEBUG_ASSERT(ret->sender().buffer().data() == nullptr);
+        if constexpr (is_write) {
+            MONAD_DEBUG_ASSERT(rwbuf_.get_write_size() >= WRITE_BUFFER_SIZE);
+            auto buffer = std::move(ret->sender()).buffer();
+            buffer.set_write_buffer(get_write_buffer());
+            ret->sender().reset(ret->sender().offset(), std::move(buffer));
+        }
+        else {
+            MONAD_DEBUG_ASSERT(rwbuf_.get_read_size() >= READ_BUFFER_SIZE);
+        }
         return ret;
     }
 
@@ -477,7 +467,7 @@ public:
                     state);
             erased_connected_operation::rbtree_node_traits::set_key(
                 p, state->sender().offset().raw());
-            assert(p->key == state->sender().offset().raw());
+            MONAD_DEBUG_ASSERT(p->key == state->sender().offset().raw());
             extant_write_operations_::init(p);
             auto pred = [](auto const *a, auto const *b) {
                 auto get_key = [](auto const *a) {
@@ -549,6 +539,11 @@ namespace detail
     inline void read_buffer_deleter::operator()(std::byte *b)
     {
         parent_->do_free_read_buffer(b);
+    }
+
+    inline void write_buffer_deleter::operator()(std::byte *b)
+    {
+        parent_->do_free_write_buffer(b);
     }
 }
 

@@ -22,13 +22,13 @@ struct Requests
 
     UpdateList const &operator[](size_t i) const & noexcept
     {
-        assert(i < 16);
+        MONAD_DEBUG_ASSERT(i < 16);
         return sublists[i];
     }
 
     UpdateList &&operator[](size_t i) && noexcept
     {
-        assert(i < 16);
+        MONAD_DEBUG_ASSERT(i < 16);
         return std::move(sublists[i]);
     }
 

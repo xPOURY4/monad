@@ -119,7 +119,7 @@ void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
     if (list == chunk_list::free) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
-        assert(chunk->size() == 0);
+        MONAD_DEBUG_ASSERT(chunk->size() == 0);
         db_metadata_[0]->free_capacity_add_(capacity);
         db_metadata_[1]->free_capacity_add_(capacity);
     }
@@ -148,7 +148,7 @@ void UpdateAux::remove(uint32_t idx) noexcept
     if (in_free_list) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
-        assert(chunk->size() == 0);
+        MONAD_DEBUG_ASSERT(chunk->size() == 0);
         db_metadata_[0]->free_capacity_sub_(capacity);
         db_metadata_[1]->free_capacity_sub_(capacity);
     }
@@ -249,7 +249,7 @@ void UpdateAux::set_io(AsyncIO *io_)
     }
     if (0 != memcmp(db_metadata_[0]->magic, "MND0", 4)) {
         memset(db_metadata_[0], 0, map_size);
-        assert((chunk_count & ~0xfffffU) == 0);
+        MONAD_DEBUG_ASSERT((chunk_count & ~0xfffffU) == 0);
         db_metadata_[0]->chunk_info_count = chunk_count & 0xfffffU;
         memset(
             &db_metadata_[0]->free_list,

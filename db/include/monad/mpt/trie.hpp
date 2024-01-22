@@ -39,6 +39,9 @@ struct write_operation_io_receiver
         MONAD_ASYNC_NAMESPACE::write_single_buffer_sender::result_type res)
     {
         MONAD_ASSERT(res);
+        res.assume_value()
+            .get()
+            .reset(); // release i/o buffer before initiating other work
         // TODO: when adding upsert_sender
         // if (parent->current_process_updates_sender_ != nullptr) {
         //     parent->current_process_updates_sender_
