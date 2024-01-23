@@ -14,18 +14,28 @@
 #include <stdexcept>
 #include <vector>
 
-#ifndef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
-    #if defined(__SANITIZE_ADDRESS__)
-        #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR 1
-    #elif defined(__SANITIZE_THREAD__)
-        #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR 1
-    #elif defined(__SANITIZE_UNDEFINED__)
-        #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR 1
+// Uncomment this to disable boost pool
+// #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+
+#ifndef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
+    #ifndef __clang__
+        #if defined(__SANITIZE_ADDRESS__)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #elif defined(__SANITIZE_THREAD__)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #elif defined(__SANITIZE_UNDEFINED__)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #endif
+    #else
+        #if __has_feature(address_sanitizer)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #elif __has_feature(thread_sanitizer)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #elif defined(__SANITIZE_UNDEFINED__)
+            #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL 1
+        #endif
     #endif
 #endif
-
-// Uncomment this to disable boost pool
-// #define MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR 1
 
 MONAD_NAMESPACE_BEGIN
 
@@ -688,7 +698,7 @@ namespace allocators
 
         [[nodiscard]] T *allocate(size_t const n)
         {
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             (void)n;
             auto *ret = (T *)std::aligned_alloc(alignof(T), sizeof(T));
     #else
@@ -702,7 +712,7 @@ namespace allocators
 
         void deallocate(T *const p, size_t const n) noexcept
         {
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             (void)n;
             std::free(p);
     #else
@@ -749,7 +759,7 @@ namespace allocators
             if (n != 1) {
                 throw std::invalid_argument("only supports n = 1");
             }
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             auto *ret = (T *)std::aligned_alloc(alignof(T), sizeof(T));
     #else
             auto *ret = (T *)_impl.malloc();
@@ -765,7 +775,7 @@ namespace allocators
             if (n != 1) {
                 std::terminate();
             }
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             std::free(p);
     #else
             _impl.free(p);
@@ -868,7 +878,7 @@ namespace allocators
 
         [[nodiscard]] value_type *allocate(size_t const n)
         {
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             auto *ret = (value_type *)std::malloc(n);
     #else
             size_t const i = get_index(n);
@@ -883,7 +893,7 @@ namespace allocators
 
         void deallocate(value_type *const p, size_t const n) noexcept
         {
-    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             (void)n;
             std::free(p);
     #else

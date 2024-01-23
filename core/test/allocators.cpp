@@ -186,7 +186,7 @@ namespace
     }
 
 #if MONAD_CORE_ALLOCATORS_HAVE_BOOST_POOL &&                                   \
-    !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+    !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
     TEST(AllocatorsTest, array_of_boost_pools_allocator)
     {
         using namespace MONAD_NAMESPACE::allocators;
