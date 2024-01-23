@@ -281,7 +281,7 @@ private:
         std::byte v[MAX_CONNECTED_OPERATION_SIZE];
     };
 
-#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
     using connected_operation_storage_allocator_type_ =
         allocators::boost_unordered_pool_allocator<
             connected_operation_storage_>;
@@ -555,7 +555,7 @@ private:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
-#ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+#ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
 static_assert(sizeof(AsyncIO) == 160);
 #else
 static_assert(sizeof(AsyncIO) == 216);

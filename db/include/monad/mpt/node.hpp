@@ -76,7 +76,7 @@ public:
     static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
     static_assert(max_size == 66539);
     static_assert(max_disk_size == 66411);
-#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+#if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
     static constexpr size_t allocator_divisor = 16;
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
         round_up<size_t>(size_of_node, allocator_divisor),
