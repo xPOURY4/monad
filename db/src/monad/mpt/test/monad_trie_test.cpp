@@ -246,6 +246,7 @@ int main(int argc, char *argv[])
     bool realistic_corpus = false;
     bool random_keys = false;
     bool compaction = false;
+    int file_size_db = 512; // truncate to 512 gb by default
 
     CLI::App cli{"monad_merge_trie_test"};
     try {
@@ -274,6 +275,11 @@ int main(int argc, char *argv[])
         cli.add_flag(
             "--random-keys", random_keys, "generate random integers as keys");
         cli.add_flag("--compaction", compaction, "perform compaction on disk");
+        cli.add_option(
+            "--file-size-gb",
+            file_size_db,
+            "size to create file to if not already exist, only apply to file "
+            "not blkdev");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
@@ -361,7 +367,8 @@ int main(int argc, char *argv[])
                     monad::make_scope_exit([fd]() noexcept { ::close(fd); });
                 if (-1 ==
                     ::ftruncate(
-                        fd, 512ULL * 1024 * 1024 * 1024 + 24576 /* 512Gb */)) {
+                        fd,
+                        (int64_t)file_size_db * 1024 * 1024 * 1024 + 24576)) {
                     throw std::system_error(errno, std::system_category());
                 }
             }
