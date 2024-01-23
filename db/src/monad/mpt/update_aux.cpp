@@ -158,11 +158,40 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
+void UpdateAux::advance_offsets_to(
+    chunk_offset_t const root_offset, chunk_offset_t const fast_offset,
+    chunk_offset_t const slow_offset) noexcept
+{
+    auto do_ = [&](detail::db_metadata *m) {
+        m->advance_offsets_to_(detail::db_metadata::db_offsets_info_t{
+            root_offset,
+            fast_offset,
+            slow_offset,
+            this->compact_offsets[0],
+            this->compact_offsets[1],
+            this->compact_offset_ranges_[0],
+            this->compact_offset_ranges_[1]});
+    };
+    do_(db_metadata_[0]);
+    do_(db_metadata_[1]);
+}
+
+void UpdateAux::update_slow_fast_ratio_metadata() noexcept
+{
+    auto ratio = (float)num_chunks(chunk_list::slow) /
+                 (float)num_chunks(chunk_list::fast);
+    auto do_ = [&](detail::db_metadata *m) {
+        m->update_slow_fast_ratio_(ratio);
+    };
+    do_(db_metadata_[0]);
+    do_(db_metadata_[1]);
+}
+
 void UpdateAux::rewind_to_match_offsets()
 {
     // Free all chunks after fast_offset.id
-    auto const [fast_offset, slow_offset] =
-        db_metadata_[0]->start_of_wip_offsets;
+    auto const fast_offset = db_metadata()->db_offsets.start_of_wip_offset_fast;
+    auto const slow_offset = db_metadata()->db_offsets.start_of_wip_offset_slow;
 
     auto *ci = db_metadata_[0]->at(fast_offset.id);
     while (ci != db_metadata_[0]->fast_list_end()) {
@@ -331,9 +360,10 @@ void UpdateAux::set_io(AsyncIO *io_)
         memcpy(db_metadata_[0]->magic, "MND0", 4);
         memcpy(db_metadata_[1]->magic, "MND0", 4);
 
-        // Default behavior: initialize node writers to start at the start of
-        // available slow and fast list respectively. Make sure the initial
-        // fast/slow offset points into a block in use as a sanity check
+        // Default behavior: initialize node writers to start at the start
+        // of available slow and fast list respectively. Make sure the
+        // initial fast/slow offset points into a block in use as a sanity
+        // check
         reset_node_writers();
     }
     else { // resume from an existing db and underlying storage devices
@@ -356,7 +386,8 @@ void UpdateAux::set_io(AsyncIO *io_)
         // fast_offset.id chunck
         rewind_to_match_offsets();
     }
-    // If the pool has changed since we configured the metadata, this will fail
+    // If the pool has changed since we configured the metadata, this will
+    // fail
     MONAD_ASSERT(db_metadata_[0]->chunk_info_count == chunk_count);
 }
 #if defined(__GNUC__) && !defined(__clang__)
@@ -382,9 +413,9 @@ void UpdateAux::reset_node_writers()
                   : node_writer_unique_ptr_type{};
     };
     node_writer_fast =
-        init_node_writer(db_metadata_[0]->start_of_wip_offsets[0]);
+        init_node_writer(db_metadata()->db_offsets.start_of_wip_offset_fast);
     node_writer_slow =
-        init_node_writer(db_metadata_[0]->start_of_wip_offsets[1]);
+        init_node_writer(db_metadata()->db_offsets.start_of_wip_offset_slow);
 }
 
 void UpdateAux::restore_state_history_disk_infos(Node &root)
@@ -514,8 +545,8 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
     remove_chunks_before_count_[1] =
         get_count(erased_state_info.min_offset_slow);
 
-    compact_offsets[0] = db_metadata_[0]->last_compact_offsets[0];
-    compact_offsets[1] = db_metadata_[0]->last_compact_offsets[1];
+    compact_offsets[0] = db_metadata()->db_offsets.last_compact_offset_fast;
+    compact_offsets[1] = db_metadata()->db_offsets.last_compact_offset_slow;
 
     double const used_chunks_ratio =
         1 - num_chunks(chunk_list::free) / (double)io->chunk_count();
@@ -565,7 +596,7 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
             // slow can continue to grow
             compact_offset_ranges_[1] =
                 std::max(
-                    db_metadata_[0]->last_compact_offset_ranges[1],
+                    db_metadata()->db_offsets.last_compact_offset_range_slow,
                     last_block_disk_growth_[1]) +
                 2;
         }
@@ -589,9 +620,9 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
     compact_offsets[0] = std::max(compact_offsets[0], min_fast_offset);
     compact_offsets[1] = std::max(compact_offsets[1], min_slow_offset);
     compact_offset_ranges_[0] =
-        compact_offsets[0] - db_metadata_[0]->last_compact_offsets[0];
+        compact_offsets[0] - db_metadata()->db_offsets.last_compact_offset_fast;
     compact_offset_ranges_[1] =
-        compact_offsets[1] - db_metadata_[1]->last_compact_offsets[1];
+        compact_offsets[1] - db_metadata()->db_offsets.last_compact_offset_slow;
 
     printf(
         "  Fast: last block disk grew %u ~%u MB, compact range %u\n"

@@ -216,32 +216,12 @@ public:
     void append(chunk_list list, uint32_t idx) noexcept;
     void remove(uint32_t idx) noexcept;
 
+    // The following two functions should only be invoked after completing a
+    // block commit
     void advance_offsets_to(
-        chunk_offset_t const root_offset, chunk_offset_t const fast_offset,
-        chunk_offset_t const slow_offset) noexcept
-    {
-        auto do_ = [&](detail::db_metadata *m) {
-            m->advance_offsets_to_(
-                root_offset,
-                fast_offset,
-                slow_offset,
-                this->compact_offsets[0],
-                this->compact_offsets[1],
-                this->compact_offset_ranges_[0],
-                this->compact_offset_ranges_[1]);
-        };
-        do_(db_metadata_[0]);
-        do_(db_metadata_[1]);
-    }
-
-    void update_slow_fast_ratio_metadata()
-    {
-        auto ratio =
-            (double)num_chunks(chunk_list::slow) / num_chunks(chunk_list::fast);
-        auto do_ = [&](detail::db_metadata *m) { m->slow_fast_ratio = ratio; };
-        do_(db_metadata_[0]);
-        do_(db_metadata_[1]);
-    }
+        chunk_offset_t root_offset, chunk_offset_t fast_offset,
+        chunk_offset_t slow_offset) noexcept;
+    void update_slow_fast_ratio_metadata() noexcept;
 
     // WARNING: This is destructive
     void rewind_to_match_offsets();
@@ -291,25 +271,25 @@ public:
     chunk_offset_t get_root_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata_[0]->root_offset;
+        return db_metadata()->db_offsets.root_offset;
     }
 
     chunk_offset_t get_start_of_wip_fast_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata_[0]->start_of_wip_offsets[0];
+        return db_metadata()->db_offsets.start_of_wip_offset_fast;
     }
 
     chunk_offset_t get_start_of_wip_slow_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata_[0]->start_of_wip_offsets[1];
+        return db_metadata()->db_offsets.start_of_wip_offset_slow;
     }
 
     file_offset_t get_lower_bound_free_space() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata_[0]->capacity_in_free_list;
+        return db_metadata()->capacity_in_free_list;
     }
 
     uint32_t num_chunks(chunk_list const list) const noexcept;

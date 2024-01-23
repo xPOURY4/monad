@@ -46,17 +46,25 @@ namespace detail
         // DO NOT INSERT ANYTHING IN HERE
         uint64_t capacity_in_free_list; // used to detect when free space is
                                         // running low
-        // these two are advanced after each db block update, they represent the
-        // last valid root offset which is always in fast list, and the start of
-        // wip slow list offset.
-        chunk_offset_t root_offset;
-        // starting offsets of current wip db block's contents. all contents
-        // starting this point are not yet validated, and should be rewound if
-        // restart.
-        chunk_offset_t start_of_wip_offsets[2];
-        uint32_t last_compact_offsets[2];
-        uint32_t last_compact_offset_ranges[2];
-        double slow_fast_ratio;
+
+        struct db_offsets_info_t
+        {
+            // these two are advanced after each db block update, they represent
+            // the last valid root offset which is always in fast list, and the
+            // start of wip slow list offset.
+            chunk_offset_t root_offset;
+            // starting offsets of current wip db block's contents. all contents
+            // starting this point are not yet validated, and should be rewound
+            // if restart.
+            chunk_offset_t start_of_wip_offset_fast;
+            chunk_offset_t start_of_wip_offset_slow;
+            uint32_t last_compact_offset_fast;
+            uint32_t last_compact_offset_slow;
+            uint32_t last_compact_offset_range_fast;
+            uint32_t last_compact_offset_range_slow;
+        } db_offsets;
+
+        float slow_fast_ratio;
 
         // used to know if the metadata was being
         // updated when the process suddenly exited
@@ -359,20 +367,17 @@ namespace detail
             capacity_in_free_list -= bytes;
         }
 
-        void advance_offsets_to_(
-            chunk_offset_t const root_off, chunk_offset_t const fast_off,
-            chunk_offset_t const slow_off, uint32_t compact_offset_fast,
-            uint32_t compact_offset_slow, uint32_t compact_range_fast,
-            uint32_t compact_range_slow) noexcept
+        void
+        advance_offsets_to_(db_offsets_info_t const offsets_to_apply) noexcept
         {
             auto g = hold_dirty();
-            root_offset = root_off;
-            start_of_wip_offsets[0] = fast_off;
-            start_of_wip_offsets[1] = slow_off;
-            last_compact_offsets[0] = compact_offset_fast;
-            last_compact_offsets[1] = compact_offset_slow;
-            last_compact_offset_ranges[0] = compact_range_fast;
-            last_compact_offset_ranges[1] = compact_range_slow;
+            db_offsets = offsets_to_apply;
+        }
+
+        void update_slow_fast_ratio_(float const ratio) noexcept
+        {
+            auto g = hold_dirty();
+            slow_fast_ratio = ratio;
         }
     };
 
