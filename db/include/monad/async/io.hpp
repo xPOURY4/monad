@@ -498,7 +498,7 @@ public:
             assert(p->key == state->sender().offset().raw());
             extant_write_operations_::init(p);
             auto pred = [](auto const *a, auto const *b) {
-                auto get_key = [](const auto *a) {
+                auto get_key = [](auto const *a) {
                     return erased_connected_operation::rbtree_node_traits::
                         get_key(a);
                 };
@@ -555,7 +555,11 @@ private:
 using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
+#ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL_ALLOCATOR
+static_assert(sizeof(AsyncIO) == 160);
+#else
 static_assert(sizeof(AsyncIO) == 216);
+#endif
 static_assert(alignof(AsyncIO) == 8);
 
 MONAD_ASYNC_NAMESPACE_END
