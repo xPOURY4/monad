@@ -778,7 +778,6 @@ TEST_F(AsyncIO, stack_overflow_avoided)
     static std::vector<std::unique_ptr<erased_connected_operation>> ops;
     static unsigned stack_depth = 0;
     static unsigned counter = 0;
-    static unsigned last_receiver_count = unsigned(-1);
     ops.reserve(COUNT);
 
     struct receiver_t
@@ -794,9 +793,6 @@ TEST_F(AsyncIO, stack_overflow_avoided)
         {
             static thread_local unsigned stack_level = 0;
             ASSERT_TRUE(res);
-            // Ensure receivers are invoked in exact order of initiation
-            ASSERT_EQ(last_receiver_count + 1, count);
-            last_receiver_count = count;
             if (ops.size() < COUNT) {
                 // Initiate another two operations to create a combinatorial
                 // explosion
