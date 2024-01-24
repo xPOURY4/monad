@@ -102,43 +102,50 @@ class UpdateAux
         detail::compact_chunk_offset_t max_offset_slow{0};
     };
 
-    std::deque<state_disk_info_t> state_histories;
-
     void reset_node_writers();
 
     void advance_compact_offsets(state_disk_info_t);
 
     void free_compacted_chunks();
 
+    std::deque<state_disk_info_t> state_histories;
+
+    /******** Compaction ********/
+    uint32_t remove_chunks_before_count_[2] = {0, 0};
+    // speed control var
+    detail::compact_chunk_offset_t last_block_end_offsets_[2] = {0, 0};
+    detail::compact_chunk_offset_t last_block_disk_growth_[2] = {0, 0};
+    // compaction range
+    detail::compact_chunk_offset_t compact_offset_ranges_[2] = {0, 0};
+
 public:
-    enum class chunk_list : uint8_t
-    {
-        free = 0,
-        fast = 1,
-        slow = 2
-    };
+    detail::compact_chunk_offset_t compact_offsets[2] = {0, 0}; // fast and slow
+
+    // On disk stuff
+    MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
+    node_writer_unique_ptr_type node_writer_fast{};
+    node_writer_unique_ptr_type node_writer_slow{};
 
     // currently maintain a fixed len history
     static constexpr unsigned block_history_len = 200;
 
+    bool alternate_slow_fast_writer{false};
+    bool can_write_to_fast{true};
+
+    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+        : node_writer_fast(node_writer_unique_ptr_type{})
+        , node_writer_slow(node_writer_unique_ptr_type{})
+    {
+        if (io_) {
+            set_io(io_);
+        }
+    }
+
+    ~UpdateAux();
+
+    void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *);
+
     void restore_state_history_disk_infos(Node &root);
-
-    uint64_t min_block_id_in_history() const noexcept
-    {
-        MONAD_ASSERT(state_histories.size());
-        return state_histories.front().block_id;
-    }
-
-    uint64_t max_block_id_in_history() const noexcept
-    {
-        MONAD_ASSERT(state_histories.size());
-        return state_histories.back().block_id;
-    }
-
-    uint64_t next_block_id() const noexcept
-    {
-        return state_histories.empty() ? 0 : max_block_id_in_history() + 1;
-    }
 
     //! Copy state from last block to new block, erase outdated history block
     //! if any, do compaction if specified, and then upsert
@@ -147,19 +154,6 @@ public:
         Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
         uint64_t block_id, bool compaction);
 
-    /******** Compaction ********/
-    detail::compact_chunk_offset_t compact_offsets[2] = {0, 0}; // fast and slow
-private:
-    uint32_t remove_chunks_before_count_[2] = {0, 0};
-
-    // speed control var
-    detail::compact_chunk_offset_t last_block_end_offsets_[2] = {0, 0};
-    detail::compact_chunk_offset_t last_block_disk_growth_[2] = {0, 0};
-
-    // compaction range
-    detail::compact_chunk_offset_t compact_offset_ranges_[2] = {0, 0};
-
-public:
 #if MONAD_MPT_COLLECT_STATS
     unsigned num_nodes_created{0};
     // counters
@@ -198,6 +192,13 @@ public:
     void print_update_stats();
 #endif
 
+    enum class chunk_list : uint8_t
+    {
+        free = 0,
+        fast = 1,
+        slow = 2
+    };
+
     detail::db_metadata const *db_metadata() const noexcept
     {
         return db_metadata_[0];
@@ -206,6 +207,7 @@ public:
     uint32_t chunk_id_from_insertion_count(
         chunk_list list_type,
         detail::unsigned_20 insertion_count) const noexcept;
+
     // translate between virtual and physical addresses chunk_offset_t
     chunk_offset_t physical_to_virtual(chunk_offset_t) const noexcept;
     chunk_offset_t virtual_to_physical(chunk_offset_t) const noexcept;
@@ -227,30 +229,10 @@ public:
     // WARNING: This is destructive
     void rewind_to_match_offsets();
 
-    MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
-    node_writer_unique_ptr_type node_writer_fast{};
-    node_writer_unique_ptr_type node_writer_slow{};
-
-    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
-        : node_writer_fast(node_writer_unique_ptr_type{})
-        , node_writer_slow(node_writer_unique_ptr_type{})
-    {
-        if (io_) {
-            set_io(io_);
-        }
-    }
-
-    ~UpdateAux();
-
     void set_initial_insertion_count_unit_testing_only(uint32_t count)
     {
         initial_insertion_count_on_pool_creation_ = count;
     }
-
-    void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *io_);
-
-    bool alternate_slow_fast_writer{false};
-    bool can_write_to_fast{true};
 
     // WARNING: for unit testing only
     // DO NOT invoke it outside of unit test
@@ -294,6 +276,23 @@ public:
     }
 
     uint32_t num_chunks(chunk_list const list) const noexcept;
+
+    uint64_t min_block_id_in_history() const noexcept
+    {
+        MONAD_ASSERT(state_histories.size());
+        return state_histories.front().block_id;
+    }
+
+    uint64_t max_block_id_in_history() const noexcept
+    {
+        MONAD_ASSERT(state_histories.size());
+        return state_histories.back().block_id;
+    }
+
+    uint64_t next_block_id() const noexcept
+    {
+        return state_histories.empty() ? 0 : max_block_id_in_history() + 1;
+    }
 };
 
 #if MONAD_MPT_COLLECT_STATS
