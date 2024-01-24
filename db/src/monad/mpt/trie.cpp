@@ -406,9 +406,9 @@ Node *create_node_from_children_if_any(
                     calc_min_offsets(*child.ptr, child.offset);
                 if (sm.compact()) {
                     MONAD_DEBUG_ASSERT(
-                        child.min_offset_fast >= aux.compact_offsets[0]);
+                        child.min_offset_fast >= aux.compact_offset_fast);
                     MONAD_DEBUG_ASSERT(
-                        child.min_offset_slow >= aux.compact_offsets[1]);
+                        child.min_offset_slow >= aux.compact_offset_slow);
                 }
             }
             // apply cache based on state machine state, always cache node that
@@ -757,8 +757,8 @@ void dispatch_updates_impl_(
             auto const old_index = old->to_child_index(i);
             auto const orig_child_offset = old->fnext(old_index);
             if (aux.is_on_disk() && sm.compact() &&
-                (old->min_offset_fast(old_index) < aux.compact_offsets[0] ||
-                 old->min_offset_slow(old_index) < aux.compact_offsets[1])) {
+                (old->min_offset_fast(old_index) < aux.compact_offset_fast ||
+                 old->min_offset_slow(old_index) < aux.compact_offset_slow)) {
                 aux.collect_compacted_nodes_stats(
                     old->min_offset_fast(old_index),
                     old->min_offset_slow(old_index));
@@ -899,8 +899,8 @@ void mismatch_handler_(
             if (auto const [min_offset_fast, min_offset_slow] =
                     calc_min_offsets(*child.ptr);
                 aux.is_on_disk() && sm.compact() &&
-                (min_offset_fast < aux.compact_offsets[0] ||
-                 min_offset_slow < aux.compact_offsets[1])) {
+                (min_offset_fast < aux.compact_offset_fast ||
+                 min_offset_slow < aux.compact_offset_slow)) {
                 aux.collect_compacted_nodes_stats(
                     min_offset_fast, min_offset_slow);
                 compact_(
@@ -928,15 +928,16 @@ void compact_(
     }
     bool const rewrite_to_fast = /* INVALID_OFFSET also falls here */
         (node_offset.get_highest_bit() /*in fast list*/ &&
-         detail::compact_chunk_offset_t{node_offset} >= aux.compact_offsets[0]);
+         detail::compact_chunk_offset_t{node_offset} >=
+             aux.compact_offset_fast);
     auto tnode =
         CompactTNode::make(parent, index, node, rewrite_to_fast, cached);
 
     aux.collect_compacted_nodes_from_to_stats(node_offset, rewrite_to_fast);
 
     for (unsigned j = 0; j < node->number_of_children(); ++j) {
-        if (node->min_offset_fast(j) < aux.compact_offsets[0] ||
-            node->min_offset_slow(j) < aux.compact_offsets[1]) {
+        if (node->min_offset_fast(j) < aux.compact_offset_fast ||
+            node->min_offset_slow(j) < aux.compact_offset_slow) {
             aux.collect_compacted_nodes_stats(
                 node->min_offset_fast(j), node->min_offset_slow(j));
             compact_(
@@ -962,8 +963,8 @@ void try_fillin_parent_with_rewritten_node(
         async_write_node_set_spare(aux, *tnode->node, tnode->rewrite_to_fast);
     auto const [min_offset_fast, min_offset_slow] =
         calc_min_offsets(*tnode->node, new_offset);
-    MONAD_DEBUG_ASSERT(min_offset_fast >= aux.compact_offsets[0]);
-    MONAD_DEBUG_ASSERT(min_offset_slow >= aux.compact_offsets[1]);
+    MONAD_DEBUG_ASSERT(min_offset_fast >= aux.compact_offset_fast);
+    MONAD_DEBUG_ASSERT(min_offset_slow >= aux.compact_offset_slow);
     auto *parent = tnode->parent;
     auto const index = tnode->index;
     if (parent->type == tnode_type::copy) {

@@ -167,10 +167,10 @@ void UpdateAux::advance_offsets_to(
             root_offset,
             fast_offset,
             slow_offset,
-            this->compact_offsets[0],
-            this->compact_offsets[1],
-            this->compact_offset_ranges_[0],
-            this->compact_offset_ranges_[1]});
+            this->compact_offset_fast,
+            this->compact_offset_slow,
+            this->compact_offset_range_fast_,
+            this->compact_offset_range_slow_});
     };
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
@@ -512,8 +512,8 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
     }
     state_histories.emplace_back(
         block_id,
-        compact_offsets[0],
-        compact_offsets[1],
+        compact_offset_fast,
+        compact_offset_slow,
         detail::compact_chunk_offset_t{
             this->physical_to_virtual(node_writer_fast->sender().offset())},
         detail::compact_chunk_offset_t{
@@ -530,25 +530,25 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
         physical_to_virtual(node_writer_fast->sender().offset())};
     detail::compact_chunk_offset_t const curr_slow_writer_offset{
         physical_to_virtual(node_writer_slow->sender().offset())};
-    last_block_disk_growth_[0] =
-        last_block_end_offsets_[0] == 0
+    last_block_disk_growth_fast_ =
+        last_block_end_offset_fast_ == 0
             ? detail::compact_chunk_offset_t{0}
-            : curr_fast_writer_offset - last_block_end_offsets_[0];
-    last_block_disk_growth_[1] =
-        last_block_end_offsets_[1] == 0
+            : curr_fast_writer_offset - last_block_end_offset_fast_;
+    last_block_disk_growth_slow_ =
+        last_block_end_offset_slow_ == 0
             ? detail::compact_chunk_offset_t{0}
-            : curr_slow_writer_offset - last_block_end_offsets_[1];
-    last_block_end_offsets_[0] = curr_fast_writer_offset;
-    last_block_end_offsets_[1] = curr_slow_writer_offset;
+            : curr_slow_writer_offset - last_block_end_offset_slow_;
+    last_block_end_offset_fast_ = curr_fast_writer_offset;
+    last_block_end_offset_slow_ = curr_slow_writer_offset;
 
     // update compaction variables
-    remove_chunks_before_count_[0] =
+    remove_chunks_before_count_fast_ =
         erased_state_info.min_offset_fast.get_count();
-    remove_chunks_before_count_[1] =
+    remove_chunks_before_count_slow_ =
         erased_state_info.min_offset_slow.get_count();
 
-    compact_offsets[0] = db_metadata()->db_offsets.last_compact_offset_fast;
-    compact_offsets[1] = db_metadata()->db_offsets.last_compact_offset_slow;
+    compact_offset_fast = db_metadata()->db_offsets.last_compact_offset_fast;
+    compact_offset_slow = db_metadata()->db_offsets.last_compact_offset_slow;
 
     double const used_chunks_ratio =
         1 - num_chunks(chunk_list::free) / (double)io->chunk_count();
@@ -560,17 +560,17 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
         used_chunks_ratio,
         num_chunks(chunk_list::fast),
         num_chunks(chunk_list::slow));
-    compact_offset_ranges_[0] = 0;
-    compact_offset_ranges_[1] = 0;
+    compact_offset_range_fast_ = 0;
+    compact_offset_range_slow_ = 0;
     // Compaction pace control based on free space left on disk
     if (used_chunks_ratio <= 0.2 && state_histories.front().block_id == 0) {
         printf("NO COMPACT::");
     }
     else if (used_chunks_ratio <= 0.8) {
         printf("SLOW COMPACT::");
-        compact_offset_ranges_[0] = std::min(
-            erased_state_info.max_offset_fast - compact_offsets[0],
-            last_block_disk_growth_[0]);
+        compact_offset_range_fast_ = std::min(
+            erased_state_info.max_offset_fast - compact_offset_fast,
+            last_block_disk_growth_fast_);
     }
     else {
         auto slow_fast_inuse_ratio =
@@ -581,30 +581,30 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
         if (slow_fast_inuse_ratio < db_metadata()->slow_fast_ratio) {
             printf("FAST COMPACT::");
             // slow can continue to grow
-            compact_offset_ranges_[1] = (uint32_t)std::lround(
-                (double)last_block_disk_growth_[1] *
+            compact_offset_range_slow_ = (uint32_t)std::lround(
+                (double)last_block_disk_growth_slow_ *
                 ((double)slow_fast_inuse_ratio /
                  db_metadata()->slow_fast_ratio));
             // more agressive compaction on fast chunks
-            compact_offset_ranges_[0] = last_block_disk_growth_[0] +
-                                        last_block_disk_growth_[1] -
-                                        compact_offset_ranges_[1] + 5;
+            compact_offset_range_fast_ = last_block_disk_growth_fast_ +
+                                         last_block_disk_growth_slow_ -
+                                         compact_offset_range_slow_ + 5;
         }
         else {
             printf("FAST COMPACT ALSO ON SLOW RING::");
             // compact slow list more agressively until ratio is met
-            compact_offset_ranges_[0] =
-                (uint32_t)std::lround(last_block_disk_growth_[0] * 0.99);
+            compact_offset_range_fast_ =
+                (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.99);
             // slow can continue to grow
-            compact_offset_ranges_[1] =
+            compact_offset_range_slow_ =
                 std::max(
                     db_metadata()->db_offsets.last_compact_offset_range_slow,
-                    last_block_disk_growth_[1]) +
+                    last_block_disk_growth_slow_) +
                 2;
         }
     }
-    compact_offsets[0] += compact_offset_ranges_[0];
-    compact_offsets[1] += compact_offset_ranges_[1];
+    compact_offset_fast += compact_offset_range_fast_;
+    compact_offset_slow += compact_offset_range_slow_;
     // correcting offsets
     // TEMPORARY
     detail::compact_chunk_offset_t min_fast_offset = 0, min_slow_offset = 0;
@@ -619,22 +619,24 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
             min_fast_offset = 0;
         }
     }
-    compact_offsets[0] = std::max(compact_offsets[0], min_fast_offset);
-    compact_offsets[1] = std::max(compact_offsets[1], min_slow_offset);
-    compact_offset_ranges_[0] =
-        compact_offsets[0] - db_metadata()->db_offsets.last_compact_offset_fast;
-    compact_offset_ranges_[1] =
-        compact_offsets[1] - db_metadata()->db_offsets.last_compact_offset_slow;
+    compact_offset_fast = std::max(compact_offset_fast, min_fast_offset);
+    compact_offset_slow = std::max(compact_offset_slow, min_slow_offset);
+    compact_offset_range_fast_ =
+        compact_offset_fast -
+        db_metadata()->db_offsets.last_compact_offset_fast;
+    compact_offset_range_slow_ =
+        compact_offset_slow -
+        db_metadata()->db_offsets.last_compact_offset_slow;
 
     printf(
         "  Fast: last block disk grew %u ~%u MB, compact range %u\n"
         "\tSlow: last block disk grew %u ~%u MB, compact range %u\n",
-        (uint32_t)last_block_disk_growth_[0],
-        (uint32_t)last_block_disk_growth_[0] >> 4,
-        (uint32_t)compact_offset_ranges_[0],
-        (uint32_t)last_block_disk_growth_[1],
-        (uint32_t)last_block_disk_growth_[1] >> 4,
-        (uint32_t)compact_offset_ranges_[1]);
+        (uint32_t)last_block_disk_growth_fast_,
+        (uint32_t)last_block_disk_growth_fast_ >> 4,
+        (uint32_t)compact_offset_range_fast_,
+        (uint32_t)last_block_disk_growth_slow_,
+        (uint32_t)last_block_disk_growth_slow_ >> 4,
+        (uint32_t)compact_offset_range_slow_);
 }
 
 void UpdateAux::free_compacted_chunks()
@@ -660,10 +662,10 @@ void UpdateAux::free_compacted_chunks()
         };
     printf("Fast Chunks: ");
     free_chunks_from_ci_till_count(
-        db_metadata()->fast_list_begin(), remove_chunks_before_count_[0]);
+        db_metadata()->fast_list_begin(), remove_chunks_before_count_fast_);
     printf("\nSlow Chunk: ");
     free_chunks_from_ci_till_count(
-        db_metadata()->slow_list_begin(), remove_chunks_before_count_[1]);
+        db_metadata()->slow_list_begin(), remove_chunks_before_count_slow_);
     printf("\n");
 }
 
@@ -691,7 +693,7 @@ void UpdateAux::print_update_stats()
 #if MONAD_MPT_COLLECT_STATS
     printf("created/updated nodes: %u\n", stats.num_nodes_created);
 
-    if (compact_offsets[0] || compact_offsets[1]) {
+    if (compact_offset_fast || compact_offset_slow) {
         printf(
             "#nodes copied fast to slow ring %u (%.4f), fast to fast %u "
             "(%.4f), slow to slow %u, total #nodes copied %u\n"
@@ -711,7 +713,7 @@ void UpdateAux::print_update_stats()
                 stats.nodes_copied_from_slow_to_slow,
             stats.nodes_copied_for_compacting_fast,
             stats.nodes_copied_for_compacting_slow);
-        if (compact_offsets[0]) {
+        if (compact_offset_fast) {
             printf(
                 "Fast: #compact reads before compaction offset %u / "
                 "#total compact reads %u = %.4f\n",
@@ -720,17 +722,17 @@ void UpdateAux::print_update_stats()
                 (double)stats.nreads_before_offset[0] /
                     (stats.nreads_before_offset[0] +
                      stats.nreads_after_offset[0]));
-            if (compact_offset_ranges_[0]) {
+            if (compact_offset_range_fast_) {
                 printf(
                     "Fast: bytes read within compaction range %.2f MB / "
                     "compaction offset range %.2f MB = %.4f\n",
                     (double)stats.bytes_read_before_offset[0] / 1024 / 1024,
-                    (double)compact_offset_ranges_[0] / 16,
+                    (double)compact_offset_range_fast_ / 16,
                     (double)stats.bytes_read_before_offset[0] /
-                        compact_offset_ranges_[0] / 1024 / 64);
+                        compact_offset_range_fast_ / 1024 / 64);
             }
         }
-        if (compact_offsets[1] != 0) {
+        if (compact_offset_slow != 0) {
             printf(
                 "Slow: #compact reads before compaction offset %u / "
                 "#total compact reads %u = %.4f\n",
@@ -739,14 +741,14 @@ void UpdateAux::print_update_stats()
                 (double)stats.nreads_before_offset[1] /
                     (stats.nreads_before_offset[1] +
                      stats.nreads_after_offset[1]));
-            if (compact_offset_ranges_[1]) {
+            if (compact_offset_range_slow_) {
                 printf(
                     "Slow: bytes read within compaction range %.2f MB / "
                     "compaction offset range %.2f MB = %.4f\n",
                     (double)stats.bytes_read_before_offset[1] / 1024 / 1024,
-                    (double)compact_offset_ranges_[1] / 16,
+                    (double)compact_offset_range_slow_ / 16,
                     (double)stats.bytes_read_before_offset[1] /
-                        compact_offset_ranges_[1] / 1024 / 64);
+                        compact_offset_range_slow_ / 1024 / 64);
             }
         }
     }
@@ -773,7 +775,7 @@ void UpdateAux::collect_compaction_read_stats(
 #if MONAD_MPT_COLLECT_STATS
     bool const node_in_slow_list = !node_offset.get_highest_bit();
     if (detail::compact_chunk_offset_t(node_offset) <
-        compact_offsets[node_in_slow_list]) {
+        (node_in_slow_list ? compact_offset_slow : compact_offset_fast)) {
         // node orig offset in fast list but compact to slow list
         stats.nreads_before_offset[node_in_slow_list]++;
         stats.bytes_read_before_offset[node_in_slow_list] +=
@@ -795,10 +797,10 @@ void UpdateAux::collect_compacted_nodes_stats(
     detail::compact_chunk_offset_t const subtrie_min_offset_slow)
 {
 #if MONAD_MPT_COLLECT_STATS
-    if (subtrie_min_offset_fast < compact_offsets[0]) {
+    if (subtrie_min_offset_fast < compact_offset_fast) {
         stats.nodes_copied_for_compacting_fast++;
     }
-    else if (subtrie_min_offset_slow < compact_offsets[1]) {
+    else if (subtrie_min_offset_slow < compact_offset_slow) {
         stats.nodes_copied_for_compacting_slow++;
     }
 #else

@@ -108,15 +108,20 @@ class UpdateAux
     ::boost::container::devector<state_disk_info_t> state_histories;
 
     /******** Compaction ********/
-    uint32_t remove_chunks_before_count_[2] = {0, 0};
+    uint32_t remove_chunks_before_count_fast_{0};
+    uint32_t remove_chunks_before_count_slow_{0};
     // speed control var
-    detail::compact_chunk_offset_t last_block_end_offsets_[2] = {0, 0};
-    detail::compact_chunk_offset_t last_block_disk_growth_[2] = {0, 0};
+    detail::compact_chunk_offset_t last_block_end_offset_fast_{0};
+    detail::compact_chunk_offset_t last_block_end_offset_slow_{0};
+    detail::compact_chunk_offset_t last_block_disk_growth_fast_{0};
+    detail::compact_chunk_offset_t last_block_disk_growth_slow_{0};
     // compaction range
-    detail::compact_chunk_offset_t compact_offset_ranges_[2] = {0, 0};
+    detail::compact_chunk_offset_t compact_offset_range_fast_{0};
+    detail::compact_chunk_offset_t compact_offset_range_slow_{0};
 
 public:
-    detail::compact_chunk_offset_t compact_offsets[2] = {0, 0}; // fast and slow
+    detail::compact_chunk_offset_t compact_offset_fast{0};
+    detail::compact_chunk_offset_t compact_offset_slow{0};
 
     // On disk stuff
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
