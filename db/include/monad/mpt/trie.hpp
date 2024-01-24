@@ -26,7 +26,6 @@
 #endif
 
 #include <cstdint>
-#include <deque>
 #include <list>
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -108,7 +107,7 @@ class UpdateAux
 
     void free_compacted_chunks();
 
-    std::deque<state_disk_info_t> state_histories;
+    ::boost::container::devector<state_disk_info_t> state_histories;
 
     /******** Compaction ********/
     uint32_t remove_chunks_before_count_[2] = {0, 0};
@@ -296,9 +295,9 @@ public:
 };
 
 #if MONAD_MPT_COLLECT_STATS
-static_assert(sizeof(UpdateAux) == 336);
+static_assert(sizeof(UpdateAux) == 288);
 #else
-static_assert(sizeof(UpdateAux) == 272);
+static_assert(sizeof(UpdateAux) == 224);
 #endif
 static_assert(alignof(UpdateAux) == 8);
 
