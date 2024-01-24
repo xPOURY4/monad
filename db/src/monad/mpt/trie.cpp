@@ -89,9 +89,8 @@ chunk_offset_t write_new_root_node(UpdateAux &, Node &);
 Node::UniquePtr upsert(
     UpdateAux &aux, StateMachine &sm, Node::UniquePtr old, UpdateList &&updates)
 {
-#if MONAD_MPT_COLLECT_STATS
-    aux.reset_counters();
-#endif
+
+    aux.reset_stats();
     auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/);
     ChildData &entry = sentinel->children[0];
     sentinel->children[0] = ChildData{.branch = 0};
@@ -117,9 +116,7 @@ Node::UniquePtr upsert(
         if (root) {
             write_new_root_node(aux, *root);
         }
-#if MONAD_MPT_COLLECT_STATS
         aux.print_update_stats();
-#endif
     }
     return Node::UniquePtr{root};
 }
@@ -322,15 +319,16 @@ struct compaction_receiver
         if (detail::compact_chunk_offset_t(offset) <
             aux->compact_offsets[node_in_slow_list]) {
             // node orig in fast list but compact to slow list
-            aux->nreads_before_offset[node_in_slow_list]++;
-            aux->bytes_read_before_offset[node_in_slow_list] +=
+            aux->stats.nreads_before_offset[node_in_slow_list]++;
+            aux->stats.bytes_read_before_offset[node_in_slow_list] +=
                 bytes_to_read; // compaction bytes read
         }
         else {
-            aux->nreads_after_offset[node_in_slow_list]++;
-            aux->bytes_read_before_offset[node_in_slow_list] += bytes_to_read;
+            aux->stats.nreads_after_offset[node_in_slow_list]++;
+            aux->stats.bytes_read_before_offset[node_in_slow_list] +=
+                bytes_to_read;
         }
-        aux->num_compaction_reads++; // count number of compaction reads
+        aux->stats.num_compaction_reads++; // count number of compaction reads
 #endif
     }
 
@@ -386,9 +384,7 @@ Node *create_node_from_children_if_any(
     // handle non child and single child cases
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     if (number_of_children == 0) {
-#if MONAD_MPT_COLLECT_STATS
-        aux.num_nodes_created++;
-#endif
+        aux.increment_number_nodes_created();
         return leaf_data.has_value()
                    ? make_node(0, {}, path, leaf_data.value(), {}).release()
                    : nullptr;
@@ -403,9 +399,7 @@ Node *create_node_from_children_if_any(
         is not yet the final form. There's not yet a good way to avoid this
         unless we delay all the compute() after all child branches finish
         creating nodes and return in the recursion */
-#if MONAD_MPT_COLLECT_STATS
-        aux.num_nodes_created++;
-#endif
+        aux.increment_number_nodes_created();
         return make_node(
                    *node,
                    concat(path, children[j].branch, node->path_nibble_view()),
@@ -445,9 +439,7 @@ Node *create_node_from_children_if_any(
             }
         }
     }
-#if MONAD_MPT_COLLECT_STATS
-    aux.num_nodes_created++;
-#endif
+    aux.increment_number_nodes_created();
     return create_node(sm.get_compute(), mask, children, path, leaf_data);
 }
 
@@ -552,9 +544,7 @@ void create_new_trie_(
                 aux, sm, entry, requests, path, 0, update.value);
         }
         else {
-#if MONAD_MPT_COLLECT_STATS
-            aux.num_nodes_created++;
-#endif
+            aux.increment_number_nodes_created();
             entry.finalize(
                 *make_node(0, {}, path, update.value.value(), {}).release(),
                 sm.get_compute(),
@@ -790,11 +780,11 @@ void dispatch_updates_impl_(
                  old->min_offset_slow(old_index) < aux.compact_offsets[1])) {
 #if MONAD_MPT_COLLECT_STATS
                 if (old->min_offset_fast(old_index) < aux.compact_offsets[0]) {
-                    aux.nodes_copied_for_compacting_fast++;
+                    aux.stats.nodes_copied_for_compacting_fast++;
                 }
                 else if (
                     old->min_offset_slow(old_index) < aux.compact_offsets[1]) {
-                    aux.nodes_copied_for_compacting_slow++;
+                    aux.stats.nodes_copied_for_compacting_slow++;
                 }
 #endif
                 child.offset = INVALID_OFFSET; // to be rewritten
@@ -938,10 +928,10 @@ void mismatch_handler_(
                  min_offset_slow < aux.compact_offsets[1])) {
 #if MONAD_MPT_COLLECT_STATS
                 if (min_offset_fast < aux.compact_offsets[0]) {
-                    aux.nodes_copied_for_compacting_fast++;
+                    aux.stats.nodes_copied_for_compacting_fast++;
                 }
                 else if (min_offset_slow < aux.compact_offsets[1]) {
-                    aux.nodes_copied_for_compacting_slow++;
+                    aux.stats.nodes_copied_for_compacting_slow++;
                 }
 #endif
                 compact_(
@@ -978,14 +968,14 @@ void compact_(
         MONAD_ASSERT(sm.compact());
         if (node_offset.get_highest_bit()) {
             if (!rewrite_to_fast) {
-                aux.nodes_copied_from_fast_to_slow++;
+                aux.stats.nodes_copied_from_fast_to_slow++;
             }
             else {
-                aux.nodes_copied_from_fast_to_fast++;
+                aux.stats.nodes_copied_from_fast_to_fast++;
             }
         }
         else {
-            aux.nodes_copied_from_slow_to_slow++;
+            aux.stats.nodes_copied_from_slow_to_slow++;
         }
     }
 #endif
@@ -995,10 +985,10 @@ void compact_(
             node->min_offset_slow(j) < aux.compact_offsets[1]) {
 #if MONAD_MPT_COLLECT_STATS
             if (node->min_offset_fast(j) < aux.compact_offsets[0]) {
-                aux.nodes_copied_for_compacting_fast++;
+                aux.stats.nodes_copied_for_compacting_fast++;
             }
             else if (node->min_offset_slow(j) < aux.compact_offsets[1]) {
-                aux.nodes_copied_for_compacting_slow++;
+                aux.stats.nodes_copied_for_compacting_slow++;
             }
 #endif
             compact_(

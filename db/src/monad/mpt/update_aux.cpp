@@ -667,68 +667,6 @@ void UpdateAux::free_compacted_chunks()
     printf("\n");
 }
 
-#if MONAD_MPT_COLLECT_STATS
-void UpdateAux::print_update_stats()
-{
-    if (compact_offsets[0] || compact_offsets[1]) {
-        printf(
-            "#nodes copied fast to slow ring %u (%.4f), fast to fast %u "
-            "(%.4f), slow to slow %u, total #nodes copied %u\n"
-            "#nodes copied for compacting fast %u, #nodes copied for "
-            "compacting slow %u\n",
-            nodes_copied_from_fast_to_slow,
-            (double)nodes_copied_from_fast_to_slow /
-                (nodes_copied_from_fast_to_slow +
-                 nodes_copied_from_fast_to_fast),
-            nodes_copied_from_fast_to_fast,
-            (double)nodes_copied_from_fast_to_fast /
-                (nodes_copied_from_fast_to_slow +
-                 nodes_copied_from_fast_to_fast),
-            nodes_copied_from_slow_to_slow,
-            nodes_copied_from_fast_to_slow + nodes_copied_from_fast_to_fast +
-                nodes_copied_from_slow_to_slow,
-            nodes_copied_for_compacting_fast,
-            nodes_copied_for_compacting_slow);
-        if (compact_offsets[0]) {
-            printf(
-                "Fast: #compact reads before compaction offset %u / "
-                "#total compact reads %u = %.4f\n",
-                nreads_before_offset[0],
-                nreads_before_offset[0] + nreads_after_offset[0],
-                (double)nreads_before_offset[0] /
-                    (nreads_before_offset[0] + nreads_after_offset[0]));
-            if (compact_offset_ranges_[0]) {
-                printf(
-                    "Fast: bytes read within compaction range %.2f MB / "
-                    "compaction offset range %.2f MB = %.4f\n",
-                    (double)bytes_read_before_offset[0] / 1024 / 1024,
-                    (double)compact_offset_ranges_[0] / 16,
-                    (double)bytes_read_before_offset[0] /
-                        compact_offset_ranges_[0] / 1024 / 64);
-            }
-        }
-        if (compact_offsets[1] != 0) {
-            printf(
-                "Slow: #compact reads before compaction offset %u / "
-                "#total compact reads %u = %.4f\n",
-                nreads_before_offset[1],
-                nreads_before_offset[1] + nreads_after_offset[1],
-                (double)nreads_before_offset[1] /
-                    (nreads_before_offset[1] + nreads_after_offset[1]));
-            if (compact_offset_ranges_[1]) {
-                printf(
-                    "Slow: bytes read within compaction range %.2f MB / "
-                    "compaction offset range %.2f MB = %.4f\n",
-                    (double)bytes_read_before_offset[1] / 1024 / 1024,
-                    (double)compact_offset_ranges_[1] / 16,
-                    (double)bytes_read_before_offset[1] /
-                        compact_offset_ranges_[1] / 1024 / 64);
-            }
-        }
-    }
-}
-#endif
-
 uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
 {
     switch (list) {
@@ -746,6 +684,85 @@ uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
                       db_metadata_[0]->slow_list_begin()->insertion_count());
     }
     return 0;
+}
+
+void UpdateAux::print_update_stats()
+{
+#if MONAD_MPT_COLLECT_STATS
+    if (compact_offsets[0] || compact_offsets[1]) {
+        printf(
+            "#nodes copied fast to slow ring %u (%.4f), fast to fast %u "
+            "(%.4f), slow to slow %u, total #nodes copied %u\n"
+            "#nodes copied for compacting fast %u, #nodes copied for "
+            "compacting slow %u\n",
+            stats.nodes_copied_from_fast_to_slow,
+            (double)stats.nodes_copied_from_fast_to_slow /
+                (stats.nodes_copied_from_fast_to_slow +
+                 stats.nodes_copied_from_fast_to_fast),
+            stats.nodes_copied_from_fast_to_fast,
+            (double)stats.nodes_copied_from_fast_to_fast /
+                (stats.nodes_copied_from_fast_to_slow +
+                 stats.nodes_copied_from_fast_to_fast),
+            stats.nodes_copied_from_slow_to_slow,
+            stats.nodes_copied_from_fast_to_slow +
+                stats.nodes_copied_from_fast_to_fast +
+                stats.nodes_copied_from_slow_to_slow,
+            stats.nodes_copied_for_compacting_fast,
+            stats.nodes_copied_for_compacting_slow);
+        if (compact_offsets[0]) {
+            printf(
+                "Fast: #compact reads before compaction offset %u / "
+                "#total compact reads %u = %.4f\n",
+                stats.nreads_before_offset[0],
+                stats.nreads_before_offset[0] + stats.nreads_after_offset[0],
+                (double)stats.nreads_before_offset[0] /
+                    (stats.nreads_before_offset[0] +
+                     stats.nreads_after_offset[0]));
+            if (compact_offset_ranges_[0]) {
+                printf(
+                    "Fast: bytes read within compaction range %.2f MB / "
+                    "compaction offset range %.2f MB = %.4f\n",
+                    (double)stats.bytes_read_before_offset[0] / 1024 / 1024,
+                    (double)compact_offset_ranges_[0] / 16,
+                    (double)stats.bytes_read_before_offset[0] /
+                        compact_offset_ranges_[0] / 1024 / 64);
+            }
+        }
+        if (compact_offsets[1] != 0) {
+            printf(
+                "Slow: #compact reads before compaction offset %u / "
+                "#total compact reads %u = %.4f\n",
+                stats.nreads_before_offset[1],
+                stats.nreads_before_offset[1] + stats.nreads_after_offset[1],
+                (double)stats.nreads_before_offset[1] /
+                    (stats.nreads_before_offset[1] +
+                     stats.nreads_after_offset[1]));
+            if (compact_offset_ranges_[1]) {
+                printf(
+                    "Slow: bytes read within compaction range %.2f MB / "
+                    "compaction offset range %.2f MB = %.4f\n",
+                    (double)stats.bytes_read_before_offset[1] / 1024 / 1024,
+                    (double)compact_offset_ranges_[1] / 16,
+                    (double)stats.bytes_read_before_offset[1] /
+                        compact_offset_ranges_[1] / 1024 / 64);
+            }
+        }
+    }
+#endif
+}
+
+void UpdateAux::reset_stats()
+{
+#if MONAD_MPT_COLLECT_STATS
+    stats.reset();
+#endif
+}
+
+void UpdateAux::increment_number_nodes_created()
+{
+#if MONAD_MPT_COLLECT_STATS
+    stats.num_nodes_created++;
+#endif
 }
 
 MONAD_MPT_NAMESPACE_END

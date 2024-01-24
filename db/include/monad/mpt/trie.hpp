@@ -2,6 +2,7 @@
 
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/collected_stats.hpp>
 #include <monad/mpt/detail/compact_chunk_offset_t.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
@@ -77,9 +78,6 @@ node_writer_unique_ptr_type replace_node_writer(
     size_t bytes_yet_to_be_appended_to_existing = 0,
     size_t bytes_to_write_to_new_writer = 0);
 
-// Turn on to collect stats
-#define MONAD_MPT_COLLECT_STATS 1
-
 // \class Auxiliaries for triedb update
 class UpdateAux
 {
@@ -154,42 +152,12 @@ public:
         uint64_t block_id, bool compaction);
 
 #if MONAD_MPT_COLLECT_STATS
-    unsigned num_nodes_created{0};
-    // counters
-    unsigned num_nodes_copied{0};
-    unsigned num_compaction_reads{0};
-    unsigned nodes_copied_from_fast_to_slow{0};
-    unsigned nodes_copied_from_fast_to_fast{0};
-    unsigned nodes_copied_from_slow_to_slow{0};
-    unsigned nreads_before_offset[2] = {0, 0};
-    unsigned nreads_after_offset[2] = {0, 0};
-    unsigned bytes_read_before_offset[2] = {0, 0};
-    unsigned bytes_read_after_offset[2] = {0, 0};
-    unsigned nodes_copied_for_compacting_slow = 0;
-    unsigned nodes_copied_for_compacting_fast = 0;
-
-    void reset_counters()
-    {
-        num_nodes_created = 0;
-        num_nodes_copied = 0;
-        num_compaction_reads = 0;
-        nodes_copied_from_fast_to_slow = 0;
-        nodes_copied_from_fast_to_fast = 0;
-        nodes_copied_from_slow_to_slow = 0;
-        nreads_before_offset[0] = 0;
-        nreads_before_offset[1] = 0;
-        nreads_after_offset[0] = 0;
-        nreads_after_offset[1] = 0;
-        nodes_copied_for_compacting_slow = 0;
-        nodes_copied_for_compacting_fast = 0;
-        bytes_read_before_offset[0] = 0;
-        bytes_read_before_offset[1] = 0;
-        bytes_read_after_offset[0] = 0;
-        bytes_read_after_offset[1] = 0;
-    }
+    detail::TrieUpdateCollectedStats stats;
+#endif
 
     void print_update_stats();
-#endif
+    void reset_stats();
+    void increment_number_nodes_created();
 
     enum class chunk_list : uint8_t
     {
@@ -294,11 +262,9 @@ public:
     }
 };
 
-#if MONAD_MPT_COLLECT_STATS
-static_assert(sizeof(UpdateAux) == 288);
-#else
-static_assert(sizeof(UpdateAux) == 224);
-#endif
+static_assert(
+    sizeof(UpdateAux) ==
+    224 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

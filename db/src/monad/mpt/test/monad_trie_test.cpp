@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
         monad::io::Buffers rwbuf{
             ring,
             8192 * 16,
-            16,
+            16, /* max concurrent write buffers in use <= 6 */
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
 
