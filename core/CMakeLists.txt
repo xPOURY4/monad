@@ -119,7 +119,9 @@ add_library(
   "include/monad/rlp/config.hpp"
   "include/monad/rlp/encode.hpp"
   # test
-  "include/monad/test/gtest_signal_stacktrace_printer.hpp")
+  "include/monad/test/gtest_signal_stacktrace_printer.hpp"
+  # util
+  "include/monad/util/stopwatch.hpp")
 target_include_directories(monad_core PUBLIC "include" "c/include")
 monad_core_compile_options(monad_core)
 target_compile_definitions(monad_core PUBLIC "BOOST_STACKTRACE_LINK=1")
