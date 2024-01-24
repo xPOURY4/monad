@@ -1,19 +1,33 @@
 #include <monad/fiber/priority_pool.hpp>
 
+#include <monad/fiber/priority_algorithm.hpp>
+#include <monad/fiber/priority_properties.hpp>
+
+#include <boost/fiber/operations.hpp>
+#include <boost/fiber/properties.hpp>
 #include <boost/fiber/protected_fixedsize_stack.hpp>
 
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <utility>
 
+#include <pthread.h>
+
 MONAD_FIBER_NAMESPACE_BEGIN
 
 PriorityPool::PriorityPool(unsigned const n_threads, unsigned const n_fibers)
 {
+    MONAD_ASSERT(n_threads);
+    MONAD_ASSERT(n_fibers);
+
     threads_.reserve(n_threads);
-    for (unsigned i = 0; i < n_threads; ++i) {
-        auto thread = std::thread([this] {
+    for (unsigned i = n_threads - 1; i > 0; --i) {
+        auto thread = std::thread([this, i] {
+            char name[16];
+            std::snprintf(name, 16, "worker %u", i);
+            pthread_setname_np(pthread_self(), name);
             boost::fibers::use_scheduling_algorithm<PriorityAlgorithm>(queue_);
             std::unique_lock<boost::fibers::mutex> lock{mutex_};
             cv_.wait(lock, [this] { return done_; });
@@ -23,6 +37,7 @@ PriorityPool::PriorityPool(unsigned const n_threads, unsigned const n_fibers)
 
     fibers_.reserve(n_fibers);
     auto thread = std::thread([this, n_fibers] {
+        pthread_setname_np(pthread_self(), "worker 0");
         boost::fibers::use_scheduling_algorithm<PriorityAlgorithm>(queue_);
         for (unsigned i = 0; i < n_fibers; ++i) {
             auto *const properties = new PriorityProperties{nullptr};
@@ -42,13 +57,18 @@ PriorityPool::PriorityPool(unsigned const n_threads, unsigned const n_fibers)
                 }};
             fibers_.push_back(std::move(fiber));
         }
+        start_.set_value();
+        std::unique_lock<boost::fibers::mutex> lock{mutex_};
+        cv_.wait(lock, [this] { return done_; });
     });
-    thread.join();
+    threads_.push_back(std::move(thread));
 }
 
 PriorityPool::~PriorityPool()
 {
     channel_.close();
+
+    start_.get_future().wait();
 
     while (fibers_.size()) {
         auto &fiber = fibers_.back();

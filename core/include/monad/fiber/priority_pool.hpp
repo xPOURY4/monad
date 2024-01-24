@@ -1,18 +1,14 @@
 #pragma once
 
 #include <monad/fiber/config.hpp>
-#include <monad/fiber/priority_algorithm.hpp>
-#include <monad/fiber/priority_properties.hpp>
 #include <monad/fiber/priority_queue.hpp>
 #include <monad/fiber/priority_task.hpp>
 
 #include <boost/fiber/buffered_channel.hpp>
 #include <boost/fiber/condition_variable.hpp>
 #include <boost/fiber/mutex.hpp>
-#include <boost/fiber/operations.hpp>
-#include <boost/fiber/properties.hpp>
 
-#include <mutex>
+#include <future>
 #include <thread>
 #include <utility>
 
@@ -32,6 +28,8 @@ class PriorityPool final
     boost::fibers::buffered_channel<PriorityTask> channel_{1024};
 
     std::vector<boost::fibers::fiber> fibers_{};
+
+    std::promise<void> start_{};
 
 public:
     PriorityPool(unsigned n_threads, unsigned n_fibers);
