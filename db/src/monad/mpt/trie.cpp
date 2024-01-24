@@ -305,31 +305,14 @@ struct compaction_receiver
             round_down_align<DISK_PAGE_BITS>(aux->virtual_to_physical(offset));
         auto const num_pages_to_load_node = rd_offset.spare;
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
-        assert(
+        MONAD_DEBUG_ASSERT(
             num_pages_to_load_node <=
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset.spare = 0;
 
-#if MONAD_MPT_COLLECT_STATS
-        bool const node_in_slow_list = !offset.get_highest_bit();
-        // reads before fast offset, after fast offset
-        // reads before slow offset, after slow offset
-        if (detail::compact_chunk_offset_t(offset) <
-            aux->compact_offsets[node_in_slow_list]) {
-            // node orig in fast list but compact to slow list
-            aux->stats.nreads_before_offset[node_in_slow_list]++;
-            aux->stats.bytes_read_before_offset[node_in_slow_list] +=
-                bytes_to_read; // compaction bytes read
-        }
-        else {
-            aux->stats.nreads_after_offset[node_in_slow_list]++;
-            aux->stats.bytes_read_before_offset[node_in_slow_list] +=
-                bytes_to_read;
-        }
-        aux->stats.num_compaction_reads++; // count number of compaction reads
-#endif
+        aux_->collect_compaction_read_stats(offset, bytes_to_read);
     }
 
     void set_value(
@@ -381,10 +364,10 @@ Node *create_node_from_children_if_any(
     uint16_t const mask, std::span<ChildData> children, NibblesView const path,
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
+    aux.collect_number_nodes_created_stats();
     // handle non child and single child cases
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     if (number_of_children == 0) {
-        aux.increment_number_nodes_created();
         return leaf_data.has_value()
                    ? make_node(0, {}, path, leaf_data.value(), {}).release()
                    : nullptr;
@@ -399,7 +382,6 @@ Node *create_node_from_children_if_any(
         is not yet the final form. There's not yet a good way to avoid this
         unless we delay all the compute() after all child branches finish
         creating nodes and return in the recursion */
-        aux.increment_number_nodes_created();
         return make_node(
                    *node,
                    concat(path, children[j].branch, node->path_nibble_view()),
@@ -439,7 +421,6 @@ Node *create_node_from_children_if_any(
             }
         }
     }
-    aux.increment_number_nodes_created();
     return create_node(sm.get_compute(), mask, children, path, leaf_data);
 }
 
@@ -544,7 +525,7 @@ void create_new_trie_(
                 aux, sm, entry, requests, path, 0, update.value);
         }
         else {
-            aux.increment_number_nodes_created();
+            aux.collect_number_nodes_created_stats();
             entry.finalize(
                 *make_node(0, {}, path, update.value.value(), {}).release(),
                 sm.get_compute(),
@@ -778,15 +759,9 @@ void dispatch_updates_impl_(
             if (aux.is_on_disk() && sm.compact() &&
                 (old->min_offset_fast(old_index) < aux.compact_offsets[0] ||
                  old->min_offset_slow(old_index) < aux.compact_offsets[1])) {
-#if MONAD_MPT_COLLECT_STATS
-                if (old->min_offset_fast(old_index) < aux.compact_offsets[0]) {
-                    aux.stats.nodes_copied_for_compacting_fast++;
-                }
-                else if (
-                    old->min_offset_slow(old_index) < aux.compact_offsets[1]) {
-                    aux.stats.nodes_copied_for_compacting_slow++;
-                }
-#endif
+                aux.collect_compacted_nodes_stats(
+                    old->min_offset_fast(old_index),
+                    old->min_offset_slow(old_index));
                 child.offset = INVALID_OFFSET; // to be rewritten
                 compact_(
                     aux,
@@ -926,14 +901,8 @@ void mismatch_handler_(
                 aux.is_on_disk() && sm.compact() &&
                 (min_offset_fast < aux.compact_offsets[0] ||
                  min_offset_slow < aux.compact_offsets[1])) {
-#if MONAD_MPT_COLLECT_STATS
-                if (min_offset_fast < aux.compact_offsets[0]) {
-                    aux.stats.nodes_copied_for_compacting_fast++;
-                }
-                else if (min_offset_slow < aux.compact_offsets[1]) {
-                    aux.stats.nodes_copied_for_compacting_slow++;
-                }
-#endif
+                aux.collect_compacted_nodes_stats(
+                    min_offset_fast, min_offset_slow);
                 compact_(
                     aux, sm, (CompactTNode *)tnode.get(), j, child.ptr, true);
             }
@@ -963,34 +932,13 @@ void compact_(
     auto tnode =
         CompactTNode::make(parent, index, node, rewrite_to_fast, cached);
 
-#if MONAD_MPT_COLLECT_STATS
-    if (node_offset != INVALID_OFFSET) {
-        MONAD_ASSERT(sm.compact());
-        if (node_offset.get_highest_bit()) {
-            if (!rewrite_to_fast) {
-                aux.stats.nodes_copied_from_fast_to_slow++;
-            }
-            else {
-                aux.stats.nodes_copied_from_fast_to_fast++;
-            }
-        }
-        else {
-            aux.stats.nodes_copied_from_slow_to_slow++;
-        }
-    }
-#endif
+    aux.collect_compacted_nodes_from_to_stats(node_offset, rewrite_to_fast);
 
     for (unsigned j = 0; j < node->number_of_children(); ++j) {
         if (node->min_offset_fast(j) < aux.compact_offsets[0] ||
             node->min_offset_slow(j) < aux.compact_offsets[1]) {
-#if MONAD_MPT_COLLECT_STATS
-            if (node->min_offset_fast(j) < aux.compact_offsets[0]) {
-                aux.stats.nodes_copied_for_compacting_fast++;
-            }
-            else if (node->min_offset_slow(j) < aux.compact_offsets[1]) {
-                aux.stats.nodes_copied_for_compacting_slow++;
-            }
-#endif
+            aux.collect_compacted_nodes_stats(
+                node->min_offset_fast(j), node->min_offset_slow(j));
             compact_(
                 aux, sm, tnode.get(), j, node->next(j), true, node->fnext(j));
         }

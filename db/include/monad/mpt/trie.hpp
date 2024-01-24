@@ -154,10 +154,17 @@ public:
 #if MONAD_MPT_COLLECT_STATS
     detail::TrieUpdateCollectedStats stats;
 #endif
-
-    void print_update_stats();
+    // collect and print trie update stats
     void reset_stats();
-    void increment_number_nodes_created();
+    void collect_number_nodes_created_stats();
+    void collect_compaction_read_stats(
+        chunk_offset_t node_offset, unsigned bytes_to_read);
+    void collect_compacted_nodes_stats(
+        detail::compact_chunk_offset_t subtrie_min_offset_fast,
+        detail::compact_chunk_offset_t subtrie_min_offset_slow);
+    void collect_compacted_nodes_from_to_stats(
+        chunk_offset_t node_offset, bool rewrite_to_fast);
+    void print_update_stats();
 
     enum class chunk_list : uint8_t
     {

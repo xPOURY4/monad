@@ -689,6 +689,8 @@ uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
 void UpdateAux::print_update_stats()
 {
 #if MONAD_MPT_COLLECT_STATS
+    printf("created/updated nodes: %u\n", stats.num_nodes_created);
+
     if (compact_offsets[0] || compact_offsets[1]) {
         printf(
             "#nodes copied fast to slow ring %u (%.4f), fast to fast %u "
@@ -758,10 +760,74 @@ void UpdateAux::reset_stats()
 #endif
 }
 
-void UpdateAux::increment_number_nodes_created()
+void UpdateAux::collect_number_nodes_created_stats()
 {
 #if MONAD_MPT_COLLECT_STATS
     stats.num_nodes_created++;
+#endif
+}
+
+void UpdateAux::collect_compaction_read_stats(
+    chunk_offset_t const node_offset, unsigned const bytes_to_read)
+{
+#if MONAD_MPT_COLLECT_STATS
+    bool const node_in_slow_list = !node_offset.get_highest_bit();
+    if (detail::compact_chunk_offset_t(node_offset) <
+        compact_offsets[node_in_slow_list]) {
+        // node orig offset in fast list but compact to slow list
+        stats.nreads_before_offset[node_in_slow_list]++;
+        stats.bytes_read_before_offset[node_in_slow_list] +=
+            bytes_to_read; // compaction bytes read
+    }
+    else {
+        stats.nreads_after_offset[node_in_slow_list]++;
+        stats.bytes_read_before_offset[node_in_slow_list] += bytes_to_read;
+    }
+    stats.num_compaction_reads++; // count number of compaction reads
+#else
+    (void)node_offset;
+    (void)bytes_to_read;
+#endif
+}
+
+void UpdateAux::collect_compacted_nodes_stats(
+    detail::compact_chunk_offset_t const subtrie_min_offset_fast,
+    detail::compact_chunk_offset_t const subtrie_min_offset_slow)
+{
+#if MONAD_MPT_COLLECT_STATS
+    if (subtrie_min_offset_fast < compact_offsets[0]) {
+        stats.nodes_copied_for_compacting_fast++;
+    }
+    else if (subtrie_min_offset_slow < compact_offsets[1]) {
+        stats.nodes_copied_for_compacting_slow++;
+    }
+#else
+    (void)subtrie_min_offset_fast;
+    (void)subtrie_min_offset_slow;
+#endif
+}
+
+void UpdateAux::collect_compacted_nodes_from_to_stats(
+    chunk_offset_t const node_offset, bool const rewrite_to_fast)
+{
+#if MONAD_MPT_COLLECT_STATS
+    if (node_offset != INVALID_OFFSET) {
+        if (node_offset.get_highest_bit()) {
+            if (!rewrite_to_fast) {
+                stats.nodes_copied_from_fast_to_slow++;
+            }
+            else {
+                stats.nodes_copied_from_fast_to_fast++;
+            }
+        }
+        else {
+            stats.nodes_copied_from_slow_to_slow++;
+        }
+    }
+#else
+    (void)node_offset;
+    (void)rewrite_to_fast;
+
 #endif
 }
 
