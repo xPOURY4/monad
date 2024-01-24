@@ -41,11 +41,6 @@ namespace
 
         struct empty_receiver
         {
-            enum
-            {
-                lifetime_managed_internally = true
-            };
-
             void set_value(
                 monad::async::erased_connected_operation *,
                 monad::async::write_single_buffer_sender::result_type r)
@@ -96,11 +91,6 @@ namespace
         {
             std::vector<monad::async::read_single_buffer_sender::buffer_type>
                 &bufs;
-
-            enum
-            {
-                lifetime_managed_internally = true
-            };
 
             void set_value(
                 monad::async::erased_connected_operation *,

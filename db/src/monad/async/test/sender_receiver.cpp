@@ -164,11 +164,6 @@ TEST_F(AsyncIO, timed_delay_sender_receiver)
     auto check = [&](char const *desc, auto &&get_now, auto timeout) {
         struct receiver_t
         {
-            enum : bool
-            {
-                lifetime_managed_internally = false
-            };
-
             bool done{false};
             void set_value(erased_connected_operation *, result<void> res)
             {
@@ -228,11 +223,6 @@ TEST_F(AsyncIO, threadsafe_sender_receiver)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         std::atomic<bool> done{false};
         receiver_t() = default;
 
@@ -260,11 +250,6 @@ TEST_F(AsyncIO, read_multiple_buffer_sender_receiver)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         std::optional<read_multiple_buffer_sender::buffers_type> &v;
 
         void set_value(
@@ -371,11 +356,6 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
 
     struct reinitiating_receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         void set_value(erased_connected_operation *state, result<void> res)
         {
             ASSERT_TRUE(res);
@@ -388,11 +368,6 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
 
     struct nonreinitiating_receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         void set_value(erased_connected_operation *, result<void> res)
         {
             ASSERT_TRUE(res);
@@ -895,11 +870,6 @@ TEST_F(AsyncIO, stack_overflow_avoided)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         unsigned count;
 
         void set_value(erased_connected_operation *, result<void> res)

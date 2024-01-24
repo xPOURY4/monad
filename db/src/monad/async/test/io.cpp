@@ -55,8 +55,6 @@ namespace
 
     struct poll_does_not_recurse_receiver_t
     {
-        static constexpr bool lifetime_managed_internally = false;
-
         int &count, &recursion_count, &max_recursion_count;
         std::vector<std::unique_ptr<monad::async::erased_connected_operation>>
             &states;
@@ -144,11 +142,6 @@ namespace
 
         struct empty_receiver
         {
-            enum
-            {
-                lifetime_managed_internally = true
-            };
-
             void set_value(
                 monad::async::erased_connected_operation *,
                 monad::async::write_single_buffer_sender::result_type r)

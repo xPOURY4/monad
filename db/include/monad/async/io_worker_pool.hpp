@@ -417,14 +417,6 @@ class execute_on_worker_pool : public Sender
 {
 public:
     using result_type = typename Sender::result_type;
-    static constexpr operation_type my_operation_type = [] {
-        if constexpr (requires(Sender x) { x.my_operation_type; }) {
-            return Sender::my_operation_type;
-        }
-        else {
-            return operation_type::unknown;
-        }
-    }();
 
 private:
     static constexpr bool
@@ -447,8 +439,6 @@ private:
 
     struct invoke_receiver_receiver_
     {
-        static constexpr bool lifetime_managed_internally = false;
-
         execute_on_worker_pool *parent;
         erased_connected_operation *original_io_state;
         completed_input_result_type_ original_input_result;

@@ -21,6 +21,8 @@
 #include <optional>
 #include <utility>
 
+#include "deserialize_node_from_receiver_result.hpp"
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
@@ -51,9 +53,7 @@ struct find_receiver
     {
         chunk_offset_t const offset =
             aux.virtual_to_physical(parent->fnext(branch_index));
-        auto const num_pages_to_load_node =
-            offset.spare; // top 2 bits are for no_pages
-        MONAD_DEBUG_ASSERT(num_pages_to_load_node <= 3);
+        auto const num_pages_to_load_node = offset.spare;
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset = offset;
@@ -64,18 +64,16 @@ struct find_receiver
     }
 
     //! notify a list of requests pending on this node
+    template <class ResultType>
     void set_value(
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-        monad::async::read_single_buffer_sender::result_type buffer_)
+        MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state,
+        ResultType buffer_)
     {
         MONAD_ASSERT(buffer_);
-        auto &buffer = std::move(buffer_).assume_value().get();
         MONAD_ASSERT(parent->next(branch_index) == nullptr);
-        Node *node = deserialize_node_from_buffer(
-                         (unsigned char *)buffer.data() + buffer_off,
-                         buffer.size() - buffer_off)
+        Node *node = detail::deserialize_node_from_receiver_result(
+                         std::move(buffer_), buffer_off, io_state)
                          .release();
-        buffer.reset();
         parent->set_next(branch_index, node);
         auto const offset = parent->fnext(branch_index);
         auto &pendings = inflights.at(offset);
@@ -140,11 +138,24 @@ void find_recursive(
         inflights.emplace(
             offset, std::list<detail::pending_request_t>{{next_key, &promise}});
         find_receiver receiver(aux, inflights, node, branch);
-        read_update_sender sender(receiver);
-        auto iostate =
-            aux.io->make_connected(std::move(sender), std::move(receiver));
-        iostate->initiate();
-        iostate.release();
+        [[likely]] if (
+            receiver.bytes_to_read <=
+            MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE) {
+            read_short_update_sender sender(receiver);
+            auto iostate =
+                aux.io->make_connected(std::move(sender), std::move(receiver));
+            iostate->initiate();
+            iostate.release();
+        }
+        else {
+            read_long_update_sender sender(receiver);
+            using connected_type = decltype(connect(
+                *aux.io, std::move(sender), std::move(receiver)));
+            auto *iostate = new connected_type(
+                connect(*aux.io, std::move(sender), std::move(receiver)));
+            iostate->initiate();
+            // drop iostate
+        }
     }
     else {
         promise.set_value({nullptr, find_result::branch_not_exist_failure});

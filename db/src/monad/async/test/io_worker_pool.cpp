@@ -92,11 +92,6 @@ TEST_F(AsyncReadIoWorkerPool, works)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         void set_value(erased_connected_operation *, result<void> res)
         {
             MONAD_ASSERT(res);
@@ -180,11 +175,6 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_reinitiate)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         bool done{false};
 
         void set_value(erased_connected_operation *, result<void> res)
@@ -247,11 +237,6 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
 
     struct receiver2_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         erased_connected_operation *original_io_state{nullptr};
         sender2_t *sender{nullptr};
 
@@ -304,11 +289,6 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_initiate_new_work)
 
     struct receiver1_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         void set_value(erased_connected_operation *, result<void> res)
         {
             MONAD_ASSERT(res);
@@ -398,11 +378,6 @@ TEST_F(AsyncReadIoWorkerPool, workers_can_do_read_io)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         bool done{false};
 
         void set_value(erased_connected_operation *, result<void> res)
@@ -470,11 +445,6 @@ TEST_F(AsyncReadIoWorkerPool, async_completions_are_not_racy)
 
     struct receiver_t
     {
-        enum : bool
-        {
-            lifetime_managed_internally = false
-        };
-
         bool done{false};
 
         void set_value(erased_connected_operation *, result<void>)

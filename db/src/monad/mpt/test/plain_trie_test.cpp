@@ -383,4 +383,38 @@ TYPED_TEST(PlainTrieTest, large_values)
         EXPECT_TRUE(leaf->has_value());
         EXPECT_EQ(leaf->value(), value2);
     }
+
+    {
+        ::boost::fibers::promise<find_result_type> p;
+        auto fut = p.get_future();
+        inflight_map_t inflights;
+        find_request_t req{&p, this->root.get(), key1};
+        find_notify_fiber_future(this->aux, inflights, req);
+        while (fut.wait_for(std::chrono::seconds(0)) !=
+               ::boost::fibers::future_status::ready) {
+            this->aux.io->wait_until_done();
+        }
+        auto [leaf, res] = fut.get();
+        EXPECT_EQ(res, find_result::success);
+        EXPECT_NE(leaf, nullptr);
+        EXPECT_TRUE(leaf->has_value());
+        EXPECT_EQ(leaf->value(), value1);
+    }
+
+    {
+        ::boost::fibers::promise<find_result_type> p;
+        auto fut = p.get_future();
+        inflight_map_t inflights;
+        find_request_t req{&p, this->root.get(), key2};
+        find_notify_fiber_future(this->aux, inflights, req);
+        while (fut.wait_for(std::chrono::seconds(0)) !=
+               ::boost::fibers::future_status::ready) {
+            this->aux.io->wait_until_done();
+        }
+        auto [leaf, res] = fut.get();
+        EXPECT_EQ(res, find_result::success);
+        EXPECT_NE(leaf, nullptr);
+        EXPECT_TRUE(leaf->has_value());
+        EXPECT_EQ(leaf->value(), value2);
+    }
 }

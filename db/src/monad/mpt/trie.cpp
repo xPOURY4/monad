@@ -30,6 +30,8 @@
 #include <tuple>
 #include <utility>
 
+#include "deserialize_node_from_receiver_result.hpp"
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 using namespace MONAD_ASYNC_NAMESPACE;
@@ -178,20 +180,15 @@ struct update_receiver
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
-        MONAD_ASSERT(bytes_to_read <= AsyncIO::READ_BUFFER_SIZE);
         rd_offset.set_spare(0);
     }
 
-    void set_value(
-        erased_connected_operation *,
-        read_single_buffer_sender::result_type buffer_)
+    template <class ResultType>
+    void set_value(erased_connected_operation *io_state, ResultType buffer_)
     {
         MONAD_ASSERT(buffer_);
-        auto &buffer = buffer_.assume_value().get();
-        auto old = deserialize_node_from_buffer(
-            (unsigned char *)buffer.data() + buffer_off,
-            buffer.size() - buffer_off);
-        buffer.reset();
+        Node::UniquePtr old = detail::deserialize_node_from_receiver_result(
+            std::move(buffer_), buffer_off, io_state);
         // continue recurse down the trie starting from `old`
         unsigned const old_prefix_index = old->path_start_nibble();
         upsert_(
@@ -244,15 +241,12 @@ struct read_single_child_receiver
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
-        MONAD_ASSERT(bytes_to_read <= AsyncIO::READ_BUFFER_SIZE);
     }
 
-    void set_value(
-        erased_connected_operation *,
-        read_single_buffer_sender::result_type buffer_)
+    template <class ResultType>
+    void set_value(erased_connected_operation *io_state, ResultType buffer_)
     {
         MONAD_ASSERT(buffer_);
-        auto &buffer = buffer_.assume_value().get();
         // load node from read buffer
         auto *parent = tnode->parent;
         MONAD_DEBUG_ASSERT(parent);
@@ -261,11 +255,9 @@ struct read_single_child_receiver
         auto &child = tnode->children[bitmask_index(
             tnode->orig_mask,
             static_cast<unsigned>(std::countr_zero(tnode->mask)))];
-        child.ptr = deserialize_node_from_buffer(
-                        (unsigned char *)buffer.data() + buffer_off,
-                        buffer.size() - buffer_off)
+        child.ptr = detail::deserialize_node_from_receiver_result(
+                        std::move(buffer_), buffer_off, io_state)
                         .release();
-        buffer.reset();
         auto const path_size = tnode->path.nibble_size();
         create_node_compute_data_possibly_async(
             *aux, *sm, *parent, entry, tnode_unique_ptr{tnode}, false);
@@ -315,17 +307,13 @@ struct compaction_receiver
         aux_->collect_compaction_read_stats(virtual_offset, bytes_to_read);
     }
 
-    void set_value(
-        erased_connected_operation *,
-        monad::async::read_single_buffer_sender::result_type buffer_)
+    template <class ResultType>
+    void set_value(erased_connected_operation *io_state, ResultType buffer_)
     {
         MONAD_ASSERT(buffer_);
-        auto &buffer = buffer_.assume_value().get();
-        auto *node = deserialize_node_from_buffer(
-                         (unsigned char *)buffer.data() + buffer_off,
-                         buffer.size() - buffer_off)
+        Node *node = detail::deserialize_node_from_receiver_result(
+                         std::move(buffer_), buffer_off, io_state)
                          .release();
-        buffer.reset();
         compact_(*aux, *sm, tnode, index, node, false, orig_offset);
         // now if tnode has everything it needs
         while (!tnode->npending) {
@@ -345,15 +333,33 @@ struct compaction_receiver
 };
 
 template <receiver Receiver>
+    requires(
+        MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
+            read_short_update_sender, Receiver> &&
+        MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
+            read_long_update_sender, Receiver>)
 void async_read(UpdateAux &aux, Receiver &&receiver)
 {
-    read_update_sender sender(receiver);
-    auto iostate =
-        aux.io->make_connected(std::move(sender), std::move(receiver));
-    iostate->initiate();
-    // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
-    // management until i/o completes
-    iostate.release();
+    [[likely]] if (
+        receiver.bytes_to_read <=
+        MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE) {
+        read_short_update_sender sender(receiver);
+        auto iostate =
+            aux.io->make_connected(std::move(sender), std::move(receiver));
+        iostate->initiate();
+        // TEMPORARY UNTIL ALL THIS GETS BROKEN OUT: Release
+        // management until i/o completes
+        iostate.release();
+    }
+    else {
+        read_long_update_sender sender(receiver);
+        using connected_type =
+            decltype(connect(*aux.io, std::move(sender), std::move(receiver)));
+        auto *iostate = new connected_type(
+            connect(*aux.io, std::move(sender), std::move(receiver)));
+        iostate->initiate();
+        // drop iostate
+    }
 }
 
 /////////////////////////////////////////////////////

@@ -60,12 +60,63 @@ using node_writer_unique_ptr_type =
 
 using MONAD_ASYNC_NAMESPACE::receiver;
 
-template <receiver Receiver>
-struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
+struct read_short_update_sender
+    : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
 {
-    read_update_sender(Receiver const &receiver)
+    template <receiver Receiver>
+    constexpr read_short_update_sender(Receiver const &receiver)
         : read_single_buffer_sender(receiver.rd_offset, receiver.bytes_to_read)
     {
+        MONAD_DEBUG_ASSERT(
+            receiver.bytes_to_read <=
+            MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE);
+    }
+};
+
+class read_long_update_sender
+    : public MONAD_ASYNC_NAMESPACE::read_multiple_buffer_sender
+{
+    MONAD_ASYNC_NAMESPACE::read_multiple_buffer_sender::buffer_type buffer_;
+
+public:
+    template <receiver Receiver>
+    read_long_update_sender(Receiver const &receiver)
+        : MONAD_ASYNC_NAMESPACE::read_multiple_buffer_sender(
+              receiver.rd_offset, {&buffer_, 1})
+        , buffer_(
+              (std::byte *)aligned_alloc(
+                  DISK_PAGE_SIZE, receiver.bytes_to_read),
+              receiver.bytes_to_read)
+    {
+        MONAD_DEBUG_ASSERT(
+            receiver.bytes_to_read >
+            MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE);
+        MONAD_ASSERT(buffer_.data() != nullptr);
+    }
+
+    read_long_update_sender(read_long_update_sender &&o) noexcept
+        : MONAD_ASYNC_NAMESPACE::read_multiple_buffer_sender(std::move(o))
+        , buffer_(o.buffer_)
+    {
+        o.buffer_ = {};
+    }
+
+    read_long_update_sender &operator=(read_long_update_sender &&o) noexcept
+
+    {
+        if (this != &o) {
+            this->~read_long_update_sender();
+            new (this) read_long_update_sender(std::move(o));
+        }
+        return *this;
+    }
+
+    ~read_long_update_sender()
+    {
+        if (buffer_.data() != nullptr) {
+            ::free(buffer_.data());
+            buffer_ = {};
+        }
     }
 };
 

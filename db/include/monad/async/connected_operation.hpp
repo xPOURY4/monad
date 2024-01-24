@@ -433,7 +433,10 @@ connect(AsyncIO &io, Sender &&sender, Receiver &&receiver)
                 return Receiver::lifetime_managed_internally;
             }
             else {
-                return true;
+                return detail::sender_operation_type<Sender> ==
+                           operation_type::read ||
+                       detail::sender_operation_type<Sender> ==
+                           operation_type::write;
             }
         }(),
         static_cast<Sender &&>(sender),
@@ -477,7 +480,10 @@ inline connected_operation<Sender, Receiver> connect(
                 return Receiver::lifetime_managed_internally;
             }
             else {
-                return true;
+                return detail::sender_operation_type<Sender> ==
+                           operation_type::read ||
+                       detail::sender_operation_type<Sender> ==
+                           operation_type::write;
             }
         }(),
         _,

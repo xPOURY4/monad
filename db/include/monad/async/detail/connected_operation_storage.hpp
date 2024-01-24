@@ -90,6 +90,17 @@ namespace detail
         return ts.instance;
     }
 
+    // Deduce what kind of connected operation we are
+    template <sender Sender>
+    inline constexpr operation_type sender_operation_type = []() constexpr {
+        if constexpr (requires { Sender::my_operation_type; }) {
+            return Sender::my_operation_type;
+        }
+        else {
+            return operation_type::unknown;
+        }
+    }();
+
     template <class Base, sender Sender, receiver Receiver>
     struct connected_operation_storage : public Base
     {
@@ -103,23 +114,6 @@ namespace detail
     protected:
         Sender sender_;
         Receiver receiver_;
-
-        // Deduce what kind of connected operation we are
-        static constexpr operation_type operation_type_ = []() constexpr {
-            if constexpr (requires { Sender::my_operation_type; }) {
-                return Sender::my_operation_type;
-            }
-            else if constexpr (requires {
-                                   typename Sender::buffer_type::element_type;
-                               }) {
-                constexpr bool is_const =
-                    std::is_const_v<typename Sender::buffer_type::element_type>;
-                return is_const ? operation_type::write : operation_type::read;
-            }
-            else {
-                return operation_type::unknown;
-            }
-        }();
 
         virtual initiation_result do_possibly_deferred_initiate_(
             bool never_defer, bool is_retry) noexcept override
@@ -229,7 +223,8 @@ namespace detail
             AsyncIO &io, bool lifetime_managed_internally, sender_type &&sender,
             receiver_type &&receiver)
             : erased_connected_operation(
-                  operation_type_, io, lifetime_managed_internally)
+                  sender_operation_type<Sender>, io,
+                  lifetime_managed_internally)
             , sender_(static_cast<Sender &&>(sender))
             , receiver_(static_cast<Receiver &&>(receiver))
         {
@@ -251,7 +246,8 @@ namespace detail
             std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
             : erased_connected_operation(
-                  operation_type_, io, lifetime_managed_internally)
+                  sender_operation_type<Sender>, io,
+                  lifetime_managed_internally)
             , sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
             , receiver_(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
@@ -309,22 +305,34 @@ namespace detail
 
         static constexpr bool is_unknown_operation_type() noexcept
         {
-            return operation_type_ == operation_type::unknown;
+            return sender_operation_type<Sender> == operation_type::unknown;
         }
 
         static constexpr bool is_read() noexcept
         {
-            return operation_type_ == operation_type::read;
+            return sender_operation_type<Sender> == operation_type::read;
+        }
+
+        static constexpr bool is_read_scatter() noexcept
+        {
+            return sender_operation_type<Sender> ==
+                   operation_type::read_scatter;
         }
 
         static constexpr bool is_write() noexcept
         {
-            return operation_type_ == operation_type::write;
+            return sender_operation_type<Sender> == operation_type::write;
         }
 
         static constexpr bool is_timeout() noexcept
         {
-            return operation_type_ == operation_type::timeout;
+            return sender_operation_type<Sender> == operation_type::timeout;
+        }
+
+        static constexpr bool is_threadsafeop() noexcept
+        {
+            return sender_operation_type<Sender> ==
+                   operation_type::threadsafeop;
         }
 
         //! Initiates the operation, calling the Receiver with any failure,

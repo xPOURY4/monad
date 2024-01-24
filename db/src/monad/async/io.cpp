@@ -488,8 +488,10 @@ bool AsyncIO::poll_uring_(bool blocking)
         cqe = nullptr;
     }
 
+    bool is_read_or_write = false;
     if (state->is_read()) {
         --records_.inflight_rd;
+        is_read_or_write = true;
         // For now, only silently retry reads
         [[unlikely]] if (
             res.has_error() &&
@@ -510,6 +512,7 @@ bool AsyncIO::poll_uring_(bool blocking)
     }
     else if (state->is_write()) {
         --records_.inflight_wr;
+        is_read_or_write = true;
     }
     else if (state->is_timeout()) {
         --records_.inflight_tm;
@@ -526,7 +529,7 @@ bool AsyncIO::poll_uring_(bool blocking)
     }
 #endif
     erased_connected_operation_unique_ptr_type h2;
-    if (state->lifetime_is_managed_internally()) {
+    if (is_read_or_write && state->lifetime_is_managed_internally()) {
         h2 = erased_connected_operation_unique_ptr_type{state};
     }
     state->completed(std::move(res));

@@ -162,9 +162,19 @@ public:
             std::span<const struct iovec> iovecs;
             if (buffers_.size() <= SMALL_BUFFERS_COUNT) {
                 std::array<struct iovec, SMALL_BUFFERS_COUNT> temp;
-                for (size_t n = 0; n < buffers_.size(); n++) {
-                    temp[n] = {(char *)buffers_[n].data(), buffers_[n].size()};
+                {
+                    size_t n = 0;
+                    for (; n < buffers_.size(); n++) {
+                        temp[n] = {
+                            (char *)buffers_[n].data(), buffers_[n].size()};
+                    }
+                    // Without this, GCC complains in release builds :(
+                    for (; n < temp.size(); n++) {
+                        temp[n].iov_base = nullptr;
+                        temp[n].iov_len = 0;
+                    }
                 }
+
                 iovecs_ = std::move(temp);
                 auto &v = std::get<0>(iovecs_);
                 iovecs = v;

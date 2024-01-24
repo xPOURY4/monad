@@ -13,7 +13,7 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 
 find_package(
-  Boost 1.81
+  Boost 1.83  ## 1.83 really is the minimum
   COMPONENTS ""
   REQUIRED)
 find_package(GTest)
