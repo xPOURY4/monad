@@ -184,6 +184,7 @@ inline UnsignedInteger deserialize_from_big_endian(NibblesView const in)
 template <std::integral V>
 inline byte_string serialize(V n)
 {
+    static_assert(std::endian::native == std::endian::little);
     auto arr = std::bit_cast<std::array<unsigned char, sizeof(V)>>(n);
     return byte_string{arr.data(), arr.size()};
 }
