@@ -132,7 +132,7 @@ void find_recursive(
                 aux, inflights, promise, node->next(child_index), next_key);
             return;
         }
-        chunk_offset_t const offset = node->fnext(child_index);
+        virtual_chunk_offset_t const offset = node->fnext(child_index);
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
             lt->second.emplace_back(next_key, &promise);
             return;

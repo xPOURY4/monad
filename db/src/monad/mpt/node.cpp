@@ -100,19 +100,20 @@ unsigned Node::number_of_children() const noexcept
     return static_cast<unsigned>(std::popcount(mask));
 }
 
-chunk_offset_t const Node::fnext(unsigned const index) const noexcept
+virtual_chunk_offset_t const Node::fnext(unsigned const index) const noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
-    return unaligned_load<chunk_offset_t>(
-        fnext_data + index * sizeof(chunk_offset_t));
+    return unaligned_load<virtual_chunk_offset_t>(
+        fnext_data + index * sizeof(virtual_chunk_offset_t));
 }
 
-void Node::set_fnext(unsigned const index, chunk_offset_t const off) noexcept
+void Node::set_fnext(
+    unsigned const index, virtual_chunk_offset_t const off) noexcept
 {
     std::memcpy(
-        fnext_data + index * sizeof(chunk_offset_t),
+        fnext_data + index * sizeof(virtual_chunk_offset_t),
         &off,
-        sizeof(chunk_offset_t));
+        sizeof(virtual_chunk_offset_t));
 }
 
 unsigned char *Node::child_min_offset_fast_data() noexcept
@@ -125,52 +126,56 @@ unsigned char const *Node::child_min_offset_fast_data() const noexcept
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-detail::compact_chunk_offset_t
+detail::compact_virtual_chunk_offset_t
 Node::min_offset_fast(unsigned const index) noexcept
 {
-    return unaligned_load<detail::compact_chunk_offset_t>(
+    return unaligned_load<detail::compact_virtual_chunk_offset_t>(
         child_min_offset_fast_data() +
-        index * sizeof(detail::compact_chunk_offset_t));
+        index * sizeof(detail::compact_virtual_chunk_offset_t));
 }
 
 void Node::set_min_offset_fast(
-    unsigned const index, detail::compact_chunk_offset_t const offset) noexcept
+    unsigned const index,
+    detail::compact_virtual_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
         child_min_offset_fast_data() +
-            index * sizeof(detail::compact_chunk_offset_t),
+            index * sizeof(detail::compact_virtual_chunk_offset_t),
         &offset,
-        sizeof(detail::compact_chunk_offset_t));
+        sizeof(detail::compact_virtual_chunk_offset_t));
 }
 
 unsigned char *Node::child_min_offset_slow_data() noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() * sizeof(detail::compact_chunk_offset_t);
+           number_of_children() *
+               sizeof(detail::compact_virtual_chunk_offset_t);
 }
 
 unsigned char const *Node::child_min_offset_slow_data() const noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() * sizeof(detail::compact_chunk_offset_t);
+           number_of_children() *
+               sizeof(detail::compact_virtual_chunk_offset_t);
 }
 
-detail::compact_chunk_offset_t
+detail::compact_virtual_chunk_offset_t
 Node::min_offset_slow(unsigned const index) noexcept
 {
-    return unaligned_load<detail::compact_chunk_offset_t>(
+    return unaligned_load<detail::compact_virtual_chunk_offset_t>(
         child_min_offset_slow_data() +
-        index * sizeof(detail::compact_chunk_offset_t));
+        index * sizeof(detail::compact_virtual_chunk_offset_t));
 }
 
 void Node::set_min_offset_slow(
-    unsigned const index, detail::compact_chunk_offset_t const offset) noexcept
+    unsigned const index,
+    detail::compact_virtual_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
         child_min_offset_slow_data() +
-            index * sizeof(detail::compact_chunk_offset_t),
+            index * sizeof(detail::compact_virtual_chunk_offset_t),
         &offset,
-        sizeof(detail::compact_chunk_offset_t));
+        sizeof(detail::compact_virtual_chunk_offset_t));
 }
 
 unsigned char *Node::child_off_data() noexcept

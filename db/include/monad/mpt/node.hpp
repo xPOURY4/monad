@@ -5,7 +5,7 @@
 #include <monad/core/endian.hpp> // NOLINT
 #include <monad/core/math.hpp>
 #include <monad/mem/allocators.hpp>
-#include <monad/mpt/detail/compact_chunk_offset_t.hpp>
+#include <monad/mpt/detail/compact_virtual_chunk_offset_t.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
 #include <monad/mpt/util.hpp>
 #include <monad/rlp/encode.hpp>
@@ -176,23 +176,25 @@ public:
     unsigned number_of_children() const noexcept;
 
     //! fnext
-    chunk_offset_t const fnext(unsigned index) const noexcept;
-    void set_fnext(unsigned index, chunk_offset_t) noexcept;
+    virtual_chunk_offset_t const fnext(unsigned index) const noexcept;
+    void set_fnext(unsigned index, virtual_chunk_offset_t) noexcept;
 
     //! min_block_no array
     //! fastlist min_offset array
     unsigned char *child_min_offset_fast_data() noexcept;
     unsigned char const *child_min_offset_fast_data() const noexcept;
-    detail::compact_chunk_offset_t min_offset_fast(unsigned index) noexcept;
+    detail::compact_virtual_chunk_offset_t
+    min_offset_fast(unsigned index) noexcept;
 
     void set_min_offset_fast(
-        unsigned index, detail::compact_chunk_offset_t) noexcept;
+        unsigned index, detail::compact_virtual_chunk_offset_t) noexcept;
     //! slowlist min_offset array
     unsigned char *child_min_offset_slow_data() noexcept;
     unsigned char const *child_min_offset_slow_data() const noexcept;
-    detail::compact_chunk_offset_t min_offset_slow(unsigned index) noexcept;
+    detail::compact_virtual_chunk_offset_t
+    min_offset_slow(unsigned index) noexcept;
     void set_min_offset_slow(
-        unsigned index, detail::compact_chunk_offset_t) noexcept;
+        unsigned index, detail::compact_virtual_chunk_offset_t) noexcept;
 
     //! data_offset array
     unsigned char *child_off_data() noexcept;
@@ -253,10 +255,10 @@ static_assert(alignof(Node) == 4);
 struct ChildData
 {
     Node *ptr{nullptr};
-    chunk_offset_t offset{INVALID_OFFSET};
+    virtual_chunk_offset_t offset{INVALID_VIRTUAL_OFFSET};
     unsigned char data[32] = {0};
-    detail::compact_chunk_offset_t min_offset_fast{uint32_t(-1)};
-    detail::compact_chunk_offset_t min_offset_slow{uint32_t(-1)};
+    detail::compact_virtual_chunk_offset_t min_offset_fast{uint32_t(-1)};
+    detail::compact_virtual_chunk_offset_t min_offset_slow{uint32_t(-1)};
 
     uint8_t branch{INVALID_BRANCH};
     uint8_t len{0};

@@ -16,6 +16,7 @@ namespace detail
         unsigned nodes_copied_from_fast_to_slow{0};
         unsigned nodes_copied_from_fast_to_fast{0};
         unsigned nodes_copied_from_slow_to_slow{0};
+        // [0]: fast, [1]: slow
         unsigned nreads_before_offset[2] = {0, 0};
         unsigned nreads_after_offset[2] = {0, 0};
         unsigned bytes_read_before_offset[2] = {0, 0};

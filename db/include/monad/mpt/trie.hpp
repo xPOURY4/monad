@@ -3,7 +3,7 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/collected_stats.hpp>
-#include <monad/mpt/detail/compact_chunk_offset_t.hpp>
+#include <monad/mpt/detail/compact_virtual_chunk_offset_t.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/state_machine.hpp>
@@ -70,7 +70,7 @@ struct read_update_sender : MONAD_ASYNC_NAMESPACE::read_single_buffer_sender
     }
 };
 
-chunk_offset_t
+virtual_chunk_offset_t
 async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast);
 
 node_writer_unique_ptr_type replace_node_writer(
@@ -93,10 +93,10 @@ class UpdateAux
     struct state_disk_info_t
     {
         uint64_t block_id{0};
-        detail::compact_chunk_offset_t min_offset_fast{0};
-        detail::compact_chunk_offset_t min_offset_slow{0};
-        detail::compact_chunk_offset_t max_offset_fast{0};
-        detail::compact_chunk_offset_t max_offset_slow{0};
+        detail::compact_virtual_chunk_offset_t min_offset_fast{0};
+        detail::compact_virtual_chunk_offset_t min_offset_slow{0};
+        detail::compact_virtual_chunk_offset_t max_offset_fast{0};
+        detail::compact_virtual_chunk_offset_t max_offset_slow{0};
     };
 
     void reset_node_writers();
@@ -111,17 +111,17 @@ class UpdateAux
     uint32_t remove_chunks_before_count_fast_{0};
     uint32_t remove_chunks_before_count_slow_{0};
     // speed control var
-    detail::compact_chunk_offset_t last_block_end_offset_fast_{0};
-    detail::compact_chunk_offset_t last_block_end_offset_slow_{0};
-    detail::compact_chunk_offset_t last_block_disk_growth_fast_{0};
-    detail::compact_chunk_offset_t last_block_disk_growth_slow_{0};
+    detail::compact_virtual_chunk_offset_t last_block_end_offset_fast_{0};
+    detail::compact_virtual_chunk_offset_t last_block_end_offset_slow_{0};
+    detail::compact_virtual_chunk_offset_t last_block_disk_growth_fast_{0};
+    detail::compact_virtual_chunk_offset_t last_block_disk_growth_slow_{0};
     // compaction range
-    detail::compact_chunk_offset_t compact_offset_range_fast_{0};
-    detail::compact_chunk_offset_t compact_offset_range_slow_{0};
+    detail::compact_virtual_chunk_offset_t compact_offset_range_fast_{0};
+    detail::compact_virtual_chunk_offset_t compact_offset_range_slow_{0};
 
 public:
-    detail::compact_chunk_offset_t compact_offset_fast{0};
-    detail::compact_chunk_offset_t compact_offset_slow{0};
+    detail::compact_virtual_chunk_offset_t compact_offset_fast{0};
+    detail::compact_virtual_chunk_offset_t compact_offset_slow{0};
 
     // On disk stuff
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
@@ -163,12 +163,12 @@ public:
     void reset_stats();
     void collect_number_nodes_created_stats();
     void collect_compaction_read_stats(
-        chunk_offset_t node_offset, unsigned bytes_to_read);
+        virtual_chunk_offset_t node_offset, unsigned bytes_to_read);
     void collect_compacted_nodes_stats(
-        detail::compact_chunk_offset_t subtrie_min_offset_fast,
-        detail::compact_chunk_offset_t subtrie_min_offset_slow);
+        detail::compact_virtual_chunk_offset_t subtrie_min_offset_fast,
+        detail::compact_virtual_chunk_offset_t subtrie_min_offset_slow);
     void collect_compacted_nodes_from_to_stats(
-        chunk_offset_t node_offset, bool rewrite_to_fast);
+        virtual_chunk_offset_t node_offset, bool rewrite_to_fast);
     void print_update_stats();
 
     enum class chunk_list : uint8_t
@@ -188,8 +188,8 @@ public:
         detail::unsigned_20 insertion_count) const noexcept;
 
     // translate between virtual and physical addresses chunk_offset_t
-    chunk_offset_t physical_to_virtual(chunk_offset_t) const noexcept;
-    chunk_offset_t virtual_to_physical(chunk_offset_t) const noexcept;
+    virtual_chunk_offset_t physical_to_virtual(chunk_offset_t) const noexcept;
+    chunk_offset_t virtual_to_physical(virtual_chunk_offset_t) const noexcept;
 
     // age is relative to the beginning chunk's count
     std::pair<chunk_list, detail::unsigned_20>
@@ -321,8 +321,8 @@ namespace detail
 }
 
 using inflight_map_t = unordered_dense_map<
-    chunk_offset_t, std::list<detail::pending_request_t>,
-    chunk_offset_t_hasher>;
+    virtual_chunk_offset_t, std::list<detail::pending_request_t>,
+    virtual_chunk_offset_t_hasher>;
 
 //! \warning this is not threadsafe, should only be called from triedb thread
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
@@ -360,19 +360,21 @@ inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
     return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
 }
 
-inline std::pair<detail::compact_chunk_offset_t, detail::compact_chunk_offset_t>
+inline std::pair<
+    detail::compact_virtual_chunk_offset_t,
+    detail::compact_virtual_chunk_offset_t>
 calc_min_offsets(
-    Node &node, chunk_offset_t node_virtual_offset = INVALID_OFFSET)
+    Node &node,
+    virtual_chunk_offset_t node_virtual_offset = INVALID_VIRTUAL_OFFSET)
 {
     constexpr auto INVALID_MIN_OFFSET =
-        detail::compact_chunk_offset_t{uint32_t(-1)};
-    detail::compact_chunk_offset_t fast_ret = INVALID_MIN_OFFSET;
-    detail::compact_chunk_offset_t slow_ret = INVALID_MIN_OFFSET;
-    if (node_virtual_offset != INVALID_OFFSET) {
+        detail::compact_virtual_chunk_offset_t{uint32_t(-1)};
+    detail::compact_virtual_chunk_offset_t fast_ret = INVALID_MIN_OFFSET;
+    detail::compact_virtual_chunk_offset_t slow_ret = INVALID_MIN_OFFSET;
+    if (node_virtual_offset != INVALID_VIRTUAL_OFFSET) {
         auto const truncated_offset =
-            detail::compact_chunk_offset_t{node_virtual_offset};
-        bool const node_in_fast = node_virtual_offset.get_highest_bit();
-        if (node_in_fast) {
+            detail::compact_virtual_chunk_offset_t{node_virtual_offset};
+        if (node_virtual_offset.in_fast_list()) {
             fast_ret = truncated_offset;
         }
         else {

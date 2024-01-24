@@ -54,31 +54,28 @@ uint32_t UpdateAux::chunk_id_from_insertion_count(
     return map[idx];
 }
 
-chunk_offset_t
+virtual_chunk_offset_t
 UpdateAux::physical_to_virtual(chunk_offset_t offset) const noexcept
 {
     MONAD_ASSERT(offset.id < io->chunk_count());
     auto const *ci = db_metadata_[0]->at(offset.id);
-    // free list offset never enter this function
+    // should never invoke a translation for offset in free list
     MONAD_DEBUG_ASSERT(ci->in_fast_list || ci->in_slow_list);
-    // Use top bit in id for slow or fast list
-    offset.id = uint32_t(ci->insertion_count()) & chunk_offset_t::max_id;
-    offset.set_highest_bit(ci->in_fast_list);
-    return offset;
+    return {
+        uint32_t(ci->insertion_count()),
+        offset.offset,
+        ci->in_fast_list,
+        offset.spare & virtual_chunk_offset_t::max_spare};
 }
 
 chunk_offset_t
-UpdateAux::virtual_to_physical(chunk_offset_t offset) const noexcept
+UpdateAux::virtual_to_physical(virtual_chunk_offset_t offset) const noexcept
 {
-    MONAD_DEBUG_ASSERT(offset.spare != 0xffff); // not max
-    // get top bit in spare and then clear it
-    bool const in_fast = offset.get_highest_bit();
-    offset.set_highest_bit(false);
-    offset.id = chunk_id_from_insertion_count(
-                    in_fast ? chunk_list::fast : chunk_list::slow, offset.id) &
-                chunk_offset_t::max_id;
-    MONAD_ASSERT(offset.id < io->chunk_count());
-    return offset;
+    auto const id = chunk_id_from_insertion_count(
+        offset.in_fast_list() ? chunk_list::fast : chunk_list::slow,
+        offset.count);
+    MONAD_ASSERT(id < io->chunk_count());
+    return {id, offset.offset, offset.spare};
 }
 
 std::pair<UpdateAux::chunk_list, detail::unsigned_20>
@@ -449,13 +446,14 @@ void UpdateAux::restore_state_history_disk_infos(Node &root)
             min_offset_fast,
             min_offset_slow,
             (i < max_block_id)
-                ? detail::compact_chunk_offset_t{0}
-                : detail::compact_chunk_offset_t{this->physical_to_virtual(
-                      node_writer_fast->sender().offset())},
-            (i < max_block_id)
-                ? detail::compact_chunk_offset_t{0}
-                : detail::compact_chunk_offset_t{this->physical_to_virtual(
-                      node_writer_slow->sender().offset())});
+                ? detail::compact_virtual_chunk_offset_t{0}
+                : detail::
+                      compact_virtual_chunk_offset_t{this->physical_to_virtual(
+                          node_writer_fast->sender().offset())},
+            (i < max_block_id) ? detail::compact_virtual_chunk_offset_t{0}
+                               : detail::compact_virtual_chunk_offset_t{
+                                     this->physical_to_virtual(
+                                         node_writer_slow->sender().offset())});
     }
 }
 
@@ -496,9 +494,9 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
     // value under block_num is the `concat(min_offset_fast +
     // min_offset_slow)` byte_string
     auto last_block_max_offsets =
-        serialize((uint32_t)detail::compact_chunk_offset_t{
+        serialize((uint32_t)detail::compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_fast->sender().offset())}) +
-        serialize((uint32_t)detail::compact_chunk_offset_t{
+        serialize((uint32_t)detail::compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_slow->sender().offset())});
     Update u = make_update(
         block_num, last_block_max_offsets, false, std::move(updates));
@@ -514,9 +512,9 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
         block_id,
         compact_offset_fast,
         compact_offset_slow,
-        detail::compact_chunk_offset_t{
+        detail::compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_fast->sender().offset())},
-        detail::compact_chunk_offset_t{
+        detail::compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_slow->sender().offset())});
     return root;
 }
@@ -526,17 +524,17 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
     MONAD_ASSERT(is_on_disk());
 
     // update disk growth speed trackers
-    detail::compact_chunk_offset_t const curr_fast_writer_offset{
+    detail::compact_virtual_chunk_offset_t const curr_fast_writer_offset{
         physical_to_virtual(node_writer_fast->sender().offset())};
-    detail::compact_chunk_offset_t const curr_slow_writer_offset{
+    detail::compact_virtual_chunk_offset_t const curr_slow_writer_offset{
         physical_to_virtual(node_writer_slow->sender().offset())};
     last_block_disk_growth_fast_ =
         last_block_end_offset_fast_ == 0
-            ? detail::compact_chunk_offset_t{0}
+            ? detail::compact_virtual_chunk_offset_t{0}
             : curr_fast_writer_offset - last_block_end_offset_fast_;
     last_block_disk_growth_slow_ =
         last_block_end_offset_slow_ == 0
-            ? detail::compact_chunk_offset_t{0}
+            ? detail::compact_virtual_chunk_offset_t{0}
             : curr_slow_writer_offset - last_block_end_offset_slow_;
     last_block_end_offset_fast_ = curr_fast_writer_offset;
     last_block_end_offset_slow_ = curr_slow_writer_offset;
@@ -607,7 +605,8 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
     compact_offset_slow += compact_offset_range_slow_;
     // correcting offsets
     // TEMPORARY
-    detail::compact_chunk_offset_t min_fast_offset = 0, min_slow_offset = 0;
+    detail::compact_virtual_chunk_offset_t min_fast_offset = 0,
+                                           min_slow_offset = 0;
     if (!state_histories.empty()) {
         // latest block min offsets
         min_fast_offset = state_histories.back().min_offset_fast;
@@ -770,20 +769,21 @@ void UpdateAux::collect_number_nodes_created_stats()
 }
 
 void UpdateAux::collect_compaction_read_stats(
-    chunk_offset_t const node_offset, unsigned const bytes_to_read)
+    virtual_chunk_offset_t const node_offset, unsigned const bytes_to_read)
 {
 #if MONAD_MPT_COLLECT_STATS
-    bool const node_in_slow_list = !node_offset.get_highest_bit();
-    if (detail::compact_chunk_offset_t(node_offset) <
-        (node_in_slow_list ? compact_offset_slow : compact_offset_fast)) {
+    if (detail::compact_virtual_chunk_offset_t(node_offset) <
+        (node_offset.in_fast_list() ? compact_offset_fast
+                                    : compact_offset_slow)) {
         // node orig offset in fast list but compact to slow list
-        stats.nreads_before_offset[node_in_slow_list]++;
-        stats.bytes_read_before_offset[node_in_slow_list] +=
+        stats.nreads_before_offset[!node_offset.in_fast_list()]++;
+        stats.bytes_read_before_offset[!node_offset.in_fast_list()] +=
             bytes_to_read; // compaction bytes read
     }
     else {
-        stats.nreads_after_offset[node_in_slow_list]++;
-        stats.bytes_read_before_offset[node_in_slow_list] += bytes_to_read;
+        stats.nreads_after_offset[!node_offset.in_fast_list()]++;
+        stats.bytes_read_before_offset[!node_offset.in_fast_list()] +=
+            bytes_to_read;
     }
     stats.num_compaction_reads++; // count number of compaction reads
 #else
@@ -793,8 +793,8 @@ void UpdateAux::collect_compaction_read_stats(
 }
 
 void UpdateAux::collect_compacted_nodes_stats(
-    detail::compact_chunk_offset_t const subtrie_min_offset_fast,
-    detail::compact_chunk_offset_t const subtrie_min_offset_slow)
+    detail::compact_virtual_chunk_offset_t const subtrie_min_offset_fast,
+    detail::compact_virtual_chunk_offset_t const subtrie_min_offset_slow)
 {
 #if MONAD_MPT_COLLECT_STATS
     if (subtrie_min_offset_fast < compact_offset_fast) {
@@ -810,11 +810,11 @@ void UpdateAux::collect_compacted_nodes_stats(
 }
 
 void UpdateAux::collect_compacted_nodes_from_to_stats(
-    chunk_offset_t const node_offset, bool const rewrite_to_fast)
+    virtual_chunk_offset_t const node_offset, bool const rewrite_to_fast)
 {
 #if MONAD_MPT_COLLECT_STATS
-    if (node_offset != INVALID_OFFSET) {
-        if (node_offset.get_highest_bit()) {
+    if (node_offset != INVALID_VIRTUAL_OFFSET) {
+        if (node_offset.in_fast_list()) {
             if (!rewrite_to_fast) {
                 stats.nodes_copied_from_fast_to_slow++;
             }

@@ -33,6 +33,100 @@ static byte_string const empty_trie_hash = [] {
     return 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421_hex;
 }();
 
+struct virtual_chunk_offset_t
+{
+    file_offset_t offset : 28; //!< Offset into the chunk, max is 256Mb
+    file_offset_t
+        count : 20; //!< Count of the chunk, max is 1 million, therefore maximum
+                    //!< addressable storage is 256Tb
+    file_offset_t spare : 15;
+    file_offset_t is_in_fast_list : 1;
+
+    static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
+    static constexpr file_offset_t max_count = (1U << 20) - 1;
+    static constexpr file_offset_t max_spare = (1U << 15) - 1;
+    static constexpr file_offset_t top_bit_mask_in_spare = 1U << 15;
+
+    static constexpr virtual_chunk_offset_t invalid_value() noexcept
+    {
+        return {max_count, max_offset, 1, max_spare};
+    }
+
+    constexpr virtual_chunk_offset_t(
+        uint32_t count_, file_offset_t offset_, file_offset_t is_fast_list_,
+        file_offset_t spare_ = max_spare)
+        : offset(offset_ & max_offset)
+        , count(count_ & max_count)
+        , spare{spare_ & max_spare}
+        , is_in_fast_list(is_fast_list_ & 1)
+    {
+        MONAD_DEBUG_ASSERT(spare_ <= max_spare);
+        MONAD_DEBUG_ASSERT(count_ <= max_count);
+        MONAD_DEBUG_ASSERT(offset_ <= max_offset);
+        MONAD_DEBUG_ASSERT(is_fast_list_ <= 1);
+    }
+
+    // note that comparator ignores `spare` and `is_in_fast_list`
+    constexpr bool operator==(virtual_chunk_offset_t const &o) const noexcept
+    {
+        return count == o.count && offset == o.offset;
+    }
+
+    constexpr auto operator<=>(virtual_chunk_offset_t const &o) const noexcept
+    {
+        if (count == o.count && offset == o.offset) {
+            return std::weak_ordering::equivalent;
+        }
+        if (count < o.count || (count == o.count && offset < o.offset)) {
+            return std::weak_ordering::less;
+        }
+        return std::weak_ordering::greater;
+    }
+
+    constexpr bool in_fast_list() const noexcept
+    {
+        return is_in_fast_list;
+    }
+
+    constexpr file_offset_t raw() const noexcept
+    {
+        union _
+        {
+            file_offset_t ret;
+            virtual_chunk_offset_t self;
+
+            constexpr _()
+                : ret{}
+            {
+            }
+        } u;
+
+        u.self = *this;
+        u.self.spare =
+            0; // must be flattened, otherwise can't go into the rbtree key
+        u.self.is_in_fast_list = 0;
+        return u.ret;
+    }
+};
+
+static_assert(sizeof(virtual_chunk_offset_t) == 8);
+static_assert(alignof(virtual_chunk_offset_t) == 8);
+static_assert(std::is_trivially_copyable_v<virtual_chunk_offset_t>);
+
+//! The invalid virtual file offset
+static constexpr virtual_chunk_offset_t INVALID_VIRTUAL_OFFSET =
+    virtual_chunk_offset_t::invalid_value();
+static_assert(INVALID_VIRTUAL_OFFSET.in_fast_list());
+
+struct virtual_chunk_offset_t_hasher
+{
+    constexpr size_t operator()(virtual_chunk_offset_t v) const noexcept
+    {
+        v.spare = virtual_chunk_offset_t::max_spare;
+        return fnv1a_hash<virtual_chunk_offset_t>()(v);
+    }
+};
+
 inline constexpr unsigned
 bitmask_index(uint16_t const mask, unsigned const i) noexcept
 {

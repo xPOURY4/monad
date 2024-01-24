@@ -5,7 +5,7 @@
 
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 
-#include "compact_chunk_offset_t.hpp"
+#include "compact_virtual_chunk_offset_t.hpp"
 #include "unsigned_20.hpp"
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -59,10 +59,10 @@ namespace detail
             // if restart.
             chunk_offset_t start_of_wip_offset_fast;
             chunk_offset_t start_of_wip_offset_slow;
-            compact_chunk_offset_t last_compact_offset_fast;
-            compact_chunk_offset_t last_compact_offset_slow;
-            compact_chunk_offset_t last_compact_offset_range_fast;
-            compact_chunk_offset_t last_compact_offset_range_slow;
+            compact_virtual_chunk_offset_t last_compact_offset_fast;
+            compact_virtual_chunk_offset_t last_compact_offset_slow;
+            compact_virtual_chunk_offset_t last_compact_offset_range_fast;
+            compact_virtual_chunk_offset_t last_compact_offset_range_slow;
         } db_offsets;
 
         float slow_fast_ratio;
@@ -266,7 +266,8 @@ namespace detail
             i->prev_chunk_id = list.end & 0xfffffU;
             auto *tail = at_(list.end);
             auto const insertion_count = tail->insertion_count() + 1;
-            MONAD_DEBUG_ASSERT(tail->next_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
+            MONAD_DEBUG_ASSERT(
+                tail->next_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
             i->insertion_count0_ = uint32_t(insertion_count) & 0x3ff;
             i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.end = tail->next_chunk_id = i->index(this) & 0xfffffU;
@@ -289,7 +290,8 @@ namespace detail
             i->next_chunk_id = list.begin & 0xfffffU;
             auto *head = at_(list.begin);
             auto const insertion_count = head->insertion_count() - 1;
-            MONAD_DEBUG_ASSERT(head->prev_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
+            MONAD_DEBUG_ASSERT(
+                head->prev_chunk_id == chunk_info_t::INVALID_CHUNK_ID);
             i->insertion_count0_ = uint32_t(insertion_count) & 0x3ff;
             i->insertion_count1_ = uint32_t(insertion_count >> 10) & 0x3ff;
             list.begin = head->prev_chunk_id = i->index(this) & 0xfffff;

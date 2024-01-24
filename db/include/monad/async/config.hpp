@@ -36,20 +36,22 @@ struct chunk_offset_t
 
     static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
     static constexpr file_offset_t max_id = (1U << 20) - 1;
-    static constexpr file_offset_t top_bit_mask_in_spare = 1U << 15;
+    static constexpr file_offset_t max_spare = (1ULL << 16) - 1;
 
     static constexpr chunk_offset_t invalid_value() noexcept
     {
         return {max_id, max_offset};
     }
 
-    constexpr chunk_offset_t(uint32_t id_, file_offset_t offset_)
+    constexpr chunk_offset_t(
+        uint32_t id_, file_offset_t offset_, file_offset_t spare_ = 0xffff)
         : offset(offset_ & max_offset)
         , id(id_ & max_id)
-        , spare{0xffff}
+        , spare{spare_ & max_spare}
     {
         MONAD_DEBUG_ASSERT(id_ <= max_id);
         MONAD_DEBUG_ASSERT(offset_ <= max_offset);
+        MONAD_DEBUG_ASSERT(spare_ <= max_spare);
     }
 
     constexpr bool operator==(chunk_offset_t const &o) const noexcept
@@ -94,21 +96,6 @@ struct chunk_offset_t
         u.self.spare =
             0; // must be flattened, otherwise can't go into the rbtree key
         return u.ret;
-    }
-
-    constexpr bool get_highest_bit() const noexcept
-    {
-        return spare & top_bit_mask_in_spare;
-    }
-
-    void set_highest_bit(bool const value) noexcept
-    {
-        if (value) {
-            spare |= top_bit_mask_in_spare;
-        }
-        else {
-            spare = (spare & ~top_bit_mask_in_spare) & 0xffff;
-        }
     }
 };
 

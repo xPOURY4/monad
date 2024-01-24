@@ -62,7 +62,7 @@ void create_new_trie_from_requests_(
 
 void upsert_(
     UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
-    Node::UniquePtr old, chunk_offset_t offset, UpdateList &&,
+    Node::UniquePtr old, virtual_chunk_offset_t offset, UpdateList &&,
     unsigned prefix_index = 0, unsigned old_prefix_index = 0);
 
 void create_node_compute_data_possibly_async(
@@ -71,7 +71,7 @@ void create_node_compute_data_possibly_async(
 
 void compact_(
     UpdateAux &, StateMachine &, CompactTNode *parent, unsigned index, Node *,
-    bool cached, chunk_offset_t node_offset = INVALID_OFFSET);
+    bool cached, virtual_chunk_offset_t node_offset = INVALID_VIRTUAL_OFFSET);
 
 void try_fillin_parent_with_rewritten_node(
     UpdateAux &, CompactTNode::unique_ptr_type);
@@ -84,7 +84,7 @@ struct async_write_node_result
 };
 
 // invoke at the end of each block upsert
-chunk_offset_t write_new_root_node(UpdateAux &, Node &);
+virtual_chunk_offset_t write_new_root_node(UpdateAux &, Node &);
 
 Node::UniquePtr upsert(
     UpdateAux &aux, StateMachine &sm, Node::UniquePtr old, UpdateList &&updates)
@@ -101,7 +101,7 @@ Node::UniquePtr upsert(
             *sentinel,
             entry,
             std::move(old),
-            INVALID_OFFSET,
+            INVALID_VIRTUAL_OFFSET,
             std::move(updates));
         if (sentinel->npending) {
             aux.io->flush();
@@ -158,19 +158,19 @@ struct update_receiver
 
     update_receiver(
         UpdateAux *aux, std::unique_ptr<StateMachine> sm, ChildData &entry,
-        chunk_offset_t offset, UpdateList &&updates, UpwardTreeNode *parent,
-        unsigned const prefix_index)
+        virtual_chunk_offset_t virtual_offset, UpdateList &&updates,
+        UpwardTreeNode *parent, unsigned const prefix_index)
         : aux(aux)
         , sm(std::move(sm))
         , updates(std::move(updates))
         , parent(parent)
         , entry(entry)
         , rd_offset(round_down_align<DISK_PAGE_BITS>(
-              aux->virtual_to_physical(offset)))
+              aux->virtual_to_physical(virtual_offset)))
         , prefix_index(static_cast<uint8_t>(prefix_index))
     {
         // prep uring data
-        buffer_off = uint16_t(offset.offset - rd_offset.offset);
+        buffer_off = uint16_t(virtual_offset.offset - rd_offset.offset);
         // spare bits are number of pages needed to load node
         auto const num_pages_to_load_node = rd_offset.spare;
         MONAD_DEBUG_ASSERT(
@@ -200,7 +200,7 @@ struct update_receiver
             *parent,
             entry,
             std::move(old),
-            INVALID_OFFSET,
+            INVALID_VIRTUAL_OFFSET,
             std::move(updates),
             prefix_index,
             old_prefix_index);
@@ -281,7 +281,7 @@ struct compaction_receiver
 {
     UpdateAux *aux;
     chunk_offset_t rd_offset;
-    chunk_offset_t orig_offset;
+    virtual_chunk_offset_t orig_offset;
     CompactTNode *tnode;
     uint8_t index;
     unsigned bytes_to_read;
@@ -291,20 +291,20 @@ struct compaction_receiver
     compaction_receiver(
         UpdateAux *aux_, std::unique_ptr<StateMachine> sm_,
         CompactTNode *tnode_, unsigned const index_,
-        chunk_offset_t const offset)
+        virtual_chunk_offset_t const virtual_offset)
         : aux(aux_)
         , rd_offset({0, 0})
-        , orig_offset(offset)
+        , orig_offset(virtual_offset)
         , tnode(tnode_)
         , index(static_cast<uint8_t>(index_))
         , sm(std::move(sm_))
     {
         MONAD_ASSERT(tnode);
         MONAD_ASSERT(tnode->npending > 0 && tnode->npending <= 16);
-        rd_offset =
-            round_down_align<DISK_PAGE_BITS>(aux->virtual_to_physical(offset));
+        rd_offset = round_down_align<DISK_PAGE_BITS>(
+            aux->virtual_to_physical(virtual_offset));
         auto const num_pages_to_load_node = rd_offset.spare;
-        buffer_off = uint16_t(offset.offset - rd_offset.offset);
+        buffer_off = uint16_t(virtual_offset.offset - rd_offset.offset);
         MONAD_DEBUG_ASSERT(
             num_pages_to_load_node <=
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
@@ -312,7 +312,7 @@ struct compaction_receiver
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset.spare = 0;
 
-        aux_->collect_compaction_read_stats(offset, bytes_to_read);
+        aux_->collect_compaction_read_stats(virtual_offset, bytes_to_read);
     }
 
     void set_value(
@@ -395,7 +395,7 @@ Node *create_node_from_children_if_any(
     // write children to disk, free any if exceeds the cache level limit
     if (aux.is_on_disk()) {
         for (auto &child : children) {
-            if (child.is_valid() && child.offset == INVALID_OFFSET) {
+            if (child.is_valid() && child.offset == INVALID_VIRTUAL_OFFSET) {
                 // write updated node or node to be compacted to disk
                 // won't duplicate write of unchanged old child
                 MONAD_DEBUG_ASSERT(child.branch < 16);
@@ -594,8 +594,8 @@ void create_new_trie_from_requests_(
 
 void upsert_(
     UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old, chunk_offset_t const old_offset, UpdateList &&updates,
-    unsigned prefix_index, unsigned old_prefix_index)
+    Node::UniquePtr old, virtual_chunk_offset_t const old_offset,
+    UpdateList &&updates, unsigned prefix_index, unsigned old_prefix_index)
 {
     if (!old) {
         update_receiver receiver(
@@ -762,7 +762,7 @@ void dispatch_updates_impl_(
                 aux.collect_compacted_nodes_stats(
                     old->min_offset_fast(old_index),
                     old->min_offset_slow(old_index));
-                child.offset = INVALID_OFFSET; // to be rewritten
+                child.offset = INVALID_VIRTUAL_OFFSET; // to be rewritten
                 compact_(
                     aux,
                     sm,
@@ -862,7 +862,7 @@ void mismatch_handler_(
                     *tnode,
                     children[j],
                     std::move(old_ptr),
-                    INVALID_OFFSET,
+                    INVALID_VIRTUAL_OFFSET,
                     std::move(requests)[i],
                     prefix_index + 1,
                     old_prefix_index + 1);
@@ -918,7 +918,7 @@ void mismatch_handler_(
 void compact_(
     UpdateAux &aux, StateMachine &sm, CompactTNode *const parent,
     unsigned const index, Node *const node, bool const cached,
-    chunk_offset_t const node_offset)
+    virtual_chunk_offset_t const node_offset)
 {
     if (!node) {
         compaction_receiver receiver(
@@ -926,10 +926,10 @@ void compact_(
         async_read(aux, std::move(receiver));
         return;
     }
-    bool const rewrite_to_fast = /* INVALID_OFFSET also falls here */
-        (node_offset.get_highest_bit() /*in fast list*/ &&
-         detail::compact_chunk_offset_t{node_offset} >=
-             aux.compact_offset_fast);
+    bool const rewrite_to_fast = /* INVALID_VIRTUAL_OFFSET also falls here */
+        node_offset.in_fast_list() &&
+        detail::compact_virtual_chunk_offset_t{node_offset} >=
+            aux.compact_offset_fast;
     auto tnode =
         CompactTNode::make(parent, index, node, rewrite_to_fast, cached);
 
@@ -1106,7 +1106,7 @@ async_write_node_result async_write_node(
 
 // Return node's virtual offset the node is written at
 // hide the physical offset detail from triedb
-chunk_offset_t
+virtual_chunk_offset_t
 async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
 {
     if (aux.alternate_slow_fast_writer) {
@@ -1126,7 +1126,7 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
 }
 
 // return virtual offset of root
-chunk_offset_t write_new_root_node(UpdateAux &aux, Node &root)
+virtual_chunk_offset_t write_new_root_node(UpdateAux &aux, Node &root)
 {
     auto const virtual_offset_written_to =
         async_write_node_set_spare(aux, root, true);
