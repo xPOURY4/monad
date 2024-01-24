@@ -319,7 +319,8 @@ struct compaction_receiver
         bool const node_in_slow_list = !offset.get_highest_bit();
         // reads before fast offset, after fast offset
         // reads before slow offset, after slow offset
-        if (truncate_offset(offset) < aux->compact_offsets[node_in_slow_list]) {
+        if (detail::compact_chunk_offset_t(offset) <
+            aux->compact_offsets[node_in_slow_list]) {
             // node orig in fast list but compact to slow list
             aux->nreads_before_offset[node_in_slow_list]++;
             aux->bytes_read_before_offset[node_in_slow_list] +=
@@ -968,7 +969,7 @@ void compact_(
     }
     bool const rewrite_to_fast = /* INVALID_OFFSET also falls here */
         (node_offset.get_highest_bit() /*in fast list*/ &&
-         truncate_offset(node_offset) >= aux.compact_offsets[0]);
+         detail::compact_chunk_offset_t{node_offset} >= aux.compact_offsets[0]);
     auto tnode =
         CompactTNode::make(parent, index, node, rewrite_to_fast, cached);
 

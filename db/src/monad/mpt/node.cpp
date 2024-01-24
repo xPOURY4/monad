@@ -125,46 +125,52 @@ unsigned char const *Node::child_min_offset_fast_data() const noexcept
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-uint32_t Node::min_offset_fast(unsigned const index) noexcept
+detail::compact_chunk_offset_t
+Node::min_offset_fast(unsigned const index) noexcept
 {
-    return unaligned_load<uint32_t>(
-        child_min_offset_fast_data() + index * sizeof(uint32_t));
+    return unaligned_load<detail::compact_chunk_offset_t>(
+        child_min_offset_fast_data() +
+        index * sizeof(detail::compact_chunk_offset_t));
 }
 
 void Node::set_min_offset_fast(
-    unsigned const index, uint32_t const offset) noexcept
+    unsigned const index, detail::compact_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
-        child_min_offset_fast_data() + index * sizeof(uint32_t),
+        child_min_offset_fast_data() +
+            index * sizeof(detail::compact_chunk_offset_t),
         &offset,
-        sizeof(uint32_t));
+        sizeof(detail::compact_chunk_offset_t));
 }
 
 unsigned char *Node::child_min_offset_slow_data() noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() * sizeof(uint32_t);
+           number_of_children() * sizeof(detail::compact_chunk_offset_t);
 }
 
 unsigned char const *Node::child_min_offset_slow_data() const noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() * sizeof(uint32_t);
+           number_of_children() * sizeof(detail::compact_chunk_offset_t);
 }
 
-uint32_t Node::min_offset_slow(unsigned const index) noexcept
+detail::compact_chunk_offset_t
+Node::min_offset_slow(unsigned const index) noexcept
 {
-    return unaligned_load<uint32_t>(
-        child_min_offset_slow_data() + index * sizeof(uint32_t));
+    return unaligned_load<detail::compact_chunk_offset_t>(
+        child_min_offset_slow_data() +
+        index * sizeof(detail::compact_chunk_offset_t));
 }
 
 void Node::set_min_offset_slow(
-    unsigned const index, uint32_t const offset) noexcept
+    unsigned const index, detail::compact_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
-        child_min_offset_slow_data() + index * sizeof(uint32_t),
+        child_min_offset_slow_data() +
+            index * sizeof(detail::compact_chunk_offset_t),
         &offset,
-        sizeof(uint32_t));
+        sizeof(detail::compact_chunk_offset_t));
 }
 
 unsigned char *Node::child_off_data() noexcept

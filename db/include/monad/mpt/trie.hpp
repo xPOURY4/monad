@@ -2,6 +2,7 @@
 
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/compact_chunk_offset_t.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/state_machine.hpp>
@@ -95,10 +96,10 @@ class UpdateAux
     struct state_disk_info_t
     {
         uint64_t block_id{0};
-        uint32_t min_offset_fast{0};
-        uint32_t min_offset_slow{0};
-        uint32_t max_offset_fast{0};
-        uint32_t max_offset_slow{0};
+        detail::compact_chunk_offset_t min_offset_fast{0};
+        detail::compact_chunk_offset_t min_offset_slow{0};
+        detail::compact_chunk_offset_t max_offset_fast{0};
+        detail::compact_chunk_offset_t max_offset_slow{0};
     };
 
     std::deque<state_disk_info_t> state_histories;
@@ -147,16 +148,16 @@ public:
         uint64_t block_id, bool compaction);
 
     /******** Compaction ********/
-    uint32_t compact_offsets[2] = {0, 0}; // fast and slow
+    detail::compact_chunk_offset_t compact_offsets[2] = {0, 0}; // fast and slow
 private:
     uint32_t remove_chunks_before_count_[2] = {0, 0};
 
     // speed control var
-    uint32_t last_block_end_offsets_[2] = {0, 0};
-    uint32_t last_block_disk_growth_[2] = {0, 0};
+    detail::compact_chunk_offset_t last_block_end_offsets_[2] = {0, 0};
+    detail::compact_chunk_offset_t last_block_disk_growth_[2] = {0, 0};
 
     // compaction range
-    unsigned compact_offset_ranges_[2] = {0, 0};
+    detail::compact_chunk_offset_t compact_offset_ranges_[2] = {0, 0};
 
 public:
 #if MONAD_MPT_COLLECT_STATS
@@ -383,14 +384,17 @@ inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
     return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
 }
 
-inline std::pair<uint32_t, uint32_t> calc_min_offsets(
+inline std::pair<detail::compact_chunk_offset_t, detail::compact_chunk_offset_t>
+calc_min_offsets(
     Node &node, chunk_offset_t node_virtual_offset = INVALID_OFFSET)
 {
-    constexpr uint32_t INVALID_MIN_OFFSET = uint32_t(-1);
-    uint32_t fast_ret = INVALID_MIN_OFFSET;
-    uint32_t slow_ret = INVALID_MIN_OFFSET;
+    constexpr auto INVALID_MIN_OFFSET =
+        detail::compact_chunk_offset_t{uint32_t(-1)};
+    detail::compact_chunk_offset_t fast_ret = INVALID_MIN_OFFSET;
+    detail::compact_chunk_offset_t slow_ret = INVALID_MIN_OFFSET;
     if (node_virtual_offset != INVALID_OFFSET) {
-        auto const truncated_offset = truncate_offset(node_virtual_offset);
+        auto const truncated_offset =
+            detail::compact_chunk_offset_t{node_virtual_offset};
         bool const node_in_fast = node_virtual_offset.get_highest_bit();
         if (node_in_fast) {
             fast_ret = truncated_offset;

@@ -5,6 +5,7 @@
 
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
 
+#include "compact_chunk_offset_t.hpp"
 #include "unsigned_20.hpp"
 
 MONAD_MPT_NAMESPACE_BEGIN
@@ -58,10 +59,10 @@ namespace detail
             // if restart.
             chunk_offset_t start_of_wip_offset_fast;
             chunk_offset_t start_of_wip_offset_slow;
-            uint32_t last_compact_offset_fast;
-            uint32_t last_compact_offset_slow;
-            uint32_t last_compact_offset_range_fast;
-            uint32_t last_compact_offset_range_slow;
+            compact_chunk_offset_t last_compact_offset_fast;
+            compact_chunk_offset_t last_compact_offset_slow;
+            compact_chunk_offset_t last_compact_offset_range_fast;
+            compact_chunk_offset_t last_compact_offset_range_slow;
         } db_offsets;
 
         float slow_fast_ratio;
