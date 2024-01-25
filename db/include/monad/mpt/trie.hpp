@@ -146,8 +146,6 @@ public:
     bool can_write_to_fast{true};
 
     UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
-        : node_writer_fast(node_writer_unique_ptr_type{})
-        , node_writer_slow(node_writer_unique_ptr_type{})
     {
         if (io_) {
             set_io(io_);
