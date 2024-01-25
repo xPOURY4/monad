@@ -547,7 +547,7 @@ using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
 #ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
-static_assert(sizeof(AsyncIO) == 160);
+static_assert(sizeof(AsyncIO) == 168);
 #else
 static_assert(sizeof(AsyncIO) == 216);
 #endif

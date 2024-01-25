@@ -179,7 +179,7 @@ struct update_receiver
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         MONAD_ASSERT(bytes_to_read <= AsyncIO::READ_BUFFER_SIZE);
-        rd_offset.spare = 0;
+        rd_offset.set_spare(0);
     }
 
     void set_value(
@@ -235,7 +235,7 @@ struct read_single_child_receiver
         // translate virtual offset to physical offset on disk for read
         auto const offset = aux->virtual_to_physical(child.offset);
         rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
-        rd_offset.spare = 0;
+        rd_offset.set_spare(0);
         buffer_off = uint16_t(offset.offset - rd_offset.offset);
         // spare bits are number of pages needed to load node
         auto const num_pages_to_load_node = offset.spare;
@@ -310,7 +310,7 @@ struct compaction_receiver
             round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
-        rd_offset.spare = 0;
+        rd_offset.set_spare(0);
 
         aux_->collect_compaction_read_stats(virtual_offset, bytes_to_read);
     }
@@ -1120,7 +1120,7 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
                    .offset_written_to;
     auto const pages = num_pages(off.offset, node.get_disk_size());
     MONAD_DEBUG_ASSERT(pages <= std::numeric_limits<uint16_t>::max());
-    off.spare = static_cast<uint16_t>(pages);
+    off.set_spare(static_cast<uint16_t>(pages));
     return aux.physical_to_virtual(off);
 }
 

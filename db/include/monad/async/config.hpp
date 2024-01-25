@@ -32,11 +32,13 @@ struct chunk_offset_t
     file_offset_t offset : 28; //!< Offset into the chunk, max is 256Mb
     file_offset_t id : 20; //!< Id of the chunk, max is 1 million, therefore
                            //!< maximum addressable storage is 256Tb
-    file_offset_t spare : 16;
+    file_offset_t spare : 15;
+    file_offset_t bits_format : 1; //! Reserve top bit to switch between
+                                   //! different bits formatting
 
     static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
     static constexpr file_offset_t max_id = (1U << 20) - 1;
-    static constexpr file_offset_t max_spare = (1ULL << 16) - 1;
+    static constexpr file_offset_t max_spare = (1ULL << 15) - 1;
 
     static constexpr chunk_offset_t invalid_value() noexcept
     {
@@ -44,10 +46,11 @@ struct chunk_offset_t
     }
 
     constexpr chunk_offset_t(
-        uint32_t id_, file_offset_t offset_, file_offset_t spare_ = 0xffff)
+        uint32_t id_, file_offset_t offset_, file_offset_t spare_ = max_spare)
         : offset(offset_ & max_offset)
         , id(id_ & max_id)
         , spare{spare_ & max_spare}
+        , bits_format{0x1}
     {
         MONAD_DEBUG_ASSERT(id_ <= max_id);
         MONAD_DEBUG_ASSERT(offset_ <= max_offset);
@@ -95,7 +98,14 @@ struct chunk_offset_t
         u.self = *this;
         u.self.spare =
             0; // must be flattened, otherwise can't go into the rbtree key
+        u.self.bits_format = 0;
         return u.ret;
+    }
+
+    void set_spare(uint16_t value) noexcept
+    {
+        MONAD_DEBUG_ASSERT(value < max_spare);
+        spare = value & max_spare;
     }
 };
 
@@ -107,8 +117,7 @@ struct chunk_offset_t_hasher
 {
     constexpr size_t operator()(chunk_offset_t v) const noexcept
     {
-        v.spare = 0xffff;
-        return fnv1a_hash<chunk_offset_t>()(v);
+        return fnv1a_hash<file_offset_t>()(v.raw());
     }
 };
 
