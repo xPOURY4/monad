@@ -429,31 +429,31 @@ void UpdateAux::restore_state_history_disk_infos(Node &root)
             find_blocking(*this, &root, serialize_as_big_endian<6>(i));
         MONAD_ASSERT(res == find_result::success);
         auto [min_offset_fast, min_offset_slow] = calc_min_offsets(*state_root);
-        if (min_offset_fast == uint32_t(-1)) {
-            min_offset_fast = 0;
+        if (min_offset_fast == INVALID_COMPACT_VIRTUAL_OFFSET) {
+            min_offset_fast.set_value(0);
         }
-        if (min_offset_slow == uint32_t(-1)) {
-            min_offset_slow = 0;
+        if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
+            min_offset_slow.set_value(0);
         }
         if (i > min_block_id) {
-            state_histories.back().max_offset_fast = unaligned_load<uint32_t>(
-                state_root->value().substr(0, 4).data());
-            state_histories.back().max_offset_slow =
-                unaligned_load<uint32_t>(state_root->value().substr(4).data());
+            state_histories.back().max_offset_fast.set_value(
+                unaligned_load<uint32_t>(
+                    state_root->value().substr(0, 4).data()));
+            state_histories.back().max_offset_slow.set_value(
+                unaligned_load<uint32_t>(state_root->value().substr(4).data()));
         }
         state_histories.emplace_back(
             i,
             min_offset_fast,
             min_offset_slow,
             (i < max_block_id)
-                ? detail::compact_virtual_chunk_offset_t{0}
-                : detail::
-                      compact_virtual_chunk_offset_t{this->physical_to_virtual(
-                          node_writer_fast->sender().offset())},
-            (i < max_block_id) ? detail::compact_virtual_chunk_offset_t{0}
-                               : detail::compact_virtual_chunk_offset_t{
-                                     this->physical_to_virtual(
-                                         node_writer_slow->sender().offset())});
+                ? MIN_COMPACT_VIRTUAL_OFFSET
+                : compact_virtual_chunk_offset_t{this->physical_to_virtual(
+                      node_writer_fast->sender().offset())},
+            (i < max_block_id)
+                ? MIN_COMPACT_VIRTUAL_OFFSET
+                : compact_virtual_chunk_offset_t{this->physical_to_virtual(
+                      node_writer_slow->sender().offset())});
     }
 }
 
@@ -494,9 +494,9 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
     // value under block_num is the `concat(min_offset_fast +
     // min_offset_slow)` byte_string
     auto last_block_max_offsets =
-        serialize((uint32_t)detail::compact_virtual_chunk_offset_t{
+        serialize((uint32_t)compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_fast->sender().offset())}) +
-        serialize((uint32_t)detail::compact_virtual_chunk_offset_t{
+        serialize((uint32_t)compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_slow->sender().offset())});
     Update u = make_update(
         block_num, last_block_max_offsets, false, std::move(updates));
@@ -512,9 +512,9 @@ Node::UniquePtr UpdateAux::upsert_with_fixed_history_len(
         block_id,
         compact_offset_fast,
         compact_offset_slow,
-        detail::compact_virtual_chunk_offset_t{
+        compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_fast->sender().offset())},
-        detail::compact_virtual_chunk_offset_t{
+        compact_virtual_chunk_offset_t{
             this->physical_to_virtual(node_writer_slow->sender().offset())});
     return root;
 }
@@ -524,17 +524,17 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
     MONAD_ASSERT(is_on_disk());
 
     // update disk growth speed trackers
-    detail::compact_virtual_chunk_offset_t const curr_fast_writer_offset{
+    compact_virtual_chunk_offset_t const curr_fast_writer_offset{
         physical_to_virtual(node_writer_fast->sender().offset())};
-    detail::compact_virtual_chunk_offset_t const curr_slow_writer_offset{
+    compact_virtual_chunk_offset_t const curr_slow_writer_offset{
         physical_to_virtual(node_writer_slow->sender().offset())};
     last_block_disk_growth_fast_ =
         last_block_end_offset_fast_ == 0
-            ? detail::compact_virtual_chunk_offset_t{0}
+            ? MIN_COMPACT_VIRTUAL_OFFSET
             : curr_fast_writer_offset - last_block_end_offset_fast_;
     last_block_disk_growth_slow_ =
         last_block_end_offset_slow_ == 0
-            ? detail::compact_virtual_chunk_offset_t{0}
+            ? MIN_COMPACT_VIRTUAL_OFFSET
             : curr_slow_writer_offset - last_block_end_offset_slow_;
     last_block_end_offset_fast_ = curr_fast_writer_offset;
     last_block_end_offset_slow_ = curr_slow_writer_offset;
@@ -558,8 +558,8 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
         used_chunks_ratio,
         num_chunks(chunk_list::fast),
         num_chunks(chunk_list::slow));
-    compact_offset_range_fast_ = 0;
-    compact_offset_range_slow_ = 0;
+    compact_offset_range_fast_ = MIN_COMPACT_VIRTUAL_OFFSET;
+    compact_offset_range_slow_ = MIN_COMPACT_VIRTUAL_OFFSET;
     // Compaction pace control based on free space left on disk
     if (used_chunks_ratio <= 0.2 && state_histories.front().block_id == 0) {
         printf("NO COMPACT::");
@@ -579,43 +579,43 @@ void UpdateAux::advance_compact_offsets(state_disk_info_t erased_state_info)
         if (slow_fast_inuse_ratio < db_metadata()->slow_fast_ratio) {
             printf("FAST COMPACT::");
             // slow can continue to grow
-            compact_offset_range_slow_ = (uint32_t)std::lround(
+            compact_offset_range_slow_.set_value((uint32_t)std::lround(
                 (double)last_block_disk_growth_slow_ *
                 ((double)slow_fast_inuse_ratio /
-                 db_metadata()->slow_fast_ratio));
+                 db_metadata()->slow_fast_ratio)));
             // more agressive compaction on fast chunks
-            compact_offset_range_fast_ = last_block_disk_growth_fast_ +
-                                         last_block_disk_growth_slow_ -
-                                         compact_offset_range_slow_ + 5;
+            compact_offset_range_fast_.set_value(
+                last_block_disk_growth_fast_ + last_block_disk_growth_slow_ -
+                compact_offset_range_slow_ + 5);
         }
         else {
             printf("FAST COMPACT ALSO ON SLOW RING::");
             // compact slow list more agressively until ratio is met
-            compact_offset_range_fast_ =
-                (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.99);
+            compact_offset_range_fast_.set_value(
+                (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.99));
             // slow can continue to grow
-            compact_offset_range_slow_ =
+            compact_offset_range_slow_.set_value(
                 std::max(
                     db_metadata()->db_offsets.last_compact_offset_range_slow,
                     last_block_disk_growth_slow_) +
-                2;
+                2);
         }
     }
     compact_offset_fast += compact_offset_range_fast_;
     compact_offset_slow += compact_offset_range_slow_;
     // correcting offsets
     // TEMPORARY
-    detail::compact_virtual_chunk_offset_t min_fast_offset = 0,
-                                           min_slow_offset = 0;
+    auto min_fast_offset = MIN_COMPACT_VIRTUAL_OFFSET,
+         min_slow_offset = MIN_COMPACT_VIRTUAL_OFFSET;
     if (!state_histories.empty()) {
         // latest block min offsets
         min_fast_offset = state_histories.back().min_offset_fast;
         min_slow_offset = state_histories.back().min_offset_slow;
         if (min_slow_offset > uint32_t(-1) / 2) {
-            min_slow_offset = 0;
+            min_slow_offset.set_value(0);
         }
         if (min_fast_offset > uint32_t(-1) / 2) {
-            min_fast_offset = 0;
+            min_fast_offset.set_value(0);
         }
     }
     compact_offset_fast = std::max(compact_offset_fast, min_fast_offset);
@@ -772,7 +772,7 @@ void UpdateAux::collect_compaction_read_stats(
     virtual_chunk_offset_t const node_offset, unsigned const bytes_to_read)
 {
 #if MONAD_MPT_COLLECT_STATS
-    if (detail::compact_virtual_chunk_offset_t(node_offset) <
+    if (compact_virtual_chunk_offset_t(node_offset) <
         (node_offset.in_fast_list() ? compact_offset_fast
                                     : compact_offset_slow)) {
         // node orig offset in fast list but compact to slow list
@@ -793,8 +793,8 @@ void UpdateAux::collect_compaction_read_stats(
 }
 
 void UpdateAux::collect_compacted_nodes_stats(
-    detail::compact_virtual_chunk_offset_t const subtrie_min_offset_fast,
-    detail::compact_virtual_chunk_offset_t const subtrie_min_offset_slow)
+    compact_virtual_chunk_offset_t const subtrie_min_offset_fast,
+    compact_virtual_chunk_offset_t const subtrie_min_offset_slow)
 {
 #if MONAD_MPT_COLLECT_STATS
     if (subtrie_min_offset_fast < compact_offset_fast) {

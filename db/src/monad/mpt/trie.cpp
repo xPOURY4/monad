@@ -928,8 +928,7 @@ void compact_(
     }
     bool const rewrite_to_fast = /* INVALID_VIRTUAL_OFFSET also falls here */
         node_offset.in_fast_list() &&
-        detail::compact_virtual_chunk_offset_t{node_offset} >=
-            aux.compact_offset_fast;
+        compact_virtual_chunk_offset_t{node_offset} >= aux.compact_offset_fast;
     auto tnode =
         CompactTNode::make(parent, index, node, rewrite_to_fast, cached);
 

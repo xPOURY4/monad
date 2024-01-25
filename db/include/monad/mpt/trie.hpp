@@ -3,7 +3,6 @@
 #include <monad/mpt/compute.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/collected_stats.hpp>
-#include <monad/mpt/detail/compact_virtual_chunk_offset_t.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/state_machine.hpp>
@@ -93,10 +92,14 @@ class UpdateAux
     struct state_disk_info_t
     {
         uint64_t block_id{0};
-        detail::compact_virtual_chunk_offset_t min_offset_fast{0};
-        detail::compact_virtual_chunk_offset_t min_offset_slow{0};
-        detail::compact_virtual_chunk_offset_t max_offset_fast{0};
-        detail::compact_virtual_chunk_offset_t max_offset_slow{0};
+        compact_virtual_chunk_offset_t min_offset_fast{
+            MIN_COMPACT_VIRTUAL_OFFSET};
+        compact_virtual_chunk_offset_t min_offset_slow{
+            MIN_COMPACT_VIRTUAL_OFFSET};
+        compact_virtual_chunk_offset_t max_offset_fast{
+            MIN_COMPACT_VIRTUAL_OFFSET};
+        compact_virtual_chunk_offset_t max_offset_slow{
+            MIN_COMPACT_VIRTUAL_OFFSET};
     };
 
     void reset_node_writers();
@@ -111,17 +114,25 @@ class UpdateAux
     uint32_t remove_chunks_before_count_fast_{0};
     uint32_t remove_chunks_before_count_slow_{0};
     // speed control var
-    detail::compact_virtual_chunk_offset_t last_block_end_offset_fast_{0};
-    detail::compact_virtual_chunk_offset_t last_block_end_offset_slow_{0};
-    detail::compact_virtual_chunk_offset_t last_block_disk_growth_fast_{0};
-    detail::compact_virtual_chunk_offset_t last_block_disk_growth_slow_{0};
+    compact_virtual_chunk_offset_t last_block_end_offset_fast_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
+    compact_virtual_chunk_offset_t last_block_end_offset_slow_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
+    compact_virtual_chunk_offset_t last_block_disk_growth_fast_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
+    compact_virtual_chunk_offset_t last_block_disk_growth_slow_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
     // compaction range
-    detail::compact_virtual_chunk_offset_t compact_offset_range_fast_{0};
-    detail::compact_virtual_chunk_offset_t compact_offset_range_slow_{0};
+    compact_virtual_chunk_offset_t compact_offset_range_fast_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
+    compact_virtual_chunk_offset_t compact_offset_range_slow_{
+        MIN_COMPACT_VIRTUAL_OFFSET};
 
 public:
-    detail::compact_virtual_chunk_offset_t compact_offset_fast{0};
-    detail::compact_virtual_chunk_offset_t compact_offset_slow{0};
+    compact_virtual_chunk_offset_t compact_offset_fast{
+        MIN_COMPACT_VIRTUAL_OFFSET};
+    compact_virtual_chunk_offset_t compact_offset_slow{
+        MIN_COMPACT_VIRTUAL_OFFSET};
 
     // On disk stuff
     MONAD_ASYNC_NAMESPACE::AsyncIO *io{nullptr};
@@ -165,8 +176,8 @@ public:
     void collect_compaction_read_stats(
         virtual_chunk_offset_t node_offset, unsigned bytes_to_read);
     void collect_compacted_nodes_stats(
-        detail::compact_virtual_chunk_offset_t subtrie_min_offset_fast,
-        detail::compact_virtual_chunk_offset_t subtrie_min_offset_slow);
+        compact_virtual_chunk_offset_t subtrie_min_offset_fast,
+        compact_virtual_chunk_offset_t subtrie_min_offset_slow);
     void collect_compacted_nodes_from_to_stats(
         virtual_chunk_offset_t node_offset, bool rewrite_to_fast);
     void print_update_stats();
@@ -360,20 +371,16 @@ inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)
     return (bytes + DISK_PAGE_SIZE - 1) >> DISK_PAGE_BITS;
 }
 
-inline std::pair<
-    detail::compact_virtual_chunk_offset_t,
-    detail::compact_virtual_chunk_offset_t>
+inline std::pair<compact_virtual_chunk_offset_t, compact_virtual_chunk_offset_t>
 calc_min_offsets(
     Node &node,
     virtual_chunk_offset_t node_virtual_offset = INVALID_VIRTUAL_OFFSET)
 {
-    constexpr auto INVALID_MIN_OFFSET =
-        detail::compact_virtual_chunk_offset_t{uint32_t(-1)};
-    detail::compact_virtual_chunk_offset_t fast_ret = INVALID_MIN_OFFSET;
-    detail::compact_virtual_chunk_offset_t slow_ret = INVALID_MIN_OFFSET;
+    auto fast_ret = INVALID_COMPACT_VIRTUAL_OFFSET;
+    auto slow_ret = INVALID_COMPACT_VIRTUAL_OFFSET;
     if (node_virtual_offset != INVALID_VIRTUAL_OFFSET) {
         auto const truncated_offset =
-            detail::compact_virtual_chunk_offset_t{node_virtual_offset};
+            compact_virtual_chunk_offset_t{node_virtual_offset};
         if (node_virtual_offset.in_fast_list()) {
             fast_ret = truncated_offset;
         }
@@ -386,10 +393,10 @@ calc_min_offsets(
         slow_ret = std::min(slow_ret, node.min_offset_slow(i));
     }
     // if ret is valid
-    if (fast_ret != INVALID_MIN_OFFSET) {
+    if (fast_ret != INVALID_COMPACT_VIRTUAL_OFFSET) {
         MONAD_ASSERT(fast_ret < (1u << 31));
     }
-    if (slow_ret != INVALID_MIN_OFFSET) {
+    if (slow_ret != INVALID_COMPACT_VIRTUAL_OFFSET) {
         MONAD_ASSERT(slow_ret < (1u << 31));
     }
     return {fast_ret, slow_ret};

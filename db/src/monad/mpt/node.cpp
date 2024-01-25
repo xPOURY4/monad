@@ -126,56 +126,52 @@ unsigned char const *Node::child_min_offset_fast_data() const noexcept
     return fnext_data + number_of_children() * sizeof(file_offset_t);
 }
 
-detail::compact_virtual_chunk_offset_t
+compact_virtual_chunk_offset_t
 Node::min_offset_fast(unsigned const index) noexcept
 {
-    return unaligned_load<detail::compact_virtual_chunk_offset_t>(
+    return unaligned_load<compact_virtual_chunk_offset_t>(
         child_min_offset_fast_data() +
-        index * sizeof(detail::compact_virtual_chunk_offset_t));
+        index * sizeof(compact_virtual_chunk_offset_t));
 }
 
 void Node::set_min_offset_fast(
-    unsigned const index,
-    detail::compact_virtual_chunk_offset_t const offset) noexcept
+    unsigned const index, compact_virtual_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
         child_min_offset_fast_data() +
-            index * sizeof(detail::compact_virtual_chunk_offset_t),
+            index * sizeof(compact_virtual_chunk_offset_t),
         &offset,
-        sizeof(detail::compact_virtual_chunk_offset_t));
+        sizeof(compact_virtual_chunk_offset_t));
 }
 
 unsigned char *Node::child_min_offset_slow_data() noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() *
-               sizeof(detail::compact_virtual_chunk_offset_t);
+           number_of_children() * sizeof(compact_virtual_chunk_offset_t);
 }
 
 unsigned char const *Node::child_min_offset_slow_data() const noexcept
 {
     return child_min_offset_fast_data() +
-           number_of_children() *
-               sizeof(detail::compact_virtual_chunk_offset_t);
+           number_of_children() * sizeof(compact_virtual_chunk_offset_t);
 }
 
-detail::compact_virtual_chunk_offset_t
+compact_virtual_chunk_offset_t
 Node::min_offset_slow(unsigned const index) noexcept
 {
-    return unaligned_load<detail::compact_virtual_chunk_offset_t>(
+    return unaligned_load<compact_virtual_chunk_offset_t>(
         child_min_offset_slow_data() +
-        index * sizeof(detail::compact_virtual_chunk_offset_t));
+        index * sizeof(compact_virtual_chunk_offset_t));
 }
 
 void Node::set_min_offset_slow(
-    unsigned const index,
-    detail::compact_virtual_chunk_offset_t const offset) noexcept
+    unsigned const index, compact_virtual_chunk_offset_t const offset) noexcept
 {
     std::memcpy(
         child_min_offset_slow_data() +
-            index * sizeof(detail::compact_virtual_chunk_offset_t),
+            index * sizeof(compact_virtual_chunk_offset_t),
         &offset,
-        sizeof(detail::compact_virtual_chunk_offset_t));
+        sizeof(compact_virtual_chunk_offset_t));
 }
 
 unsigned char *Node::child_off_data() noexcept

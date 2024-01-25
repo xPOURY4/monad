@@ -96,10 +96,10 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
             Node const *node{nullptr};
             // record the calculated min truncated inorder offsets of trie
             // rooted at node in traversal
-            detail::compact_virtual_chunk_offset_t test_min_offset_fast{
-                uint32_t(-1)};
-            detail::compact_virtual_chunk_offset_t test_min_offset_slow{
-                uint32_t(-1)};
+            compact_virtual_chunk_offset_t test_min_offset_fast{
+                INVALID_COMPACT_VIRTUAL_OFFSET};
+            compact_virtual_chunk_offset_t test_min_offset_slow{
+                INVALID_COMPACT_VIRTUAL_OFFSET};
         };
 
         std::stack<traverse_record_t> root_to_node_records;
@@ -126,14 +126,14 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
             if (node_offset.in_fast_list()) {
                 root_to_node_records.push(
                     {&node,
-                     detail::compact_virtual_chunk_offset_t{node_offset},
-                     uint32_t(-1)});
+                     compact_virtual_chunk_offset_t{node_offset},
+                     INVALID_COMPACT_VIRTUAL_OFFSET});
             }
             else {
                 root_to_node_records.push(
                     {&node,
-                     uint32_t(-1),
-                     detail::compact_virtual_chunk_offset_t{node_offset}});
+                     INVALID_COMPACT_VIRTUAL_OFFSET,
+                     compact_virtual_chunk_offset_t{node_offset}});
             }
         }
 

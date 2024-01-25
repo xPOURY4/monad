@@ -127,6 +127,96 @@ struct virtual_chunk_offset_t_hasher
     }
 };
 
+//! Low resolution offset type that truncates the last 16 bits of
+//! virtual_chunk_offset_t, for which we save space for `Node` without
+//! losing too much granularity in compaction offset.
+class compact_virtual_chunk_offset_t
+{
+    static constexpr unsigned most_significant_bits = sizeof(uint32_t) * 8;
+    static constexpr unsigned bits_to_truncate = 48 - most_significant_bits;
+    uint32_t v_{0};
+
+    struct prevent_public_construction_tag
+    {
+    };
+
+public:
+    static constexpr compact_virtual_chunk_offset_t invalid_value() noexcept
+    {
+        return {prevent_public_construction_tag{}, uint32_t(-1)};
+    }
+
+    static constexpr compact_virtual_chunk_offset_t min_value() noexcept
+    {
+        return {prevent_public_construction_tag{}, 0};
+    }
+
+    constexpr compact_virtual_chunk_offset_t(
+        prevent_public_construction_tag, uint32_t v)
+        : v_{v}
+    {
+    }
+
+    constexpr compact_virtual_chunk_offset_t(
+        virtual_chunk_offset_t const offset)
+        : v_{static_cast<uint32_t>(offset.raw() >> bits_to_truncate)}
+    {
+    }
+
+    void set_value(uint32_t v) noexcept
+    {
+        v_ = v;
+    }
+
+    constexpr uint32_t get_count() const
+    {
+        // most significant 20 bits
+        static constexpr unsigned count_bits = 20;
+        return v_ >> (most_significant_bits - count_bits);
+    }
+
+    constexpr operator uint32_t() const noexcept
+    {
+        return v_;
+    }
+
+    constexpr bool
+    operator==(compact_virtual_chunk_offset_t const &o) const noexcept
+    {
+        return v_ == o.v_;
+    }
+
+    constexpr auto
+    operator<=>(compact_virtual_chunk_offset_t const &o) const noexcept
+    {
+        return v_ <=> o.v_;
+    }
+
+    constexpr compact_virtual_chunk_offset_t
+    operator-(compact_virtual_chunk_offset_t const &o) const noexcept
+    {
+        return {prevent_public_construction_tag{}, v_ - o.v_};
+    }
+
+    constexpr compact_virtual_chunk_offset_t &
+    operator+=(compact_virtual_chunk_offset_t const &o)
+    {
+        v_ += o.v_;
+        return *this;
+    }
+};
+
+static_assert(sizeof(compact_virtual_chunk_offset_t) == 4);
+static_assert(alignof(compact_virtual_chunk_offset_t) == 4);
+static_assert(std::is_trivially_copyable_v<compact_virtual_chunk_offset_t>);
+
+//! The invalid and min compact_virtual_chunk_offset_t
+static constexpr compact_virtual_chunk_offset_t INVALID_COMPACT_VIRTUAL_OFFSET =
+    compact_virtual_chunk_offset_t::invalid_value();
+
+static constexpr compact_virtual_chunk_offset_t MIN_COMPACT_VIRTUAL_OFFSET =
+    compact_virtual_chunk_offset_t::min_value();
+
 inline constexpr unsigned
 bitmask_index(uint16_t const mask, unsigned const i) noexcept
 {
