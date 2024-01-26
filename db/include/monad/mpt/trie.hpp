@@ -193,7 +193,7 @@ public:
 
     Node::UniquePtr do_update(
         Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
-        uint64_t version, bool compaction);
+        uint64_t version, bool compaction = false);
 
 #if MONAD_MPT_COLLECT_STATS
     detail::TrieUpdateCollectedStats stats;

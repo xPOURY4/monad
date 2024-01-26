@@ -797,3 +797,52 @@ TYPED_TEST(TrieTest, root_data_always_hashed)
         this->root_hash(),
         0xfb68c0ed148bf387cff736c64cc6acff3e89a6e6d722fba9b2eaf68f24ad5761_hex);
 }
+
+TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
+{
+    auto const &kv = fixed_updates::kv;
+    uint64_t const start_block_id = 0x123;
+    auto const prefix = 0x00_hex;
+
+    auto upsert_same_kv_once = [&](uint64_t const block_id) {
+        auto block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+        auto u1 = make_update(kv[0].first, kv[0].second);
+        auto u2 = make_update(kv[1].first, kv[1].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+        // no compaction
+        this->root = this->aux.do_update(
+            std::move(this->root), *this->sm, std::move(ul_prefix), block_id);
+        auto [state_root, res] =
+            find_blocking(this->aux, this->root.get(), block_num + prefix);
+        EXPECT_EQ(res, find_result::success);
+        EXPECT_EQ(
+            state_root->data(),
+            0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
+        // check db maintain expected historical versions
+        if (block_id - start_block_id < UpdateAux::version_history_len) {
+            EXPECT_EQ(
+                this->aux.max_version_in_db(*this->root) -
+                    this->aux.min_version_in_db(*this->root),
+                block_id - start_block_id);
+        }
+        else {
+            EXPECT_EQ(
+                this->aux.max_version_in_db(*this->root) -
+                    this->aux.min_version_in_db(*this->root),
+                UpdateAux::version_history_len);
+        }
+    };
+    for (uint64_t i = 0; i < 400; ++i) {
+        upsert_same_kv_once(start_block_id + i);
+    }
+}

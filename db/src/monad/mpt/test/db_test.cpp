@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <initializer_list>
 #include <iterator>
@@ -42,11 +43,13 @@ struct DbTest : public TFixture
 using DbTypes = ::testing::Types<InMemoryDbFixture, OnDiskDbFixture>;
 TYPED_TEST_SUITE(DbTest, DbTypes);
 
-TYPED_TEST(DbTest, simple)
+TYPED_TEST(DbTest, simple_with_same_prefix)
 {
     auto const &kv = fixed_updates::kv;
 
     auto const prefix = 0x00_hex;
+    uint64_t const block_id = 0x123;
+    auto const block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
 
     {
         auto u1 = make_update(kv[0].first, kv[0].second);
@@ -63,13 +66,15 @@ TYPED_TEST(DbTest, simple)
         UpdateList ul_prefix;
         ul_prefix.push_front(u_prefix);
 
-        this->db.upsert(std::move(ul_prefix));
+        this->db.upsert(std::move(ul_prefix), block_id);
     }
 
-    EXPECT_EQ(this->db.get(prefix + kv[0].first).value(), kv[0].second);
-    EXPECT_EQ(this->db.get(prefix + kv[1].first).value(), kv[1].second);
     EXPECT_EQ(
-        this->db.get_data(prefix).value(),
+        this->db.get(block_num + prefix + kv[0].first).value(), kv[0].second);
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[1].first).value(), kv[1].second);
+    EXPECT_EQ(
+        this->db.get_data(block_num + prefix).value(),
         0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
 
     {
@@ -87,16 +92,83 @@ TYPED_TEST(DbTest, simple)
         UpdateList ul_prefix;
         ul_prefix.push_front(u_prefix);
 
-        this->db.upsert(std::move(ul_prefix));
+        this->db.upsert(std::move(ul_prefix), block_id);
     }
 
-    EXPECT_EQ(this->db.get(prefix + kv[2].first).value(), kv[2].second);
-    EXPECT_EQ(this->db.get(prefix + kv[3].first).value(), kv[3].second);
     EXPECT_EQ(
-        this->db.get_data(prefix).value(),
+        this->db.get(block_num + prefix + kv[2].first).value(), kv[2].second);
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[3].first).value(), kv[3].second);
+    EXPECT_EQ(
+        this->db.get_data(block_num + prefix).value(),
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 
-    EXPECT_FALSE(this->db.get(0x01_hex).has_value());
+    EXPECT_FALSE(this->db.get(block_num + 0x01_hex).has_value());
+}
+
+TYPED_TEST(DbTest, simple_with_increasing_block_id_prefix)
+{
+    auto const &kv = fixed_updates::kv;
+
+    auto const prefix = 0x00_hex;
+    uint64_t block_id = 0x123;
+    auto block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+
+    {
+        auto u1 = make_update(kv[0].first, kv[0].second);
+        auto u2 = make_update(kv[1].first, kv[1].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+
+        this->db.upsert(std::move(ul_prefix), block_id++);
+    }
+
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[0].first).value(), kv[0].second);
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[1].first).value(), kv[1].second);
+    EXPECT_EQ(
+        this->db.get_data(block_num + prefix).value(),
+        0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
+
+    {
+        auto u1 = make_update(kv[2].first, kv[2].second);
+        auto u2 = make_update(kv[3].first, kv[3].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+
+        this->db.upsert(std::move(ul_prefix), block_id);
+    }
+
+    // update block_num prefix
+    block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[2].first).value(), kv[2].second);
+    EXPECT_EQ(
+        this->db.get(block_num + prefix + kv[3].first).value(), kv[3].second);
+    EXPECT_EQ(
+        this->db.get_data(block_num + prefix).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+
+    EXPECT_FALSE(this->db.get(block_num + 0x01_hex).has_value());
 }
 
 TYPED_TEST(DbTest, traverse)
@@ -115,6 +187,8 @@ TYPED_TEST(DbTest, traverse)
     ul.push_front(u2);
     ul.push_front(u3);
 
+    uint64_t const block_id = 0x123;
+    auto const block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
     auto const prefix = 0x00_hex;
     auto u_prefix = Update{
         .key = prefix,
@@ -124,7 +198,7 @@ TYPED_TEST(DbTest, traverse)
 
     UpdateList ul_prefix;
     ul_prefix.push_front(u_prefix);
-    this->db.upsert(std::move(ul_prefix));
+    this->db.upsert(std::move(ul_prefix), block_id);
 
     /*
             00
@@ -198,7 +272,7 @@ TYPED_TEST(DbTest, traverse)
                     node.path_nibble_view(),
                     make_nibbles({0x4, 0x5, 0x6, 0x7, 0x8}));
             }
-            else {
+            else if (index > BLOCK_NUM_NIBBLES_LEN + 5) {
                 FAIL();
             }
 
@@ -223,7 +297,8 @@ TYPED_TEST(DbTest, traverse)
         }
     } traverse;
 
-    this->db.traverse(prefix, traverse);
+    this->db.traverse(
+        concat(NibblesView{block_num}, NibblesView{prefix}), traverse);
     EXPECT_EQ(traverse.index, 6);
     EXPECT_EQ(traverse.num_up, 6);
 }

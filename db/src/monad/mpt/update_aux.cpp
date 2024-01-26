@@ -434,9 +434,9 @@ void UpdateAux::reset_node_writers()
 
 /* upsert() supports both on disk and in memory db updates. User should always
 use this interface to upsert updates to db. Here are what it does:
-- copy state from last version to new version if new version not yet exist;
 - erase outdated history block if any; if `compaction`, update compaction
 offsets;
+- copy state from last version to new version if new version not yet exist;
 - upsert `updates` should include everything nested under
 version number;
 - if it's on disk, update db_metadata min max versions.
@@ -451,20 +451,9 @@ Node::UniquePtr UpdateAux::do_update(
     uint64_t const version, bool const compaction)
 {
     auto const curr_version = serialize_as_big_endian<BLOCK_NUM_BYTES>(version);
-    // 1. copy state if version not exists and db is not empty
-    if (!contains_version(prev_root, version) &&
-        contains_version(prev_root, version - 1)) { // empty db won't enter if
-        auto const prev_version =
-            serialize_as_big_endian<BLOCK_NUM_BYTES>(version - 1);
-        prev_root =
-            copy_node(*this, std::move(prev_root), prev_version, curr_version);
-    }
+
     UpdateList db_updates;
-    Update u = make_update(
-        curr_version, byte_string_view{}, false, std::move(updates));
-    db_updates.push_front(u);
-    fprintf(stdout, "Insert version_id %lu\n", version);
-    // 2. erase any outdated states from history
+    // 1. erase any outdated states from history
     uint64_t min_version = prev_root ? min_version_in_db(*prev_root) : version;
     byte_string version_to_erase;
     Update erase;
@@ -474,19 +463,35 @@ Node::UniquePtr UpdateAux::do_update(
             serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
         erase = make_erase(version_to_erase);
         db_updates.push_front(erase);
-        fprintf(stdout, "erase version_id %lu\n", min_version);
+        fprintf(stdout, "Erase version_id %lu\n", min_version);
         min_version++;
         // set chunk count that can be erased
-        auto [erase_root, res] =
-            find_blocking(*this, prev_root.get(), version_to_erase);
-        auto [min_offset_fast, min_offset_slow] = calc_min_offsets(*erase_root);
-        MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
-        if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
-            min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
+        if (is_on_disk()) {
+            auto [erase_root, res] =
+                find_blocking(*this, prev_root.get(), version_to_erase);
+            auto [min_offset_fast, min_offset_slow] =
+                calc_min_offsets(*erase_root);
+            MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
+            if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
+                min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
+            }
+            remove_chunks_before_count_fast_ = min_offset_fast.get_count();
+            remove_chunks_before_count_slow_ = min_offset_slow.get_count();
         }
-        remove_chunks_before_count_fast_ = min_offset_fast.get_count();
-        remove_chunks_before_count_slow_ = min_offset_slow.get_count();
     }
+
+    // 2. copy state if version not exists and db is not empty
+    if (!contains_version(prev_root, version) &&
+        contains_version(prev_root, version - 1)) { // empty db won't enter if
+        auto const prev_version =
+            serialize_as_big_endian<BLOCK_NUM_BYTES>(version - 1);
+        prev_root =
+            copy_node(*this, std::move(prev_root), prev_version, curr_version);
+    }
+    Update u = make_update(
+        curr_version, byte_string_view{}, false, std::move(updates));
+    db_updates.push_front(u);
+    fprintf(stdout, "Insert version_id %lu\n", version);
 
     // 3. advance compaction offsets
     if (compaction) {
