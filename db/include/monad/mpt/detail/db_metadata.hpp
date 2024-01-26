@@ -65,6 +65,8 @@ namespace detail
         } db_offsets;
 
         float slow_fast_ratio;
+        uint64_t min_version;
+        uint64_t max_version;
 
         // used to know if the metadata was being
         // updated when the process suddenly exited
@@ -380,6 +382,14 @@ namespace detail
         {
             auto g = hold_dirty();
             slow_fast_ratio = ratio;
+        }
+
+        void update_version_info_(
+            uint64_t const min_version_, uint64_t const max_version_) noexcept
+        {
+            auto g = hold_dirty();
+            min_version = min_version_;
+            max_version = max_version_;
         }
     };
 

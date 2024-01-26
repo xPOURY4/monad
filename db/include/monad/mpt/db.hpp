@@ -39,13 +39,11 @@ public:
     //! construct an in memory db
     Db(StateMachine &);
     //! construct an on disk db
-    Db(StateMachine &, OnDiskDbConfig const &options);
+    Db(StateMachine &, OnDiskDbConfig const &);
 
     Result<byte_string_view> get(NibblesView);
     Result<byte_string_view> get_data(NibblesView);
-    void upsert(UpdateList);
-    //! upsert with block number prefix
-    void upsert_with_fixed_history_len(UpdateList, uint64_t);
+    void upsert(UpdateList, uint64_t block_id = 0);
     void traverse(NibblesView root, TraverseMachine &);
 };
 

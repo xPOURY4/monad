@@ -92,7 +92,7 @@ Node::UniquePtr batch_upsert_commit(
     }
 
     auto ts_before = std::chrono::steady_clock::now();
-    auto new_root = aux.upsert_with_fixed_history_len(
+    auto new_root = aux.do_update(
         std::move(prev_root),
         sm,
         std::move(state_updates),
@@ -110,26 +110,16 @@ Node::UniquePtr batch_upsert_commit(
     fprintf(stdout, "root->data : ");
     __print_bytes_in_hex(state_root->data());
 
-    auto const latest_fast_chunk = aux.node_writer_fast->sender().offset();
-    auto const latest_slow_chunk = aux.node_writer_slow->sender().offset();
     fprintf(
         stdout,
-        "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in RAM: %f /s, "
-        "total_t %.4f s\nlatest fast chunk written to: idx %u, count %u\n"
-        "latest slow chunk written to: idx %u, count %u\n=====\n",
+        "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in RAM: %f "
+        "/s, total_t %.4f s\n=====\n",
         (key_offset + vec_idx + nkeys) % MAX_NUM_KEYS,
         nkeys,
         (double)nkeys / tm_ram,
-        tm_ram,
-        latest_fast_chunk.id,
-        (uint32_t)aux.db_metadata()
-            ->at(latest_fast_chunk.id)
-            ->insertion_count(),
-        latest_slow_chunk.id,
-        (uint32_t)aux.db_metadata()
-            ->at(latest_slow_chunk.id)
-            ->insertion_count());
+        tm_ram);
     fflush(stdout);
+
     if (csv_writer) {
         csv_writer << (key_offset + vec_idx + nkeys) << ","
                    << ((double)nkeys / tm_ram) << std::endl;
@@ -247,6 +237,7 @@ int main(int argc, char *argv[])
     bool random_keys = false;
     bool compaction = false;
     int file_size_db = 512; // truncate to 512 gb by default
+    uint64_t block_id = uint64_t(-1);
 
     CLI::App cli{"monad_merge_trie_test"};
     try {
@@ -275,6 +266,8 @@ int main(int argc, char *argv[])
         cli.add_flag(
             "--random-keys", random_keys, "generate random integers as keys");
         cli.add_flag("--compaction", compaction, "perform compaction on disk");
+        cli.add_option(
+            "--block-id", block_id, "block id to start inserting at");
         cli.add_option(
             "--file-size-gb",
             file_size_db,
@@ -401,9 +394,11 @@ int main(int argc, char *argv[])
         if (append) {
             root.reset(
                 read_node_blocking(io.storage_pool(), aux.get_root_offset()));
-            aux.restore_state_history_disk_infos(*root);
         }
-        uint64_t block_no = aux.next_block_id();
+        if (block_id == uint64_t(-1)) {
+            block_id = root ? aux.max_version_in_db(*root) + 1 : 0;
+        }
+        printf("starting block id %lu\n", block_id);
 
         auto begin_test = std::chrono::steady_clock::now();
         uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
@@ -433,7 +428,7 @@ int main(int argc, char *argv[])
             cpu_cache_emptier();
             root = batch_upsert_commit(
                 csv_writer,
-                block_no++,
+                block_id++,
                 (iter % 100) * SLICE_LEN, /* vec_idx */
                 key_offset, /* key offset */
                 SLICE_LEN, /* nkeys */
@@ -450,7 +445,7 @@ int main(int argc, char *argv[])
                 fflush(stdout);
                 root = batch_upsert_commit(
                     csv_writer,
-                    block_no++,
+                    block_id++,
                     (iter % 100) * SLICE_LEN, /* vec_idx */
                     key_offset, /* key offset */
                     SLICE_LEN, /* nkeys */
@@ -466,7 +461,7 @@ int main(int argc, char *argv[])
 
                 root = batch_upsert_commit(
                     csv_writer,
-                    block_no++,
+                    block_id++,
                     (iter % 100) * SLICE_LEN, /* vec_idx */
                     key_offset, /* key offset */
                     SLICE_LEN, /* nkeys */

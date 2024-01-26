@@ -119,20 +119,14 @@ Result<byte_string_view> Db::get_data(NibblesView const key)
     return node->data();
 }
 
-void Db::upsert(UpdateList list)
+void Db::upsert(UpdateList list, uint64_t const block_id)
 {
-    root_ = mpt::upsert(aux_, machine_, std::move(root_), std::move(list));
-}
-
-void Db::upsert_with_fixed_history_len(UpdateList list, uint64_t const block_id)
-{
-    MONAD_ASSERT(on_disk_.has_value());
-    root_ = aux_.upsert_with_fixed_history_len(
+    root_ = aux_.do_update(
         std::move(root_),
         machine_,
         std::move(list),
         block_id,
-        on_disk_.value().compaction);
+        on_disk_.has_value() && on_disk_.value().compaction);
 }
 
 void Db::traverse(NibblesView const root, TraverseMachine &machine)

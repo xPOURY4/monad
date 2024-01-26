@@ -155,6 +155,7 @@ class UpdateAux
 
     void reset_node_writers();
 
+    void advance_compact_offsets();
     void advance_compact_offsets(state_disk_info_t);
 
     void free_compacted_chunks();
@@ -191,7 +192,7 @@ public:
     node_writer_unique_ptr_type node_writer_slow{};
 
     // currently maintain a fixed len history
-    static constexpr unsigned block_history_len = 200;
+    static constexpr unsigned version_history_len = 200;
 
     bool alternate_slow_fast_writer{false};
     bool can_write_to_fast{true};
@@ -210,9 +211,10 @@ public:
     void restore_state_history_disk_infos(
         Node &root, std::optional<uint64_t> const max_block_id = std::nullopt);
 
-    //! Copy state from last block to new block, erase outdated history block
-    //! if any, do compaction if specified, and then upsert
-    //! `updates` should include everything nested under block number
+    Node::UniquePtr do_update(
+        Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
+        uint64_t version, bool compaction);
+
     Node::UniquePtr upsert_with_fixed_history_len(
         Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
         uint64_t block_id, bool compaction);
@@ -265,6 +267,8 @@ public:
         chunk_offset_t root_offset, chunk_offset_t fast_offset,
         chunk_offset_t slow_offset) noexcept;
     void update_slow_fast_ratio_metadata() noexcept;
+    void update_version_metadata(
+        uint64_t min_version, uint64_t max_version) noexcept;
 
     // WARNING: This is destructive
     void rewind_to_match_offsets();
@@ -316,6 +320,12 @@ public:
     }
 
     uint32_t num_chunks(chunk_list const list) const noexcept;
+
+    // must call these when db is non empty
+    uint64_t min_version_in_db(Node &root) const noexcept;
+    uint64_t max_version_in_db(Node &root) const noexcept;
+    bool contains_version(
+        Node::UniquePtr &root, uint64_t const version) const noexcept;
 
     uint64_t min_block_id_in_history() const noexcept
     {
