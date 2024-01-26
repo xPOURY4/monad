@@ -139,28 +139,11 @@ class UpdateAux
 
     ::boost::container::devector<uint32_t> insertion_count_to_chunk_id_[3];
 
-    /******** State Histories ********/
-    struct state_disk_info_t
-    {
-        uint64_t block_id{0};
-        compact_virtual_chunk_offset_t min_offset_fast{
-            MIN_COMPACT_VIRTUAL_OFFSET};
-        compact_virtual_chunk_offset_t min_offset_slow{
-            MIN_COMPACT_VIRTUAL_OFFSET};
-        compact_virtual_chunk_offset_t max_offset_fast{
-            MIN_COMPACT_VIRTUAL_OFFSET};
-        compact_virtual_chunk_offset_t max_offset_slow{
-            MIN_COMPACT_VIRTUAL_OFFSET};
-    };
-
     void reset_node_writers();
 
     void advance_compact_offsets();
-    void advance_compact_offsets(state_disk_info_t);
 
     void free_compacted_chunks();
-
-    ::boost::container::devector<state_disk_info_t> state_histories;
 
     /******** Compaction ********/
     uint32_t remove_chunks_before_count_fast_{0};
@@ -208,16 +191,9 @@ public:
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *);
 
-    void restore_state_history_disk_infos(
-        Node &root, std::optional<uint64_t> const max_block_id = std::nullopt);
-
     Node::UniquePtr do_update(
         Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
         uint64_t version, bool compaction);
-
-    Node::UniquePtr upsert_with_fixed_history_len(
-        Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
-        uint64_t block_id, bool compaction);
 
 #if MONAD_MPT_COLLECT_STATS
     detail::TrieUpdateCollectedStats stats;
@@ -326,28 +302,11 @@ public:
     uint64_t max_version_in_db(Node &root) const noexcept;
     bool contains_version(
         Node::UniquePtr &root, uint64_t const version) const noexcept;
-
-    uint64_t min_block_id_in_history() const noexcept
-    {
-        MONAD_ASSERT(state_histories.size());
-        return state_histories.front().block_id;
-    }
-
-    uint64_t max_block_id_in_history() const noexcept
-    {
-        MONAD_ASSERT(state_histories.size());
-        return state_histories.back().block_id;
-    }
-
-    uint64_t next_block_id() const noexcept
-    {
-        return state_histories.empty() ? 0 : max_block_id_in_history() + 1;
-    }
 };
 
 static_assert(
     sizeof(UpdateAux) ==
-    224 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
+    192 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
 static_assert(alignof(UpdateAux) == 8);
 
 // batch upsert, updates can be nested

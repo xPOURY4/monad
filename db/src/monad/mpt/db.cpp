@@ -89,7 +89,6 @@ Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
     MONAD_DEBUG_ASSERT(aux_.is_on_disk());
     if (config.append) {
         MONAD_ASSERT(root_);
-        aux_.restore_state_history_disk_infos(*root_, config.opt_max_block_id);
     }
 }
 
