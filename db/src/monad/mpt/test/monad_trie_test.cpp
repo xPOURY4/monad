@@ -6,6 +6,7 @@
 #include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/io.hpp>
 #include <monad/async/storage_pool.hpp>
+#include <monad/core/array.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
@@ -13,6 +14,7 @@
 #include <monad/core/unordered_map.hpp>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
+#include <monad/mpt/find_request_sender.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/state_machine.hpp>
@@ -41,6 +43,12 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+
+#undef BLOCK_SIZE // without this concurrentqueue.h gets sad
+#include "../../../third_party/concurrentqueue.h"
+
+template <class T>
+using concurrent_queue = moodycamel::ConcurrentQueue<T>;
 
 #include <fcntl.h>
 #include <signal.h>
@@ -131,7 +139,7 @@ Node::UniquePtr batch_upsert_commit(
 void prepare_keccak(
     size_t nkeys, std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, size_t key_offset,
-    bool realistic_corpus, bool is_random = false)
+    bool realistic_corpus, bool is_random)
 {
     size_t val;
     // prepare keccak
@@ -184,7 +192,7 @@ void prepare_keccak(
             }
         }
     }
-    else {
+    else if (is_random) {
         std::random_device rd; // a seed source for the random number engine
         std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
         std::uniform_int_distribution<> distrib(0, MAX_NUM_KEYS - 1);
@@ -197,16 +205,22 @@ void prepare_keccak(
             if (i % SLICE_LEN == 0) {
                 keys_per_slice.clear();
             }
-            if (is_random) {
-                do {
-                    key = (size_t)distrib(gen);
-                }
-                while (keys_per_slice.find(key) != keys_per_slice.end());
-                keys_per_slice.insert(key);
+            do {
+                key = (size_t)distrib(gen);
             }
-            else {
-                key = i + key_offset;
-            }
+            while (keys_per_slice.find(key) != keys_per_slice.end());
+            keys_per_slice.insert(key);
+            keccak_keys[i].resize(32);
+            keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
+            val = key * 2;
+            keccak_values[i].resize(32);
+            keccak256((unsigned char const *)&val, 8, keccak_values[i].data());
+        }
+    }
+    else {
+        size_t key;
+        for (size_t i = 0; i < nkeys; ++i) {
+            key = i + key_offset;
             keccak_keys[i].resize(32);
             keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
             val = key * 2;
@@ -238,6 +252,7 @@ int main(int argc, char *argv[])
     bool compaction = false;
     int file_size_db = 512; // truncate to 512 gb by default
     uint64_t block_id = uint64_t(-1);
+    unsigned random_read_benchmark_threads = 0;
 
     CLI::App cli{"monad_merge_trie_test"};
     try {
@@ -273,6 +288,11 @@ int main(int argc, char *argv[])
             file_size_db,
             "size to create file to if not already exist, only apply to file "
             "not blkdev");
+        cli.add_option(
+            "--random-read-benchmark",
+            random_read_benchmark_threads,
+            "how many threads with which to do random reads of the written "
+            "database after the write test ends (default is run no test)");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
@@ -389,81 +409,51 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, rwbuf};
 
-        UpdateAux<> aux{};
-        monad::test::StateMachineWithBlockNo sm{};
-        if (!in_memory) {
-            aux.set_io(&io);
-        }
-
-        Node::UniquePtr root{};
-        if (append) {
-            root.reset(
-                read_node_blocking(io.storage_pool(), aux.get_root_offset()));
-        }
-        if (block_id == uint64_t(-1)) {
-            block_id = root ? aux.max_version_in_db_history(*root) + 1 : 0;
-        }
-        printf("starting block id %lu\n", block_id);
-
-        auto begin_test = std::chrono::steady_clock::now();
-        uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
-        /* start profiling upsert and commit */
-        for (uint64_t iter = 0; iter < n_slices; ++iter) {
-            // renew keccak values
-            if (!(iter * SLICE_LEN % keccak_cap)) {
-                auto begin_prepare_keccak = std::chrono::steady_clock::now();
-                if (iter) {
-                    key_offset += keccak_cap;
-                }
-                // pre-calculate keccak
-                prepare_keccak(
-                    std::min(keccak_cap, max_key - key_offset),
-                    keccak_keys,
-                    keccak_values,
-                    key_offset,
-                    realistic_corpus,
-                    random_keys);
-                fprintf(
-                    stdout, "Finish preparing keccak.\nStart transactions\n");
-                fflush(stdout);
-                auto end_prepare_keccak = std::chrono::steady_clock::now();
-                begin_test += end_prepare_keccak - begin_prepare_keccak;
+        {
+            UpdateAux<> aux{};
+            monad::test::StateMachineWithBlockNo sm{};
+            if (!in_memory) {
+                aux.set_io(&io);
             }
 
-            cpu_cache_emptier();
-            root = batch_upsert_commit(
-                csv_writer,
-                block_id++,
-                (iter % 100) * SLICE_LEN, /* vec_idx */
-                key_offset, /* key offset */
-                SLICE_LEN, /* nkeys */
-                keccak_keys,
-                keccak_values,
-                false,
-                compaction,
-                std::move(root),
-                aux,
-                sm);
+            Node::UniquePtr root{};
+            if (append) {
+                root.reset(read_node_blocking(
+                    io.storage_pool(), aux.get_root_offset()));
+            }
+            if (block_id == uint64_t(-1)) {
+                block_id = root ? aux.max_version_in_db_history(*root) + 1 : 0;
+            }
+            printf("starting block id %lu\n", block_id);
 
-            if (erase && (iter & 1) != 0) {
-                fprintf(stdout, "> erase iter = %lu\n", iter);
-                fflush(stdout);
-                root = batch_upsert_commit(
-                    csv_writer,
-                    block_id++,
-                    (iter % 100) * SLICE_LEN, /* vec_idx */
-                    key_offset, /* key offset */
-                    SLICE_LEN, /* nkeys */
-                    keccak_keys,
-                    keccak_values,
-                    true,
-                    compaction,
-                    std::move(root),
-                    aux,
-                    sm);
+            auto begin_test = std::chrono::steady_clock::now();
+            uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
+            /* start profiling upsert and commit */
+            for (uint64_t iter = 0; iter < n_slices; ++iter) {
+                // renew keccak values
+                if (!(iter * SLICE_LEN % keccak_cap)) {
+                    auto begin_prepare_keccak =
+                        std::chrono::steady_clock::now();
+                    if (iter) {
+                        key_offset += keccak_cap;
+                    }
+                    // pre-calculate keccak
+                    prepare_keccak(
+                        std::min(keccak_cap, max_key - key_offset),
+                        keccak_keys,
+                        keccak_values,
+                        key_offset,
+                        realistic_corpus,
+                        random_keys);
+                    fprintf(
+                        stdout,
+                        "Finish preparing keccak.\nStart transactions\n");
+                    fflush(stdout);
+                    auto end_prepare_keccak = std::chrono::steady_clock::now();
+                    begin_test += end_prepare_keccak - begin_prepare_keccak;
+                }
 
-                fprintf(stdout, "> dup batch iter = %lu\n", iter);
-
+                cpu_cache_emptier();
                 root = batch_upsert_commit(
                     csv_writer,
                     block_id++,
@@ -477,36 +467,530 @@ int main(int argc, char *argv[])
                     std::move(root),
                     aux,
                     sm);
+
+                if (erase && (iter & 1) != 0) {
+                    fprintf(stdout, "> erase iter = %lu\n", iter);
+                    fflush(stdout);
+                    root = batch_upsert_commit(
+                        csv_writer,
+                        block_id++,
+                        (iter % 100) * SLICE_LEN, /* vec_idx */
+                        key_offset, /* key offset */
+                        SLICE_LEN, /* nkeys */
+                        keccak_keys,
+                        keccak_values,
+                        true,
+                        compaction,
+                        std::move(root),
+                        aux,
+                        sm);
+
+                    fprintf(stdout, "> dup batch iter = %lu\n", iter);
+
+                    root = batch_upsert_commit(
+                        csv_writer,
+                        block_id++,
+                        (iter % 100) * SLICE_LEN, /* vec_idx */
+                        key_offset, /* key offset */
+                        SLICE_LEN, /* nkeys */
+                        keccak_keys,
+                        keccak_values,
+                        false,
+                        compaction,
+                        std::move(root),
+                        aux,
+                        sm);
+                }
+            }
+
+            auto end_test = std::chrono::steady_clock::now();
+            auto test_secs =
+                static_cast<double>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end_test - begin_test)
+                        .count()) /
+                1000000.0;
+            uint64_t bytes_used = 0;
+            for (auto const &device : pool.devices()) {
+                bytes_used += device.capacity().second;
+            }
+            printf(
+                "\nTotal test time: %f secs. Total storage consumed: %f Gb\n",
+                test_secs,
+                double(bytes_used) / 1024.0 / 1024.0 / 1024.0);
+            if (csv_writer) {
+                csv_writer << "\n\"Total test time:\"," << test_secs;
+                csv_writer << "\n\"Total storage consumed:\"," << bytes_used
+                           << std::endl;
             }
         }
 
-        auto end_test = std::chrono::steady_clock::now();
-        auto test_secs =
-            static_cast<double>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    end_test - begin_test)
-                    .count()) /
-            1000000.0;
-        uint64_t bytes_used = 0;
-        for (auto const &device : pool.devices()) {
-            bytes_used += device.capacity().second;
-        }
-        printf(
-            "\nTotal test time: %f secs. Total storage consumed: %f Gb\n",
-            test_secs,
-            double(bytes_used) / 1024.0 / 1024.0 / 1024.0);
-        if (csv_writer) {
-            csv_writer << "\n\"Total test time:\"," << test_secs;
-            csv_writer << "\n\"Total storage consumed:\"," << bytes_used
-                       << std::endl;
+        if (random_read_benchmark_threads > 0) {
+            {
+                auto begin = std::chrono::steady_clock::now();
+                while (std::chrono::steady_clock::now() - begin <
+                       std::chrono::seconds(1)) {
+                }
+            }
+            auto load_db = [&] {
+                auto ret = std::make_unique<
+                    std::tuple<UpdateAux<>, Node::UniquePtr, NodeCursor>>();
+                UpdateAux<> &aux = std::get<0>(*ret);
+                Node::UniquePtr &root = std::get<1>(*ret);
+                NodeCursor &state_start = std::get<2>(*ret);
+                if (!in_memory) {
+                    aux.set_io(&io);
+                }
+                root.reset(read_node_blocking(
+                    io.storage_pool(), aux.get_root_offset()));
+                auto [it, res] = find_blocking(
+                    aux,
+                    *root,
+                    serialize_as_big_endian<BLOCK_NUM_BYTES>(
+                        aux.max_version_in_db_history(*root)));
+                MONAD_ASSERT(res == find_result::success);
+                MONAD_ASSERT(it.node->has_value());
+                state_start = it;
+                return ret;
+            };
+            {
+                auto db = load_db();
+                UpdateAux<> &aux = std::get<0>(*db);
+                NodeCursor state_start = std::get<2>(*db);
+                printf(
+                    "\n********************************************************"
+                    "*"
+                    "*****\n\nDoing random read benchmark with %u concurrent "
+                    "senders "
+                    "on a single thread for ten seconds ...\n",
+                    random_read_benchmark_threads);
+
+                struct receiver_t
+                {
+                    uint64_t &ops;
+                    bool &done;
+                    unsigned const n_slices;
+                    find_request_sender *sender{nullptr};
+                    NodeCursor state_start;
+                    monad::small_prng rand;
+                    monad::byte_string key;
+
+                    explicit receiver_t(
+                        uint64_t &ops_, bool &done_, unsigned n_slices_,
+                        NodeCursor begin, uint32_t id)
+                        : ops(ops_)
+                        , done(done_)
+                        , n_slices(n_slices_)
+                        , state_start(begin)
+                        , rand(id)
+                        , key(32, 0)
+                    {
+                    }
+
+                    void set_value(
+                        MONAD_ASYNC_NAMESPACE::erased_connected_operation
+                            *io_state,
+                        find_request_sender::result_type res)
+                    {
+                        MONAD_ASSERT(res);
+                        auto const [node_cursor, errc] = res.assume_value();
+                        MONAD_ASSERT(node_cursor.is_valid());
+                        MONAD_ASSERT(errc == monad::mpt::find_result::success);
+                        ops++;
+
+                        if (!done) {
+                            size_t key_src = (rand() % (n_slices * SLICE_LEN));
+                            keccak256(
+                                (unsigned char const *)&key_src, 8, key.data());
+                            sender->reset(state_start, key);
+                            io_state->initiate();
+                        }
+                    }
+                };
+
+                using connected_state_type = MONAD_ASYNC_NAMESPACE::
+                    connected_operation<find_request_sender, receiver_t>;
+
+                uint64_t ops{0};
+                bool signal_done{false};
+                inflight_map_t inflights;
+                std::vector<std::unique_ptr<connected_state_type>> states;
+                states.reserve(random_read_benchmark_threads);
+                for (uint32_t n = 0; n < random_read_benchmark_threads; n++) {
+                    states.emplace_back(new auto(connect(
+                        *aux.io,
+                        find_request_sender{
+                            aux, inflights, state_start, NibblesView{}},
+                        receiver_t(
+                            ops, signal_done, n_slices, state_start, n))));
+                }
+
+                // Initiate
+                NodeCursor fake_begin{};
+                fake_begin.node = (Node *)(uintptr_t)1;
+                for (auto &state : states) {
+                    state->receiver().sender = &state->sender();
+                    state->receiver().set_value(
+                        state.get(),
+                        monad::mpt::find_result_type(
+                            fake_begin, monad::mpt::find_result::success));
+                }
+
+                auto begin = std::chrono::steady_clock::now();
+                while (std::chrono::steady_clock::now() - begin <
+                       std::chrono::seconds(10)) {
+                    aux.io->poll_nonblocking(1);
+                }
+                auto end = std::chrono::steady_clock::now();
+                auto diff =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - begin);
+                printf(
+                    "   Did %f random reads per second.\n",
+                    1000000.0 * double(ops) / double(diff.count()));
+                signal_done = true;
+                aux.io->wait_until_done();
+            }
+
+            {
+                auto db = load_db();
+                UpdateAux<> &aux = std::get<0>(*db);
+                NodeCursor state_start = std::get<2>(*db);
+                printf(
+                    "\n********************************************************"
+                    "*"
+                    "*****\n\nDoing random read benchmark with %u fibers "
+                    "on a single thread for ten seconds ...\n",
+                    random_read_benchmark_threads);
+
+                uint64_t ops{0};
+                bool signal_done{false};
+                inflight_map_t inflights;
+                auto find = [n_slices, &ops, &signal_done, &inflights](
+                                UpdateAuxImpl *aux,
+                                NodeCursor state_start,
+                                unsigned n) {
+                    monad::small_prng rand(n);
+                    monad::byte_string key;
+                    key.resize(32);
+                    while (!signal_done) {
+                        size_t key_src = (rand() % (n_slices * SLICE_LEN));
+                        keccak256(
+                            (unsigned char const *)&key_src, 8, key.data());
+
+                        monad::threadsafe_boost_fibers_promise<
+                            monad::mpt::find_result_type>
+                            promise;
+                        fiber_find_request_t const request{
+                            .promise = &promise,
+                            .start = state_start,
+                            .key = key};
+                        find_notify_fiber_future(*aux, inflights, request);
+                        auto const [node_cursor, errc] =
+                            request.promise->get_future().get();
+                        MONAD_ASSERT(node_cursor.is_valid());
+                        MONAD_ASSERT(errc == monad::mpt::find_result::success);
+                        MONAD_ASSERT(node_cursor.node->has_value());
+                        ops++;
+                        boost::this_fiber::yield();
+                    }
+                };
+                auto poll =
+                    [&signal_done](MONAD_ASYNC_NAMESPACE::AsyncIO *const io) {
+                        while (!signal_done) {
+                            io->poll_nonblocking(1);
+                            boost::this_fiber::yield();
+                        }
+                    };
+
+                std::vector<boost::fibers::fiber> fibers;
+                fibers.reserve(random_read_benchmark_threads);
+                for (unsigned n = 0; n < random_read_benchmark_threads; n++) {
+                    fibers.emplace_back(find, &aux, state_start, n);
+                }
+                boost::fibers::fiber poll_fiber(poll, aux.io);
+                auto begin = std::chrono::steady_clock::now();
+                do {
+                    boost::this_fiber::yield();
+                }
+                while (std::chrono::steady_clock::now() - begin <
+                       std::chrono::seconds(10));
+                auto end = std::chrono::steady_clock::now();
+                auto diff =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - begin);
+                printf(
+                    "   Did %f random reads per second.\n",
+                    1000000.0 * double(ops) / double(diff.count()));
+                fflush(stdout);
+                signal_done = true;
+                for (auto &fiber : fibers) {
+                    io.wait_until_done();
+                    fiber.join();
+                }
+                poll_fiber.join();
+            }
+
+            {
+                auto db = load_db();
+                UpdateAux<> &aux = std::get<0>(*db);
+                NodeCursor state_start = std::get<2>(*db);
+                printf(
+                    "\n********************************************************"
+                    "*"
+                    "*****\n\nDoing random read benchmark with a fiber "
+                    "on %u threads using a concurrent queue for "
+                    "synchronisation for ten seconds ...\n",
+                    random_read_benchmark_threads);
+
+                std::atomic<uint64_t> ops{0};
+                std::atomic<int> signal_done{0};
+                concurrent_queue<fiber_find_request_t> req;
+                auto find = [n_slices, &ops, &signal_done, &req](
+                                NodeCursor const state_start, unsigned n) {
+                    monad::small_prng rand(n);
+                    monad::byte_string key;
+                    key.resize(32);
+                    // We need to keep these around as destructing them when
+                    // another thread is still using them is apparently not
+                    // allowed in Boost.Fiber
+                    std::array<
+                        monad::threadsafe_boost_fibers_promise<
+                            monad::mpt::find_result_type>,
+                        4>
+                        promises;
+                    auto promise_it = promises.begin();
+                    while (0 == signal_done.load(std::memory_order_relaxed)) {
+                        size_t key_src = (rand() % (n_slices * SLICE_LEN));
+                        keccak256(
+                            (unsigned char const *)&key_src, 8, key.data());
+
+                        if (promise_it == promises.end()) {
+                            promise_it = promises.begin();
+                        }
+                        fiber_find_request_t const request{
+                            .promise = &*promise_it++,
+                            .start = state_start,
+                            .key = key};
+                        request.promise->reset();
+                        req.enqueue(request);
+                        auto const [node_cursor, errc] =
+                            request.promise->get_future().get();
+                        MONAD_ASSERT(node_cursor.is_valid());
+                        MONAD_ASSERT(errc == monad::mpt::find_result::success);
+                        MONAD_ASSERT(node_cursor.node->has_value());
+                        ops.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    signal_done.fetch_add(1, std::memory_order_relaxed);
+                    while (signal_done.load(std::memory_order_relaxed) > 0) {
+                        std::this_thread::yield();
+                    }
+                };
+                auto poll = [&signal_done, &req](UpdateAuxImpl *aux) {
+                    inflight_map_t inflights;
+                    fiber_find_request_t request;
+                    for (;;) {
+                        boost::this_fiber::yield();
+                        if (0 == signal_done.load(std::memory_order_relaxed)) {
+                            aux->io->poll_nonblocking(1);
+                        }
+                        else {
+                            aux->io->wait_until_done();
+                            return;
+                        }
+                        if (req.try_dequeue(request)) {
+                            find_notify_fiber_future(*aux, inflights, request);
+                        }
+                    }
+                };
+
+                std::vector<std::thread> threads;
+                threads.reserve(random_read_benchmark_threads);
+                for (unsigned n = 0; n < random_read_benchmark_threads; n++) {
+                    threads.emplace_back(find, state_start, n);
+                }
+                boost::fibers::fiber poll_fiber(poll, &aux);
+                auto begin = std::chrono::steady_clock::now();
+                do {
+                    boost::this_fiber::yield();
+                }
+                while (std::chrono::steady_clock::now() - begin <
+                       std::chrono::seconds(10));
+                auto end = std::chrono::steady_clock::now();
+                auto diff =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - begin);
+                printf(
+                    "   Did %f random reads per second.\n",
+                    1000000.0 * double(ops) / double(diff.count()));
+                signal_done = 1;
+                std::cout << "   Joining threads 1 ..." << std::endl;
+                while (signal_done < int(random_read_benchmark_threads + 1)) {
+                    boost::this_fiber::yield();
+                    inflight_map_t inflights;
+                    fiber_find_request_t request;
+                    if (req.try_dequeue(request)) {
+                        find_notify_fiber_future(aux, inflights, request);
+                    }
+                }
+                std::cout << "   Joining threads 2 ..." << std::endl;
+                signal_done = -1;
+                for (auto &thread : threads) {
+                    thread.join();
+                }
+                std::cout << "   Joining poll fiber ..." << std::endl;
+                poll_fiber.join();
+                std::cout << "   Done!" << std::endl;
+            }
+
+            {
+                auto db = load_db();
+                UpdateAux<> &aux = std::get<0>(*db);
+                NodeCursor state_start = get<2>(*db);
+                printf(
+                    "\n********************************************************"
+                    "*"
+                    "*****\n\nDoing random read benchmark with a fiber "
+                    "on %u threads using threadsafe_sender for "
+                    "synchronisation for ten seconds ...\n",
+                    random_read_benchmark_threads);
+
+                std::atomic<uint64_t> ops{0};
+                std::atomic<int> signal_done{0};
+                auto find = [n_slices, &ops, &signal_done, &aux](
+                                NodeCursor const state_start, unsigned n) {
+                    monad::small_prng rand(n);
+                    struct receiver_t
+                    {
+                        UpdateAuxImpl &aux;
+                        monad::threadsafe_boost_fibers_promise<
+                            monad::mpt::find_result_type>
+                            p;
+                        monad::byte_string key;
+                        fiber_find_request_t request;
+                        inflight_map_t &inflights;
+
+                        explicit receiver_t(
+                            UpdateAuxImpl &aux_, inflight_map_t &inflights_)
+                            : aux(aux_)
+                            , inflights(inflights_)
+                        {
+                            key.resize(32);
+                        }
+
+                        void reset(NodeCursor const state_start)
+                        {
+                            p.reset();
+                            request = fiber_find_request_t{
+                                .promise = &p,
+                                .start = state_start,
+                                .key = key};
+                        }
+                        void set_value(
+                            MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                            MONAD_ASYNC_NAMESPACE::threadsafe_sender::
+                                result_type res)
+                        {
+                            MONAD_ASSERT(res);
+                            // We are now on the triedb thread
+                            find_notify_fiber_future(aux, inflights, request);
+                        }
+                    };
+                    inflight_map_t inflights;
+                    using connected_state_type = decltype(connect(
+                        *aux.io,
+                        MONAD_ASYNC_NAMESPACE::threadsafe_sender{},
+                        receiver_t{aux, inflights}));
+                    auto states = ::monad::make_array<connected_state_type, 4>(
+                        std::piecewise_construct,
+                        *aux.io,
+                        std::piecewise_construct,
+                        std::tuple{},
+                        std::tuple<UpdateAuxImpl &, inflight_map_t &>{
+                            aux, inflights});
+                    auto state_it = states.begin();
+                    while (0 == signal_done.load(std::memory_order_relaxed)) {
+                        auto &state = *state_it++;
+                        if (state_it == states.end()) {
+                            state_it = states.begin();
+                        }
+                        size_t key_src = (rand() % (n_slices * SLICE_LEN));
+                        keccak256(
+                            (unsigned char const *)&key_src,
+                            8,
+                            state.receiver().key.data());
+
+                        state.reset(std::tuple{}, std::tuple{state_start});
+                        state.initiate();
+                        auto const [node_cursor, errc] =
+                            state.receiver().p.get_future().get();
+                        MONAD_ASSERT(node_cursor.is_valid());
+                        MONAD_ASSERT(errc == monad::mpt::find_result::success);
+                        MONAD_ASSERT(node_cursor.node->has_value());
+                        ops.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    signal_done.fetch_add(1, std::memory_order_relaxed);
+                    while (signal_done.load(std::memory_order_relaxed) > 0) {
+                        std::this_thread::yield();
+                    }
+                };
+                auto poll = [&signal_done](UpdateAuxImpl *aux) {
+                    for (;;) {
+                        boost::this_fiber::yield();
+                        if (signal_done.load(std::memory_order_relaxed) >= 0) {
+                            aux->io->poll_nonblocking(1);
+                        }
+                        else {
+                            aux->io->wait_until_done();
+                            return;
+                        }
+                    }
+                };
+
+                std::vector<std::thread> threads;
+                threads.reserve(random_read_benchmark_threads);
+                for (unsigned n = 0; n < random_read_benchmark_threads; n++) {
+                    threads.emplace_back(find, state_start, n);
+                }
+                boost::fibers::fiber poll_fiber(poll, &aux);
+                auto begin = std::chrono::steady_clock::now();
+                do {
+                    boost::this_fiber::yield();
+                }
+                while (std::chrono::steady_clock::now() - begin <
+                       std::chrono::seconds(10));
+                auto end = std::chrono::steady_clock::now();
+                auto diff =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - begin);
+                printf(
+                    "   Did %f random reads per second.\n",
+                    1000000.0 * double(ops) / double(diff.count()));
+                signal_done = 1;
+                std::cout << "   Joining threads 1 ..." << std::endl;
+                while (signal_done < int(random_read_benchmark_threads + 1)) {
+                    boost::this_fiber::yield();
+                }
+                std::cout << "   Joining threads 2 ..." << std::endl;
+                signal_done = -1;
+                for (auto &thread : threads) {
+                    thread.join();
+                }
+                std::cout << "   Joining poll fiber ..." << std::endl;
+                poll_fiber.join();
+                std::cout << "   Done!" << std::endl;
+            }
         }
     }
+
     catch (const CLI::CallForHelp &e) {
         std::cout << cli.help() << std::flush;
     }
+
     catch (std::exception const &e) {
         std::cerr << "FATAL: " << e.what() << std::endl;
         return 1;
     }
+
     return 0;
 }

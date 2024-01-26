@@ -11,6 +11,7 @@
 #include <monad/io/ring.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/detail/boost_fiber_workarounds.hpp>
+#include <monad/mpt/find_request_sender.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
@@ -237,32 +238,30 @@ struct Db::OnDisk
 #if 0
         // Do speculative check of the cache before going to concurrent queue
         // Disabled for now as UpdateAux would need mutex configured
-            struct receiver_t
+        struct receiver_t
+        {
+            std::optional<find_request_sender::result_type::value_type> out;
+
+            void set_value(
+                MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
+                find_request_sender::result_type res)
             {
-                std::optional<find_request_sender::result_type::value_type> out;
-
-                void set_value(
-                    MONAD_ASYNC_NAMESPACE::erased_connected_operation *,
-                    find_request_sender::result_type res)
-                {
-                    MONAD_ASSERT(res);
-                    out = std::move(res).assume_value();
-                }
-            };
-
-            auto g(worker->aux.shared_lock());
-            auto state = MONAD_ASYNC_NAMESPACE::connect(
-                find_request_sender(
-                    worker->aux, root, key, opt_node_prefix_index),
-                receiver_t{});
-            // This will complete immediately, as we are not on the triedb
-            // thread
-            state.initiate();
-            MONAD_ASSERT(state.receiver().out.has_value());
-            auto const [node, result] = *state.receiver().out;
-            if (result != find_result::need_to_initiate_in_io_thread) {
-                return {node, result};
+                MONAD_ASSERT(res);
+                out = std::move(res).assume_value();
             }
+        };
+
+        auto g(worker->aux.shared_lock());
+        auto state = MONAD_ASYNC_NAMESPACE::connect(
+            find_request_sender(worker->aux, start, key), receiver_t{});
+        // This will complete immediately, as we are not on the triedb
+        // thread
+        state.initiate();
+        MONAD_ASSERT(state.receiver().out.has_value());
+        auto const [node, result] = *state.receiver().out;
+        if (result != find_result::need_to_continue_in_io_thread) {
+            return {node, result};
+        }
 #endif
         threadsafe_boost_fibers_promise<find_result_type> promise;
         fiber_find_request_t req{

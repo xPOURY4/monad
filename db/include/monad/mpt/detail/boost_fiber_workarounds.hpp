@@ -67,6 +67,12 @@ public:
         }
     }
 
+    void reset()
+    {
+        promise_ = {};
+        promise_can_be_destroyed_.store(-1, std::memory_order_release);
+    }
+
     auto get_future()
     {
         auto ret = promise_.get_future();

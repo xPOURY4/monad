@@ -148,7 +148,8 @@ void find_recursive(
         }
         if (aux.io->owning_thread_id() != gettid()) {
             promise.set_value(
-                {NodeCursor{}, find_result::need_to_initiate_in_io_thread});
+                {NodeCursor{*node, node_prefix_index},
+                 find_result::need_to_continue_in_io_thread});
             return;
         }
         virtual_chunk_offset_t const offset = node->fnext(child_index);
