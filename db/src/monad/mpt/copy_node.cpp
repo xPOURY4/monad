@@ -19,7 +19,8 @@ Node::UniquePtr copy_node(
     UpdateAuxImpl &aux, Node::UniquePtr root, NibblesView const src,
     NibblesView const dest)
 {
-    auto [src_leaf, res] = find_blocking(aux, root.get(), src);
+    auto [src_leaf_it, res] = find_blocking(aux, *root, src);
+    auto *src_leaf = src_leaf_it.node;
     MONAD_ASSERT(res == find_result::success);
 
     auto g(aux.unique_lock());

@@ -33,15 +33,12 @@ namespace
     {
         boost::fibers::promise<monad::mpt::find_result_type> promise;
         fiber_find_request_t const request{
-            .promise = &promise,
-            .root = root,
-            .key = key,
-            .node_prefix_index = std::nullopt};
+            .promise = &promise, .start = NodeCursor{*root}, .key = key};
         find_notify_fiber_future(*aux, *inflights, request);
-        auto const [node, errc] = request.promise->get_future().get();
-        ASSERT_TRUE(node != nullptr);
+        auto const [it, errc] = request.promise->get_future().get();
+        ASSERT_TRUE(it.is_valid());
         EXPECT_EQ(errc, monad::mpt::find_result::success);
-        EXPECT_EQ(node->value(), value);
+        EXPECT_EQ(it.node->value(), value);
     };
 
     void poll(AsyncIO *const io, bool *signal_done)

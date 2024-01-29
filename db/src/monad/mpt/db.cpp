@@ -92,37 +92,49 @@ Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
     }
 }
 
-Result<byte_string_view> Db::get(NibblesView const key, uint64_t const block_id)
+Result<NodeCursor> Db::get(NodeCursor root, NibblesView const key)
 {
-    auto const block_id_prefix =
-        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
-    auto const [node, result] = find_blocking(
-        aux_, root_.get(), concat(NibblesView{block_id_prefix}, key));
+    auto const [it, result] = find_blocking(aux_, root, key);
     if (result != find_result::success) {
         return system_error2::errc::no_such_file_or_directory;
     }
-    MONAD_DEBUG_ASSERT(node != nullptr);
+    MONAD_DEBUG_ASSERT(it.node != nullptr);
+    MONAD_DEBUG_ASSERT(it.node->has_value());
+    return it;
+}
 
-    if (!node->has_value()) {
+Result<byte_string_view> Db::get(NibblesView const key, uint64_t const block_id)
+{
+    auto res = get(root(), serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id));
+    if (!res.has_value()) {
         return system_error2::errc::no_such_file_or_directory;
     }
+    res = get(res.value(), key);
+    if (!res.has_value()) {
+        return system_error2::errc::no_such_file_or_directory;
+    }
+    return res.value().node->value();
+}
 
-    return node->value();
+Result<byte_string_view> Db::get_data(NodeCursor root, NibblesView const key)
+{
+    auto res = get(root, key);
+    if (!res.has_value()) {
+        return system_error2::errc::no_such_file_or_directory;
+    }
+    MONAD_DEBUG_ASSERT(res.value().node != nullptr);
+
+    return res.value().node->data();
 }
 
 Result<byte_string_view>
 Db::get_data(NibblesView const key, uint64_t const block_id)
 {
-    auto const block_id_prefix =
-        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
-    auto const [node, result] = find_blocking(
-        aux_, root_.get(), concat(NibblesView{block_id_prefix}, key));
-    if (result != find_result::success) {
+    auto res = get(root(), serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id));
+    if (!res.has_value()) {
         return system_error2::errc::no_such_file_or_directory;
     }
-    MONAD_DEBUG_ASSERT(node != nullptr);
-
-    return node->data();
+    return get_data(res.value(), key);
 }
 
 void Db::upsert(UpdateList list, uint64_t const block_id)
@@ -136,17 +148,24 @@ void Db::upsert(UpdateList list, uint64_t const block_id)
 }
 
 void Db::traverse(
-    NibblesView const root, TraverseMachine &machine, uint64_t const block_id)
+    NibblesView const prefix, TraverseMachine &machine, uint64_t const block_id)
 {
     auto const block_id_prefix =
         serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
-    auto const [node, result] = find_blocking(
-        aux_, root_.get(), concat(NibblesView{block_id_prefix}, root));
-    if (result != find_result::success) {
+    auto res = get(root(), NibblesView{block_id_prefix});
+    MONAD_ASSERT(res.has_value());
+    res = get(res.value(), prefix);
+    if (!res.has_value()) {
         return;
     }
+    auto *node = res.value().node;
     MONAD_DEBUG_ASSERT(node != nullptr);
     preorder_traverse(aux_, *node, machine);
+}
+
+NodeCursor Db::root() noexcept
+{
+    return root_ ? NodeCursor{*root_} : NodeCursor{};
 }
 
 MONAD_MPT_NAMESPACE_END

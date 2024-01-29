@@ -5,6 +5,7 @@
 #include <monad/mpt/detail/collected_stats.hpp>
 #include <monad/mpt/detail/db_metadata.hpp>
 #include <monad/mpt/node.hpp>
+#include <monad/mpt/node_cursor.hpp>
 #include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/upward_tnode.hpp>
@@ -735,11 +736,11 @@ enum class find_result : uint8_t
     key_ends_earlier_than_node_failure,
     need_to_initiate_in_triedb_thread
 };
-using find_result_type = std::pair<Node *, find_result>;
+using find_result_type = std::pair<NodeCursor, find_result>;
 
 using inflight_map_t = unordered_dense_map<
     virtual_chunk_offset_t,
-    std::vector<std::function<MONAD_ASYNC_NAMESPACE::result<void>(Node *)>>,
+    std::vector<std::function<MONAD_ASYNC_NAMESPACE::result<void>(NodeCursor)>>,
     virtual_chunk_offset_t_hasher>;
 
 // The request type to put to the fiber buffered channel for triedb thread
@@ -747,9 +748,8 @@ using inflight_map_t = unordered_dense_map<
 struct fiber_find_request_t
 {
     ::boost::fibers::promise<find_result_type> *promise{nullptr};
-    Node *root{nullptr};
-    byte_string_view key{};
-    std::optional<unsigned> node_prefix_index{std::nullopt};
+    NodeCursor start{};
+    NibblesView key{};
 };
 
 static_assert(sizeof(fiber_find_request_t) == 40);
@@ -777,9 +777,8 @@ through blocking read.
  \warning Should only invoke it from the triedb owning
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
-find_result_type find_blocking(
-    UpdateAuxImpl const &, Node *root, NibblesView key,
-    std::optional<unsigned> opt_node_prefix_index = std::nullopt);
+find_result_type
+find_blocking(UpdateAuxImpl const &, NodeCursor, NibblesView key);
 
 Nibbles find_min_key_blocking(UpdateAuxImpl const &, Node &root);
 Nibbles find_max_key_blocking(UpdateAuxImpl const &, Node &root);

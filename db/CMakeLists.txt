@@ -45,6 +45,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/nibbles_view_fmt.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/node.hpp"
+  "${PROJECT_SOURCE_DIR}/include/monad/mpt/node_cursor.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/ondisk_db_config.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/request.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/state_machine.hpp"

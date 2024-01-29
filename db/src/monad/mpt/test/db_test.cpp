@@ -94,12 +94,31 @@ TYPED_TEST(DbTest, simple_with_same_prefix)
         this->db.upsert(std::move(ul_prefix), block_id);
     }
 
+    // test get with both apis
     EXPECT_EQ(
         this->db.get(prefix + kv[2].first, block_id).value(), kv[2].second);
     EXPECT_EQ(
         this->db.get(prefix + kv[3].first, block_id).value(), kv[3].second);
     EXPECT_EQ(
         this->db.get_data(prefix, block_id).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+
+    auto prefix_to_next_root =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id) + prefix;
+    auto res = this->db.get(this->db.root(), prefix_to_next_root);
+    ASSERT_TRUE(res.has_value());
+    NodeCursor const root_under_prefix = res.value();
+    EXPECT_EQ(
+        this->db.get(root_under_prefix, kv[2].first).value().node->value(),
+        kv[2].second);
+    EXPECT_EQ(
+        this->db.get(root_under_prefix, kv[3].first).value().node->value(),
+        kv[3].second);
+    EXPECT_EQ(
+        this->db.get_data(root_under_prefix, {}).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+    EXPECT_EQ(
+        this->db.get_data(this->db.root(), prefix_to_next_root).value(),
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 
     EXPECT_FALSE(this->db.get(0x01_hex, block_id).has_value());
@@ -156,12 +175,31 @@ TYPED_TEST(DbTest, simple_with_increasing_block_id_prefix)
         this->db.upsert(std::move(ul_prefix), block_id);
     }
 
+    // test get with both apis
     EXPECT_EQ(
         this->db.get(prefix + kv[2].first, block_id).value(), kv[2].second);
     EXPECT_EQ(
         this->db.get(prefix + kv[3].first, block_id).value(), kv[3].second);
     EXPECT_EQ(
         this->db.get_data(prefix, block_id).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+
+    auto prefix_to_next_root =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id) + prefix;
+    auto res = this->db.get(this->db.root(), prefix_to_next_root);
+    ASSERT_TRUE(res.has_value());
+    NodeCursor const root_under_prefix = res.value();
+    EXPECT_EQ(
+        this->db.get(root_under_prefix, kv[2].first).value().node->value(),
+        kv[2].second);
+    EXPECT_EQ(
+        this->db.get(root_under_prefix, kv[3].first).value().node->value(),
+        kv[3].second);
+    EXPECT_EQ(
+        this->db.get_data(root_under_prefix, {}).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+    EXPECT_EQ(
+        this->db.get_data(this->db.root(), prefix_to_next_root).value(),
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 
     EXPECT_FALSE(this->db.get(0x01_hex, block_id).has_value());

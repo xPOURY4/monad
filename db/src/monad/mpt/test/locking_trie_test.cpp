@@ -193,10 +193,10 @@ TEST_F(LockingTrieTest, works)
     // downgrade back to shared, release
     {
         aux.lock().clear();
-        auto [leaf, res] = find_blocking(aux, root, keys.back().first);
+        auto [leaf_it, res] = find_blocking(aux, *root, keys.back().first);
         EXPECT_EQ(res, monad::mpt::find_result::success);
-        EXPECT_NE(leaf, nullptr);
-        EXPECT_TRUE(leaf->has_value());
+        EXPECT_NE(leaf_it.node, nullptr);
+        EXPECT_TRUE(leaf_it.node->has_value());
 
         std::stringstream ss;
         this->state()->aux.lock().dump(ss);
@@ -210,10 +210,10 @@ TEST_F(LockingTrieTest, works)
     // Now the node is in cache, no exclusive lock should get taken
     {
         aux.lock().clear();
-        auto [leaf, res] = find_blocking(aux, root, keys.back().first);
+        auto [leaf_it, res] = find_blocking(aux, *root, keys.back().first);
         EXPECT_EQ(res, monad::mpt::find_result::success);
-        EXPECT_NE(leaf, nullptr);
-        EXPECT_TRUE(leaf->has_value());
+        EXPECT_NE(leaf_it.node, nullptr);
+        EXPECT_TRUE(leaf_it.node->has_value());
 
         std::stringstream ss;
         this->state()->aux.lock().dump(ss);
@@ -236,16 +236,16 @@ TEST_F(LockingTrieTest, works)
         ::boost::fibers::promise<::monad::mpt::find_result_type> p;
         auto fut = p.get_future();
         ::monad::mpt::inflight_map_t inflights;
-        ::monad::mpt::find_request_t req{&p, root, keys[keys.size() - 2].first};
+        ::monad::mpt::find_request_t req{&p, *root, keys[keys.size() - 2].first};
         ::monad::mpt::find_notify_fiber_future(aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {
             aux.io->wait_until_done();
         }
-        auto [leaf, res] = fut.get();
+        auto [leaf_it, res] = fut.get();
         EXPECT_EQ(res, monad::mpt::find_result::success);
-        EXPECT_NE(leaf, nullptr);
-        EXPECT_TRUE(leaf->has_value());
+        EXPECT_NE(leaf_it.node, nullptr);
+        EXPECT_TRUE(leaf_it.node->has_value());
 
         std::stringstream ss;
         this->state()->aux.lock().dump(ss);
@@ -264,16 +264,16 @@ TEST_F(LockingTrieTest, works)
         ::boost::fibers::promise<::monad::mpt::find_result_type> p;
         auto fut = p.get_future();
         ::monad::mpt::inflight_map_t inflights;
-        ::monad::mpt::find_request_t req{&p, root, keys[keys.size() - 2].first};
+        ::monad::mpt::find_request_t req{&p, *root, keys[keys.size() - 2].first};
         ::monad::mpt::find_notify_fiber_future(aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {
             aux.io->wait_until_done();
         }
-        auto [leaf, res] = fut.get();
+        auto [leaf_it, res] = fut.get();
         EXPECT_EQ(res, monad::mpt::find_result::success);
-        EXPECT_NE(leaf, nullptr);
-        EXPECT_TRUE(leaf->has_value());
+        EXPECT_NE(leaf_it.node, nullptr);
+        EXPECT_TRUE(leaf_it.node->has_value());
 
         std::stringstream ss;
         this->state()->aux.lock().dump(ss);
