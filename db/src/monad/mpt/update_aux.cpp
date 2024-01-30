@@ -189,12 +189,12 @@ void UpdateAux::update_slow_fast_ratio_metadata() noexcept
     do_(db_metadata_[1]);
 }
 
-void UpdateAux::update_version_metadata(
+void UpdateAux::update_ondisk_db_history_metadata(
     uint64_t const min_version, uint64_t const max_version) noexcept
 {
     MONAD_ASSERT(is_on_disk());
     auto do_ = [&](detail::db_metadata *m) {
-        m->update_version_info_(min_version, max_version);
+        m->update_db_history_versions_(min_version, max_version);
     };
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
@@ -454,7 +454,8 @@ Node::UniquePtr UpdateAux::do_update(
     compaction &= is_on_disk(); // compaction only takes effect for on disk trie
     auto const curr_version_key =
         serialize_as_big_endian<BLOCK_NUM_BYTES>(version);
-    uint64_t min_version = prev_root ? min_version_in_db(*prev_root) : version;
+    uint64_t min_version =
+        prev_root ? min_version_in_db_history(*prev_root) : version;
 
     UpdateList db_updates;
     byte_string version_to_erase;
@@ -462,7 +463,7 @@ Node::UniquePtr UpdateAux::do_update(
     fprintf(stdout, "Insert version_id %lu\n", version);
     if (compaction) {
         // 1. erase any outdated states from history
-        if (prev_root && max_version_in_db(*prev_root) - min_version >=
+        if (prev_root && max_version_in_db_history(*prev_root) - min_version >=
                              version_history_len) {
             version_to_erase =
                 serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
@@ -505,7 +506,7 @@ Node::UniquePtr UpdateAux::do_update(
     // 5. free compacted chunks and update version metadata if on disk
     if (is_on_disk()) {
         free_compacted_chunks();
-        update_version_metadata(min_version, version);
+        update_ondisk_db_history_metadata(min_version, version);
     }
     return root;
 }
@@ -605,7 +606,7 @@ void UpdateAux::advance_compact_offsets()
 }
 
 // must call this when db is non empty
-uint64_t UpdateAux::min_version_in_db(Node &root) const noexcept
+uint64_t UpdateAux::min_version_in_db_history(Node &root) const noexcept
 {
     if (is_in_memory()) {
         auto const min_version = find_min_key_blocking(*this, root);
@@ -613,11 +614,11 @@ uint64_t UpdateAux::min_version_in_db(Node &root) const noexcept
         return deserialize_from_big_endian<uint64_t>(min_version);
     }
     else {
-        return db_metadata()->min_version;
+        return db_metadata()->min_db_history_version;
     }
 }
 
-uint64_t UpdateAux::max_version_in_db(Node &root) const noexcept
+uint64_t UpdateAux::max_version_in_db_history(Node &root) const noexcept
 {
     if (is_in_memory()) {
         auto const max_version = find_max_key_blocking(*this, root);
@@ -625,15 +626,15 @@ uint64_t UpdateAux::max_version_in_db(Node &root) const noexcept
         return deserialize_from_big_endian<uint64_t>(max_version);
     }
     else {
-        return db_metadata()->max_version;
+        return db_metadata()->max_db_history_version;
     }
 }
 
 bool UpdateAux::contains_version(
     Node::UniquePtr &root, uint64_t const version) const noexcept
 {
-    return root && version >= min_version_in_db(*root) &&
-           version <= max_version_in_db(*root);
+    return root && version >= min_version_in_db_history(*root) &&
+           version <= max_version_in_db_history(*root);
 }
 
 void UpdateAux::free_compacted_chunks()

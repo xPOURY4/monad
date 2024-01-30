@@ -835,20 +835,23 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
         if (this->aux.is_on_disk()) {
             if (block_id - start_block_id < UpdateAux::version_history_len) {
                 EXPECT_EQ(
-                    this->aux.max_version_in_db(*this->root) -
-                        this->aux.min_version_in_db(*this->root),
+                    this->aux.max_version_in_db_history(*this->root) -
+                        this->aux.min_version_in_db_history(*this->root),
                     block_id - start_block_id);
             }
             else {
                 EXPECT_EQ(
-                    this->aux.max_version_in_db(*this->root) -
-                        this->aux.min_version_in_db(*this->root),
+                    this->aux.max_version_in_db_history(*this->root) -
+                        this->aux.min_version_in_db_history(*this->root),
                     UpdateAux::version_history_len);
             }
         }
         else {
-            EXPECT_EQ(this->aux.max_version_in_db(*this->root), block_id);
-            EXPECT_EQ(this->aux.min_version_in_db(*this->root), start_block_id);
+            EXPECT_EQ(
+                this->aux.max_version_in_db_history(*this->root), block_id);
+            EXPECT_EQ(
+                this->aux.min_version_in_db_history(*this->root),
+                start_block_id);
         }
     };
     for (uint64_t i = 0; i < 400; ++i) {

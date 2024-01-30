@@ -396,7 +396,7 @@ int main(int argc, char *argv[])
                 read_node_blocking(io.storage_pool(), aux.get_root_offset()));
         }
         if (block_id == uint64_t(-1)) {
-            block_id = root ? aux.max_version_in_db(*root) + 1 : 0;
+            block_id = root ? aux.max_version_in_db_history(*root) + 1 : 0;
         }
         printf("starting block id %lu\n", block_id);
 

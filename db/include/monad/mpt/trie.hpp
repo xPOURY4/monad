@@ -243,7 +243,7 @@ public:
         chunk_offset_t root_offset, chunk_offset_t fast_offset,
         chunk_offset_t slow_offset) noexcept;
     void update_slow_fast_ratio_metadata() noexcept;
-    void update_version_metadata(
+    void update_ondisk_db_history_metadata(
         uint64_t min_version, uint64_t max_version) noexcept;
 
     // WARNING: This is destructive
@@ -298,8 +298,8 @@ public:
     uint32_t num_chunks(chunk_list const list) const noexcept;
 
     // must call these when db is non empty
-    uint64_t min_version_in_db(Node &root) const noexcept;
-    uint64_t max_version_in_db(Node &root) const noexcept;
+    uint64_t min_version_in_db_history(Node &root) const noexcept;
+    uint64_t max_version_in_db_history(Node &root) const noexcept;
     bool contains_version(
         Node::UniquePtr &root, uint64_t const version) const noexcept;
 };
