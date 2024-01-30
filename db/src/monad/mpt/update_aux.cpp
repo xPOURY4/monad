@@ -434,7 +434,7 @@ void UpdateAux::reset_node_writers()
 
 /* upsert() supports both on disk and in memory db updates. User should always
 use this interface to upsert updates to db. Here are what it does:
-- erase outdated history block if any; if `compaction`, update compaction
+- if `compaction`, erase outdated history block if any, and update compaction
 offsets;
 - copy state from last version to new version if new version not yet exist;
 - upsert `updates` should include everything nested under
@@ -442,61 +442,64 @@ version number;
 - if it's on disk, update db_metadata min max versions.
 
 Note that `version` on each call of upsert() does not always grow incrementally,
-the call sequence can be 0,1,2,3,4, then restore db from version 3,4,5,6,7...
-But if db has version 0,1,2,3,4, and user skips version 5 and the call upsert
-version 6 would fail.
+users are allowed to insert version 0,1,2,3,4, then restore db from version
+3 and continue with version 4,5,6... However, it is not allowed to skip a
+version, for example for a call sequence to insert version 0,1,2,3,4,6, the call
+to insert version 6 will fail.
 */
 Node::UniquePtr UpdateAux::do_update(
     Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
-    uint64_t const version, bool const compaction)
+    uint64_t const version, bool compaction)
 {
-    auto const curr_version = serialize_as_big_endian<BLOCK_NUM_BYTES>(version);
+    compaction &= is_on_disk(); // compaction only takes effect for on disk trie
+    auto const curr_version_key =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(version);
+    uint64_t min_version = prev_root ? min_version_in_db(*prev_root) : version;
 
     UpdateList db_updates;
-    // 1. erase any outdated states from history
-    uint64_t min_version = prev_root ? min_version_in_db(*prev_root) : version;
     byte_string version_to_erase;
     Update erase;
-    if (prev_root &&
-        max_version_in_db(*prev_root) - min_version >= version_history_len) {
-        version_to_erase =
-            serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
-        erase = make_erase(version_to_erase);
-        db_updates.push_front(erase);
-        fprintf(stdout, "Erase version_id %lu\n", min_version);
-        min_version++;
-        // set chunk count that can be erased
-        if (is_on_disk()) {
-            auto [erase_root, res] =
-                find_blocking(*this, prev_root.get(), version_to_erase);
-            auto [min_offset_fast, min_offset_slow] =
-                calc_min_offsets(*erase_root);
-            MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
-            if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
-                min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
+    fprintf(stdout, "Insert version_id %lu\n", version);
+    if (compaction) {
+        // 1. erase any outdated states from history
+        if (prev_root && max_version_in_db(*prev_root) - min_version >=
+                             version_history_len) {
+            version_to_erase =
+                serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
+            erase = make_erase(version_to_erase);
+            db_updates.push_front(erase);
+            fprintf(stdout, "Erase version_id %lu\n", min_version);
+            min_version++;
+            // set chunk count that can be erased
+            if (is_on_disk()) {
+                auto [erase_root, res] =
+                    find_blocking(*this, prev_root.get(), version_to_erase);
+                auto [min_offset_fast, min_offset_slow] =
+                    calc_min_offsets(*erase_root);
+                MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
+                if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
+                    min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
+                }
+                remove_chunks_before_count_fast_ = min_offset_fast.get_count();
+                remove_chunks_before_count_slow_ = min_offset_slow.get_count();
             }
-            remove_chunks_before_count_fast_ = min_offset_fast.get_count();
-            remove_chunks_before_count_slow_ = min_offset_slow.get_count();
         }
+        // 2. advance compaction offsets
+        advance_compact_offsets();
     }
 
-    // 2. copy state if version not exists and db is not empty
+    // 3. copy state if version not exists and db is not empty
     if (!contains_version(prev_root, version) &&
         contains_version(prev_root, version - 1)) { // empty db won't enter if
         auto const prev_version =
             serialize_as_big_endian<BLOCK_NUM_BYTES>(version - 1);
-        prev_root =
-            copy_node(*this, std::move(prev_root), prev_version, curr_version);
+        prev_root = copy_node(
+            *this, std::move(prev_root), prev_version, curr_version_key);
     }
     Update u = make_update(
-        curr_version, byte_string_view{}, false, std::move(updates));
+        curr_version_key, byte_string_view{}, false, std::move(updates));
     db_updates.push_front(u);
-    fprintf(stdout, "Insert version_id %lu\n", version);
 
-    // 3. advance compaction offsets
-    if (compaction) {
-        advance_compact_offsets();
-    }
     // 4. upsert version updates
     auto root = upsert(*this, sm, std::move(prev_root), std::move(db_updates));
     // 5. free compacted chunks and update version metadata if on disk

@@ -819,9 +819,12 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
             .next = std::move(ul)};
         UpdateList ul_prefix;
         ul_prefix.push_front(u_prefix);
-        // no compaction
         this->root = this->aux.do_update(
-            std::move(this->root), *this->sm, std::move(ul_prefix), block_id);
+            std::move(this->root),
+            *this->sm,
+            std::move(ul_prefix),
+            block_id,
+            true /*compaction*/);
         auto [state_root, res] =
             find_blocking(this->aux, this->root.get(), block_num + prefix);
         EXPECT_EQ(res, find_result::success);
@@ -829,17 +832,23 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
             state_root->data(),
             0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
         // check db maintain expected historical versions
-        if (block_id - start_block_id < UpdateAux::version_history_len) {
-            EXPECT_EQ(
-                this->aux.max_version_in_db(*this->root) -
-                    this->aux.min_version_in_db(*this->root),
-                block_id - start_block_id);
+        if (this->aux.is_on_disk()) {
+            if (block_id - start_block_id < UpdateAux::version_history_len) {
+                EXPECT_EQ(
+                    this->aux.max_version_in_db(*this->root) -
+                        this->aux.min_version_in_db(*this->root),
+                    block_id - start_block_id);
+            }
+            else {
+                EXPECT_EQ(
+                    this->aux.max_version_in_db(*this->root) -
+                        this->aux.min_version_in_db(*this->root),
+                    UpdateAux::version_history_len);
+            }
         }
         else {
-            EXPECT_EQ(
-                this->aux.max_version_in_db(*this->root) -
-                    this->aux.min_version_in_db(*this->root),
-                UpdateAux::version_history_len);
+            EXPECT_EQ(this->aux.max_version_in_db(*this->root), block_id);
+            EXPECT_EQ(this->aux.min_version_in_db(*this->root), start_block_id);
         }
     };
     for (uint64_t i = 0; i < 400; ++i) {
