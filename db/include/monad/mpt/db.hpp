@@ -41,10 +41,10 @@ public:
     //! construct an on disk db
     Db(StateMachine &, OnDiskDbConfig const &);
 
-    Result<byte_string_view> get(NibblesView);
-    Result<byte_string_view> get_data(NibblesView);
+    Result<byte_string_view> get(NibblesView, uint64_t block_id = 0);
+    Result<byte_string_view> get_data(NibblesView, uint64_t block_id = 0);
     void upsert(UpdateList, uint64_t block_id = 0);
-    void traverse(NibblesView root, TraverseMachine &);
+    void traverse(NibblesView root, TraverseMachine &, uint64_t block_id = 0);
 };
 
 MONAD_MPT_NAMESPACE_END

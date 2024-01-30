@@ -92,9 +92,12 @@ Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
     }
 }
 
-Result<byte_string_view> Db::get(NibblesView const key)
+Result<byte_string_view> Db::get(NibblesView const key, uint64_t const block_id)
 {
-    auto const [node, result] = find_blocking(aux_, root_.get(), key);
+    auto const block_id_prefix =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+    auto const [node, result] = find_blocking(
+        aux_, root_.get(), concat(NibblesView{block_id_prefix}, key));
     if (result != find_result::success) {
         return system_error2::errc::no_such_file_or_directory;
     }
@@ -107,9 +110,13 @@ Result<byte_string_view> Db::get(NibblesView const key)
     return node->value();
 }
 
-Result<byte_string_view> Db::get_data(NibblesView const key)
+Result<byte_string_view>
+Db::get_data(NibblesView const key, uint64_t const block_id)
 {
-    auto const [node, result] = find_blocking(aux_, root_.get(), key);
+    auto const block_id_prefix =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+    auto const [node, result] = find_blocking(
+        aux_, root_.get(), concat(NibblesView{block_id_prefix}, key));
     if (result != find_result::success) {
         return system_error2::errc::no_such_file_or_directory;
     }
@@ -128,9 +135,13 @@ void Db::upsert(UpdateList list, uint64_t const block_id)
         on_disk_.has_value() && on_disk_.value().compaction);
 }
 
-void Db::traverse(NibblesView const root, TraverseMachine &machine)
+void Db::traverse(
+    NibblesView const root, TraverseMachine &machine, uint64_t const block_id)
 {
-    auto const [node, result] = find_blocking(aux_, root_.get(), root);
+    auto const block_id_prefix =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+    auto const [node, result] = find_blocking(
+        aux_, root_.get(), concat(NibblesView{block_id_prefix}, root));
     if (result != find_result::success) {
         return;
     }
