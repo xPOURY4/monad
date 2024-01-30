@@ -31,7 +31,7 @@ using namespace MONAD_ASYNC_NAMESPACE;
 // consecutive
 // #define MONAD_MPT_INITIALIZE_POOL_WITH_CONSECUTIVE_CHUNKS 1
 
-uint32_t UpdateAux::chunk_id_from_insertion_count(
+uint32_t UpdateAuxImpl::chunk_id_from_insertion_count(
     chunk_list list, detail::unsigned_20 insertion_count) const noexcept
 {
     MONAD_ASSERT(is_on_disk());
@@ -55,7 +55,7 @@ uint32_t UpdateAux::chunk_id_from_insertion_count(
 }
 
 virtual_chunk_offset_t
-UpdateAux::physical_to_virtual(chunk_offset_t offset) const noexcept
+UpdateAuxImpl::physical_to_virtual(chunk_offset_t offset) const noexcept
 {
     MONAD_ASSERT(offset.id < io->chunk_count());
     auto const *ci = db_metadata_[0]->at(offset.id);
@@ -69,7 +69,7 @@ UpdateAux::physical_to_virtual(chunk_offset_t offset) const noexcept
 }
 
 chunk_offset_t
-UpdateAux::virtual_to_physical(virtual_chunk_offset_t offset) const noexcept
+UpdateAuxImpl::virtual_to_physical(virtual_chunk_offset_t offset) const noexcept
 {
     auto const id = chunk_id_from_insertion_count(
         offset.in_fast_list() ? chunk_list::fast : chunk_list::slow,
@@ -78,8 +78,8 @@ UpdateAux::virtual_to_physical(virtual_chunk_offset_t offset) const noexcept
     return {id, offset.offset, offset.spare};
 }
 
-std::pair<UpdateAux::chunk_list, detail::unsigned_20>
-UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
+std::pair<UpdateAuxImpl::chunk_list, detail::unsigned_20>
+UpdateAuxImpl::chunk_list_and_age(uint32_t idx) const noexcept
 {
     MONAD_ASSERT(is_on_disk());
     auto const *ci = db_metadata_[0]->at(idx);
@@ -99,7 +99,7 @@ UpdateAux::chunk_list_and_age(uint32_t idx) const noexcept
     return ret;
 }
 
-void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
+void UpdateAuxImpl::append(chunk_list list, uint32_t idx) noexcept
 {
     MONAD_ASSERT(is_on_disk());
     auto do_ = [&](detail::db_metadata *m) {
@@ -128,7 +128,7 @@ void UpdateAux::append(chunk_list list, uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::remove(uint32_t idx) noexcept
+void UpdateAuxImpl::remove(uint32_t idx) noexcept
 {
     MONAD_ASSERT(is_on_disk());
     bool const in_fast_list = db_metadata_[0]->at_(idx)->in_fast_list;
@@ -158,7 +158,7 @@ void UpdateAux::remove(uint32_t idx) noexcept
     }
 }
 
-void UpdateAux::advance_offsets_to(
+void UpdateAuxImpl::advance_offsets_to(
     chunk_offset_t const root_offset, chunk_offset_t const fast_offset,
     chunk_offset_t const slow_offset) noexcept
 {
@@ -177,7 +177,7 @@ void UpdateAux::advance_offsets_to(
     do_(db_metadata_[1]);
 }
 
-void UpdateAux::update_slow_fast_ratio_metadata() noexcept
+void UpdateAuxImpl::update_slow_fast_ratio_metadata() noexcept
 {
     MONAD_ASSERT(is_on_disk());
     auto ratio = (float)num_chunks(chunk_list::slow) /
@@ -189,7 +189,7 @@ void UpdateAux::update_slow_fast_ratio_metadata() noexcept
     do_(db_metadata_[1]);
 }
 
-void UpdateAux::update_ondisk_db_history_metadata(
+void UpdateAuxImpl::update_ondisk_db_history_metadata(
     uint64_t const min_version, uint64_t const max_version) noexcept
 {
     MONAD_ASSERT(is_on_disk());
@@ -200,7 +200,7 @@ void UpdateAux::update_ondisk_db_history_metadata(
     do_(db_metadata_[1]);
 }
 
-void UpdateAux::rewind_to_match_offsets()
+void UpdateAuxImpl::rewind_to_match_offsets()
 {
     MONAD_ASSERT(is_on_disk());
     // Free all chunks after fast_offset.id
@@ -234,7 +234,7 @@ void UpdateAux::rewind_to_match_offsets()
     reset_node_writers();
 }
 
-UpdateAux::~UpdateAux()
+UpdateAuxImpl::~UpdateAuxImpl()
 {
     if (io != nullptr) {
         auto const chunk_count = io->chunk_count();
@@ -250,7 +250,7 @@ UpdateAux::~UpdateAux()
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
-void UpdateAux::set_io(AsyncIO *io_)
+void UpdateAuxImpl::set_io(AsyncIO *io_)
 {
     io = io_;
     auto const chunk_count = io->chunk_count();
@@ -408,7 +408,7 @@ void UpdateAux::set_io(AsyncIO *io_)
     #pragma GCC diagnostic pop
 #endif
 
-void UpdateAux::reset_node_writers()
+void UpdateAuxImpl::reset_node_writers()
 {
     auto init_node_writer = [&](chunk_offset_t const node_writer_offset)
         -> node_writer_unique_ptr_type {
@@ -447,7 +447,7 @@ users are allowed to insert version 0,1,2,3,4, then restore db from version
 version, for example for a call sequence to insert version 0,1,2,3,4,6, the call
 to insert version 6 will fail.
 */
-Node::UniquePtr UpdateAux::do_update(
+Node::UniquePtr UpdateAuxImpl::do_update(
     Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
     uint64_t const version, bool compaction)
 {
@@ -510,7 +510,7 @@ Node::UniquePtr UpdateAux::do_update(
     return root;
 }
 
-void UpdateAux::advance_compact_offsets()
+void UpdateAuxImpl::advance_compact_offsets()
 {
     MONAD_ASSERT(is_on_disk());
     // update disk growth speed trackers
@@ -605,7 +605,7 @@ void UpdateAux::advance_compact_offsets()
 }
 
 // must call this when db is non empty
-uint64_t UpdateAux::min_version_in_db_history(Node &root) const noexcept
+uint64_t UpdateAuxImpl::min_version_in_db_history(Node &root) const noexcept
 {
     if (is_in_memory()) {
         auto const min_version = find_min_key_blocking(*this, root);
@@ -617,7 +617,7 @@ uint64_t UpdateAux::min_version_in_db_history(Node &root) const noexcept
     }
 }
 
-uint64_t UpdateAux::max_version_in_db_history(Node &root) const noexcept
+uint64_t UpdateAuxImpl::max_version_in_db_history(Node &root) const noexcept
 {
     if (is_in_memory()) {
         auto const max_version = find_max_key_blocking(*this, root);
@@ -629,14 +629,14 @@ uint64_t UpdateAux::max_version_in_db_history(Node &root) const noexcept
     }
 }
 
-bool UpdateAux::contains_version(
+bool UpdateAuxImpl::contains_version(
     Node::UniquePtr &root, uint64_t const version) const noexcept
 {
     return root && version >= min_version_in_db_history(*root) &&
            version <= max_version_in_db_history(*root);
 }
 
-void UpdateAux::free_compacted_chunks()
+void UpdateAuxImpl::free_compacted_chunks()
 {
     auto free_chunks_from_ci_till_count =
         [&](detail::db_metadata::chunk_info_t const *ci,
@@ -653,7 +653,7 @@ void UpdateAux::free_compacted_chunks()
                 io->storage_pool()
                     .chunk(monad::async::storage_pool::seq, idx)
                     ->destroy_contents();
-                append(UpdateAux::chunk_list::free, idx); // append not prepend
+                append(UpdateAuxImpl::chunk_list::free, idx); // append not prepend
                 printf("free id %u count %u, ", idx, count);
             }
         };
@@ -676,7 +676,7 @@ void UpdateAux::free_compacted_chunks()
     printf("\n");
 }
 
-uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
+uint32_t UpdateAuxImpl::num_chunks(chunk_list const list) const noexcept
 {
     switch (list) {
     case chunk_list::free:
@@ -695,7 +695,7 @@ uint32_t UpdateAux::num_chunks(chunk_list const list) const noexcept
     return 0;
 }
 
-void UpdateAux::print_update_stats()
+void UpdateAuxImpl::print_update_stats()
 {
 #if MONAD_MPT_COLLECT_STATS
     printf("created/updated nodes: %u\n", stats.num_nodes_created);
@@ -762,21 +762,21 @@ void UpdateAux::print_update_stats()
 #endif
 }
 
-void UpdateAux::reset_stats()
+void UpdateAuxImpl::reset_stats()
 {
 #if MONAD_MPT_COLLECT_STATS
     stats.reset();
 #endif
 }
 
-void UpdateAux::collect_number_nodes_created_stats()
+void UpdateAuxImpl::collect_number_nodes_created_stats()
 {
 #if MONAD_MPT_COLLECT_STATS
     stats.num_nodes_created++;
 #endif
 }
 
-void UpdateAux::collect_compaction_read_stats(
+void UpdateAuxImpl::collect_compaction_read_stats(
     virtual_chunk_offset_t const node_offset, unsigned const bytes_to_read)
 {
 #if MONAD_MPT_COLLECT_STATS
@@ -800,7 +800,7 @@ void UpdateAux::collect_compaction_read_stats(
 #endif
 }
 
-void UpdateAux::collect_compacted_nodes_stats(
+void UpdateAuxImpl::collect_compacted_nodes_stats(
     compact_virtual_chunk_offset_t const subtrie_min_offset_fast,
     compact_virtual_chunk_offset_t const subtrie_min_offset_slow)
 {
@@ -817,7 +817,7 @@ void UpdateAux::collect_compacted_nodes_stats(
 #endif
 }
 
-void UpdateAux::collect_compacted_nodes_from_to_stats(
+void UpdateAuxImpl::collect_compacted_nodes_from_to_stats(
     virtual_chunk_offset_t const node_offset, bool const rewrite_to_fast)
 {
 #if MONAD_MPT_COLLECT_STATS

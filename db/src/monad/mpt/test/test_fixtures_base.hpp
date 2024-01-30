@@ -154,7 +154,7 @@ namespace monad::test
     using StateMachineAlwaysMerkle = StateMachineAlways<MerkleCompute>;
 
     Node::UniquePtr upsert_vector(
-        UpdateAux &aux, StateMachine &sm, Node::UniquePtr old,
+        UpdateAuxImpl &aux, StateMachine &sm, Node::UniquePtr old,
         std::vector<Update> &&update_vec)
     {
         UpdateList update_ls;
@@ -166,7 +166,7 @@ namespace monad::test
 
     template <class... Updates>
     [[nodiscard]] constexpr Node::UniquePtr upsert_updates(
-        UpdateAux &aux, StateMachine &sm, Node::UniquePtr old,
+        UpdateAuxImpl &aux, StateMachine &sm, Node::UniquePtr old,
         Updates... updates)
     {
         UpdateList update_ls;
@@ -220,12 +220,12 @@ namespace monad::test
     };
 
     // merkle tries
-    template <class Base>
+    template <monad::mpt::lockable_or_void LockType, class Base>
     class InMemoryTrieBase : public Base
     {
     public:
         Node::UniquePtr root;
-        UpdateAux aux;
+        UpdateAux<LockType> aux;
 
         InMemoryTrieBase()
             : root()
@@ -249,7 +249,7 @@ namespace monad::test
         }
     };
 
-    template <class Base>
+    template <monad::mpt::lockable_or_void LockType, class Base>
     class OnDiskTrieBase : public Base
     {
     private:
@@ -261,7 +261,7 @@ namespace monad::test
 
     public:
         Node::UniquePtr root;
-        UpdateAux aux;
+        UpdateAux<LockType> aux;
 
         OnDiskTrieBase()
             : ring(monad::io::Ring(2, 0))
@@ -342,7 +342,8 @@ namespace monad::test
     };
 
     template <
-        size_t chunks_to_fill, bool alternate_slow_fast_writer, class Base>
+        size_t chunks_to_fill, bool alternate_slow_fast_writer,
+        monad::mpt::lockable_or_void LockType, class Base>
     struct FillDBWithChunks : public Base
     {
         struct state_t
@@ -367,7 +368,7 @@ namespace monad::test
             MerkleCompute comp;
             Node::UniquePtr root;
             StateMachineAlwaysMerkle sm;
-            UpdateAux aux{&io}; // trie section starts from account
+            UpdateAux<LockType> aux{&io}; // trie section starts from account
             monad::small_prng rand;
             std::vector<std::pair<monad::byte_string, size_t>> keys;
 
@@ -405,7 +406,7 @@ namespace monad::test
                               << " has capacity = " << chunk->capacity()
                               << " consumed = " << chunk->size();
                     auto chunk_offset_id = aux.chunk_id_from_insertion_count(
-                        UpdateAux::chunk_list::fast, ci->insertion_count());
+                        UpdateAuxImpl::chunk_list::fast, ci->insertion_count());
                     MONAD_ASSERT(chunk_offset_id == idx);
                 }
                 std::cout << "\n\n   Slow list:";
@@ -418,7 +419,7 @@ namespace monad::test
                               << " has capacity = " << chunk->capacity()
                               << " consumed = " << chunk->size();
                     auto chunk_offset_id = aux.chunk_id_from_insertion_count(
-                        UpdateAux::chunk_list::slow, ci->insertion_count());
+                        UpdateAuxImpl::chunk_list::slow, ci->insertion_count());
                     MONAD_ASSERT(chunk_offset_id == idx);
                 }
                 std::cout << std::endl;

@@ -28,15 +28,15 @@ MONAD_MPT_NAMESPACE_BEGIN
 using namespace MONAD_ASYNC_NAMESPACE;
 
 void find_recursive(
-    UpdateAux &, inflight_map_t &, ::boost::fibers::promise<find_result_type> &,
-    Node *, NibblesView key,
+    UpdateAuxImpl &, inflight_map_t &,
+    ::boost::fibers::promise<find_result_type> &, Node *, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
 struct find_receiver
 {
     static constexpr bool lifetime_managed_internally = true;
 
-    UpdateAux *aux;
+    UpdateAuxImpl *aux;
     inflight_map_t &inflights;
     Node *parent;
     chunk_offset_t rd_offset; // required for sender
@@ -45,7 +45,7 @@ struct find_receiver
     unsigned const branch_index;
 
     find_receiver(
-        UpdateAux &aux, inflight_map_t &inflights, Node *const parent,
+        UpdateAuxImpl &aux, inflight_map_t &inflights, Node *const parent,
         unsigned char const branch)
         : aux(&aux)
         , inflights(inflights)
@@ -72,11 +72,13 @@ struct find_receiver
         ResultType buffer_)
     {
         MONAD_ASSERT(buffer_);
-        MONAD_ASSERT(parent->next(branch_index) == nullptr);
-        Node *node = detail::deserialize_node_from_receiver_result(
-                         std::move(buffer_), buffer_off, io_state)
-                         .release();
-        parent->set_next(branch_index, node);
+        Node *node = nullptr;
+        if (parent->next(branch_index) == nullptr) {
+            node = detail::deserialize_node_from_receiver_result(
+                       std::move(buffer_), buffer_off, io_state)
+                       .release();
+            parent->set_next(branch_index, node);
+        }
         auto const offset = parent->fnext(branch_index);
         auto &pendings = inflights.at(offset);
         for (auto &[key, promise] : pendings) {
@@ -93,7 +95,7 @@ struct find_receiver
 // existing inflight read, Otherwise, send a read request and put itself on the
 // map
 void find_recursive(
-    UpdateAux &aux, inflight_map_t &inflights,
+    UpdateAuxImpl &aux, inflight_map_t &inflights,
     ::boost::fibers::promise<find_result_type> &promise, Node *node,
     NibblesView const key, std::optional<unsigned> opt_node_prefix_index)
 {
@@ -132,6 +134,11 @@ void find_recursive(
                 aux, inflights, promise, node->next(child_index), next_key);
             return;
         }
+        if (aux.io->owning_thread_id() != gettid()) {
+            promise.set_value(
+                {nullptr, find_result::need_to_initiate_in_triedb_thread});
+            return;
+        }
         virtual_chunk_offset_t const offset = node->fnext(child_index);
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
             lt->second.emplace_back(next_key, &promise);
@@ -165,7 +172,7 @@ void find_recursive(
 }
 
 void find_notify_fiber_future(
-    UpdateAux &aux, inflight_map_t &inflights, find_request_t const req)
+    UpdateAuxImpl &aux, inflight_map_t &inflights, find_request_t const req)
 {
     // default is to find from start node prefix_index
     if (!req.root) {
@@ -173,6 +180,7 @@ void find_notify_fiber_future(
             {nullptr, find_result::root_node_is_null_failure});
         return;
     }
+    auto g(aux.shared_lock());
     find_recursive(
         aux, inflights, *req.promise, req.root, req.key, req.node_prefix_index);
 }

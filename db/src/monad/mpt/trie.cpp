@@ -41,42 +41,43 @@ using namespace MONAD_ASYNC_NAMESPACE;
  `*_prefix_index_start` is the starting nibble index in current function frame
 */
 void dispatch_updates_flat_list_(
-    UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
+    UpdateAuxImpl &, StateMachine &, UpwardTreeNode &parent, ChildData &,
     Node::UniquePtr old, Requests &, NibblesView path, unsigned prefix_index);
 
 void dispatch_updates_impl_(
-    UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
+    UpdateAuxImpl &, StateMachine &, UpwardTreeNode &parent, ChildData &,
     Node::UniquePtr old, Requests &, unsigned prefix_index, NibblesView path,
     std::optional<byte_string_view> opt_leaf_data);
 
 void mismatch_handler_(
-    UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
+    UpdateAuxImpl &, StateMachine &, UpwardTreeNode &parent, ChildData &,
     Node::UniquePtr old, Requests &, NibblesView path,
     unsigned old_prefix_index, unsigned prefix_index);
 
 void create_new_trie_(
-    UpdateAux &aux, StateMachine &sm, ChildData &entry, UpdateList &&updates,
-    unsigned prefix_index = 0);
+    UpdateAuxImpl &aux, StateMachine &sm, ChildData &entry,
+    UpdateList &&updates, unsigned prefix_index = 0);
 
 void create_new_trie_from_requests_(
-    UpdateAux &, StateMachine &, ChildData &, Requests &, NibblesView path,
+    UpdateAuxImpl &, StateMachine &, ChildData &, Requests &, NibblesView path,
     unsigned prefix_index, std::optional<byte_string_view> opt_leaf_data);
 
 void upsert_(
-    UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
+    UpdateAuxImpl &, StateMachine &, UpwardTreeNode &parent, ChildData &,
     Node::UniquePtr old, virtual_chunk_offset_t offset, UpdateList &&,
     unsigned prefix_index = 0, unsigned old_prefix_index = 0);
 
 void create_node_compute_data_possibly_async(
-    UpdateAux &, StateMachine &, UpwardTreeNode &parent, ChildData &,
+    UpdateAuxImpl &, StateMachine &, UpwardTreeNode &parent, ChildData &,
     tnode_unique_ptr, bool might_on_disk = true);
 
 void compact_(
-    UpdateAux &, StateMachine &, CompactTNode *parent, unsigned index, Node *,
-    bool cached, virtual_chunk_offset_t node_offset = INVALID_VIRTUAL_OFFSET);
+    UpdateAuxImpl &, StateMachine &, CompactTNode *parent, unsigned index,
+    Node *, bool cached,
+    virtual_chunk_offset_t node_offset = INVALID_VIRTUAL_OFFSET);
 
 void try_fillin_parent_with_rewritten_node(
-    UpdateAux &, CompactTNode::unique_ptr_type);
+    UpdateAuxImpl &, CompactTNode::unique_ptr_type);
 
 struct async_write_node_result
 {
@@ -86,12 +87,14 @@ struct async_write_node_result
 };
 
 // invoke at the end of each block upsert
-virtual_chunk_offset_t write_new_root_node(UpdateAux &, Node &);
+virtual_chunk_offset_t write_new_root_node(UpdateAuxImpl &, Node &);
 
 Node::UniquePtr upsert(
-    UpdateAux &aux, StateMachine &sm, Node::UniquePtr old, UpdateList &&updates)
+    UpdateAuxImpl &aux, StateMachine &sm, Node::UniquePtr old,
+    UpdateList &&updates)
 {
-
+    auto g(aux.unique_lock());
+    auto g2(aux.set_current_upsert_tid());
     aux.reset_stats();
     auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/);
     ChildData &entry = sentinel->children[0];
@@ -129,7 +132,7 @@ Node::UniquePtr upsert(
 
 // Upward update until a unfinished parent node. For each tnode, create the
 // trie Node when all its children are created
-void upward_update(UpdateAux &aux, StateMachine &sm, UpwardTreeNode *tnode)
+void upward_update(UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode *tnode)
 {
     while (!tnode->npending && tnode->parent) {
         MONAD_ASSERT(tnode);
@@ -150,7 +153,7 @@ struct update_receiver
 {
     static constexpr bool lifetime_managed_internally = true;
 
-    UpdateAux *aux;
+    UpdateAuxImpl *aux;
     std::unique_ptr<StateMachine> sm;
     UpdateList updates;
     UpwardTreeNode *parent;
@@ -161,7 +164,7 @@ struct update_receiver
     uint8_t prefix_index;
 
     update_receiver(
-        UpdateAux *aux, std::unique_ptr<StateMachine> sm, ChildData &entry,
+        UpdateAuxImpl *aux, std::unique_ptr<StateMachine> sm, ChildData &entry,
         virtual_chunk_offset_t virtual_offset, UpdateList &&updates,
         UpwardTreeNode *parent, unsigned const prefix_index)
         : aux(aux)
@@ -215,7 +218,7 @@ struct read_single_child_receiver
 {
     static constexpr bool lifetime_managed_internally = true;
 
-    UpdateAux *aux;
+    UpdateAuxImpl *aux;
     chunk_offset_t rd_offset;
     UpwardTreeNode *tnode; // single child tnode
     ChildData &child;
@@ -224,7 +227,7 @@ struct read_single_child_receiver
     std::unique_ptr<StateMachine> sm;
 
     read_single_child_receiver(
-        UpdateAux *const aux, std::unique_ptr<StateMachine> sm,
+        UpdateAuxImpl *const aux, std::unique_ptr<StateMachine> sm,
         UpwardTreeNode *const tnode, ChildData &child)
         : aux(aux)
         , rd_offset(0, 0)
@@ -277,7 +280,7 @@ struct compaction_receiver
 {
     static constexpr bool lifetime_managed_internally = true;
 
-    UpdateAux *aux;
+    UpdateAuxImpl *aux;
     chunk_offset_t rd_offset;
     virtual_chunk_offset_t orig_offset;
     CompactTNode *tnode;
@@ -287,7 +290,7 @@ struct compaction_receiver
     std::unique_ptr<StateMachine> sm;
 
     compaction_receiver(
-        UpdateAux *aux_, std::unique_ptr<StateMachine> sm_,
+        UpdateAuxImpl *aux_, std::unique_ptr<StateMachine> sm_,
         CompactTNode *tnode_, unsigned const index_,
         virtual_chunk_offset_t const virtual_offset)
         : aux(aux_)
@@ -345,7 +348,7 @@ template <receiver Receiver>
         MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
             read_long_update_sender, Receiver> &&
         Receiver::lifetime_managed_internally)
-void async_read(UpdateAux &aux, Receiver &&receiver)
+void async_read(UpdateAuxImpl &aux, Receiver &&receiver)
 {
     [[likely]] if (
         receiver.bytes_to_read <=
@@ -373,7 +376,7 @@ void async_read(UpdateAux &aux, Receiver &&receiver)
 // Create Node
 /////////////////////////////////////////////////////
 Node *create_node_from_children_if_any(
-    UpdateAux &aux, StateMachine &sm, uint16_t const orig_mask,
+    UpdateAuxImpl &aux, StateMachine &sm, uint16_t const orig_mask,
     uint16_t const mask, std::span<ChildData> children, NibblesView const path,
     std::optional<byte_string_view> const leaf_data = std::nullopt)
 {
@@ -438,8 +441,8 @@ Node *create_node_from_children_if_any(
 }
 
 void create_node_compute_data_possibly_async(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    tnode_unique_ptr tnode, bool const might_on_disk)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, tnode_unique_ptr tnode, bool const might_on_disk)
 {
     if (might_on_disk && tnode->number_of_children() == 1) {
         auto &child = tnode->children[bitmask_index(
@@ -475,8 +478,9 @@ void create_node_compute_data_possibly_async(
 }
 
 void update_value_and_subtrie_(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old, NibblesView const path, Update &update)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, Node::UniquePtr old, NibblesView const path,
+    Update &update)
 {
     if (update.is_deletion()) {
         parent.mask &= static_cast<uint16_t>(~(1u << entry.branch));
@@ -517,8 +521,8 @@ void update_value_and_subtrie_(
 // Create a new trie from a list of updates, no incarnation
 /////////////////////////////////////////////////////
 void create_new_trie_(
-    UpdateAux &aux, StateMachine &sm, ChildData &entry, UpdateList &&updates,
-    unsigned prefix_index)
+    UpdateAuxImpl &aux, StateMachine &sm, ChildData &entry,
+    UpdateList &&updates, unsigned prefix_index)
 {
     if (updates.empty()) {
         return;
@@ -575,7 +579,7 @@ void create_new_trie_(
 }
 
 void create_new_trie_from_requests_(
-    UpdateAux &aux, StateMachine &sm, ChildData &entry, Requests &requests,
+    UpdateAuxImpl &aux, StateMachine &sm, ChildData &entry, Requests &requests,
     NibblesView const path, unsigned const prefix_index,
     std::optional<byte_string_view> const opt_leaf_data)
 {
@@ -606,9 +610,10 @@ void create_new_trie_from_requests_(
 /////////////////////////////////////////////////////
 
 void upsert_(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old, virtual_chunk_offset_t const old_offset,
-    UpdateList &&updates, unsigned prefix_index, unsigned old_prefix_index)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, Node::UniquePtr old,
+    virtual_chunk_offset_t const old_offset, UpdateList &&updates,
+    unsigned prefix_index, unsigned old_prefix_index)
 {
     if (!old) {
         update_receiver receiver(
@@ -699,7 +704,7 @@ void upsert_(
 }
 
 void fillin_entry(
-    UpdateAux &aux, StateMachine &sm, tnode_unique_ptr tnode,
+    UpdateAuxImpl &aux, StateMachine &sm, tnode_unique_ptr tnode,
     UpwardTreeNode &parent, ChildData &entry)
 {
     if (tnode->npending) {
@@ -714,9 +719,10 @@ void fillin_entry(
 /* dispatch updates at the end of old node's path. old node may have leaf data,
  * and there might be update to the leaf value. */
 void dispatch_updates_impl_(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old_ptr, Requests &requests, unsigned const prefix_index,
-    NibblesView const path, std::optional<byte_string_view> const opt_leaf_data)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, Node::UniquePtr old_ptr, Requests &requests,
+    unsigned const prefix_index, NibblesView const path,
+    std::optional<byte_string_view> const opt_leaf_data)
 {
     Node *old = old_ptr.get();
     uint16_t const orig_mask = old->mask | requests.mask;
@@ -795,9 +801,9 @@ void dispatch_updates_impl_(
 }
 
 void dispatch_updates_flat_list_(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old, Requests &requests, NibblesView const path,
-    unsigned prefix_index)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, Node::UniquePtr old, Requests &requests,
+    NibblesView const path, unsigned prefix_index)
 {
     auto &opt_leaf = requests.opt_leaf;
     auto opt_leaf_data = old->opt_value();
@@ -843,9 +849,10 @@ void dispatch_updates_flat_list_(
 // Split `old` at old_prefix_index, `updates` are already splitted at
 // prefix_index to `requests`, which can have 1 or more sublists.
 void mismatch_handler_(
-    UpdateAux &aux, StateMachine &sm, UpwardTreeNode &parent, ChildData &entry,
-    Node::UniquePtr old_ptr, Requests &requests, NibblesView const path,
-    unsigned const old_prefix_index, unsigned const prefix_index)
+    UpdateAuxImpl &aux, StateMachine &sm, UpwardTreeNode &parent,
+    ChildData &entry, Node::UniquePtr old_ptr, Requests &requests,
+    NibblesView const path, unsigned const old_prefix_index,
+    unsigned const prefix_index)
 {
     Node &old = *old_ptr;
     MONAD_DEBUG_ASSERT(old.has_path());
@@ -929,7 +936,7 @@ void mismatch_handler_(
 }
 
 void compact_(
-    UpdateAux &aux, StateMachine &sm, CompactTNode *const parent,
+    UpdateAuxImpl &aux, StateMachine &sm, CompactTNode *const parent,
     unsigned const index, Node *const node, bool const cached,
     virtual_chunk_offset_t const node_offset)
 {
@@ -965,7 +972,7 @@ void compact_(
 }
 
 void try_fillin_parent_with_rewritten_node(
-    UpdateAux &aux, CompactTNode::unique_ptr_type tnode)
+    UpdateAuxImpl &aux, CompactTNode::unique_ptr_type tnode)
 {
     if (tnode->npending) { // there are unfinished async below node
         tnode.release();
@@ -1003,7 +1010,7 @@ void try_fillin_parent_with_rewritten_node(
 // Async write
 /////////////////////////////////////////////////////
 node_writer_unique_ptr_type replace_node_writer(
-    UpdateAux &aux, node_writer_unique_ptr_type &node_writer,
+    UpdateAuxImpl &aux, node_writer_unique_ptr_type &node_writer,
     size_t bytes_yet_to_be_appended_to_existing,
     size_t bytes_to_write_to_new_writer)
 {
@@ -1029,8 +1036,8 @@ node_writer_unique_ptr_type replace_node_writer(
         auto idx = ci_->index(aux.db_metadata());
         aux.remove(idx);
         aux.append(
-            in_fast_list ? UpdateAux::chunk_list::fast
-                         : UpdateAux::chunk_list::slow,
+            in_fast_list ? UpdateAuxImpl::chunk_list::fast
+                         : UpdateAuxImpl::chunk_list::slow,
             idx);
         offset_of_next_block.id = idx & 0xfffffU;
         offset_of_next_block.offset = 0;
@@ -1046,7 +1053,8 @@ node_writer_unique_ptr_type replace_node_writer(
 
 // return physical offset the node is written at
 async_write_node_result async_write_node(
-    UpdateAux &aux, node_writer_unique_ptr_type &node_writer, Node const &node)
+    UpdateAuxImpl &aux, node_writer_unique_ptr_type &node_writer,
+    Node const &node)
 {
     aux.io->poll_nonblocking_if_not_within_completions(1);
     auto *sender = &node_writer->sender();
@@ -1119,12 +1127,12 @@ async_write_node_result async_write_node(
 // Return node's virtual offset the node is written at
 // hide the physical offset detail from triedb
 virtual_chunk_offset_t
-async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
+async_write_node_set_spare(UpdateAuxImpl &aux, Node &node, bool write_to_fast)
 {
-    if (aux.alternate_slow_fast_writer) {
+    if (aux.alternate_slow_fast_writer()) {
         // alternate between slow and fast writer
-        write_to_fast &= aux.can_write_to_fast;
-        aux.can_write_to_fast = !aux.can_write_to_fast;
+        write_to_fast &= aux.can_write_to_fast();
+        aux.set_can_write_to_fast(!aux.can_write_to_fast());
     }
     auto off = async_write_node(
                    aux,
@@ -1138,7 +1146,7 @@ async_write_node_set_spare(UpdateAux &aux, Node &node, bool write_to_fast)
 }
 
 // return virtual offset of root
-virtual_chunk_offset_t write_new_root_node(UpdateAux &aux, Node &root)
+virtual_chunk_offset_t write_new_root_node(UpdateAuxImpl &aux, Node &root)
 {
     auto const virtual_offset_written_to =
         async_write_node_set_spare(aux, root, true);

@@ -8,7 +8,7 @@
 #include "unsigned_20.hpp"
 
 MONAD_MPT_NAMESPACE_BEGIN
-class UpdateAux;
+class UpdateAuxImpl;
 
 namespace detail
 {
@@ -37,7 +37,7 @@ namespace detail
     // For the memory map of the first conventional chunk
     struct db_metadata
     {
-        friend class MONAD_MPT_NAMESPACE::UpdateAux;
+        friend class MONAD_MPT_NAMESPACE::UpdateAuxImpl;
 
         char magic[4]; // "MND0"
         uint32_t chunk_info_count : 20; // items in chunk_info below

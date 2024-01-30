@@ -10,7 +10,7 @@ MONAD_MPT_NAMESPACE_BEGIN
 namespace
 {
     void preorder_traverse_impl(
-        UpdateAux &aux, unsigned char const branch, Node const &node,
+        UpdateAuxImpl &aux, unsigned char const branch, Node const &node,
         TraverseMachine &traverse)
     {
         traverse.down(branch, node);
@@ -34,7 +34,7 @@ namespace
 }
 
 void preorder_traverse(
-    UpdateAux &aux, Node const &node, TraverseMachine &traverse)
+    UpdateAuxImpl &aux, Node const &node, TraverseMachine &traverse)
 {
     preorder_traverse_impl(aux, INVALID_BRANCH, node, traverse);
 }

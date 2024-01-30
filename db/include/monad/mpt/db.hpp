@@ -10,6 +10,8 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <shared_mutex>
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 struct OnDiskDbConfig;
@@ -31,7 +33,7 @@ private:
     };
 
     std::optional<OnDisk> on_disk_;
-    UpdateAux aux_;
+    UpdateAux<std::shared_mutex> aux_;
     Node::UniquePtr root_;
     StateMachine &machine_;
 

@@ -833,7 +833,7 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
             0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
         // check db maintain expected historical versions
         if (this->aux.is_on_disk()) {
-            if (block_id - start_block_id < UpdateAux::version_history_len) {
+            if (block_id - start_block_id < UpdateAuxImpl::version_history_len) {
                 EXPECT_EQ(
                     this->aux.max_version_in_db_history(*this->root) -
                         this->aux.min_version_in_db_history(*this->root),
@@ -843,7 +843,7 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
                 EXPECT_EQ(
                     this->aux.max_version_in_db_history(*this->root) -
                         this->aux.min_version_in_db_history(*this->root),
-                    UpdateAux::version_history_len);
+                    UpdateAuxImpl::version_history_len);
             }
         }
         else {

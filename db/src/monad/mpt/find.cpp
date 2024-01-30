@@ -12,9 +12,10 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 find_result_type find_blocking(
-    UpdateAux const &aux, Node *node, NibblesView const key,
+    UpdateAuxImpl const &aux, Node *node, NibblesView const key,
     std::optional<unsigned> opt_node_prefix_index)
 {
+    auto g(aux.shared_lock());
     if (!node) {
         return {nullptr, find_result::root_node_is_null_failure};
     }
@@ -30,15 +31,20 @@ find_result_type find_blocking(
             }
             // go to node's matched child
             if (!node->next(node->to_child_index(nibble))) {
-                // read node if not yet in mem
                 MONAD_ASSERT(aux.is_on_disk());
-                node->set_next(
-                    node->to_child_index(nibble),
-                    read_node_blocking(
-                        aux.io->storage_pool(),
-                        aux.virtual_to_physical(
-                            node->fnext(node->to_child_index(nibble)))));
+                auto g2(g.upgrade());
+                if (g2.upgrade_was_atomic() ||
+                    !node->next(node->to_child_index(nibble))) {
+                    // read node if not yet in mem
+                    node->set_next(
+                        node->to_child_index(nibble),
+                        read_node_blocking(
+                            aux.io->storage_pool(),
+                            aux.virtual_to_physical(
+                                node->fnext(node->to_child_index(nibble)))));
+                }
             }
+            MONAD_ASSERT(node->next(node->to_child_index(nibble)));
             node = node->next(node->to_child_index(nibble));
             MONAD_ASSERT(node); // nodes indexed by `key` should be in memory
             node_prefix_index = node->bitpacked.path_nibble_index_start;
@@ -59,8 +65,9 @@ find_result_type find_blocking(
     return {node, find_result::success};
 }
 
-Nibbles find_min_key_blocking(UpdateAux const &aux, Node &root)
+Nibbles find_min_key_blocking(UpdateAuxImpl const &aux, Node &root)
 {
+    auto g(aux.shared_lock());
     Nibbles path;
     Node *node = &root;
     while (!node->has_value()) {
@@ -72,19 +79,24 @@ Nibbles find_min_key_blocking(UpdateAux const &aux, Node &root)
         // go to next node
         if (!node->next(0)) {
             MONAD_ASSERT(aux.is_on_disk());
-            node->set_next(
-                0,
-                read_node_blocking(
-                    aux.io->storage_pool(),
-                    aux.virtual_to_physical(node->fnext(0))));
+            auto g2(g.upgrade());
+            if (g2.upgrade_was_atomic() || !node->next(0)) {
+                node->set_next(
+                    0,
+                    read_node_blocking(
+                        aux.io->storage_pool(),
+                        aux.virtual_to_physical(node->fnext(0))));
+            }
         }
+        MONAD_ASSERT(node->next(0));
         node = node->next(0);
     }
     return concat(NibblesView{path}, node->path_nibble_view());
 }
 
-Nibbles find_max_key_blocking(UpdateAux const &aux, Node &root)
+Nibbles find_max_key_blocking(UpdateAuxImpl const &aux, Node &root)
 {
+    auto g(aux.shared_lock());
     Nibbles path;
     Node *node = &root;
     while (!node->has_value()) {
@@ -96,13 +108,18 @@ Nibbles find_max_key_blocking(UpdateAux const &aux, Node &root)
         // go to next node
         if (!node->next(node->number_of_children() - 1)) {
             MONAD_ASSERT(aux.is_on_disk());
-            node->set_next(
-                node->number_of_children() - 1,
-                read_node_blocking(
-                    aux.io->storage_pool(),
-                    aux.virtual_to_physical(
-                        node->fnext(node->number_of_children() - 1))));
+            auto g2(g.upgrade());
+            if (g2.upgrade_was_atomic() ||
+                !node->next(node->number_of_children() - 1)) {
+                node->set_next(
+                    node->number_of_children() - 1,
+                    read_node_blocking(
+                        aux.io->storage_pool(),
+                        aux.virtual_to_physical(
+                            node->fnext(node->number_of_children() - 1))));
+            }
         }
+        MONAD_ASSERT(node->next(node->number_of_children() - 1));
         node = node->next(node->number_of_children() - 1);
     }
     return concat(NibblesView{path}, node->path_nibble_view());

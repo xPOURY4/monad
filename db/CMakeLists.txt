@@ -19,7 +19,7 @@ find_package(
 find_package(GTest)
 find_package(
   Boost
-  COMPONENTS fiber json
+  COMPONENTS fiber json thread
   REQUIRED)
 find_package(CLI11 REQUIRED)
   

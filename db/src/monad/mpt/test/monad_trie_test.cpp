@@ -78,7 +78,7 @@ Node::UniquePtr batch_upsert_commit(
     uint64_t const key_offset, uint64_t const nkeys,
     std::vector<monad::byte_string> &keccak_keys,
     std::vector<monad::byte_string> &keccak_values, bool const erase,
-    bool compaction, Node::UniquePtr prev_root, UpdateAux &aux,
+    bool compaction, Node::UniquePtr prev_root, UpdateAuxImpl &aux,
     StateMachine &sm)
 {
     std::vector<Update> update_alloc;
@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
 
-        UpdateAux aux{};
+        UpdateAux<> aux{};
         monad::test::StateMachineWithBlockNo sm{};
         if (!in_memory) {
             aux.set_io(&io);

@@ -16,12 +16,13 @@
 MONAD_MPT_NAMESPACE_BEGIN
 
 Node::UniquePtr copy_node(
-    UpdateAux &aux, Node::UniquePtr root, NibblesView const src,
+    UpdateAuxImpl &aux, Node::UniquePtr root, NibblesView const src,
     NibblesView const dest)
 {
     auto [src_leaf, res] = find_blocking(aux, root.get(), src);
     MONAD_ASSERT(res == find_result::success);
 
+    auto g(aux.unique_lock());
     Node *parent = nullptr;
     Node *node = root.get();
     Node *new_node = nullptr;

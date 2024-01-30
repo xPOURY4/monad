@@ -296,7 +296,7 @@ namespace monad::test
     };
 
     using in_memory_trie_fixture_t =
-        trie_fuzzer_fixture<MerkleTrie<InMemoryTrieBase<Nothing>>>;
+        trie_fuzzer_fixture<MerkleTrie<InMemoryTrieBase<void, Nothing>>>;
     using on_disk_fixture_t =
-        trie_fuzzer_fixture<MerkleTrie<OnDiskTrieBase<Nothing>>>;
+        trie_fuzzer_fixture<MerkleTrie<OnDiskTrieBase<void, Nothing>>>;
 }

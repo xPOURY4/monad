@@ -30,6 +30,12 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
+template <class T>
+concept lockable_or_void = std::is_void_v<T> || requires(T x) {
+    x.lock();
+    x.unlock();
+};
+
 class Node;
 
 struct write_operation_io_receiver
@@ -122,15 +128,15 @@ public:
 };
 
 virtual_chunk_offset_t
-async_write_node_set_spare(UpdateAux &aux, Node &node, bool is_fast);
+async_write_node_set_spare(UpdateAuxImpl &aux, Node &node, bool is_fast);
 
 node_writer_unique_ptr_type replace_node_writer(
-    UpdateAux &, node_writer_unique_ptr_type &,
+    UpdateAuxImpl &, node_writer_unique_ptr_type &,
     size_t bytes_yet_to_be_appended_to_existing = 0,
     size_t bytes_to_write_to_new_writer = 0);
 
 // \class Auxiliaries for triedb update
-class UpdateAux
+class UpdateAuxImpl
 {
     uint32_t initial_insertion_count_on_pool_creation_{0};
 
@@ -164,6 +170,156 @@ class UpdateAux
     compact_virtual_chunk_offset_t compact_offset_range_slow_{
         MIN_COMPACT_VIRTUAL_OFFSET};
 
+    std::optional<pid_t> current_upsert_tid_; // used to detect what thread is
+                                              // currently upserting
+    bool alternate_slow_fast_writer_{false};
+    bool can_write_to_fast_{true};
+
+    virtual void lock_unique_() const = 0;
+
+    virtual void unlock_unique_() const noexcept = 0;
+
+    virtual void lock_shared_() const = 0;
+
+    virtual void unlock_shared_() const noexcept = 0;
+
+    virtual bool upgrade_shared_to_unique_() const noexcept = 0;
+
+    virtual bool downgrade_unique_to_shared_() const noexcept = 0;
+
+protected:
+    uint64_t upsert_call_count_{0};
+
+    class shared_lock_holder_;
+    friend class shared_lock_holder_;
+
+    class shared_lock_holder_
+    {
+        friend class MONAD_MPT_NAMESPACE::UpdateAuxImpl;
+        UpdateAuxImpl const *parent_{nullptr};
+        bool const was_atomic_;
+
+        explicit constexpr shared_lock_holder_(
+            UpdateAuxImpl const *parent, bool was_atomic)
+            : parent_(parent)
+            , was_atomic_(was_atomic)
+        {
+        }
+
+    public:
+        shared_lock_holder_(shared_lock_holder_ const &) = delete;
+
+        shared_lock_holder_(shared_lock_holder_ &&o)
+            : parent_(o.parent_)
+            , was_atomic_(o.was_atomic_)
+        {
+            o.parent_ = nullptr;
+        }
+
+        ~shared_lock_holder_()
+        {
+            if (parent_ != nullptr) {
+                parent_->unlock_shared_();
+            }
+        }
+
+        shared_lock_holder_ &operator=(shared_lock_holder_ const &) = delete;
+
+        shared_lock_holder_ &operator=(shared_lock_holder_ &&o) noexcept
+        {
+            if (this != &o) {
+                this->~shared_lock_holder_();
+                new (this) shared_lock_holder_(std::move(o));
+            }
+            return *this;
+        }
+
+        bool downgrade_was_atomic() const noexcept
+        {
+            return was_atomic_;
+        }
+
+        auto upgrade() const
+        {
+            class holder2
+            {
+                shared_lock_holder_ const *parent_;
+                uint64_t const initial_upsert_call_count_;
+                bool const was_atomic_;
+
+            public:
+                explicit constexpr holder2(shared_lock_holder_ const *parent)
+                    : parent_(parent)
+                    , initial_upsert_call_count_(
+                          parent_->parent_->upsert_call_count_)
+                    , was_atomic_(parent_->parent_->upgrade_shared_to_unique_())
+                {
+                    if (!was_atomic_) {
+                        parent_->parent_->unlock_shared_();
+                        // an upsert could begin and complete now
+                        // theoretically causing nodes to get freed
+                        parent_->parent_->lock_unique_();
+                        MONAD_ASSERT(
+                            initial_upsert_call_count_ ==
+                            parent_->parent_->upsert_call_count_);
+                    }
+                }
+
+                holder2(holder2 const &) = delete;
+
+                holder2(holder2 &&o)
+                    : parent_(o.parent_)
+                    , initial_upsert_call_count_(o.initial_upsert_call_count_)
+                    , was_atomic_(o.was_atomic_)
+                {
+                    o.parent_ = nullptr;
+                }
+
+                ~holder2()
+                {
+                    unlock();
+                }
+
+                holder2 &operator=(holder2 const &) = delete;
+
+                holder2 &operator=(holder2 &&o) noexcept
+                {
+                    if (this != &o) {
+                        this->~holder2();
+                        new (this) holder2(std::move(o));
+                    }
+                    return *this;
+                }
+
+                bool upgrade_was_atomic() const noexcept
+                {
+                    return was_atomic_;
+                }
+
+                void unlock()
+                {
+                    if (parent_ != nullptr) {
+                        if (was_atomic_) {
+                            parent_->parent_->downgrade_unique_to_shared_();
+                        }
+                        else {
+                            parent_->parent_->unlock_unique_();
+                            // an upsert could begin and complete now
+                            // theoretically causing nodes to get freed
+                            parent_->parent_->lock_shared_();
+                            MONAD_ASSERT(
+                                initial_upsert_call_count_ ==
+                                parent_->parent_->upsert_call_count_);
+                        }
+                        parent_ = nullptr;
+                    }
+                }
+            };
+
+            return holder2{this};
+        }
+    };
+
 public:
     compact_virtual_chunk_offset_t compact_offset_fast{
         MIN_COMPACT_VIRTUAL_OFFSET};
@@ -178,17 +334,141 @@ public:
     // currently maintain a fixed len history
     static constexpr unsigned version_history_len = 200;
 
-    bool alternate_slow_fast_writer{false};
-    bool can_write_to_fast{true};
-
-    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+    UpdateAuxImpl(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
     {
         if (io_) {
             set_io(io_);
         }
     }
 
-    ~UpdateAux();
+    virtual ~UpdateAuxImpl();
+
+    auto unique_lock() const
+    {
+        class holder
+        {
+            friend class MONAD_MPT_NAMESPACE::UpdateAuxImpl;
+            UpdateAuxImpl const *parent_;
+
+            explicit constexpr holder(UpdateAuxImpl const *parent)
+                : parent_(parent)
+            {
+                parent_->lock_unique_();
+            }
+
+        public:
+            holder(holder const &) = delete;
+
+            holder(holder &&o)
+                : parent_(o.parent_)
+            {
+                o.parent_ = nullptr;
+            }
+
+            ~holder()
+            {
+                if (parent_ != nullptr) {
+                    parent_->unlock_unique_();
+                }
+            }
+
+            holder &operator=(holder const &) = delete;
+
+            holder &operator=(holder &&o) noexcept
+            {
+                if (this != &o) {
+                    this->~holder();
+                    new (this) holder(std::move(o));
+                }
+                return *this;
+            }
+
+            shared_lock_holder_ downgrade() &&
+            {
+                auto const initial_upsert_call_count =
+                    parent_->upsert_call_count_;
+                auto const was_atomic = parent_->downgrade_unique_to_shared_();
+                if (!was_atomic) {
+                    parent_->unlock_unique_();
+                    // an upsert could begin and complete now
+                    // theoretically causing nodes to get freed
+                    parent_->lock_shared_();
+                    MONAD_ASSERT(
+                        initial_upsert_call_count ==
+                        parent_->upsert_call_count_);
+                }
+                // takes ownership
+                shared_lock_holder_ ret{parent_, was_atomic};
+                parent_ = nullptr;
+                return ret;
+            }
+        };
+
+        return holder{this};
+    }
+
+    shared_lock_holder_ shared_lock() const
+    {
+        lock_shared_();
+        return shared_lock_holder_{this, false};
+    }
+
+    auto set_current_upsert_tid()
+    {
+        class holder
+        {
+            friend class MONAD_MPT_NAMESPACE::UpdateAuxImpl;
+            UpdateAuxImpl *parent_;
+
+            explicit constexpr holder(UpdateAuxImpl *parent)
+                : parent_(parent)
+            {
+                parent_->current_upsert_tid_ = gettid();
+            }
+
+        public:
+            holder(holder const &) = delete;
+
+            holder(holder &&o)
+                : parent_(o.parent_)
+            {
+                o.parent_ = nullptr;
+            }
+
+            ~holder()
+            {
+                if (parent_ != nullptr) {
+                    parent_->upsert_call_count_++;
+                    parent_->current_upsert_tid_ = {};
+                }
+            }
+
+            holder &operator=(holder const &) = delete;
+
+            holder &operator=(holder &&o) noexcept
+            {
+                if (this != &o) {
+                    this->~holder();
+                    new (this) holder(std::move(o));
+                }
+                return *this;
+            }
+        };
+
+        return holder{this};
+    }
+
+    bool is_current_thread_concurrent_to_upsert() const noexcept
+    {
+        return current_upsert_tid_.has_value() &&
+               *current_upsert_tid_ != gettid();
+    }
+
+    bool has_upsert_run_since() const noexcept
+    {
+        return current_upsert_tid_.has_value() &&
+               *current_upsert_tid_ != gettid();
+    }
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *);
 
@@ -259,7 +539,22 @@ public:
     // DO NOT invoke it outside of unit test
     void alternate_slow_fast_node_writer_unit_testing_only(bool alternate)
     {
-        alternate_slow_fast_writer = alternate;
+        alternate_slow_fast_writer_ = alternate;
+    }
+
+    bool alternate_slow_fast_writer() const noexcept
+    {
+        return alternate_slow_fast_writer_;
+    }
+
+    bool can_write_to_fast() const noexcept
+    {
+        return can_write_to_fast_;
+    }
+
+    void set_can_write_to_fast(bool v) noexcept
+    {
+        can_write_to_fast_ = v;
     }
 
     constexpr bool is_in_memory() const noexcept
@@ -306,13 +601,126 @@ public:
 };
 
 static_assert(
-    sizeof(UpdateAux) ==
-    192 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
-static_assert(alignof(UpdateAux) == 8);
+    sizeof(UpdateAuxImpl) ==
+    216 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
+static_assert(alignof(UpdateAuxImpl) == 8);
+
+template <lockable_or_void LockType = void>
+class UpdateAux final : public UpdateAuxImpl
+{
+    mutable LockType lock_;
+
+    virtual void lock_unique_() const override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        lock_.lock();
+    }
+
+    virtual void unlock_unique_() const noexcept override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        lock_.unlock();
+    }
+
+    virtual void lock_shared_() const override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        if constexpr (requires(LockType x) { x.lock_shared(); }) {
+            lock_.lock_shared();
+        }
+        else {
+            lock_.lock();
+        }
+    }
+
+    virtual void unlock_shared_() const noexcept override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        if constexpr (requires(LockType x) { x.unlock_shared(); }) {
+            return lock_.unlock_shared();
+        }
+        else {
+            return lock_.unlock();
+        }
+    }
+
+    virtual bool upgrade_shared_to_unique_() const noexcept override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        if constexpr (requires(LockType x) {
+                          x.try_unlock_shared_and_lock();
+                          x.unlock_and_lock_shared();
+                      }) {
+            return lock_.try_unlock_shared_and_lock();
+        }
+        else {
+            return false;
+        }
+    }
+
+    virtual bool downgrade_unique_to_shared_() const noexcept override
+    {
+        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+        if constexpr (requires(LockType x) {
+                          x.try_unlock_shared_and_lock();
+                          x.unlock_and_lock_shared();
+                      }) {
+            lock_.unlock_and_lock_shared();
+            return true;
+        }
+        return false;
+    }
+
+public:
+    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+        : UpdateAuxImpl(io_)
+    {
+    }
+
+    UpdateAux(LockType &&lock, MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+        : UpdateAuxImpl(io_)
+        , lock_(std::move(lock))
+    {
+    }
+
+    LockType &lock() noexcept
+    {
+        return lock_;
+    }
+};
+
+template <>
+class UpdateAux<void> final : public UpdateAuxImpl
+{
+
+    virtual void lock_unique_() const override {}
+
+    virtual void unlock_unique_() const noexcept override {}
+
+    virtual void lock_shared_() const override {}
+
+    virtual void unlock_shared_() const noexcept override {}
+
+    virtual bool upgrade_shared_to_unique_() const noexcept override
+    {
+        return true;
+    }
+
+    virtual bool downgrade_unique_to_shared_() const noexcept override
+    {
+        return true;
+    }
+
+public:
+    UpdateAux(MONAD_ASYNC_NAMESPACE::AsyncIO *io_ = nullptr)
+        : UpdateAuxImpl(io_)
+    {
+    }
+};
 
 // batch upsert, updates can be nested
 Node::UniquePtr
-upsert(UpdateAux &, StateMachine &, Node::UniquePtr old, UpdateList &&);
+upsert(UpdateAuxImpl &, StateMachine &, Node::UniquePtr old, UpdateList &&);
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +731,8 @@ enum class find_result : uint8_t
     root_node_is_null_failure,
     key_mismatch_failure,
     branch_not_exist_failure,
-    key_ends_ealier_than_node_failure
+    key_ends_ealier_than_node_failure,
+    need_to_initiate_in_triedb_thread
 };
 using find_result_type = std::pair<Node *, find_result>;
 
@@ -359,7 +768,7 @@ using inflight_map_t = unordered_dense_map<
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
 // not race free.
 void find_notify_fiber_future(
-    UpdateAux &, inflight_map_t &inflights, find_request_t);
+    UpdateAuxImpl &, inflight_map_t &inflights, find_request_t);
 
 /*! \brief Copy a leaf node under prefix `src` to prefix `dest`. Invoked before
 committing block updates to triedb. By copy we mean everything other than
@@ -367,8 +776,8 @@ path. When copying children over, also remove the original's child pointers
 to avoid dup referencing. For on-disk trie deallocate nodes under prefix `src`
 after copy is done when the node is the only in-memory child of its parent.
 Note that we handle the case where `dest` is pre-existed in trie. */
-Node::UniquePtr
-copy_node(UpdateAux &, Node::UniquePtr root, NibblesView src, NibblesView dest);
+Node::UniquePtr copy_node(
+    UpdateAuxImpl &, Node::UniquePtr root, NibblesView src, NibblesView dest);
 
 /*! \brief blocking find node indexed by key from root, It works for bothon-disk
 and in-memory trie. When node along key is not yet in memory, it load node
@@ -377,11 +786,11 @@ through blocking read.
 thread, as no synchronization is provided, and user code should make sure no
 other place is modifying trie. */
 find_result_type find_blocking(
-    UpdateAux const &, Node *root, NibblesView key,
+    UpdateAuxImpl const &, Node *root, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
-Nibbles find_min_key_blocking(UpdateAux const &, Node &root);
-Nibbles find_max_key_blocking(UpdateAux const &, Node &root);
+Nibbles find_min_key_blocking(UpdateAuxImpl const &, Node &root);
+Nibbles find_max_key_blocking(UpdateAuxImpl const &, Node &root);
 
 // helper
 inline constexpr unsigned num_pages(file_offset_t const offset, unsigned bytes)

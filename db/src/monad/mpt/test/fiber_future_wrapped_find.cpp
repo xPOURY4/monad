@@ -28,7 +28,7 @@ namespace
     using namespace MONAD_ASYNC_NAMESPACE;
 
     void find(
-        UpdateAux *aux, inflight_map_t *const inflights, Node *const root,
+        UpdateAuxImpl *aux, inflight_map_t *const inflights, Node *const root,
         monad::byte_string_view const key, monad::byte_string_view const value)
     {
         boost::fibers::promise<monad::mpt::find_result_type> promise;

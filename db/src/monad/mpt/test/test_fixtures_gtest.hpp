@@ -7,33 +7,38 @@
 namespace monad::test
 {
     struct InMemoryMerkleTrieGTest
-        : public MerkleTrie<InMemoryTrieBase<::testing::Test>>
+        : public MerkleTrie<InMemoryTrieBase<void, ::testing::Test>>
     {
-        using MerkleTrie<InMemoryTrieBase<::testing::Test>>::InMemoryTrieBase;
+        using MerkleTrie<
+            InMemoryTrieBase<void, ::testing::Test>>::InMemoryTrieBase;
     };
 
     struct OnDiskMerkleTrieGTest
-        : public MerkleTrie<OnDiskTrieBase<::testing::Test>>
+        : public MerkleTrie<OnDiskTrieBase<void, ::testing::Test>>
     {
-        using MerkleTrie<OnDiskTrieBase<::testing::Test>>::OnDiskTrieBase;
+        using MerkleTrie<OnDiskTrieBase<void, ::testing::Test>>::OnDiskTrieBase;
     };
 
     struct InMemoryTrieGTest
-        : public PlainTrie<InMemoryTrieBase<::testing::Test>>
+        : public PlainTrie<InMemoryTrieBase<void, ::testing::Test>>
     {
     };
 
-    struct OnDiskTrieGTest : public PlainTrie<OnDiskTrieBase<::testing::Test>>
+    struct OnDiskTrieGTest
+        : public PlainTrie<OnDiskTrieBase<void, ::testing::Test>>
     {
     };
 
-    template <size_t chunks_to_fill, bool alternate_slow_fast_writer = false>
+    template <
+        size_t chunks_to_fill, bool alternate_slow_fast_writer = false,
+        monad::mpt::lockable_or_void LockType = void>
     struct FillDBWithChunksGTest
         : public FillDBWithChunks<
-              chunks_to_fill, alternate_slow_fast_writer, ::testing::Test>
+              chunks_to_fill, alternate_slow_fast_writer, LockType,
+              ::testing::Test>
     {
         using FillDBWithChunks<
-            chunks_to_fill, alternate_slow_fast_writer,
+            chunks_to_fill, alternate_slow_fast_writer, LockType,
             ::testing::Test>::FillDBWithChunks;
     };
 

@@ -147,7 +147,7 @@ opened.
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
-        MONAD_MPT_NAMESPACE::UpdateAux aux{};
+        MONAD_MPT_NAMESPACE::UpdateAux<> aux{};
         aux.set_io(&io);
 
         cout << R"(MPT database on storages:
