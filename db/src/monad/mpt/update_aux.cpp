@@ -490,8 +490,7 @@ Node::UniquePtr UpdateAux::do_update(
     }
 
     // 3. copy state if version not exists and db is not empty
-    if (!contains_version(prev_root, version) &&
-        contains_version(prev_root, version - 1)) { // empty db won't enter if
+    if (contains_version(prev_root, version - 1)) { // empty db won't enter if
         auto const prev_version =
             serialize_as_big_endian<BLOCK_NUM_BYTES>(version - 1);
         prev_root = copy_node(
@@ -671,7 +670,7 @@ void UpdateAux::free_compacted_chunks()
     printf("Fast Chunks: ");
     free_chunks_from_ci_till_count(
         db_metadata()->fast_list_begin(), remove_chunks_before_count_fast_);
-    printf("\nSlow Chunk: ");
+    printf("\nSlow Chunks: ");
     free_chunks_from_ci_till_count(
         db_metadata()->slow_list_begin(), remove_chunks_before_count_slow_);
     printf("\n");
