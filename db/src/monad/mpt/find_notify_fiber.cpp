@@ -34,6 +34,8 @@ void find_recursive(
 
 struct find_receiver
 {
+    static constexpr bool lifetime_managed_internally = true;
+
     UpdateAux *aux;
     inflight_map_t &inflights;
     Node *parent;

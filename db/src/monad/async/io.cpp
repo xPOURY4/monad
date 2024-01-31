@@ -529,8 +529,14 @@ bool AsyncIO::poll_uring_(bool blocking)
     }
 #endif
     erased_connected_operation_unique_ptr_type h2;
-    if (is_read_or_write && state->lifetime_is_managed_internally()) {
-        h2 = erased_connected_operation_unique_ptr_type{state};
+    std::unique_ptr<erased_connected_operation> h3;
+    if (state->lifetime_is_managed_internally()) {
+        if (is_read_or_write) {
+            h2 = erased_connected_operation_unique_ptr_type{state};
+        }
+        else {
+            h3 = std::unique_ptr<erased_connected_operation>(state);
+        }
     }
     state->completed(std::move(res));
     return true;

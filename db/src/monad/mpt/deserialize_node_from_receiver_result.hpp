@@ -21,6 +21,7 @@ namespace detail
                           typename monad::async::read_single_buffer_sender::
                               result_type>) {
             auto &buffer = std::move(buffer_).assume_value().get();
+            MONAD_ASSERT(buffer.size() > 0);
             node = deserialize_node_from_buffer(
                 (unsigned char *)buffer.data() + buffer_off,
                 buffer.size() - buffer_off);
@@ -31,10 +32,12 @@ namespace detail
                                typename monad::async::
                                    read_multiple_buffer_sender::result_type>) {
             auto &buffer = buffer_.assume_value().front();
+            MONAD_ASSERT(buffer.size() > 0);
+            // Did the Receiver forget to set lifetime_managed_internally?
+            MONAD_DEBUG_ASSERT(io_state->lifetime_is_managed_internally());
             node = deserialize_node_from_buffer(
                 (unsigned char *)buffer.data() + buffer_off,
                 buffer.size() - buffer_off);
-            delete io_state;
         }
         else {
             static_assert(false);

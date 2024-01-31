@@ -429,10 +429,16 @@ connect(AsyncIO &io, Sender &&sender, Receiver &&receiver)
     return connected_operation<Sender, Receiver>(
         io,
         [] {
+            /* If set by the receiver, AsyncIO cleans these up after completion
+            if a read or write op. Otherwise operator delete is called.
+            */
             if constexpr (requires { Receiver::lifetime_managed_internally; }) {
                 return Receiver::lifetime_managed_internally;
             }
             else {
+                /* Default is true if the op is read or write as AsyncIO
+                manages those. Otherwise false.
+                */
                 return detail::sender_operation_type<Sender> ==
                            operation_type::read ||
                        detail::sender_operation_type<Sender> ==
@@ -476,10 +482,16 @@ inline connected_operation<Sender, Receiver> connect(
     return connected_operation<Sender, Receiver>(
         io,
         [] {
+            /* If set by the receiver, AsyncIO cleans these up after completion
+            if a read or write op. Otherwise operator delete is called.
+            */
             if constexpr (requires { Receiver::lifetime_managed_internally; }) {
                 return Receiver::lifetime_managed_internally;
             }
             else {
+                /* Default is true if the op is read or write as AsyncIO
+                manages those. Otherwise false.
+                */
                 return detail::sender_operation_type<Sender> ==
                            operation_type::read ||
                        detail::sender_operation_type<Sender> ==

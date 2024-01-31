@@ -356,18 +356,22 @@ TYPED_TEST(PlainTrieTest, delete_with_incarnation)
 
 TYPED_TEST(PlainTrieTest, large_values)
 {
-    auto const key1 = 0x12_hex;
-    auto const key2 = 0x13_hex;
+    // make sure leaves are not cached
+    auto const key1 = 0x0000112_hex;
+    auto const key2 = 0x0000123_hex;
     auto const value1 = monad::byte_string(0x6000, 0xf);
     auto const value2 = monad::byte_string(0x6000, 0x3);
 
-    this->root = upsert_updates(
-        this->aux,
-        *this->sm,
-        std::move(this->root),
-        make_update(key1, value1),
-        make_update(key2, value2));
+    auto same_upsert_to_clear_nodes_outside_cache_level = [&] {
+        this->root = upsert_updates(
+            this->aux,
+            *this->sm,
+            std::move(this->root),
+            make_update(key1, value1),
+            make_update(key2, value2));
+    };
 
+    same_upsert_to_clear_nodes_outside_cache_level();
     {
         auto [leaf, res] = find_blocking(this->aux, this->root.get(), key1);
         EXPECT_EQ(res, find_result::success);
@@ -376,6 +380,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         EXPECT_EQ(leaf->value(), value1);
     }
 
+    same_upsert_to_clear_nodes_outside_cache_level();
     {
         auto [leaf, res] = find_blocking(this->aux, this->root.get(), key2);
         EXPECT_EQ(res, find_result::success);
@@ -384,6 +389,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         EXPECT_EQ(leaf->value(), value2);
     }
 
+    same_upsert_to_clear_nodes_outside_cache_level();
     {
         ::boost::fibers::promise<find_result_type> p;
         auto fut = p.get_future();
@@ -401,6 +407,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         EXPECT_EQ(leaf->value(), value1);
     }
 
+    same_upsert_to_clear_nodes_outside_cache_level();
     {
         ::boost::fibers::promise<find_result_type> p;
         auto fut = p.get_future();
@@ -417,4 +424,6 @@ TYPED_TEST(PlainTrieTest, large_values)
         EXPECT_TRUE(leaf->has_value());
         EXPECT_EQ(leaf->value(), value2);
     }
+
+    same_upsert_to_clear_nodes_outside_cache_level();
 }

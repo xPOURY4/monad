@@ -148,6 +148,8 @@ void upward_update(UpdateAux &aux, StateMachine &sm, UpwardTreeNode *tnode)
 
 struct update_receiver
 {
+    static constexpr bool lifetime_managed_internally = true;
+
     UpdateAux *aux;
     std::unique_ptr<StateMachine> sm;
     UpdateList updates;
@@ -211,6 +213,8 @@ static_assert(alignof(update_receiver) == 8);
 
 struct read_single_child_receiver
 {
+    static constexpr bool lifetime_managed_internally = true;
+
     UpdateAux *aux;
     chunk_offset_t rd_offset;
     UpwardTreeNode *tnode; // single child tnode
@@ -271,6 +275,8 @@ static_assert(alignof(read_single_child_receiver) == 8);
 
 struct compaction_receiver
 {
+    static constexpr bool lifetime_managed_internally = true;
+
     UpdateAux *aux;
     chunk_offset_t rd_offset;
     virtual_chunk_offset_t orig_offset;
@@ -337,7 +343,8 @@ template <receiver Receiver>
         MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
             read_short_update_sender, Receiver> &&
         MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
-            read_long_update_sender, Receiver>)
+            read_long_update_sender, Receiver> &&
+        Receiver::lifetime_managed_internally)
 void async_read(UpdateAux &aux, Receiver &&receiver)
 {
     [[likely]] if (

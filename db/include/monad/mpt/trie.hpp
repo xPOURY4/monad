@@ -98,6 +98,7 @@ public:
         : MONAD_ASYNC_NAMESPACE::read_multiple_buffer_sender(std::move(o))
         , buffer_(o.buffer_)
     {
+        this->reset(this->offset(), {&buffer_, 1});
         o.buffer_ = {};
     }
 
