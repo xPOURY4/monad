@@ -52,7 +52,7 @@ Db::OnDisk::OnDisk(OnDiskDbConfig const &options)
                 if (-1 ==
                     ::ftruncate(
                         fd,
-                        1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
+                        options.file_size_db * 1024 * 1024 * 1024 + 24576)) {
                     throw std::system_error(errno, std::system_category());
                 }
             }
