@@ -348,10 +348,15 @@ namespace detail
             MONAD_DEBUG_ASSERT(
                 this->executor() == nullptr || this->is_threadsafeop() ||
                 this->executor()->owning_thread_id() == gettid());
-            // The threadsafe op is special, it isn't for this AsyncIO instance
-            // and therefore never needs deferring
+            // It is safe to not defer write op, because no write receivers do
+            // recursion in current use cases thus no risk of stack exhaustion.
+            // The threadsafe op is special, it isn't for this AsyncIO
+            // instance and therefore never needs deferring
             return this->do_possibly_deferred_initiate_(
-                this->is_threadsafeop(), false);
+                detail::sender_operation_type<sender_type> ==
+                        operation_type::write ||
+                    this->is_threadsafeop(),
+                false);
         }
 
         //! Resets the operation state. Only available if both sender and
