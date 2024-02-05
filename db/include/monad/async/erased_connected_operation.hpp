@@ -298,7 +298,12 @@ protected:
         file_offset_t color : 1 {false};
     } rbtree_;
 
-    constexpr erased_connected_operation() {}
+    constexpr erased_connected_operation(
+        operation_type operation_type, bool lifetime_managed_internally)
+        : operation_type_(operation_type)
+        , lifetime_managed_internally_(lifetime_managed_internally)
+    {
+    }
 
     constexpr erased_connected_operation(
         operation_type operation_type, AsyncIO &io,

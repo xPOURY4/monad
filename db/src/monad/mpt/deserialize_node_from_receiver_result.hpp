@@ -9,6 +9,35 @@ MONAD_MPT_NAMESPACE_BEGIN
 
 namespace detail
 {
+    template <receiver Receiver>
+        requires(
+            MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
+                read_short_update_sender, Receiver> &&
+            MONAD_ASYNC_NAMESPACE::compatible_sender_receiver<
+                read_long_update_sender, Receiver>)
+    inline void initiate_async_read_update(
+        MONAD_ASYNC_NAMESPACE::AsyncIO &io, Receiver &&receiver,
+        size_t bytes_to_read)
+    {
+        [[likely]] if (
+            bytes_to_read <= MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE) {
+            read_short_update_sender sender(receiver);
+            auto iostate =
+                io.make_connected(std::move(sender), std::move(receiver));
+            iostate->initiate();
+            iostate.release();
+        }
+        else {
+            read_long_update_sender sender(receiver);
+            using connected_type =
+                decltype(connect(io, std::move(sender), std::move(receiver)));
+            auto *iostate = new connected_type(
+                connect(io, std::move(sender), std::move(receiver)));
+            iostate->initiate();
+            // drop iostate
+        }
+    }
+
     template <class ResultType>
     inline Node::UniquePtr deserialize_node_from_receiver_result(
         ResultType buffer_, uint16_t buffer_off,

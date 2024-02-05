@@ -60,7 +60,7 @@ find_result_type find_blocking(
     }
     if (node_prefix_index != node->path_nibble_index_end) {
         // prefix key exists but no leaf ends at `key`
-        return {nullptr, find_result::key_ends_ealier_than_node_failure};
+        return {nullptr, find_result::key_ends_earlier_than_node_failure};
     }
     return {node, find_result::success};
 }

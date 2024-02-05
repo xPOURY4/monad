@@ -394,7 +394,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         ::boost::fibers::promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
-        find_request_t req{&p, this->root.get(), key1};
+        fiber_find_request_t req{&p, this->root.get(), key1};
         find_notify_fiber_future(this->aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {
@@ -412,7 +412,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         ::boost::fibers::promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
-        find_request_t req{&p, this->root.get(), key2};
+        fiber_find_request_t req{&p, this->root.get(), key2};
         find_notify_fiber_future(this->aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {

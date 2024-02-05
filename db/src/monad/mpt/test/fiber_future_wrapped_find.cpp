@@ -32,7 +32,7 @@ namespace
         monad::byte_string_view const key, monad::byte_string_view const value)
     {
         boost::fibers::promise<monad::mpt::find_result_type> promise;
-        find_request_t const request{
+        fiber_find_request_t const request{
             .promise = &promise,
             .root = root,
             .key = key,

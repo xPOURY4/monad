@@ -409,7 +409,6 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
                 COUNT>(
                 std::piecewise_construct,
                 *shared_state_()->testio,
-                false,
                 timed_delay_sender(thepast),
                 reinitiating_receiver_t{});
         benchmark("timed_delay_sender with a non-zero timeout", [&] {
@@ -429,7 +428,6 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
                 COUNT>(
                 std::piecewise_construct,
                 *shared_state_()->testio,
-                false,
                 timed_delay_sender(std::chrono::seconds(0)),
                 reinitiating_receiver_t{});
         benchmark("timed_delay_sender with a zero timeout", [&] {
@@ -449,7 +447,6 @@ TEST_F(AsyncIO, benchmark_non_io_sender_receiver)
                 COUNT>(
                 std::piecewise_construct,
                 *shared_state_()->testio,
-                false,
                 threadsafe_sender{},
                 nonreinitiating_receiver_t{});
         done = -2;

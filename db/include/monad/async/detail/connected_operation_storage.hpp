@@ -101,6 +101,24 @@ namespace detail
         }
     }();
 
+    /* Deduce what lifetime managed internally ought to be
+       If set by the receiver, AsyncIO cleans these up after completion
+       if a read or write op. Otherwise operator delete is called.
+    */
+    template <sender Sender, receiver Receiver>
+    inline constexpr bool lifetime_managed_internally_default = []() constexpr {
+        if constexpr (requires { Receiver::lifetime_managed_internally; }) {
+            return Receiver::lifetime_managed_internally;
+        }
+        else {
+            /* Default is true if the op is read or write as AsyncIO
+            manages those. Otherwise false.
+            */
+            return sender_operation_type<Sender> == operation_type::read ||
+                   sender_operation_type<Sender> == operation_type::write;
+        }
+    }();
+
     template <class Base, sender Sender, receiver Receiver>
     struct connected_operation_storage : public Base
     {
@@ -214,17 +232,19 @@ namespace detail
 
         connected_operation_storage(
             sender_type &&sender, receiver_type &&receiver)
-            : sender_(static_cast<Sender &&>(sender))
+            : erased_connected_operation(
+                  sender_operation_type<Sender>,
+                  lifetime_managed_internally_default<Sender, Receiver>)
+            , sender_(static_cast<Sender &&>(sender))
             , receiver_(static_cast<Receiver &&>(receiver))
         {
         }
 
         connected_operation_storage(
-            AsyncIO &io, bool lifetime_managed_internally, sender_type &&sender,
-            receiver_type &&receiver)
+            AsyncIO &io, sender_type &&sender, receiver_type &&receiver)
             : erased_connected_operation(
                   sender_operation_type<Sender>, io,
-                  lifetime_managed_internally)
+                  lifetime_managed_internally_default<Sender, Receiver>)
             , sender_(static_cast<Sender &&>(sender))
             , receiver_(static_cast<Receiver &&>(receiver))
         {
@@ -234,7 +254,10 @@ namespace detail
         connected_operation_storage(
             std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
-            : sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
+            : erased_connected_operation(
+                  sender_operation_type<Sender>,
+                  lifetime_managed_internally_default<Sender, Receiver>)
+            , sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
             , receiver_(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))
         {
@@ -242,12 +265,12 @@ namespace detail
 
         template <class... SenderArgs, class... ReceiverArgs>
         connected_operation_storage(
-            AsyncIO &io, bool lifetime_managed_internally,
-            std::piecewise_construct_t, std::tuple<SenderArgs...> sender_args,
+            AsyncIO &io, std::piecewise_construct_t,
+            std::tuple<SenderArgs...> sender_args,
             std::tuple<ReceiverArgs...> receiver_args)
             : erased_connected_operation(
                   sender_operation_type<Sender>, io,
-                  lifetime_managed_internally)
+                  lifetime_managed_internally_default<Sender, Receiver>)
             , sender_(std::make_from_tuple<Sender>(std::move(sender_args)))
             , receiver_(
                   std::make_from_tuple<Receiver>(std::move(receiver_args)))

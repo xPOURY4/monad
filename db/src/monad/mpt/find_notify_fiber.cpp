@@ -32,63 +32,65 @@ void find_recursive(
     ::boost::fibers::promise<find_result_type> &, Node *, NibblesView key,
     std::optional<unsigned> opt_node_prefix_index = std::nullopt);
 
-struct find_receiver
+namespace
 {
-    static constexpr bool lifetime_managed_internally = true;
-
-    UpdateAuxImpl *aux;
-    inflight_map_t &inflights;
-    Node *parent;
-    chunk_offset_t rd_offset; // required for sender
-    unsigned bytes_to_read; // required for sender too
-    uint16_t buffer_off;
-    unsigned const branch_index;
-
-    find_receiver(
-        UpdateAuxImpl &aux, inflight_map_t &inflights, Node *const parent,
-        unsigned char const branch)
-        : aux(&aux)
-        , inflights(inflights)
-        , parent(parent)
-        , rd_offset(0, 0)
-        , branch_index(parent->to_child_index(branch))
+    struct find_receiver
     {
-        chunk_offset_t const offset =
-            aux.virtual_to_physical(parent->fnext(branch_index));
-        auto const num_pages_to_load_node = offset.spare;
-        bytes_to_read =
-            static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
-        rd_offset = offset;
-        auto const new_offset = round_down_align<DISK_PAGE_BITS>(offset.offset);
-        MONAD_DEBUG_ASSERT(new_offset <= chunk_offset_t::max_offset);
-        rd_offset.offset = new_offset & chunk_offset_t::max_offset;
-        buffer_off = uint16_t(offset.offset - rd_offset.offset);
-    }
+        static constexpr bool lifetime_managed_internally = true;
 
-    //! notify a list of requests pending on this node
-    template <class ResultType>
-    void set_value(
-        MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state,
-        ResultType buffer_)
-    {
-        MONAD_ASSERT(buffer_);
-        Node *node = nullptr;
-        if (parent->next(branch_index) == nullptr) {
-            node = detail::deserialize_node_from_receiver_result(
-                       std::move(buffer_), buffer_off, io_state)
-                       .release();
+        UpdateAuxImpl *aux;
+        inflight_map_t &inflights;
+        Node *parent;
+        chunk_offset_t rd_offset; // required for sender
+        unsigned bytes_to_read; // required for sender too
+        uint16_t buffer_off;
+        unsigned const branch_index;
+
+        find_receiver(
+            UpdateAuxImpl &aux, inflight_map_t &inflights, Node *const parent,
+            unsigned char const branch)
+            : aux(&aux)
+            , inflights(inflights)
+            , parent(parent)
+            , rd_offset(0, 0)
+            , branch_index(parent->to_child_index(branch))
+        {
+            chunk_offset_t const offset =
+                aux.virtual_to_physical(parent->fnext(branch_index));
+            auto const num_pages_to_load_node = offset.spare;
+            bytes_to_read =
+                static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
+            rd_offset = offset;
+            auto const new_offset =
+                round_down_align<DISK_PAGE_BITS>(offset.offset);
+            MONAD_DEBUG_ASSERT(new_offset <= chunk_offset_t::max_offset);
+            rd_offset.offset = new_offset & chunk_offset_t::max_offset;
+            buffer_off = uint16_t(offset.offset - rd_offset.offset);
+        }
+
+        //! notify a list of requests pending on this node
+        template <class ResultType>
+        void set_value(
+            MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state,
+            ResultType buffer_)
+        {
+            MONAD_ASSERT(buffer_);
+            MONAD_ASSERT(parent->next(branch_index) == nullptr);
+            Node *node = detail::deserialize_node_from_receiver_result(
+                             std::move(buffer_), buffer_off, io_state)
+                             .release();
             parent->set_next(branch_index, node);
+            auto const offset = parent->fnext(branch_index);
+            auto it = inflights.find(offset);
+            auto pendings = std::move(it->second);
+            inflights.erase(it);
+            for (auto &cont : pendings) {
+                MONAD_ASSERT(cont(node));
+            }
+            return;
         }
-        auto const offset = parent->fnext(branch_index);
-        auto &pendings = inflights.at(offset);
-        for (auto &[key, promise] : pendings) {
-            MONAD_DEBUG_ASSERT(promise != nullptr);
-            find_recursive(*aux, inflights, *promise, node, key);
-        }
-        inflights.erase(offset);
-        return;
-    }
-};
+    };
+}
 
 // Use a hashtable for inflight requests, it maps a file offset to a list of
 // requests. If a read request exists in the hash table, simply append to an
@@ -108,7 +110,7 @@ void find_recursive(
          ++node_prefix_index, ++prefix_index) {
         if (prefix_index >= key.nibble_size()) {
             promise.set_value(
-                {nullptr, find_result::key_ends_ealier_than_node_failure});
+                {nullptr, find_result::key_ends_earlier_than_node_failure});
             return;
         }
         if (key.get(prefix_index) !=
@@ -140,31 +142,19 @@ void find_recursive(
             return;
         }
         virtual_chunk_offset_t const offset = node->fnext(child_index);
+        auto cont =
+            [&aux, &inflights, &promise, next_key](Node *node) -> result<void> {
+            find_recursive(aux, inflights, promise, node, next_key);
+            return success();
+        };
         if (auto lt = inflights.find(offset); lt != inflights.end()) {
-            lt->second.emplace_back(next_key, &promise);
+            lt->second.emplace_back(cont);
             return;
         }
-        inflights.emplace(
-            offset, std::list<detail::pending_request_t>{{next_key, &promise}});
+        inflights[offset].emplace_back(cont);
         find_receiver receiver(aux, inflights, node, branch);
-        [[likely]] if (
-            receiver.bytes_to_read <=
-            MONAD_ASYNC_NAMESPACE::AsyncIO::READ_BUFFER_SIZE) {
-            read_short_update_sender sender(receiver);
-            auto iostate =
-                aux.io->make_connected(std::move(sender), std::move(receiver));
-            iostate->initiate();
-            iostate.release();
-        }
-        else {
-            read_long_update_sender sender(receiver);
-            using connected_type = decltype(connect(
-                *aux.io, std::move(sender), std::move(receiver)));
-            auto *iostate = new connected_type(
-                connect(*aux.io, std::move(sender), std::move(receiver)));
-            iostate->initiate();
-            // drop iostate
-        }
+        detail::initiate_async_read_update(
+            *aux.io, std::move(receiver), receiver.bytes_to_read);
     }
     else {
         promise.set_value({nullptr, find_result::branch_not_exist_failure});
@@ -172,7 +162,8 @@ void find_recursive(
 }
 
 void find_notify_fiber_future(
-    UpdateAuxImpl &aux, inflight_map_t &inflights, find_request_t const req)
+    UpdateAuxImpl &aux, inflight_map_t &inflights,
+    fiber_find_request_t const req)
 {
     // default is to find from start node prefix_index
     if (!req.root) {

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <type_traits>
@@ -27,6 +28,8 @@ private:
     size_type end_nibble_{0};
 
 public:
+    static constexpr unsigned npos = std::numeric_limits<unsigned>::max();
+
     constexpr Nibbles() = default;
 
     Nibbles(size_t const end_nibble)
@@ -42,6 +45,11 @@ public:
 
     Nibbles(NibblesView other);
 
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return !data_;
+    }
+
     constexpr unsigned data_size() const noexcept
     {
         return (static_cast<size_type>(begin_nibble_) == end_nibble_)
@@ -52,6 +60,17 @@ public:
     constexpr size_type nibble_size() const
     {
         return end_nibble_ - static_cast<size_type>(begin_nibble_);
+    }
+
+    inline constexpr NibblesView
+    substr(unsigned const pos, unsigned const count = npos) const;
+
+    inline constexpr bool operator==(NibblesView const &other) const;
+
+    [[nodiscard]] unsigned char get(unsigned const i) const
+    {
+        MONAD_ASSERT(i < nibble_size());
+        return get_nibble(data_.get(), begin_nibble_ + i);
     }
 
     constexpr void set(unsigned const i, unsigned char const value)
@@ -69,6 +88,9 @@ static_assert(alignof(Nibbles) == 8);
 
 class NibblesView
 {
+    friend inline std::ostream &
+    operator<<(std::ostream &s, NibblesView const &v);
+
 private:
     friend class Nibbles;
     friend class Node;
@@ -77,9 +99,9 @@ private:
     bool begin_nibble_{false};
     size_type end_nibble_{0};
 
+public:
     static constexpr unsigned npos = std::numeric_limits<unsigned>::max();
 
-public:
     constexpr NibblesView() = default;
     constexpr NibblesView(NibblesView const &) = default;
     NibblesView &operator=(NibblesView const &) = default;
@@ -121,9 +143,9 @@ public:
     {
     }
 
-    constexpr size_type nibble_size() const
+    [[nodiscard]] bool empty() const noexcept
     {
-        return end_nibble_ - static_cast<size_type>(begin_nibble_);
+        return !data_;
     }
 
     // size of data in bytes
@@ -132,6 +154,11 @@ public:
         return (static_cast<size_type>(begin_nibble_) == end_nibble_)
                    ? 0
                    : ((end_nibble_ + 1) / 2);
+    }
+
+    constexpr size_type nibble_size() const
+    {
+        return end_nibble_ - static_cast<size_type>(begin_nibble_);
     }
 
     constexpr NibblesView
@@ -188,6 +215,17 @@ inline Nibbles::Nibbles(NibblesView const nibbles)
     }
 }
 
+inline constexpr NibblesView
+Nibbles::substr(unsigned const pos, unsigned const count) const
+{
+    return NibblesView(*this).substr(pos, count);
+}
+
+inline constexpr bool Nibbles::operator==(NibblesView const &other) const
+{
+    return NibblesView(*this) == other;
+}
+
 template <class... Args>
     requires(
         (std::same_as<Args, unsigned char> || std::same_as<Args, NibblesView>),
@@ -223,6 +261,31 @@ constexpr Nibbles concat(Args... args)
         }(args),
         ...);
     return ret;
+}
+
+inline std::ostream &operator<<(std::ostream &s, NibblesView const &v)
+{
+    if (v.empty()) {
+        return s << "(empty)";
+    }
+    auto const oldwidth = int(s.width());
+    s.width(2);
+    s << "0x" << std::hex;
+    for (NibblesView::size_type n = 0; n < v.end_nibble_ / 2; n++) {
+        if (n == 0 && v.begin_nibble_) {
+            s << uint32_t(v.data_[n] & 0xf);
+        }
+        else {
+            s << uint32_t(v.data_[n]);
+        }
+    }
+    s.width(oldwidth);
+    return s << std::dec;
+}
+
+inline std::ostream &operator<<(std::ostream &s, Nibbles const &v)
+{
+    return s << NibblesView(v);
 }
 
 MONAD_MPT_NAMESPACE_END

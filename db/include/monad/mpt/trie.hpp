@@ -26,7 +26,8 @@
 #endif
 
 #include <cstdint>
-#include <list>
+#include <functional>
+#include <vector>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -731,14 +732,19 @@ enum class find_result : uint8_t
     root_node_is_null_failure,
     key_mismatch_failure,
     branch_not_exist_failure,
-    key_ends_ealier_than_node_failure,
+    key_ends_earlier_than_node_failure,
     need_to_initiate_in_triedb_thread
 };
 using find_result_type = std::pair<Node *, find_result>;
 
-// The request type to put to the fiber buffered channel for triedb thread to
-// work on
-struct find_request_t
+using inflight_map_t = unordered_dense_map<
+    virtual_chunk_offset_t,
+    std::vector<std::function<MONAD_ASYNC_NAMESPACE::result<void>(Node *)>>,
+    virtual_chunk_offset_t_hasher>;
+
+// The request type to put to the fiber buffered channel for triedb thread
+// to work on
+struct fiber_find_request_t
 {
     ::boost::fibers::promise<find_result_type> *promise{nullptr};
     Node *root{nullptr};
@@ -746,29 +752,15 @@ struct find_request_t
     std::optional<unsigned> node_prefix_index{std::nullopt};
 };
 
-static_assert(sizeof(find_request_t) == 40);
-static_assert(alignof(find_request_t) == 8);
-static_assert(std::is_trivially_copyable_v<find_request_t> == true);
-
-namespace detail
-{
-    // Type for intermediate pending requests that pends on an inflight read. It
-    // is a pair of the search key and a promise associated with the initial
-    // find_request_t.
-    using pending_request_t = std::pair<
-        NibblesView const, ::boost::fibers::promise<find_result_type> *const>;
-    static_assert(std::is_trivially_copyable_v<pending_request_t> == true);
-}
-
-using inflight_map_t = unordered_dense_map<
-    virtual_chunk_offset_t, std::list<detail::pending_request_t>,
-    virtual_chunk_offset_t_hasher>;
+static_assert(sizeof(fiber_find_request_t) == 40);
+static_assert(alignof(fiber_find_request_t) == 8);
+static_assert(std::is_trivially_copyable_v<fiber_find_request_t> == true);
 
 //! \warning this is not threadsafe, should only be called from triedb thread
 // during execution, DO NOT invoke it directly from a transaction fiber, as is
 // not race free.
 void find_notify_fiber_future(
-    UpdateAuxImpl &, inflight_map_t &inflights, find_request_t);
+    UpdateAuxImpl &, inflight_map_t &inflights, fiber_find_request_t);
 
 /*! \brief Copy a leaf node under prefix `src` to prefix `dest`. Invoked before
 committing block updates to triedb. By copy we mean everything other than
