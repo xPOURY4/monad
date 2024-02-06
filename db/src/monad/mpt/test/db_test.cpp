@@ -2,6 +2,7 @@
 
 #include <monad/core/assert.h>
 #include <monad/core/hex_literal.hpp>
+#include <monad/core/small_prng.hpp>
 #include <monad/mpt/db.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
@@ -9,13 +10,17 @@
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <initializer_list>
+#include <iostream>
 #include <iterator>
+#include <thread>
 #include <utility>
+#include <vector>
 
 using namespace monad::mpt;
 using namespace monad::test;
@@ -244,8 +249,8 @@ TYPED_TEST(DbTest, traverse)
     */
     struct SimpleTraverse : public TraverseMachine
     {
-        size_t index = 0;
-        size_t num_up = 0;
+        std::atomic<size_t> index = 0;
+        std::atomic<size_t> num_up = 0;
 
         virtual void down(unsigned char const branch, Node const &node) override
         {
@@ -333,4 +338,133 @@ TYPED_TEST(DbTest, traverse)
     this->db.traverse(concat(NibblesView{prefix}), traverse, block_id);
     EXPECT_EQ(traverse.index, 6);
     EXPECT_EQ(traverse.num_up, 6);
+}
+
+TYPED_TEST(DbTest, scalability)
+{
+    static constexpr size_t COUNT = 1000000;
+    static constexpr size_t MAX_CONCURRENCY = 32;
+    std::vector<monad::byte_string> keys;
+    {
+        std::vector<monad::mpt::Update> updates;
+        keys.reserve(COUNT);
+        updates.reserve(COUNT);
+        monad::small_prng rand;
+        UpdateList ul;
+        for (size_t n = 0; n < COUNT; n++) {
+            monad::byte_string key(16, 0);
+            auto *key_ = (uint32_t *)key.data();
+            key_[0] = rand();
+            key_[1] = rand();
+            key_[2] = rand();
+            key_[3] = rand();
+            keys.emplace_back(std::move(key));
+            updates.emplace_back(make_update(keys.back(), keys.back()));
+            ul.push_front(updates.back());
+        }
+        this->db.upsert(std::move(ul));
+    }
+    std::vector<std::thread> threads;
+    std::vector<::boost::fibers::fiber> fibers;
+    threads.reserve(MAX_CONCURRENCY);
+    fibers.reserve(MAX_CONCURRENCY);
+    for (size_t n = 1; n <= MAX_CONCURRENCY; n <<= 1) {
+        std::cout << "\n   Testing " << n
+                  << " kernel threads concurrently doing Db::get() ..."
+                  << std::endl;
+        threads.clear();
+        std::atomic<size_t> latch(0);
+        std::atomic<uint32_t> ops(0);
+        for (size_t i = 0; i < n; i++) {
+            threads.emplace_back(
+                [&](size_t myid) {
+                    monad::small_prng rand{uint32_t(myid)};
+                    latch++;
+                    while (latch != 0) {
+                        ::boost::this_fiber::yield();
+                    }
+                    while (latch.load(std::memory_order_relaxed) == 0) {
+                        const size_t idx = rand() % COUNT;
+                        auto r = this->db.get(keys[idx]);
+                        MONAD_ASSERT(r);
+                        ops.fetch_add(1, std::memory_order_relaxed);
+                        ::boost::this_fiber::yield();
+                    }
+                    latch++;
+                },
+                i);
+        }
+        while (latch < n) {
+            ::boost::this_fiber::yield();
+        }
+        auto begin = std::chrono::steady_clock::now();
+        latch = 0;
+        ::boost::this_fiber::sleep_for(std::chrono::seconds(5));
+        latch = 1;
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "      Did "
+                  << (1000000.0 * ops /
+                      double(
+                          std::chrono::duration_cast<std::chrono::microseconds>(
+                              end - begin)
+                              .count()))
+                  << " ops/sec." << std::endl;
+        std::cout << "      Awaiting threads to exit ..." << std::endl;
+        while (latch < n + 1) {
+            ::boost::this_fiber::yield();
+        }
+        std::cout << "      Joining ..." << std::endl;
+        for (auto &i : threads) {
+            i.join();
+        }
+
+        std::cout << "   Testing " << n
+                  << " fibers concurrently doing Db::get() ..." << std::endl;
+        fibers.clear();
+        latch = 0;
+        ops = 0;
+        for (size_t i = 0; i < n; i++) {
+            fibers.emplace_back(
+                [&](size_t myid) {
+                    monad::small_prng rand{uint32_t(myid)};
+                    latch++;
+                    while (latch != 0) {
+                        ::boost::this_fiber::yield();
+                    }
+                    while (latch.load(std::memory_order_relaxed) == 0) {
+                        const size_t idx = rand() % COUNT;
+                        auto r = this->db.get(keys[idx]);
+                        MONAD_ASSERT(r);
+                        ops.fetch_add(1, std::memory_order_relaxed);
+                        ::boost::this_fiber::yield();
+                    }
+                    latch++;
+                },
+                i);
+        }
+        while (latch < n) {
+            ::boost::this_fiber::yield();
+        }
+        begin = std::chrono::steady_clock::now();
+        latch = 0;
+        ::boost::this_fiber::sleep_for(std::chrono::seconds(5));
+        latch = 1;
+        end = std::chrono::steady_clock::now();
+        std::cout << "      Did "
+                  << (1000000.0 * ops /
+                      double(
+                          std::chrono::duration_cast<std::chrono::microseconds>(
+                              end - begin)
+                              .count()))
+                  << " ops/sec." << std::endl;
+        std::cout << "      Awaiting fibers to exit ..." << std::endl;
+        while (latch < n + 1) {
+            ::boost::this_fiber::yield();
+        }
+        std::cout << "      Joining ..." << std::endl;
+        for (auto &i : fibers) {
+            ::boost::this_fiber::yield();
+            i.join();
+        }
+    }
 }

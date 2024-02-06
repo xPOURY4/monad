@@ -30,6 +30,9 @@
 #include <functional>
 #include <vector>
 
+// temporary
+#include "detail/boost_fiber_workarounds.hpp"
+
 MONAD_MPT_NAMESPACE_BEGIN
 
 template <class T>
@@ -466,6 +469,12 @@ public:
                *current_upsert_tid_ != gettid();
     }
 
+    bool is_current_thread_upserting() const noexcept
+    {
+        return current_upsert_tid_.has_value() &&
+               *current_upsert_tid_ == gettid();
+    }
+
     bool has_upsert_run_since() const noexcept
     {
         return current_upsert_tid_.has_value() &&
@@ -626,23 +635,27 @@ class UpdateAux final : public UpdateAuxImpl
 
     virtual void lock_shared_() const override
     {
-        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
-        if constexpr (requires(LockType x) { x.lock_shared(); }) {
-            lock_.lock_shared();
-        }
-        else {
-            lock_.lock();
+        if (!is_current_thread_upserting()) {
+            MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+            if constexpr (requires(LockType x) { x.lock_shared(); }) {
+                lock_.lock_shared();
+            }
+            else {
+                lock_.lock();
+            }
         }
     }
 
     virtual void unlock_shared_() const noexcept override
     {
-        MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
-        if constexpr (requires(LockType x) { x.unlock_shared(); }) {
-            return lock_.unlock_shared();
-        }
-        else {
-            return lock_.unlock();
+        if (!is_current_thread_upserting()) {
+            MONAD_ASSERT(!is_current_thread_concurrent_to_upsert());
+            if constexpr (requires(LockType x) { x.unlock_shared(); }) {
+                return lock_.unlock_shared();
+            }
+            else {
+                return lock_.unlock();
+            }
         }
     }
 
@@ -685,6 +698,12 @@ public:
     {
     }
 
+    ~UpdateAux()
+    {
+        // Prevent race on vptr
+        std::atomic_thread_fence(std::memory_order_acq_rel);
+    }
+
     LockType &lock() noexcept
     {
         return lock_;
@@ -718,6 +737,12 @@ public:
         : UpdateAuxImpl(io_)
     {
     }
+
+    ~UpdateAux()
+    {
+        // Prevent race on vptr
+        std::atomic_thread_fence(std::memory_order_acq_rel);
+    }
 };
 
 // batch upsert, updates can be nested
@@ -734,7 +759,7 @@ enum class find_result : uint8_t
     key_mismatch_failure,
     branch_not_exist_failure,
     key_ends_earlier_than_node_failure,
-    need_to_initiate_in_triedb_thread
+    need_to_initiate_in_io_thread
 };
 using find_result_type = std::pair<NodeCursor, find_result>;
 
@@ -747,7 +772,7 @@ using inflight_map_t = unordered_dense_map<
 // to work on
 struct fiber_find_request_t
 {
-    ::boost::fibers::promise<find_result_type> *promise{nullptr};
+    threadsafe_boost_fibers_promise<find_result_type> *promise;
     NodeCursor start{};
     NibblesView key{};
 };

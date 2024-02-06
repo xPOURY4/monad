@@ -29,8 +29,8 @@ using namespace MONAD_ASYNC_NAMESPACE;
 
 void find_recursive(
     UpdateAuxImpl &, inflight_map_t &,
-    ::boost::fibers::promise<find_result_type> &, NodeCursor root,
-    NibblesView key);
+    threadsafe_boost_fibers_promise<find_result_type> &,
+    NodeCursor root, NibblesView key);
 
 namespace
 {
@@ -75,11 +75,13 @@ namespace
             ResultType buffer_)
         {
             MONAD_ASSERT(buffer_);
-            MONAD_ASSERT(parent->next(branch_index) == nullptr);
-            Node *node = detail::deserialize_node_from_receiver_result(
-                             std::move(buffer_), buffer_off, io_state)
-                             .release();
-            parent->set_next(branch_index, node);
+            Node *node = parent->next(branch_index);
+            if (node == nullptr) {
+                node = detail::deserialize_node_from_receiver_result(
+                           std::move(buffer_), buffer_off, io_state)
+                           .release();
+                parent->set_next(branch_index, node);
+            }
             auto const offset = parent->fnext(branch_index);
             auto it = inflights.find(offset);
             auto pendings = std::move(it->second);
@@ -98,7 +100,7 @@ namespace
 // map
 void find_recursive(
     UpdateAuxImpl &aux, inflight_map_t &inflights,
-    ::boost::fibers::promise<find_result_type> &promise, NodeCursor root,
+    threadsafe_boost_fibers_promise<find_result_type> &promise, NodeCursor root,
     NibblesView const key)
 
 {
@@ -146,7 +148,7 @@ void find_recursive(
         }
         if (aux.io->owning_thread_id() != gettid()) {
             promise.set_value(
-                {NodeCursor{}, find_result::need_to_initiate_in_triedb_thread});
+                {NodeCursor{}, find_result::need_to_initiate_in_io_thread});
             return;
         }
         virtual_chunk_offset_t const offset = node->fnext(child_index);

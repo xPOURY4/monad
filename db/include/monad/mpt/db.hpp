@@ -10,8 +10,6 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
-#include <shared_mutex>
-
 MONAD_MPT_NAMESPACE_BEGIN
 
 struct OnDiskDbConfig;
@@ -21,19 +19,10 @@ struct TraverseMachine;
 class Db
 {
 private:
-    struct OnDisk
-    {
-        async::storage_pool pool;
-        io::Ring ring;
-        io::Buffers rwbuf;
-        async::AsyncIO io;
-        bool compaction;
+    struct OnDisk;
 
-        OnDisk(OnDiskDbConfig const &);
-    };
-
-    std::optional<OnDisk> on_disk_;
-    UpdateAux<std::shared_mutex> aux_;
+    std::unique_ptr<OnDisk> on_disk_;
+    UpdateAux<> aux_;
     Node::UniquePtr root_;
     StateMachine &machine_;
 
@@ -43,13 +32,24 @@ public:
     //! construct an on disk db
     Db(StateMachine &, OnDiskDbConfig const &);
 
+    Db(Db const &) = delete;
+    Db(Db &&) = delete;
+    Db &operator=(Db const &) = delete;
+    Db &operator=(Db &&) = delete;
+    ~Db();
+
+    //! May wait on a fiber future
     Result<byte_string_view> get(NibblesView, uint64_t block_id = 0);
+    //! May wait on a fiber future
     Result<byte_string_view> get_data(NibblesView, uint64_t block_id = 0);
-
+    //! May wait on a fiber future
     Result<NodeCursor> get(NodeCursor, NibblesView);
+    //! May wait on a fiber future
     Result<byte_string_view> get_data(NodeCursor, NibblesView);
-
+    //! May wait on a fiber future
     void upsert(UpdateList, uint64_t block_id = 0);
+    //! May wait on a fiber future. WARNING: `TraverseMachine` may be called
+    //! from another thread.
     void traverse(NibblesView prefix, TraverseMachine &, uint64_t block_id = 0);
     NodeCursor root() noexcept;
 };

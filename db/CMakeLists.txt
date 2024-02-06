@@ -62,7 +62,14 @@ add_library(
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/traverse.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/trie.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/update_aux.cpp")
-target_include_directories(monad_trie PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_include_directories(
+  monad_trie PUBLIC
+  "${PROJECT_SOURCE_DIR}/include"
+)
+target_include_directories(
+  monad_trie PRIVATE
+  "${PROJECT_SOURCE_DIR}/third_party"
+)
 monad_core_compile_options(monad_trie)
 target_link_libraries(monad_trie PRIVATE Boost::boost)
 target_link_libraries(monad_trie PUBLIC monad_async)

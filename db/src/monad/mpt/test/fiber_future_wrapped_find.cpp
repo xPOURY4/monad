@@ -31,7 +31,8 @@ namespace
         UpdateAuxImpl *aux, inflight_map_t *const inflights, Node *const root,
         monad::byte_string_view const key, monad::byte_string_view const value)
     {
-        boost::fibers::promise<monad::mpt::find_result_type> promise;
+        monad::threadsafe_boost_fibers_promise<monad::mpt::find_result_type>
+            promise;
         fiber_find_request_t const request{
             .promise = &promise, .start = NodeCursor{*root}, .key = key};
         find_notify_fiber_future(*aux, *inflights, request);

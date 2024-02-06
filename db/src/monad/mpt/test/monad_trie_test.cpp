@@ -1,3 +1,5 @@
+#include <CLI/CLI.hpp>
+
 #include "test_fixtures_base.hpp"
 
 #include <monad/async/config.hpp>
@@ -18,8 +20,6 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
-
-#include <CLI/CLI.hpp>
 
 #include <algorithm>
 #include <bit>

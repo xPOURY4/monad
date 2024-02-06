@@ -394,7 +394,7 @@ TYPED_TEST(PlainTrieTest, large_values)
 
     same_upsert_to_clear_nodes_outside_cache_level();
     {
-        ::boost::fibers::promise<find_result_type> p;
+        monad::threadsafe_boost_fibers_promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
         fiber_find_request_t req{&p, *this->root, key1};
@@ -413,7 +413,7 @@ TYPED_TEST(PlainTrieTest, large_values)
 
     same_upsert_to_clear_nodes_outside_cache_level();
     {
-        ::boost::fibers::promise<find_result_type> p;
+        monad::threadsafe_boost_fibers_promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
         fiber_find_request_t req{&p, *this->root, key2};

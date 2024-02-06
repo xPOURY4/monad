@@ -93,37 +93,45 @@ Node::UniquePtr upsert(
     UpdateAuxImpl &aux, StateMachine &sm, Node::UniquePtr old,
     UpdateList &&updates)
 {
-    auto g(aux.unique_lock());
-    auto g2(aux.set_current_upsert_tid());
-    aux.reset_stats();
-    auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/);
-    ChildData &entry = sentinel->children[0];
-    sentinel->children[0] = ChildData{.branch = 0};
-    if (old) {
-        upsert_(
-            aux,
-            sm,
-            *sentinel,
-            entry,
-            std::move(old),
-            INVALID_VIRTUAL_OFFSET,
-            std::move(updates));
-        if (sentinel->npending) {
-            aux.io->flush();
-            MONAD_ASSERT(sentinel->npending == 0);
+    auto impl = [&] {
+        aux.reset_stats();
+        auto sentinel = make_tnode(1 /*mask*/, 0 /*prefix_index*/);
+        ChildData &entry = sentinel->children[0];
+        sentinel->children[0] = ChildData{.branch = 0};
+        if (old) {
+            upsert_(
+                aux,
+                sm,
+                *sentinel,
+                entry,
+                std::move(old),
+                INVALID_VIRTUAL_OFFSET,
+                std::move(updates));
+            if (sentinel->npending) {
+                aux.io->flush();
+                MONAD_ASSERT(sentinel->npending == 0);
+            }
         }
+        else {
+            create_new_trie_(aux, sm, entry, std::move(updates));
+        }
+        auto *const root = entry.ptr;
+        if (aux.is_on_disk()) {
+            if (root) {
+                write_new_root_node(aux, *root);
+            }
+            aux.print_update_stats();
+        }
+        return Node::UniquePtr{root};
+    };
+    if (aux.is_current_thread_upserting()) {
+        return impl();
     }
     else {
-        create_new_trie_(aux, sm, entry, std::move(updates));
+        auto g(aux.unique_lock());
+        auto g2(aux.set_current_upsert_tid());
+        return impl();
     }
-    auto *const root = entry.ptr;
-    if (aux.is_on_disk()) {
-        if (root) {
-            write_new_root_node(aux, *root);
-        }
-        aux.print_update_stats();
-    }
-    return Node::UniquePtr{root};
 }
 
 /////////////////////////////////////////////////////
