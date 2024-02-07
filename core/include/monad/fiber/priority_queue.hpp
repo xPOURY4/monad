@@ -7,9 +7,7 @@
 
 #include <boost/fiber/context.hpp>
 
-#include <mutex>
-#include <queue>
-#include <vector>
+#include <oneapi/tbb/concurrent_priority_queue.h>
 
 MONAD_FIBER_NAMESPACE_BEGIN
 
@@ -33,9 +31,7 @@ class PriorityQueue final
         }
     };
 
-    std::priority_queue<context *, std::vector<context *>, Compare>
-        queue_{}; // TODO intrusive
-    std::mutex mutable mutex_{}; // TODO spinlock / concurrent
+    oneapi::tbb::concurrent_priority_queue<context *, Compare> queue_;
 
 public:
     bool empty() const;

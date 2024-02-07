@@ -20,6 +20,8 @@ else()
   find_package(Boost REQUIRED COMPONENTS fiber stacktrace_addr2line)
 endif()
 
+find_package(TBB REQUIRED)
+
 set(ETHASH_TESTING NO)
 add_subdirectory("third_party/ethash")
 
@@ -134,7 +136,8 @@ else()
                              PUBLIC "BOOST_STACKTRACE_USE_ADDR2LINE=1")
   target_link_libraries(monad_core PUBLIC Boost::stacktrace_addr2line)
 endif()
-target_link_libraries(monad_core PUBLIC openssl_sha3_asm uring Boost::fiber)
+target_link_libraries(monad_core PUBLIC openssl_sha3_asm uring Boost::fiber
+                                        TBB::tbb)
 
 add_library(
   monad_core_disas STATIC

@@ -6,6 +6,7 @@ packages=(
   libgmock-dev
   libgtest-dev
   libmimalloc-dev
+  libtbb-dev
   liburing-dev
 )
 
