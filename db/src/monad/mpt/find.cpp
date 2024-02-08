@@ -11,12 +11,15 @@
 
 MONAD_MPT_NAMESPACE_BEGIN
 
-find_result_type find_blocking(
-    UpdateAuxImpl const &aux, NodeCursor node_iterator, NibblesView const key)
+find_result_type
+find_blocking(UpdateAuxImpl const &aux, NodeCursor root, NibblesView const key)
 {
     auto g(aux.shared_lock());
-    Node *node = node_iterator.node;
-    unsigned node_prefix_index = node_iterator.prefix_index;
+    if (!root.is_valid()) {
+        return {NodeCursor{}, find_result::root_node_is_null_failure};
+    }
+    Node *node = root.node;
+    unsigned node_prefix_index = root.prefix_index;
     unsigned prefix_index = 0;
     while (prefix_index < key.nibble_size()) {
         unsigned char const nibble = key.get(prefix_index);
