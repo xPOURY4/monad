@@ -138,6 +138,12 @@ namespace detail
         {
             (void)
                 is_retry; // useful to know how this initiation is coming about
+            // You must initiate operations on the same kernel thread as
+            // the AsyncIO instance associated with this operation state
+            // (except for threadsafeop)
+            MONAD_DEBUG_ASSERT(
+                this->executor() == nullptr || this->is_threadsafeop() ||
+                this->executor()->owning_thread_id() == gettid());
             this->being_executed_ = true;
             // Prevent compiler reordering write of being_executed_ after this
             // point without using actual atomics.
@@ -365,12 +371,9 @@ namespace detail
         //! copy-on-write.
         initiation_result initiate() noexcept
         {
-            // You must initiate operations on the same kernel thread as
-            // the AsyncIO instance associated with this operation state
-            // (except for threadsafeop)
-            MONAD_DEBUG_ASSERT(
-                this->executor() == nullptr || this->is_threadsafeop() ||
-                this->executor()->owning_thread_id() == gettid());
+            // NOTE Keep this in sync with the one in
+            // erased_connected_operation. This is here to aid devirtualisation.
+            //
             // It is safe to not defer write op, because no write receivers do
             // recursion in current use cases thus no risk of stack exhaustion.
             // The threadsafe op is special, it isn't for this AsyncIO

@@ -529,7 +529,15 @@ public:
     //! Invoke initiation, sending any failure to the receiver
     initiation_result initiate() noexcept
     {
-        return do_possibly_deferred_initiate_(false, false);
+        // NOTE Keep this in sync with the one in connected_operation_storage
+        // we reimplement this there to aid devirtualisation.
+        //
+        // It is safe to not defer write op, because no write receivers do
+        // recursion in current use cases thus no risk of stack exhaustion.
+        // The threadsafe op is special, it isn't for this AsyncIO
+        // instance and therefore never needs deferring
+        return do_possibly_deferred_initiate_(
+            is_write() || is_threadsafeop(), false);
     }
 
     //! Invoke re-initiation after temporary failutre, sending any failure to

@@ -207,4 +207,102 @@ namespace
         }
         testio.wait_until_done();
     }
+
+    struct sqe_exhaustion_does_not_reorder_writes_receiver
+    {
+        static constexpr size_t COUNT = 50;
+
+        uint32_t &offset;
+        std::vector<monad::async::file_offset_t> &seq;
+
+        inline void set_value(
+            monad::async::erased_connected_operation *io_state,
+            monad::async::write_single_buffer_sender::result_type r);
+    };
+
+    using sqe_exhaustion_does_not_reorder_writes_state_unique_ptr_type =
+        monad::async::AsyncIO::connected_operation_unique_ptr_type<
+            monad::async::write_single_buffer_sender,
+            sqe_exhaustion_does_not_reorder_writes_receiver>;
+
+    inline void sqe_exhaustion_does_not_reorder_writes_receiver::set_value(
+        monad::async::erased_connected_operation *io_state,
+        monad::async::write_single_buffer_sender::result_type r)
+    {
+        MONAD_ASSERT(r);
+        auto *state = static_cast<
+            sqe_exhaustion_does_not_reorder_writes_state_unique_ptr_type::
+                element_type *>(io_state);
+        seq.push_back(state->sender().offset().offset);
+        if (seq.size() < COUNT) {
+            auto s1 = state->executor()->make_connected(
+                monad::async::write_single_buffer_sender(
+                    {0, offset}, monad::async::DISK_PAGE_SIZE),
+                sqe_exhaustion_does_not_reorder_writes_receiver{offset, seq});
+            offset += monad::async::DISK_PAGE_SIZE;
+            s1->sender().advance_buffer_append(monad::async::DISK_PAGE_SIZE);
+            s1->initiate();
+            s1.release();
+            auto s2 = state->executor()->make_connected(
+                monad::async::write_single_buffer_sender(
+                    {0, offset}, monad::async::DISK_PAGE_SIZE),
+                sqe_exhaustion_does_not_reorder_writes_receiver{offset, seq});
+            offset += monad::async::DISK_PAGE_SIZE;
+            s2->sender().advance_buffer_append(monad::async::DISK_PAGE_SIZE);
+            s2->initiate();
+            s2.release();
+        }
+    }
+
+    TEST(AsyncIO, sqe_exhaustion_does_not_reorder_writes)
+    {
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        monad::io::Ring testring(4, 0);
+        monad::io::Buffers testrwbuf{
+            testring,
+            1,
+            sqe_exhaustion_does_not_reorder_writes_receiver::COUNT * 2,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        auto const [max_sq_entries, max_cq_entries] =
+            testio.io_uring_ring_entries_left();
+        std::cout << "   sq entries created = " << max_sq_entries
+                  << " cq entries created = " << max_cq_entries << std::endl;
+        std::vector<monad::async::file_offset_t> seq;
+        seq.reserve(sqe_exhaustion_does_not_reorder_writes_receiver::COUNT * 2);
+
+        uint32_t offset = 0;
+        auto s1 = testio.make_connected(
+            monad::async::write_single_buffer_sender(
+                {0, offset}, monad::async::DISK_PAGE_SIZE),
+            sqe_exhaustion_does_not_reorder_writes_receiver{offset, seq});
+        offset += monad::async::DISK_PAGE_SIZE;
+        s1->sender().advance_buffer_append(monad::async::DISK_PAGE_SIZE);
+        s1->initiate();
+        s1.release();
+        testio.wait_until_done();
+        std::cout << "   " << seq.size() << " offsets written." << std::endl;
+        /* Disabled until we get write submission order = write completion order
+        implemented, which will be a separate PR.
+
+        Currently write request submission is not necessarily write initiation
+        because if there are insufficient submission entries in io_uring, we
+        have to poll completions which may initiate other writes in between
+        initiation and submission. This leads to out of order initiation.
+
+        Furthermore, as io_uring's implementation of operation dependency
+        chaining can only be applied to sequentially submitted entries, we
+        also have no ordering of write completion notifications. This will also
+        be fixed in a separate PR, then this test code can be reenabled.
+
+        uint32_t offset2 = 0;
+        for (auto &i : seq) {
+            EXPECT_EQ(i, offset2);
+            offset2 += monad::async::DISK_PAGE_SIZE;
+        }
+        EXPECT_EQ(seq.back(), offset - monad::async::DISK_PAGE_SIZE);
+        */
+    }
 }

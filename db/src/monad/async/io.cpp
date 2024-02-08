@@ -338,16 +338,47 @@ void AsyncIO::submit_request_(
     MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     MONAD_DEBUG_ASSERT(buffer.size() <= WRITE_BUFFER_SIZE);
 
+    auto const &ci = seq_chunks_[chunk_and_offset.id];
+    auto offset = ci.ptr->write_fd(buffer.size()).second;
+    /* Do sanity check to ensure initiator is definitely appending where
+    they are supposed to be appending. If this trips for you and you are
+    doing:
+
+    op1 = write_single_buffer_sender(offset)
+    op2 = write_single_buffer_sender(offset + DISK_PAGE_SIZE)
+    op1.initiate()
+    op2.initiate()
+
+    ... then you can't do that, as initiation can cause other writes to
+    be initiated so op2 would no longer append. Instead you must do:
+
+    op1 = write_single_buffer_sender(offset)
+    offset += DISK_PAGE_SIZE;
+    op1.initiate()
+    // NOTE that offset now may not be + 1x DISK_PAGE_SIZE
+    op2 = write_single_buffer_sender(offset)
+    offset += DISK_PAGE_SIZE;
+    op2.initiate()
+    */
+    MONAD_ASSERT((chunk_and_offset.offset & 0xffff) == (offset & 0xffff));
+
     poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
     MONAD_ASSERT(sqe);
 
-    auto const &ci = seq_chunks_[chunk_and_offset.id];
-    auto offset = ci.ptr->write_fd(buffer.size()).second;
-    // Do sanity check to ensure they are appending where they are actually
-    // appending
-    MONAD_ASSERT((chunk_and_offset.offset & 0xffff) == (offset & 0xffff));
+#ifndef NDEBUG
+    {
+        auto offset2 = ci.ptr->write_fd(0).second;
+        if (offset2 - offset != buffer.size()) {
+            std::cerr << "WARNING: Out of order buffer append detected, this "
+                         "hurts performance and increases write amplification "
+                         "for the storage device."
+                      << std::endl;
+        }
+    }
+#endif
+
     io_uring_prep_write_fixed(
         sqe,
         ci.io_uring_write_fd,
@@ -546,6 +577,15 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
 {
     auto &ts = detail::AsyncIO_per_thread_state();
     return !ts.empty() && !ts.am_within_completions();
+}
+
+std::pair<unsigned, unsigned>
+AsyncIO::io_uring_ring_entries_left() const noexcept
+{
+    auto *ring = const_cast<io_uring *>(&uring_.get_ring());
+    return {
+        io_uring_sq_space_left(ring),
+        *ring->cq.kring_entries - io_uring_cq_ready(ring)};
 }
 
 void AsyncIO::dump_fd_to(size_t which, std::filesystem::path const &path)

@@ -172,6 +172,10 @@ public:
         return records_.inflight_ts.load(std::memory_order_relaxed);
     }
 
+    // The number of submission and completion entries remaining right now. Can
+    // be stale as soon as it is returned
+    std::pair<unsigned, unsigned> io_uring_ring_entries_left() const noexcept;
+
     // Useful for taking a copy of anonymous inode files used by the unit tests
     void dump_fd_to(size_t which, std::filesystem::path const &path);
 
