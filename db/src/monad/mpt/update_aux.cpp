@@ -460,7 +460,6 @@ Node::UniquePtr UpdateAuxImpl::do_update(
     UpdateList db_updates;
     byte_string version_to_erase;
     Update erase;
-    fprintf(stdout, "Insert version_id %lu\n", version);
     if (compaction) {
         // 1. erase any outdated states from history
         if (prev_root && max_version_in_db_history(*prev_root) - min_version >=
@@ -469,7 +468,6 @@ Node::UniquePtr UpdateAuxImpl::do_update(
                 serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
             erase = make_erase(version_to_erase);
             db_updates.push_front(erase);
-            fprintf(stdout, "Erase version_id %lu\n", min_version);
             min_version++;
             // set chunk count that can be erased
             if (is_on_disk()) {
@@ -534,22 +532,11 @@ void UpdateAuxImpl::advance_compact_offsets()
 
     double const used_chunks_ratio =
         1 - num_chunks(chunk_list::free) / (double)io->chunk_count();
-    printf(
-        "Disk Usage: free chunks %llu, total chunk %lu, disk used chunks "
-        "ratio %.3f. Fastlist has %u chunks, Slowlist has %u chunks\n",
-        get_lower_bound_free_space() >> 28,
-        io->chunk_count(),
-        used_chunks_ratio,
-        num_chunks(chunk_list::fast),
-        num_chunks(chunk_list::slow));
     compact_offset_range_fast_ = MIN_COMPACT_VIRTUAL_OFFSET;
     compact_offset_range_slow_ = MIN_COMPACT_VIRTUAL_OFFSET;
     // Compaction pace control based on free space left on disk
-    if (num_chunks(chunk_list::fast) <= 100 /* disk usage less than 25GB */) {
-        printf("NO COMPACT::");
-    }
-    else if (used_chunks_ratio <= 0.8) {
-        printf("SLOW COMPACT::");
+    if (num_chunks(chunk_list::fast) > 100 /* disk usage less than 25GB */ &&
+        used_chunks_ratio <= 0.8) {
         compact_offset_range_fast_.set_value(
             (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.7));
     }
@@ -560,7 +547,6 @@ void UpdateAuxImpl::advance_compact_offsets()
             update_slow_fast_ratio_metadata();
         }
         if (slow_fast_inuse_ratio < db_metadata()->slow_fast_ratio) {
-            printf("FAST COMPACT::");
             // slow can continue to grow
             compact_offset_range_slow_.set_value((uint32_t)std::lround(
                 (double)last_block_disk_growth_slow_ *
@@ -572,7 +558,6 @@ void UpdateAuxImpl::advance_compact_offsets()
                 compact_offset_range_slow_ + 5);
         }
         else {
-            printf("FAST COMPACT ALSO ON SLOW RING::");
             // compact slow list more agressively until ratio is met
             compact_offset_range_fast_.set_value(
                 (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.99));
@@ -592,16 +577,6 @@ void UpdateAuxImpl::advance_compact_offsets()
     compact_offset_range_slow_ =
         compact_offset_slow -
         db_metadata()->db_offsets.last_compact_offset_slow;
-
-    printf(
-        "  Fast: last block disk grew %u ~%u MB, compact range %u\n"
-        "\tSlow: last block disk grew %u ~%u MB, compact range %u\n",
-        (uint32_t)last_block_disk_growth_fast_,
-        (uint32_t)last_block_disk_growth_fast_ >> 4,
-        (uint32_t)compact_offset_range_fast_,
-        (uint32_t)last_block_disk_growth_slow_,
-        (uint32_t)last_block_disk_growth_slow_ >> 4,
-        (uint32_t)compact_offset_range_slow_);
 }
 
 // must call this when db is non empty
@@ -644,7 +619,6 @@ void UpdateAuxImpl::free_compacted_chunks()
             uint32_t idx = ci->index(db_metadata()),
                      count =
                          (uint32_t)db_metadata()->at(idx)->insertion_count();
-            printf("begin id %u count %u, ", idx, count);
             for (; count < count_before && ci != nullptr;
                  idx = ci->index(db_metadata()),
                  count = (uint32_t)db_metadata()->at(idx)->insertion_count()) {
@@ -653,8 +627,8 @@ void UpdateAuxImpl::free_compacted_chunks()
                 io->storage_pool()
                     .chunk(monad::async::storage_pool::seq, idx)
                     ->destroy_contents();
-                append(UpdateAuxImpl::chunk_list::free, idx); // append not prepend
-                printf("free id %u count %u, ", idx, count);
+                append(
+                    UpdateAuxImpl::chunk_list::free, idx); // append not prepend
             }
         };
     MONAD_ASSERT(
@@ -667,13 +641,10 @@ void UpdateAuxImpl::free_compacted_chunks()
             db_metadata()->slow_list_begin()->insertion_count() &&
         remove_chunks_before_count_slow_ <=
             db_metadata()->slow_list_end()->insertion_count());
-    printf("Fast Chunks: ");
     free_chunks_from_ci_till_count(
         db_metadata()->fast_list_begin(), remove_chunks_before_count_fast_);
-    printf("\nSlow Chunks: ");
     free_chunks_from_ci_till_count(
         db_metadata()->slow_list_begin(), remove_chunks_before_count_slow_);
-    printf("\n");
 }
 
 uint32_t UpdateAuxImpl::num_chunks(chunk_list const list) const noexcept
