@@ -343,6 +343,12 @@ public:
     {
         if (io_) {
             set_io(io_);
+            // reset offsets
+            auto const &db_offsets = db_metadata()->db_offsets;
+            compact_offset_fast = db_offsets.last_compact_offset_fast;
+            compact_offset_slow = db_offsets.last_compact_offset_slow;
+            compact_offset_range_fast_ = db_offsets.last_compact_offset_fast;
+            compact_offset_range_slow_ = db_offsets.last_compact_offset_slow;
         }
     }
 
