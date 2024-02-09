@@ -458,30 +458,37 @@ Node::UniquePtr UpdateAuxImpl::do_update(
         prev_root ? min_version_in_db_history(*prev_root) : version;
 
     UpdateList db_updates;
-    byte_string version_to_erase;
-    Update erase;
+    std::vector<byte_string> version_to_erase;
+    std::vector<Update> erase;
     if (compaction) {
-        // 1. erase any outdated states from history
+        MONAD_ASSERT(is_on_disk());
+        // 1. erase any outdated versions from history
         if (prev_root && max_version_in_db_history(*prev_root) - min_version >=
                              version_history_len) {
-            version_to_erase =
-                serialize_as_big_endian<BLOCK_NUM_BYTES>(min_version);
-            erase = make_erase(version_to_erase);
-            db_updates.push_front(erase);
-            min_version++;
-            // set chunk count that can be erased
-            if (is_on_disk()) {
-                auto [erase_root_it, res] =
-                    find_blocking(*this, *prev_root, version_to_erase);
-                auto [min_offset_fast, min_offset_slow] =
-                    calc_min_offsets(*erase_root_it.node);
-                MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
-                if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
-                    min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
-                }
-                remove_chunks_before_count_fast_ = min_offset_fast.get_count();
-                remove_chunks_before_count_slow_ = min_offset_slow.get_count();
+            auto const max_version = max_version_in_db_history(*prev_root);
+            // since we choose std::vector, must reserve or reference got
+            // invalidated
+            version_to_erase.reserve(max_version - min_version);
+            erase.reserve(max_version - min_version);
+            while (max_version - min_version >= version_history_len) {
+                db_updates.push_front(
+                    erase.emplace_back(make_erase(version_to_erase.emplace_back(
+                        serialize_as_big_endian<BLOCK_NUM_BYTES>(
+                            min_version)))));
+                min_version++;
             }
+            MONAD_ASSERT(!erase.empty());
+            // set chunk count that can be erased
+            auto [erase_root_it, res] =
+                find_blocking(*this, *prev_root, version_to_erase.back());
+            auto [min_offset_fast, min_offset_slow] =
+                calc_min_offsets(*erase_root_it.node);
+            MONAD_ASSERT(min_offset_fast != INVALID_COMPACT_VIRTUAL_OFFSET);
+            if (min_offset_slow == INVALID_COMPACT_VIRTUAL_OFFSET) {
+                min_offset_slow = MIN_COMPACT_VIRTUAL_OFFSET;
+            }
+            remove_chunks_before_count_fast_ = min_offset_fast.get_count();
+            remove_chunks_before_count_slow_ = min_offset_slow.get_count();
         }
         // 2. advance compaction offsets
         advance_compact_offsets();
@@ -527,18 +534,20 @@ void UpdateAuxImpl::advance_compact_offsets()
     last_block_end_offset_fast_ = curr_fast_writer_offset;
     last_block_end_offset_slow_ = curr_slow_writer_offset;
 
+    if (num_chunks(chunk_list::fast) <= 200 /* disk usage less than 50GB */) {
+        // not doing compaction, no need to update compaction related vars
+        return;
+    }
     compact_offset_fast = db_metadata()->db_offsets.last_compact_offset_fast;
     compact_offset_slow = db_metadata()->db_offsets.last_compact_offset_slow;
-
     double const used_chunks_ratio =
         1 - num_chunks(chunk_list::free) / (double)io->chunk_count();
     compact_offset_range_fast_ = MIN_COMPACT_VIRTUAL_OFFSET;
     compact_offset_range_slow_ = MIN_COMPACT_VIRTUAL_OFFSET;
     // Compaction pace control based on free space left on disk
-    if (num_chunks(chunk_list::fast) > 100 /* disk usage less than 25GB */ &&
-        used_chunks_ratio <= 0.8) {
+    if (used_chunks_ratio <= 0.8) {
         compact_offset_range_fast_.set_value(
-            (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.7));
+            (uint32_t)std::lround(last_block_disk_growth_fast_ * 0.85));
     }
     else {
         auto slow_fast_inuse_ratio =
@@ -632,15 +641,11 @@ void UpdateAuxImpl::free_compacted_chunks()
             }
         };
     MONAD_ASSERT(
-        remove_chunks_before_count_fast_ >=
-            db_metadata()->fast_list_begin()->insertion_count() &&
         remove_chunks_before_count_fast_ <=
-            db_metadata()->fast_list_end()->insertion_count());
+        db_metadata()->fast_list_end()->insertion_count());
     MONAD_ASSERT(
-        remove_chunks_before_count_slow_ >=
-            db_metadata()->slow_list_begin()->insertion_count() &&
         remove_chunks_before_count_slow_ <=
-            db_metadata()->slow_list_end()->insertion_count());
+        db_metadata()->slow_list_end()->insertion_count());
     free_chunks_from_ci_till_count(
         db_metadata()->fast_list_begin(), remove_chunks_before_count_fast_);
     free_chunks_from_ci_till_count(
@@ -651,17 +656,23 @@ uint32_t UpdateAuxImpl::num_chunks(chunk_list const list) const noexcept
 {
     switch (list) {
     case chunk_list::free:
-        return (
-            uint32_t)(db_metadata_[0]->free_list_end()->insertion_count() -
-                      db_metadata_[0]->free_list_begin()->insertion_count());
+        return (uint32_t)(db_metadata_[0]->free_list_end()->insertion_count() -
+                          db_metadata_[0]
+                              ->free_list_begin()
+                              ->insertion_count()) +
+               1;
     case chunk_list::fast:
-        return (
-            uint32_t)(db_metadata_[0]->fast_list_end()->insertion_count() -
-                      db_metadata_[0]->fast_list_begin()->insertion_count());
+        return (uint32_t)(db_metadata_[0]->fast_list_end()->insertion_count() -
+                          db_metadata_[0]
+                              ->fast_list_begin()
+                              ->insertion_count()) +
+               1;
     case chunk_list::slow:
-        return (
-            uint32_t)(db_metadata_[0]->slow_list_end()->insertion_count() -
-                      db_metadata_[0]->slow_list_begin()->insertion_count());
+        return (uint32_t)(db_metadata_[0]->slow_list_end()->insertion_count() -
+                          db_metadata_[0]
+                              ->slow_list_begin()
+                              ->insertion_count()) +
+               1;
     }
     return 0;
 }
