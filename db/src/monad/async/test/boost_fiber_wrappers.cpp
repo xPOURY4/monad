@@ -106,7 +106,7 @@ TEST_F(BoostFiberWrappers, resume_execution_upon)
         storage_pool pool{use_anonymous_inode_tag{}};
         auto ring = shared_state_()->make_ring();
         auto buf = shared_state_()->make_buffers(ring);
-        AsyncIO io(pool, ring, buf);
+        AsyncIO io(pool, buf);
         other = &io;
         while (!token.stop_requested()) {
             ::boost::this_fiber::yield();

@@ -10,7 +10,6 @@
 #include <monad/core/byte_string.hpp>
 #include <monad/core/keccak.h>
 #include <monad/core/small_prng.hpp>
-#include <monad/core/unaligned.hpp>
 #include <monad/core/unordered_map.hpp>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
@@ -22,7 +21,6 @@
 #include <monad/mpt/util.hpp>
 
 #include <algorithm>
-#include <bit>
 #include <cassert>
 #include <cerrno>
 #include <chrono>
@@ -39,6 +37,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -99,11 +98,12 @@ Node::UniquePtr batch_upsert_commit(
         block_id,
         compaction);
     auto ts_after = std::chrono::steady_clock::now();
-    double tm_ram = static_cast<double>(
-                        std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            ts_after - ts_before)
-                            .count()) /
-                    1000000000.0;
+    double const tm_ram =
+        static_cast<double>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                ts_after - ts_before)
+                .count()) /
+        1000000000.0;
 
     auto block_num = serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
     auto [state_it, res] = find_blocking(aux, *new_root, block_num);
@@ -372,17 +372,22 @@ int main(int argc, char *argv[])
                    : MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
 
         // init uring
-        monad::io::Ring ring(128, sq_thread_cpu);
+        monad::io::Ring ring1(512, sq_thread_cpu),
+            ring2(
+                16
+                /* max concurrent write buffers in use <= 6 */,
+                std::nullopt);
 
         // init buffer
-        monad::io::Buffers rwbuf{
-            ring,
+        monad::io::Buffers rwbuf = make_buffers_for_segregated_read_write(
+            ring1,
+            ring2,
             8192 * 16,
             16, /* max concurrent write buffers in use <= 6 */
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
 
-        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
+        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, rwbuf};
 
         UpdateAux<> aux{};
         monad::test::StateMachineWithBlockNo sm{};

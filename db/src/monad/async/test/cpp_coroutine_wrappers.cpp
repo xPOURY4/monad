@@ -112,7 +112,7 @@ TEST_F(CppCoroutineWrappers, resume_execution_upon)
             monad::async::use_anonymous_inode_tag{}};
         auto ring = shared_state_()->make_ring();
         auto buf = shared_state_()->make_buffers(ring);
-        AsyncIO io(pool, ring, buf);
+        AsyncIO io(pool, buf);
         other = &io;
         while (!token.stop_requested()) {
             io.poll_nonblocking(1);

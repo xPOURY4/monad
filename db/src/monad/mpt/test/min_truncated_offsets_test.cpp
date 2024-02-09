@@ -1,6 +1,3 @@
-#include "gtest/gtest.h"
-
-#include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp"
 
 #include <monad/core/assert.h>
@@ -11,6 +8,7 @@
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -104,7 +102,8 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
 
         std::stack<traverse_record_t> root_to_node_records;
 
-        explicit TraverseCalculateAndVerifyMinTruncatedOffsets(UpdateAuxImpl &aux)
+        explicit TraverseCalculateAndVerifyMinTruncatedOffsets(
+            UpdateAuxImpl &aux)
             : aux(aux)
         {
         }

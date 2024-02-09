@@ -21,10 +21,11 @@ namespace monad::test
             {
                 return monad::io::Ring(MAX_CONCURRENCY, 0);
             }
+
             static monad::io::Buffers make_buffers(monad::io::Ring &ring)
             {
-                return monad::io::Buffers{
-                    ring, MAX_CONCURRENCY, MAX_CONCURRENCY, 1UL << 13};
+                return monad::io::make_buffers_for_read_only(
+                    ring, MAX_CONCURRENCY, 1UL << 13);
             }
 
             std::vector<std::byte> const testfilecontents = [] {
@@ -45,8 +46,8 @@ namespace monad::test
             monad::io::Ring testring = make_ring();
             monad::io::Buffers testrwbuf = make_buffers(testring);
             std::unique_ptr<monad::async::AsyncIO> testio = [this] {
-                auto ret = std::make_unique<monad::async::AsyncIO>(
-                    pool, testring, testrwbuf);
+                auto ret =
+                    std::make_unique<monad::async::AsyncIO>(pool, testrwbuf);
                 auto fd =
                     pool.activate_chunk(monad::async::storage_pool::seq, 0)
                         ->write_fd(TEST_FILE_SIZE);
@@ -67,10 +68,12 @@ namespace monad::test
             static std::unique_ptr<shared_state_t> v;
             return v;
         }
+
         static void SetUpTestSuite()
         {
             shared_state_() = std::make_unique<shared_state_t>();
         }
+
         static void TearDownTestSuite()
         {
             shared_state_().reset();

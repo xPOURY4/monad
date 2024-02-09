@@ -12,9 +12,9 @@ struct OnDiskDbConfig
 {
     bool append{false};
     bool compaction{false};
-    unsigned rd_buffers{2};
+    unsigned rd_buffers{1024};
     unsigned wr_buffers{4};
-    unsigned uring_entries{2};
+    unsigned uring_entries{512};
     unsigned sq_thread_cpu{0};
     std::optional<uint64_t> start_block_id{std::nullopt};
     std::vector<std::filesystem::path> dbname_paths{};

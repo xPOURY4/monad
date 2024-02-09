@@ -1,24 +1,20 @@
-#include "gtest/gtest.h"
+#include "test_fixtures_gtest.hpp"
 
 #include "fuzz/one_hundred_updates.hpp"
-
-#include "test_fixtures_base.hpp"
-#include "test_fixtures_gtest.hpp"
 
 #include <monad/async/config.hpp>
 #include <monad/async/io.hpp>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
+#include <monad/mpt/detail/boost_fiber_workarounds.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future/future.hpp>
-#include <boost/fiber/future/promise.hpp>
 #include <boost/fiber/operations.hpp>
 
 #include <chrono>
-#include <optional>
 #include <utility>
 #include <vector>
 

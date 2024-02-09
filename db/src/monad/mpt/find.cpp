@@ -7,7 +7,6 @@
 
 #include <bit>
 #include <cassert>
-#include <optional>
 
 MONAD_MPT_NAMESPACE_BEGIN
 

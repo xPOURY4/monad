@@ -7,6 +7,7 @@
 #include <monad/async/concepts.hpp>
 #include <monad/async/config.hpp>
 #include <monad/async/connected_operation.hpp>
+#include <monad/async/detail/scope_polyfill.hpp>
 #include <monad/async/erased_connected_operation.hpp>
 #include <monad/async/io.hpp>
 #include <monad/async/io_senders.hpp>
@@ -16,6 +17,7 @@
 #include <monad/core/array.hpp>
 #include <monad/core/assert.h>
 #include <monad/core/small_prng.hpp>
+#include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 
 #include <boost/fiber/fiber.hpp>
@@ -38,6 +40,8 @@
 #include <chrono>
 #include <coroutine>
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -709,7 +713,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
 {
     using namespace MONAD_ASYNC_NAMESPACE;
     // Do NOT use this for i/o, as we reuse testio's io_uring state
-    static monad::io::Ring controller_executor_ring(1, 0);
+    static monad::io::Ring const controller_executor_ring(1, 0);
     static std::unique_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> controller_executor;
 
     struct controller_notifying_io_receiver
@@ -817,8 +821,10 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
     static std::atomic<int> latch{-1};
     std::thread controller([] {
         storage_pool pool{use_anonymous_inode_tag{}};
-        controller_executor = std::make_unique<MONAD_ASYNC_NAMESPACE::AsyncIO>(
-            pool, controller_executor_ring, shared_state_()->testrwbuf);
+        monad::io::Ring testring = shared_state_()->make_ring();
+        monad::io::Buffers testrwbuf = shared_state_()->make_buffers(testring);
+        controller_executor =
+            std::make_unique<MONAD_ASYNC_NAMESPACE::AsyncIO>(pool, testrwbuf);
         latch = 0;
         while (!latch) {
             controller_executor->poll_blocking();

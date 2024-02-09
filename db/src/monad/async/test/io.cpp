@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <memory>
@@ -38,8 +39,9 @@ namespace
                 -1 != ::pwrite(fd.first, &c, 1, static_cast<off_t>(fd.second)));
         }
         monad::io::Ring testring(1, 0);
-        monad::io::Buffers testrwbuf{testring, 1, 1, 1UL << 13};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        monad::io::Buffers testrwbuf =
+            monad::io::make_buffers_for_read_only(testring, 1, 1UL << 13);
+        monad::async::AsyncIO testio(pool, testrwbuf);
         try {
             testio.dump_fd_to(0, "hardlink_fd_to_testname");
             EXPECT_TRUE(std::filesystem::exists("hardlink_fd_to_testname"));
@@ -72,9 +74,9 @@ namespace
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
         monad::io::Ring testring(128, 0);
-        monad::io::Buffers testrwbuf{
-            testring, 1, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        monad::io::Buffers testrwbuf = monad::io::make_buffers_for_read_only(
+            testring, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
         std::vector<std::unique_ptr<monad::async::erased_connected_operation>>
             states;
         states.reserve(size_t(count));
@@ -131,14 +133,16 @@ namespace
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(128, 0);
-        monad::io::Buffers testrwbuf{
-            testring,
-            1,
-            1,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Buffers testrwbuf =
+            monad::io::make_buffers_for_segregated_read_write(
+                testring1,
+                testring2,
+                1,
+                1,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
 
         struct empty_receiver
         {
@@ -167,13 +171,9 @@ namespace
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
         monad::io::Ring testring(128, 0);
-        monad::io::Buffers testrwbuf{
-            testring,
-            1,
-            1,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        monad::io::Buffers testrwbuf = monad::io::make_buffers_for_read_only(
+            testring, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
         static std::vector<monad::async::read_single_buffer_sender::buffer_type>
             bufs;
 
@@ -210,7 +210,7 @@ namespace
 
     struct sqe_exhaustion_does_not_reorder_writes_receiver
     {
-        static constexpr size_t COUNT = 50;
+        static constexpr size_t COUNT = 128;
 
         uint32_t &offset;
         std::vector<monad::async::file_offset_t> &seq;
@@ -258,18 +258,35 @@ namespace
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(4, 0);
-        monad::io::Buffers testrwbuf{
-            testring,
-            1,
-            sqe_exhaustion_does_not_reorder_writes_receiver::COUNT * 2,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
-        auto const [max_sq_entries, max_cq_entries] =
-            testio.io_uring_ring_entries_left();
-        std::cout << "   sq entries created = " << max_sq_entries
-                  << " cq entries created = " << max_cq_entries << std::endl;
+        monad::io::Ring testring1(4, 0),
+            testring2(
+                sqe_exhaustion_does_not_reorder_writes_receiver::COUNT,
+                std::nullopt);
+        monad::io::Buffers testrwbuf =
+            monad::io::make_buffers_for_segregated_read_write(
+                testring1,
+                testring2,
+                1,
+                sqe_exhaustion_does_not_reorder_writes_receiver::COUNT,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
+        {
+            auto const [max_sq_entries, max_cq_entries] =
+                testio.io_uring_ring_entries_left(false);
+            std::cout << "   non-write ring: sq entries created = "
+                      << max_sq_entries
+                      << " cq entries created = " << max_cq_entries
+                      << std::endl;
+        }
+        {
+            auto const [max_sq_entries, max_cq_entries] =
+                testio.io_uring_ring_entries_left(true);
+            std::cout << "       write ring: sq entries created = "
+                      << max_sq_entries
+                      << " cq entries created = " << max_cq_entries
+                      << std::endl;
+        }
         std::vector<monad::async::file_offset_t> seq;
         seq.reserve(sqe_exhaustion_does_not_reorder_writes_receiver::COUNT * 2);
 
@@ -284,18 +301,6 @@ namespace
         s1.release();
         testio.wait_until_done();
         std::cout << "   " << seq.size() << " offsets written." << std::endl;
-        /* Disabled until we get write submission order = write completion order
-        implemented, which will be a separate PR.
-
-        Currently write request submission is not necessarily write initiation
-        because if there are insufficient submission entries in io_uring, we
-        have to poll completions which may initiate other writes in between
-        initiation and submission. This leads to out of order initiation.
-
-        Furthermore, as io_uring's implementation of operation dependency
-        chaining can only be applied to sequentially submitted entries, we
-        also have no ordering of write completion notifications. This will also
-        be fixed in a separate PR, then this test code can be reenabled.
 
         uint32_t offset2 = 0;
         for (auto &i : seq) {
@@ -303,6 +308,5 @@ namespace
             offset2 += monad::async::DISK_PAGE_SIZE;
         }
         EXPECT_EQ(seq.back(), offset - monad::async::DISK_PAGE_SIZE);
-        */
     }
 }

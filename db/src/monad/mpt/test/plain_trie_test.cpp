@@ -3,10 +3,14 @@
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
+#include <monad/mpt/detail/boost_fiber_workarounds.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <boost/fiber/future/future_status.hpp>
+
+#include <chrono>
 #include <utility>
 #include <vector>
 
@@ -397,7 +401,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         monad::threadsafe_boost_fibers_promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
-        fiber_find_request_t req{&p, *this->root, key1};
+        fiber_find_request_t const req{&p, *this->root, key1};
         find_notify_fiber_future(this->aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {
@@ -416,7 +420,7 @@ TYPED_TEST(PlainTrieTest, large_values)
         monad::threadsafe_boost_fibers_promise<find_result_type> p;
         auto fut = p.get_future();
         inflight_map_t inflights;
-        fiber_find_request_t req{&p, *this->root, key2};
+        fiber_find_request_t const req{&p, *this->root, key2};
         find_notify_fiber_future(this->aux, inflights, req);
         while (fut.wait_for(std::chrono::seconds(0)) !=
                ::boost::fibers::future_status::ready) {

@@ -72,16 +72,13 @@ private:
         int msgread, msgwrite;
     } fds_;
 
-    monad::io::Ring &uring_;
+    monad::io::Ring &uring_, *wr_uring_{nullptr};
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
     monad::io::BufferPool wr_pool_;
 
     // IO records
     IORecord records_;
-
-    AsyncIO(monad::io::Ring &ring, monad::io::Buffers &rwbuf);
-    void init_(std::span<int> fds);
 
     void submit_request_(
         std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
@@ -98,14 +95,18 @@ private:
     bool poll_uring_(bool blocking);
 
 public:
-    AsyncIO(
-        class storage_pool &pool, monad::io::Ring &ring,
-        monad::io::Buffers &rwbuf);
+    AsyncIO(class storage_pool &pool, monad::io::Buffers &rwbuf);
+
     ~AsyncIO();
 
     pid_t owning_thread_id() const noexcept
     {
         return owning_tid_;
+    }
+
+    bool is_read_only() const noexcept
+    {
+        return rwbuf_.is_read_only();
     }
 
     class storage_pool &storage_pool() noexcept
@@ -174,7 +175,8 @@ public:
 
     // The number of submission and completion entries remaining right now. Can
     // be stale as soon as it is returned
-    std::pair<unsigned, unsigned> io_uring_ring_entries_left() const noexcept;
+    std::pair<unsigned, unsigned>
+    io_uring_ring_entries_left(bool for_wr_ring) const noexcept;
 
     // Useful for taking a copy of anonymous inode files used by the unit tests
     void dump_fd_to(size_t which, std::filesystem::path const &path);
@@ -552,9 +554,9 @@ using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
 #ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
-static_assert(sizeof(AsyncIO) == 168);
+static_assert(sizeof(AsyncIO) == 176);
 #else
-static_assert(sizeof(AsyncIO) == 216);
+static_assert(sizeof(AsyncIO) == 224);
 #endif
 static_assert(alignof(AsyncIO) == 8);
 

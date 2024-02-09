@@ -30,14 +30,16 @@ namespace
 
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(128, 0);
-        monad::io::Buffers testrwbuf{
-            testring,
-            1,
-            1,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Buffers testrwbuf =
+            monad::io::make_buffers_for_segregated_read_write(
+                testring1,
+                testring2,
+                1,
+                1,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+                monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
 
         struct empty_receiver
         {
@@ -77,14 +79,15 @@ namespace
 
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(128, 0);
-        monad::io::Buffers testrwbuf{
-            testring,
+        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Buffers testrwbuf = make_buffers_for_segregated_read_write(
+            testring1,
+            testring2,
             1,
             1,
             monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        monad::async::AsyncIO testio(pool, testring, testrwbuf);
+            monad::async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
         std::vector<monad::async::read_single_buffer_sender::buffer_type> bufs;
 
         struct empty_receiver

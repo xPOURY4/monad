@@ -236,6 +236,22 @@ of bytes into an offset in a file.
 
 To have `AsyncIO` set a suitable registered buffer, you should Connect this to
 its Receiver using `AsyncIO::make_connected()`.
+
+Writes are treated specially and separately to all other operations by
+`AsyncIO`. They get their own, dedicated, io_uring instance exclusively used for
+writes. The ring is always the size of the maximum number of write i/o buffers,
+so it is never possible that initiating a write will find the submission queue
+full. The write io_uring instance is exclusively addressed using
+`IOSQE_IO_DRAIN` so every write submitted must complete before the next write
+begins. A strict append-only sequential order is enforced so the storage only
+ever sees a single append operation to existing content, and writes are never
+ever out of order.
+
+All this is done to reduce read-modify-write cycles by the storage thus reducing
+flash wear, easing the load on the SSD's CPUs, and causing writes to be paced
+to the speed of the SSD rather than flooding it with i/o. This especially
+matters when the SSD runs out of SLC cache and write speed drops sixfold, we
+need to substantially back off all i/o to let the SSD recover.
 */
 class write_single_buffer_sender
 {

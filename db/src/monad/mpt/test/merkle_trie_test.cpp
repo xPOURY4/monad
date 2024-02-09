@@ -5,10 +5,12 @@
 
 #include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
+#include <monad/mpt/util.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <cstdint>
 #include <algorithm>
 #include <iterator>
 #include <memory>

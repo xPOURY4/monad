@@ -7,6 +7,15 @@
 #include <boost/fiber/algo/round_robin.hpp>
 #include <boost/fiber/fiber.hpp>
 
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#include <boost/fiber/future.hpp>
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
+
 #include <iostream>
 #include <mutex>
 

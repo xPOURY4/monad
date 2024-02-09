@@ -1,8 +1,12 @@
 #include "test_fixtures_base.hpp"
 
+#include <gtest/gtest.h>
+
 #include <monad/core/assert.h>
 #include <monad/core/hex_literal.hpp>
 #include <monad/core/small_prng.hpp>
+#include <monad/core/byte_string.hpp>
+#include <monad/mpt/trie.hpp>
 #include <monad/mpt/db.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
@@ -10,11 +14,14 @@
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/operations.hpp>
+
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <gtest/gtest.h>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>

@@ -7,25 +7,37 @@
 #include <monad/core/assert.h>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/result.hpp>
+#include <monad/io/buffers.hpp>
+#include <monad/io/ring.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/detail/boost_fiber_workarounds.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
+#include <monad/mpt/util.hpp>
 
+#include <boost/fiber/operations.hpp>
+
+#include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <filesystem>
+#include <iterator>
+#include <memory>
 #include <mutex>
-#include <optional>
 #include <system_error>
 #include <thread>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include <fcntl.h>
+#include <linux/fs.h>
 #include <unistd.h>
 
 // TODO unstable paths between versions
@@ -68,7 +80,7 @@ struct Db::OnDisk
         UpdateAuxImpl &aux;
 
         async::storage_pool pool;
-        io::Ring ring;
+        io::Ring ring1, ring2;
         io::Buffers rwbuf;
         async::AsyncIO io;
         bool const compaction;
@@ -111,9 +123,13 @@ struct Db::OnDisk
                     options.append ? async::storage_pool::mode::open_existing
                                    : async::storage_pool::mode::truncate};
             }()}
-            , ring{io::Ring{options.uring_entries, options.sq_thread_cpu}}
-            , rwbuf{ring, options.rd_buffers, options.wr_buffers, async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE, async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE}
-            , io{pool, ring, rwbuf}
+            , ring1{io::Ring{options.uring_entries, options.sq_thread_cpu}}
+            , ring2{io::Ring{options.wr_buffers, std::nullopt}}
+            , rwbuf{io::make_buffers_for_segregated_read_write(
+                  ring1, ring2, options.rd_buffers, options.wr_buffers,
+                  async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
+                  async::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE)}
+            , io{pool, rwbuf}
             , compaction{options.compaction}
         {
         }
@@ -189,11 +205,11 @@ struct Db::OnDisk
     OnDisk(UpdateAuxImpl &aux, OnDiskDbConfig const &options)
         : worker_thread([&] {
             {
-                std::unique_lock g(lock);
+                std::unique_lock const g(lock);
                 worker = std::make_unique<triedb_worker>(this, aux, options);
             }
             worker->run();
-            std::unique_lock g(lock);
+            std::unique_lock const g(lock);
             worker.reset();
         })
     {
@@ -201,14 +217,14 @@ struct Db::OnDisk
         while (comms.size_approx() > 0) {
             std::this_thread::yield();
         }
-        std::unique_lock g(lock);
+        std::unique_lock const g(lock);
         MONAD_ASSERT(worker);
     }
 
     ~OnDisk()
     {
         {
-            std::unique_lock g(lock);
+            std::unique_lock const g(lock);
             worker->done.store(true, std::memory_order_release);
             cond.notify_one();
         }
@@ -253,7 +269,7 @@ struct Db::OnDisk
             .promise = &promise, .start = start, .key = key};
         comms.enqueue(req);
         if (worker->sleeping.load(std::memory_order_acquire)) {
-            std::unique_lock g(lock);
+            std::unique_lock const g(lock);
             cond.notify_one();
         }
         return promise.get_future().get();
@@ -273,7 +289,7 @@ struct Db::OnDisk
             .version = version,
             .enable_compaction = enable_compaction});
         if (worker->sleeping.load(std::memory_order_acquire)) {
-            std::unique_lock g(lock);
+            std::unique_lock const g(lock);
             cond.notify_one();
         }
         return promise.get_future().get();
@@ -282,7 +298,6 @@ struct Db::OnDisk
 
 Db::Db(StateMachine &machine)
     : aux_{nullptr}
-    , root_{}
     , machine_{machine}
 {
 }

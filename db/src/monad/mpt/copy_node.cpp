@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <utility>
 
 MONAD_MPT_NAMESPACE_BEGIN
 

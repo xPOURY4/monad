@@ -121,8 +121,7 @@ namespace detail
                     , ring(make_ring())
                     , buf(make_buffers(ring))
                     , local_io(
-                          parent_pool.master_controller().storage_pool(), ring,
-                          buf)
+                          parent_pool.master_controller().storage_pool(), buf)
                 {
                 }
 

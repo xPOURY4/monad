@@ -3,11 +3,15 @@
 #include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp" // NOLINT
 
+#include <monad/mpt/trie.hpp>
+
+#include <boost/thread/pthread/shared_mutex.hpp>
+
 #include <mutex>
 #include <sstream>
 #include <vector>
-
-#include <boost/thread/shared_mutex.hpp>
+#include <cstdint>
+#include <ostream>
 
 struct TestMutex
 {
@@ -75,28 +79,28 @@ public:
     void lock()
     {
         mutex.lock();
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::lock);
     }
 
     void unlock()
     {
         mutex.unlock();
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::unlock);
     }
 
     void lock_shared()
     {
         mutex.lock_shared();
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::lock_shared);
     }
 
     void unlock_shared()
     {
         mutex.unlock_shared();
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::unlock_shared);
     }
 
@@ -104,7 +108,7 @@ public:
     {
 #ifdef BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
         if (mutex.try_unlock_shared_and_lock()) {
-            std::lock_guard g(lock_);
+            std::lock_guard const g(lock_);
             events.emplace_back(event_t::try_unlock_shared_and_lock_success);
             return true;
         }
@@ -119,7 +123,7 @@ public:
             mutex.unlock_upgrade_and_lock_shared();
         }
 #endif
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::try_unlock_shared_and_lock_failure);
         return false;
     }
@@ -127,7 +131,7 @@ public:
     void unlock_and_lock_shared()
     {
         mutex.unlock_and_lock_shared();
-        std::lock_guard g(lock_);
+        std::lock_guard const g(lock_);
         events.emplace_back(event_t::unlock_and_lock_shared);
     }
 };

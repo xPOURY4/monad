@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
@@ -33,6 +34,7 @@
 #include <liburing.h>
 #include <liburing/io_uring.h>
 #include <poll.h>
+#include <stdlib.h>
 #include <sys/resource.h> // for setrlimit
 #include <unistd.h>
 
@@ -128,15 +130,22 @@ namespace detail
 
 }
 
-AsyncIO::AsyncIO(monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
+AsyncIO::AsyncIO(class storage_pool &pool, monad::io::Buffers &rwbuf)
     : owning_tid_(gettid())
     , fds_{-1, -1}
-    , uring_(ring_)
+    , uring_(rwbuf.ring())
+    , wr_uring_(rwbuf.wr_ring())
     , rwbuf_(rwbuf)
     , rd_pool_(monad::io::BufferPool(rwbuf, true))
     , wr_pool_(monad::io::BufferPool(rwbuf, false))
 {
     extant_write_operations_::init_header(&extant_write_operations_header_);
+    if (wr_uring_ != nullptr) {
+        // The write ring must have at least as many submission entries as there
+        // are write i/o buffers
+        auto const [sqes, cqes] = io_uring_ring_entries_left(true);
+        MONAD_ASSERT(rwbuf.get_write_count() <= sqes);
+    }
 
     auto &ts = detail::AsyncIO_per_thread_state();
     MONAD_ASSERT(ts.instance == nullptr); // currently cannot create more than
@@ -155,32 +164,7 @@ AsyncIO::AsyncIO(monad::io::Ring &ring_, monad::io::Buffers &rwbuf)
     io_uring_sqe_set_data(
         sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
     MONAD_ASSERT(io_uring_submit(ring) >= 0);
-}
 
-void AsyncIO::init_(std::span<int> fds)
-{
-    // register files
-    for (auto fd : fds) {
-        MONAD_ASSERT(fd != -1);
-    }
-    auto e = io_uring_register_files(
-        const_cast<io_uring *>(&uring_.get_ring()),
-        fds.data(),
-        static_cast<unsigned int>(fds.size()));
-    if (e) {
-        fprintf(
-            stderr,
-            "io_uring_register_files failed due to %d %s\n",
-            errno,
-            strerror(errno));
-    }
-    MONAD_ASSERT(!e);
-}
-
-AsyncIO::AsyncIO(
-    class storage_pool &pool, monad::io::Ring &ring, monad::io::Buffers &rwbuf)
-    : AsyncIO(ring, rwbuf)
-{
     // TODO(niall): In the future don't activate all the chunks, as
     // theoretically zoned storage may enforce a maximum open zone count in
     // hardware. I cannot find any current zoned storage implementation that
@@ -209,6 +193,7 @@ AsyncIO::AsyncIO(
         fds.push_back(seq_chunks_[n].io_uring_read_fd);
         fds.push_back(seq_chunks_[n].io_uring_write_fd);
     }
+
     /* Annoyingly io_uring refuses duplicate file descriptors in its
     registration, and for efficiency the zoned storage emulation returns the
     same file descriptor for reads (and it may do so for writes depending). So
@@ -225,7 +210,34 @@ AsyncIO::AsyncIO(
         fd.second = idx++;
         fds.push_back(fd.first);
     }
-    init_(fds);
+    // register files
+    auto e = io_uring_register_files(
+        const_cast<io_uring *>(&uring_.get_ring()),
+        fds.data(),
+        static_cast<unsigned int>(fds.size()));
+    if (e) {
+        fprintf(
+            stderr,
+            "io_uring_register_files with non-write ring failed due to %d %s\n",
+            errno,
+            strerror(errno));
+    }
+    MONAD_ASSERT(!e);
+    if (wr_uring_ != nullptr) {
+        e = io_uring_register_files(
+            const_cast<io_uring *>(&wr_uring_->get_ring()),
+            fds.data(),
+            static_cast<unsigned int>(fds.size()));
+        if (e) {
+            fprintf(
+                stderr,
+                "io_uring_register_files with write ring failed due to %d "
+                "%s\n",
+                errno,
+                strerror(errno));
+        }
+        MONAD_ASSERT(!e);
+    }
     auto replace_fds_with_iouring_fds = [&](auto &p) {
         auto it = fd_to_iouring_map.find(p.io_uring_read_fd);
         MONAD_ASSERT(it != fd_to_iouring_map.end());
@@ -243,9 +255,6 @@ AsyncIO::AsyncIO(
 AsyncIO::~AsyncIO()
 {
     wait_until_done();
-    MONAD_ASSERT(!records_.inflight_rd);
-    MONAD_ASSERT(!records_.inflight_wr);
-    MONAD_ASSERT(!records_.inflight_tm);
 
     auto &ts = detail::AsyncIO_per_thread_state();
     MONAD_ASSERT(
@@ -253,6 +262,10 @@ AsyncIO::~AsyncIO()
         this); // this is being destructed not from its thread, bad idea
     ts.instance = nullptr;
 
+    if (wr_uring_ != nullptr) {
+        MONAD_ASSERT(!io_uring_unregister_files(
+            const_cast<io_uring *>(&wr_uring_->get_ring())));
+    }
     MONAD_ASSERT(
         !io_uring_unregister_files(const_cast<io_uring *>(&uring_.get_ring())));
 
@@ -264,6 +277,7 @@ void AsyncIO::submit_request_(
     std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
+    MONAD_DEBUG_ASSERT(uring_data != nullptr);
     MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     MONAD_DEBUG_ASSERT(buffer.size() <= READ_BUFFER_SIZE);
 #ifndef NDEBUG
@@ -294,6 +308,7 @@ void AsyncIO::submit_request_(
     std::span<const struct iovec> buffers, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
+    MONAD_DEBUG_ASSERT(uring_data != nullptr);
     assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
 #ifndef NDEBUG
     for (auto &buffer : buffers) {
@@ -335,49 +350,23 @@ void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
     void *uring_data)
 {
+    MONAD_DEBUG_ASSERT(uring_data != nullptr);
+    MONAD_ASSERT(!rwbuf_.is_read_only());
     MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
     MONAD_DEBUG_ASSERT(buffer.size() <= WRITE_BUFFER_SIZE);
 
     auto const &ci = seq_chunks_[chunk_and_offset.id];
     auto offset = ci.ptr->write_fd(buffer.size()).second;
     /* Do sanity check to ensure initiator is definitely appending where
-    they are supposed to be appending. If this trips for you and you are
-    doing:
-
-    op1 = write_single_buffer_sender(offset)
-    op2 = write_single_buffer_sender(offset + DISK_PAGE_SIZE)
-    op1.initiate()
-    op2.initiate()
-
-    ... then you can't do that, as initiation can cause other writes to
-    be initiated so op2 would no longer append. Instead you must do:
-
-    op1 = write_single_buffer_sender(offset)
-    offset += DISK_PAGE_SIZE;
-    op1.initiate()
-    // NOTE that offset now may not be + 1x DISK_PAGE_SIZE
-    op2 = write_single_buffer_sender(offset)
-    offset += DISK_PAGE_SIZE;
-    op2.initiate()
+    they are supposed to be appending.
     */
     MONAD_ASSERT((chunk_and_offset.offset & 0xffff) == (offset & 0xffff));
 
-    poll_uring_while_submission_queue_full_();
-    struct io_uring_sqe *sqe =
-        io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
+    auto *const wr_ring = (wr_uring_ != nullptr)
+                              ? const_cast<io_uring *>(&wr_uring_->get_ring())
+                              : const_cast<io_uring *>(&uring_.get_ring());
+    struct io_uring_sqe *sqe = io_uring_get_sqe(wr_ring);
     MONAD_ASSERT(sqe);
-
-#ifndef NDEBUG
-    {
-        auto offset2 = ci.ptr->write_fd(0).second;
-        if (offset2 - offset != buffer.size()) {
-            std::cerr << "WARNING: Out of order buffer append detected, this "
-                         "hurts performance and increases write amplification "
-                         "for the storage device."
-                      << std::endl;
-        }
-    }
-#endif
 
     io_uring_prep_write_fixed(
         sqe,
@@ -385,16 +374,19 @@ void AsyncIO::submit_request_(
         buffer.data(),
         static_cast<unsigned int>(buffer.size()),
         offset,
-        1);
+        wr_ring == &uring_.get_ring());
     sqe->flags |= IOSQE_FIXED_FILE;
+    if (wr_ring != &uring_.get_ring()) {
+        sqe->flags |= IOSQE_IO_DRAIN;
+    }
 
     io_uring_sqe_set_data(sqe, uring_data);
-    MONAD_ASSERT(
-        io_uring_submit(const_cast<io_uring *>(&uring_.get_ring())) >= 0);
+    MONAD_ASSERT(io_uring_submit(wr_ring) >= 0);
 }
 
 void AsyncIO::submit_request_(timed_invocation_state *state, void *uring_data)
 {
+    MONAD_DEBUG_ASSERT(uring_data != nullptr);
     poll_uring_while_submission_queue_full_();
     struct io_uring_sqe *sqe =
         io_uring_get_sqe(const_cast<io_uring *>(&uring_.get_ring()));
@@ -453,20 +445,37 @@ bool AsyncIO::poll_uring_(bool blocking)
     MONAD_DEBUG_ASSERT(owning_tid_ == gettid());
 
     struct io_uring_cqe *cqe = nullptr;
-    auto *const ring = const_cast<io_uring *>(&uring_.get_ring());
-    auto inflight_ts = records_.inflight_ts.load(std::memory_order_acquire);
+    auto *const other_ring = const_cast<io_uring *>(&uring_.get_ring());
+    auto *const wr_ring = (wr_uring_ != nullptr)
+                              ? const_cast<io_uring *>(&wr_uring_->get_ring())
+                              : nullptr;
+    io_uring *ring = nullptr;
+    auto const inflight_ts =
+        records_.inflight_ts.load(std::memory_order_acquire);
 
-    if (blocking && inflight_ts == 0 &&
-        detail::AsyncIO_per_thread_state().empty()) {
-        MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
+    if (wr_ring != nullptr && records_.inflight_wr > 0) {
+        ring = wr_ring;
+        io_uring_peek_cqe(wr_ring, &cqe);
     }
-    else {
-        // If nothing in io_uring and there are no threadsafe ops in flight,
-        // return false
-        if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
-            return false;
+    if (cqe == nullptr) {
+        ring = other_ring;
+        if (blocking && inflight_ts == 0 && records_.inflight_wr == 0 &&
+            detail::AsyncIO_per_thread_state().empty()) {
+            MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
+        }
+        else {
+            // If nothing in io_uring and there are no threadsafe ops in flight,
+            // return false
+            if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
+                return false;
+            }
         }
     }
+#ifndef NDEBUG
+    int const cqe_res =
+        (cqe != nullptr) ? cqe->res : 0; // useful in the debugger
+    (void)cqe_res;
+#endif
 
     void *data = (cqe != nullptr)
                      ? io_uring_cqe_get_data(cqe)
@@ -580,8 +589,17 @@ unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
 }
 
 std::pair<unsigned, unsigned>
-AsyncIO::io_uring_ring_entries_left() const noexcept
+AsyncIO::io_uring_ring_entries_left(bool for_wr_ring) const noexcept
 {
+    if (for_wr_ring) {
+        if (wr_uring_ == nullptr) {
+            return {0, 0};
+        }
+        auto *ring = const_cast<io_uring *>(&wr_uring_->get_ring());
+        return {
+            io_uring_sq_space_left(ring),
+            *ring->cq.kring_entries - io_uring_cq_ready(ring)};
+    }
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     return {
         io_uring_sq_space_left(ring),

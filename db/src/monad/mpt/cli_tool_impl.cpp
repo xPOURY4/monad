@@ -140,13 +140,11 @@ opened.
         }
         MONAD_ASYNC_NAMESPACE::storage_pool pool{{storage_paths}, mode, flags};
         monad::io::Ring ring(1, 0);
-        monad::io::Buffers rwbuf{
+        monad::io::Buffers rwbuf = monad::io::make_buffers_for_read_only(
             ring,
             2,
-            2,
-            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,
-            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE};
-        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, ring, rwbuf};
+            MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
+        auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, rwbuf};
         MONAD_MPT_NAMESPACE::UpdateAux<> aux{};
         aux.set_io(&io);
 

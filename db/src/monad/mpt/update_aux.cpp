@@ -1,9 +1,11 @@
 #include <monad/async/config.hpp>
 #include <monad/core/assert.h>
+#include <monad/core/byte_string.hpp>
 #include <monad/core/small_prng.hpp>
-#include <monad/core/unaligned.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
 
 #include <monad/async/detail/start_lifetime_as_polyfill.hpp>
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -20,7 +23,6 @@
 #include <vector>
 
 #include <sys/mman.h>
-#include <unistd.h>
 
 MONAD_MPT_NAMESPACE_BEGIN
 
@@ -374,11 +376,13 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         memcpy(db_metadata_[0]->magic, "MND0", 4);
         memcpy(db_metadata_[1]->magic, "MND0", 4);
 
-        // Default behavior: initialize node writers to start at the start
-        // of available slow and fast list respectively. Make sure the
-        // initial fast/slow offset points into a block in use as a sanity
-        // check
-        reset_node_writers();
+        if (!io->is_read_only()) {
+            // Default behavior: initialize node writers to start at the start
+            // of available slow and fast list respectively. Make sure the
+            // initial fast/slow offset points into a block in use as a sanity
+            // check
+            reset_node_writers();
+        }
     }
     else { // resume from an existing db and underlying storage devices
         auto build_insertion_count_to_chunk_id =
@@ -396,9 +400,12 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         build_insertion_count_to_chunk_id(
             insertion_count_to_chunk_id_[uint8_t(chunk_list::slow)],
             db_metadata()->slow_list_begin());
-        // Reset/init node writer's offsets, destroy contents after
-        // fast_offset.id chunck
-        rewind_to_match_offsets();
+
+        if (!io->is_read_only()) {
+            // Reset/init node writer's offsets, destroy contents after
+            // fast_offset.id chunck
+            rewind_to_match_offsets();
+        }
     }
     // If the pool has changed since we configured the metadata, this will
     // fail
