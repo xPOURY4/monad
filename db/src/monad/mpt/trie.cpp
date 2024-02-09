@@ -237,6 +237,21 @@ struct read_single_child_receiver
     {
         // prep uring data
         // translate virtual offset to physical offset on disk for read
+        if (!child.offset.in_fast_list()) { // some sanity checks
+            MONAD_DEBUG_ASSERT(
+                child.offset.count <=
+                aux->num_chunks(
+                    child.offset.in_fast_list()
+                        ? UpdateAuxImpl::chunk_list::fast
+                        : UpdateAuxImpl::chunk_list::slow));
+            MONAD_DEBUG_ASSERT(
+                child.offset <
+                aux->physical_to_virtual((child.offset.in_fast_list()
+                                              ? aux->node_writer_fast
+                                              : aux->node_writer_slow)
+                                             ->sender()
+                                             .offset()));
+        }
         auto const offset = aux->virtual_to_physical(child.offset);
         rd_offset = round_down_align<DISK_PAGE_BITS>(offset);
         rd_offset.set_spare(0);
@@ -450,6 +465,7 @@ void create_node_compute_data_possibly_async(
             static_cast<unsigned>(std::countr_zero(tnode->mask)))];
         if (!child.ptr) {
             MONAD_DEBUG_ASSERT(aux.is_on_disk());
+            MONAD_ASSERT(child.offset != INVALID_VIRTUAL_OFFSET);
             read_single_child_receiver receiver(
                 &aux, sm.clone(), tnode.release(), child);
             async_read(aux, std::move(receiver));
@@ -502,7 +518,6 @@ void update_value_and_subtrie_(
     else {
         auto const opt_leaf =
             update.value.has_value() ? update.value : old->opt_value();
-        // TODO will check if children need compaction
         dispatch_updates_impl_(
             aux,
             sm,
@@ -995,13 +1010,11 @@ void try_fillin_parent_with_rewritten_node(
         }
     }
     else { // parent tnode is an update tnode
-        auto *p = reinterpret_cast<UpwardTreeNode *>(parent);
-        p->children[index].offset = new_offset;
-        p->children[index].min_offset_fast = min_offset_fast;
-        p->children[index].min_offset_slow = min_offset_slow;
-        if (tnode->cached) { // debug
-            MONAD_DEBUG_ASSERT(p->children[index].ptr == tnode->node);
-        }
+        auto *const p = reinterpret_cast<UpwardTreeNode *>(parent);
+        MONAD_DEBUG_ASSERT(tnode->cached);
+        MONAD_DEBUG_ASSERT(p->children[index].offset == INVALID_VIRTUAL_OFFSET);
+        p->children[index].ptr =
+            tnode->node; // let parent tnode manage tnode->node's lifetime
     }
     --parent->npending;
 }
