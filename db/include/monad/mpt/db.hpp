@@ -48,8 +48,8 @@ public:
     Result<byte_string_view> get_data(NodeCursor, NibblesView);
     //! May wait on a fiber future
     void upsert(UpdateList, uint64_t block_id = 0);
-    //! May wait on a fiber future. WARNING: `TraverseMachine` may be called
-    //! from another thread.
+    //! It is always called from the main thread and should never wait on a
+    //! fiber future.
     void traverse(NibblesView prefix, TraverseMachine &, uint64_t block_id = 0);
     NodeCursor root() noexcept;
 };

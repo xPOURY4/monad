@@ -36,7 +36,6 @@ namespace
 void preorder_traverse(
     UpdateAuxImpl &aux, Node const &node, TraverseMachine &traverse)
 {
-    auto g(aux.shared_lock());
     preorder_traverse_impl(aux, INVALID_BRANCH, node, traverse);
 }
 

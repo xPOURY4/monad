@@ -54,16 +54,8 @@ struct Db::OnDisk
         uint64_t const version;
     };
 
-    struct fiber_traverse_request_t
-    {
-        threadsafe_boost_fibers_promise<void> &promise;
-        Node const &node;
-        TraverseMachine &traverse;
-    };
-
     using comms_type = std::variant<
-        std::monostate, fiber_find_request_t, fiber_upsert_request_t,
-        fiber_traverse_request_t>;
+        std::monostate, fiber_find_request_t, fiber_upsert_request_t>;
     concurrent_queue<comms_type> comms;
 
     std::mutex lock;
@@ -154,11 +146,6 @@ struct Db::OnDisk
                             std::move(req->updates),
                             req->version,
                             compaction));
-                    }
-                    else if (auto *req = std::get_if<3>(&request.front());
-                             req != nullptr) {
-                        preorder_traverse(aux, req->node, req->traverse);
-                        req->promise.set_value();
                     }
                     did_nothing = false;
                 }
@@ -289,20 +276,6 @@ struct Db::OnDisk
         }
         return promise.get_future().get();
     }
-
-    // threadsafe
-    void preorder_traverse_fiber_blocking(
-        Node const &node, TraverseMachine &traverse)
-    {
-        threadsafe_boost_fibers_promise<void> promise;
-        comms.enqueue(fiber_traverse_request_t{
-            .promise = promise, .node = node, .traverse = traverse});
-        if (worker->sleeping.load(std::memory_order_acquire)) {
-            std::unique_lock g(lock);
-            cond.notify_one();
-        }
-        return promise.get_future().get();
-    }
 };
 
 Db::Db(StateMachine &machine)
@@ -393,9 +366,6 @@ void Db::upsert(UpdateList list, uint64_t const block_id)
 void Db::traverse(
     NibblesView const prefix, TraverseMachine &machine, uint64_t const block_id)
 {
-    // TODO(niall): Traversing the concurrent queue twice is inefficient for no
-    // good reason except that this isn't hot path code. Should hoist the find
-    // into the traverse request implementation using a `find_node_sender`.
     auto const block_id_prefix =
         serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
     auto res = get(root(), NibblesView{block_id_prefix});
@@ -406,12 +376,7 @@ void Db::traverse(
     }
     auto *node = res.value().node;
     MONAD_DEBUG_ASSERT(node != nullptr);
-    if (on_disk_ != nullptr) {
-        on_disk_->preorder_traverse_fiber_blocking(*node, machine);
-    }
-    else {
-        preorder_traverse(aux_, *node, machine);
-    }
+    preorder_traverse(aux_, *node, machine);
 }
 
 NodeCursor Db::root() noexcept

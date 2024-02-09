@@ -232,7 +232,8 @@ public:
     void flush()
     {
         wait_until_done();
-        std::cout << "nreads: " << records_.nreads << std::endl;
+        // Uncomment this to log number of async read requests
+        // std::cout << "nreads: " << records_.nreads << std::endl;
         records_.nreads = 0;
     }
 
