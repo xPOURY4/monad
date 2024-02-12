@@ -52,6 +52,7 @@ struct Db::OnDisk
         StateMachine &sm;
         UpdateList &&updates;
         uint64_t const version;
+        bool const enable_compaction;
     };
 
     using comms_type = std::variant<
@@ -145,7 +146,7 @@ struct Db::OnDisk
                             req->sm,
                             std::move(req->updates),
                             req->version,
-                            compaction));
+                            compaction && req->enable_compaction));
                     }
                     did_nothing = false;
                 }
@@ -261,7 +262,7 @@ struct Db::OnDisk
     // threadsafe
     Node::UniquePtr upsert_fiber_blocking(
         Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
-        uint64_t const version)
+        uint64_t const version, bool const enable_compaction)
     {
         threadsafe_boost_fibers_promise<Node::UniquePtr> promise;
         comms.enqueue(fiber_upsert_request_t{
@@ -269,7 +270,8 @@ struct Db::OnDisk
             .prev_root = std::move(prev_root),
             .sm = sm,
             .updates = std::move(updates),
-            .version = version});
+            .version = version,
+            .enable_compaction = enable_compaction});
         if (worker->sleeping.load(std::memory_order_acquire)) {
             std::unique_lock g(lock);
             cond.notify_one();
@@ -353,12 +355,17 @@ Db::get_data(NibblesView const key, uint64_t const block_id)
     return get_data(res.value(), key);
 }
 
-void Db::upsert(UpdateList list, uint64_t const block_id)
+void Db::upsert(
+    UpdateList list, uint64_t const block_id, bool const enable_compaction)
 {
     root_ =
         (on_disk_ != nullptr)
             ? on_disk_->upsert_fiber_blocking(
-                  std::move(root_), machine_, std::move(list), block_id)
+                  std::move(root_),
+                  machine_,
+                  std::move(list),
+                  block_id,
+                  enable_compaction)
             : aux_.do_update(
                   std::move(root_), machine_, std::move(list), block_id, false);
 }
