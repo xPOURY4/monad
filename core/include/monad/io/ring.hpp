@@ -4,6 +4,8 @@
 
 #include <liburing.h>
 
+#include <optional>
+
 MONAD_IO_NAMESPACE_BEGIN
 
 class Ring final
@@ -12,7 +14,7 @@ class Ring final
     io_uring_params params_;
 
 public:
-    Ring(unsigned entries, unsigned sq_thread_cpu);
+    Ring(unsigned entries, std::optional<unsigned> sq_thread_cpu);
     ~Ring();
 
     Ring(Ring &&) = default;
