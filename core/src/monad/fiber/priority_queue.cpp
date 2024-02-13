@@ -1,6 +1,5 @@
 #include <monad/fiber/priority_queue.hpp>
 
-#include <monad/core/likely.h>
 #include <monad/fiber/config.hpp>
 
 MONAD_FIBER_NAMESPACE_BEGIN

@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
-#include <stdexcept>
 #include <utility>
 
 namespace

@@ -2,15 +2,12 @@
 
 #include <monad/core/likely.h>
 #include <monad/fiber/config.hpp>
+#include <monad/fiber/priority_queue.hpp>
 #include <monad/fiber/priority_properties.hpp>
 
 #include <boost/assert.hpp>
 #include <boost/fiber/context.hpp>
 #include <boost/fiber/type.hpp>
-
-#include <chrono>
-#include <cstdint>
-#include <mutex>
 
 MONAD_FIBER_NAMESPACE_BEGIN
 

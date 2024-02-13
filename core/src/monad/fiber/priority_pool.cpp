@@ -1,11 +1,21 @@
 #include <monad/fiber/priority_pool.hpp>
 
+#include <monad/core/assert.h>
 #include <monad/fiber/priority_algorithm.hpp>
 #include <monad/fiber/priority_properties.hpp>
+#include <monad/fiber/config.hpp>
+#include <monad/fiber/priority_algorithm.hpp>
+#include <monad/fiber/priority_properties.hpp>
+#include <monad/fiber/priority_task.hpp>
 
 #include <boost/fiber/operations.hpp>
 #include <boost/fiber/properties.hpp>
 #include <boost/fiber/protected_fixedsize_stack.hpp>
+#include <boost/fiber/channel_op_status.hpp>
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/mutex.hpp>
+#include <boost/fiber/operations.hpp>
+#include <boost/fiber/properties.hpp>
 
 #include <cstdio>
 #include <memory>
@@ -77,7 +87,7 @@ PriorityPool::~PriorityPool()
     }
 
     {
-        std::unique_lock<boost::fibers::mutex> lock{mutex_};
+        std::unique_lock<boost::fibers::mutex> const lock{mutex_};
         done_ = true;
     }
 

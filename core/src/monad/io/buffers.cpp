@@ -3,8 +3,8 @@
 
 #include <monad/core/assert.h>
 
-#include <monad/io/ring.hpp>
 #include <monad/io/config.hpp>
+#include <monad/io/ring.hpp>
 
 #include <liburing.h>
 
@@ -12,33 +12,61 @@
 
 #include <bit>
 #include <cstddef>
+#include <optional>
 
 MONAD_IO_NAMESPACE_BEGIN
 
 Buffers::Buffers(
-    Ring &ring, size_t const read_count, size_t const write_count,
-    size_t const read_size, size_t const write_size)
+    Ring &ring, Ring *wr_ring, size_t const read_count,
+    size_t const write_count, size_t const read_size, size_t const write_size)
     : ring_{ring}
+    , wr_ring_(wr_ring)
     , read_bits_{[=] {
         MONAD_ASSERT(std::has_single_bit(read_size));
         MONAD_ASSERT(read_size >= (1UL << 12));
         return static_cast<size_t>(std::countr_zero(read_size));
     }()}
-    , write_bits_{[=] {
+    , write_bits_{[=]() -> size_t {
+        if (write_count == 0 && write_size == 0) {
+            return 0;
+        }
         MONAD_ASSERT(std::has_single_bit(write_size));
         MONAD_ASSERT(write_size >= (1UL << 12));
         return static_cast<size_t>(std::countr_zero(write_size));
     }()}
     , read_buf_{read_count * read_size}
-    , write_buf_{write_count * write_size}
+    , write_buf_{(write_count == 0 && write_size == 0) ? std::optional<HugeMem>() : std::optional<HugeMem>(write_count * write_size)}
     , read_count_{read_buf_.get_size() / read_size}
-    , write_count_{write_buf_.get_size() / write_size}
+    , write_count_{
+          (write_count == 0 && write_size == 0)
+              ? 0
+              : (write_buf_->get_size() / write_size)}
 {
-    iovec const iov[2]{
-        {.iov_base = read_buf_.get_data(), .iov_len = read_buf_.get_size()},
-        {.iov_base = write_buf_.get_data(), .iov_len = write_buf_.get_size()}};
-    MONAD_ASSERT(!io_uring_register_buffers(
-        const_cast<io_uring *>(&ring_.get_ring()), iov, 2));
+    if (wr_ring_ != nullptr) {
+        iovec const iov[2]{
+            {.iov_base = read_buf_.get_data(), .iov_len = read_buf_.get_size()},
+            {.iov_base = write_buf_.value().get_data(),
+             .iov_len = write_buf_.value().get_size()}};
+        MONAD_ASSERT(!io_uring_register_buffers(
+            const_cast<io_uring *>(&ring_.get_ring()), iov, 1));
+        MONAD_ASSERT(!io_uring_register_buffers(
+            const_cast<io_uring *>(&wr_ring_->get_ring()), iov + 1, 1));
+    }
+    else if (!write_buf_.has_value()) {
+        iovec const iov[2]{
+            {.iov_base = read_buf_.get_data(),
+             .iov_len = read_buf_.get_size()}};
+        MONAD_ASSERT(!io_uring_register_buffers(
+            const_cast<io_uring *>(&ring_.get_ring()), iov, 1));
+    }
+    else {
+        iovec const iov[2]{
+            {.iov_base = read_buf_.get_data(), .iov_len = read_buf_.get_size()},
+            {.iov_base = write_buf_.value().get_data(),
+             .iov_len = write_buf_.value().get_size()}};
+        MONAD_ASSERT(!io_uring_register_buffers(
+            const_cast<io_uring *>(&ring_.get_ring()), iov, 2));
+    }
 }
 
 Buffers::~Buffers()
