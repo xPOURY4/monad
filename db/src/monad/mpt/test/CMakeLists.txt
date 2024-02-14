@@ -22,6 +22,10 @@ add_trie_test(TARGET unsigned_20_test SOURCES "unsigned_20_test.cpp")
 # monad trie perf test
 add_executable(monad_trie_test "monad_trie_test.cpp")
 monad_core_compile_options(monad_trie_test)
+target_include_directories(
+  monad_trie_test PRIVATE
+  "${PROJECT_SOURCE_DIR}/third_party"
+)
 target_link_libraries(monad_trie_test PUBLIC monad_core CLI11::CLI11 monad_trie)
 
 add_executable(monad_trie_test_statistical_generation_test "monad_trie_test_statistical_generation_test.cpp")

@@ -45,7 +45,7 @@
 #include <vector>
 
 #undef BLOCK_SIZE // without this concurrentqueue.h gets sad
-#include "../../../third_party/concurrentqueue.h"
+#include "concurrentqueue.h"
 
 template <class T>
 using concurrent_queue = moodycamel::ConcurrentQueue<T>;
