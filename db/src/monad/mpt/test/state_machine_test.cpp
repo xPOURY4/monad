@@ -1,6 +1,3 @@
-#include <monad/core/hex_literal.hpp>
-#include <monad/mpt/update.hpp>
-#include "test_fixtures_base.hpp"
 #include "test_fixtures_gtest.hpp"
 
 #include <cstddef>
@@ -9,6 +6,8 @@
 #include <monad/core/hex_literal.hpp>
 #include <monad/mpt/state_machine.hpp>
 #include <monad/mpt/trie.hpp>
+#include <monad/mpt/update.hpp>
+#include <monad/core/hex_literal.hpp>
 #include <monad/mpt/update.hpp>
 
 #include <gmock/gmock.h>

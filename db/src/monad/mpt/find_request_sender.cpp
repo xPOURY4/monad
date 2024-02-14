@@ -109,14 +109,14 @@ find_request_sender::operator()(erased_connected_operation *io_state) noexcept
                 root_ = NodeCursor{*node->next(child_index)};
                 continue;
             }
-            if (!_tid_checked) {
+            if (!tid_checked_) {
                 if (aux_.io->owning_thread_id() != gettid()) {
                     res_ = {
                         NodeCursor{*node, node_prefix_index},
                         find_result::need_to_continue_in_io_thread};
                     return success();
                 }
-                _tid_checked = true;
+                tid_checked_ = true;
             }
             chunk_offset_t const offset = node->fnext(child_index);
             if (inflights_ != nullptr) {

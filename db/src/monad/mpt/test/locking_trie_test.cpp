@@ -7,11 +7,11 @@
 
 #include <boost/thread/pthread/shared_mutex.hpp>
 
+#include <cstdint>
 #include <mutex>
+#include <ostream>
 #include <sstream>
 #include <vector>
-#include <cstdint>
-#include <ostream>
 
 struct TestMutex
 {

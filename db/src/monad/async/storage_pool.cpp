@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <asm-generic/ioctl.h>
@@ -254,7 +255,8 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
             range[1] -= DISK_PAGE_SIZE;
         }
         if (range[1] > 0) {
-            MONAD_DEBUG_ASSERT(range[0] >= offset_ && range[0] < offset_ + capacity_);
+            MONAD_DEBUG_ASSERT(
+                range[0] >= offset_ && range[0] < offset_ + capacity_);
             MONAD_DEBUG_ASSERT(range[1] <= capacity_);
             MONAD_DEBUG_ASSERT((range[1] & (DISK_PAGE_SIZE - 1)) == 0);
             if (ioctl(write_fd_, _IO(0x12, 119) /*BLKDISCARD*/, &range)) {
@@ -292,18 +294,23 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
 
 storage_pool::device storage_pool::make_device_(
     mode op, device::type_t_ type, std::filesystem::path const &path, int fd,
-    uint64_t dev_no, creation_flags flags)
+    std::variant<uint64_t, device const *> dev_no_or_dev, creation_flags flags)
 {
     int readwritefd = fd;
     uint64_t const chunk_capacity = 1ULL << flags.chunk_capacity;
     auto unique_hash = fnv1a_hash<uint32_t>::begin();
-    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(type));
-    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(dev_no));
-    fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(dev_no >> 32));
+    if (auto const *dev_no = std::get_if<0>(&dev_no_or_dev)) {
+        fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(type));
+        fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(*dev_no));
+        fnv1a_hash<uint32_t>::add(unique_hash, uint32_t(*dev_no >> 32));
+    }
     if (!path.empty()) {
         readwritefd = ::open(
             path.c_str(),
-            (flags.open_read_only ? O_RDONLY : O_RDWR) | O_CLOEXEC);
+            ((flags.open_read_only || flags.open_read_only_allow_dirty)
+                 ? O_RDONLY
+                 : O_RDWR) |
+                O_CLOEXEC);
         if (-1 == readwritefd) {
             throw std::system_error(errno, std::system_category());
         }
@@ -418,8 +425,10 @@ storage_pool::device storage_pool::make_device_(
     auto *addr = ::mmap(
         nullptr,
         bytestomap,
-        PROT_READ | PROT_WRITE,
-        flags.open_read_only ? MAP_PRIVATE : MAP_SHARED,
+        (flags.open_read_only && !flags.open_read_only_allow_dirty)
+            ? (PROT_READ)
+            : (PROT_READ | PROT_WRITE),
+        flags.open_read_only_allow_dirty ? MAP_PRIVATE : MAP_SHARED,
         readwritefd,
         static_cast<off_t>(offset));
     if (MAP_FAILED == addr) {
@@ -428,6 +437,9 @@ storage_pool::device storage_pool::make_device_(
     auto *metadata = start_lifetime_as<device::metadata_t>(
         (std::byte *)addr + stat.st_size - offset - sizeof(device::metadata_t));
     MONAD_DEBUG_ASSERT(0 == memcmp(metadata->magic, "MND0", 4));
+    if (auto const **dev = std::get_if<1>(&dev_no_or_dev)) {
+        unique_hash = (*dev)->unique_hash_;
+    }
     return device(
         readwritefd,
         type,
@@ -528,9 +540,66 @@ void storage_pool::fill_chunks_(creation_flags flags)
     }
 }
 
+storage_pool::storage_pool(storage_pool const *src, clone_as_read_only_tag_)
+    : is_read_only_(true)
+    , is_read_only_allow_dirty_(false)
+
+{
+    devices_.reserve(src->devices_.size());
+    creation_flags flags;
+    flags.open_read_only = true;
+    for (auto const &src_device : src->devices_) {
+        devices_.push_back([&] {
+            const auto path = src_device.current_path();
+            int const fd = [&] {
+                if (!path.empty()) {
+                    return ::open(path.c_str(), O_PATH | O_CLOEXEC);
+                }
+                char path[PATH_MAX];
+                sprintf(
+                    path, "/proc/self/fd/%d", src_device.cached_readwritefd_);
+                return ::open(path, O_RDONLY | O_CLOEXEC);
+            }();
+            if (-1 == fd) {
+                throw std::system_error(errno, std::system_category());
+            }
+            auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
+            if (path.empty()) {
+                unfd.release();
+            }
+            if (src_device.is_block_device()) {
+                return make_device_(
+                    mode::open_existing,
+                    device::type_t_::block_device,
+                    path,
+                    fd,
+                    &src_device,
+                    flags);
+            }
+            if (src_device.is_file()) {
+                return make_device_(
+                    mode::open_existing,
+                    device::type_t_::file,
+                    path,
+                    fd,
+                    &src_device,
+                    flags);
+            }
+            if (src_device.is_zoned_device()) {
+                throw std::runtime_error(
+                    "zonefs support isn't actually implemented yet");
+            }
+            abort();
+        }());
+    }
+    fill_chunks_(flags);
+}
+
 storage_pool::storage_pool(
-    std::span<std::filesystem::path const> sources, mode mode, creation_flags flags)
-    : is_read_only_(flags.open_read_only)
+    std::span<std::filesystem::path const> sources, mode mode,
+    creation_flags flags)
+    : is_read_only_(flags.open_read_only || flags.open_read_only_allow_dirty)
+    , is_read_only_allow_dirty_(flags.open_read_only_allow_dirty)
 {
     devices_.reserve(sources.size());
     for (auto const &source : sources) {
@@ -580,7 +649,8 @@ storage_pool::storage_pool(
 }
 
 storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
-    : is_read_only_(flags.open_read_only)
+    : is_read_only_(flags.open_read_only || flags.open_read_only_allow_dirty)
+    , is_read_only_allow_dirty_(flags.open_read_only_allow_dirty)
 {
     int const fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });
@@ -588,8 +658,8 @@ storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
         ::ftruncate(fd, 1ULL * 1024 * 1024 * 1024 * 1024 + 24576 /* 1Tb */)) {
         throw std::system_error(errno, std::system_category());
     }
-    devices_.push_back(
-        make_device_(mode::truncate, device::type_t_::file, {}, fd, 0, flags));
+    devices_.push_back(make_device_(
+        mode::truncate, device::type_t_::file, {}, fd, uint64_t(0), flags));
     unfd.release();
     fill_chunks_(flags);
 }
@@ -607,6 +677,7 @@ storage_pool::~storage_pool()
                 }
                 if (chunk->owns_writefd_ && chunk->write_fd_ != -1) {
                     if (chunk->write_fd_ != fd) {
+                        (void)::fsync(chunk->write_fd_);
                         (void)::close(chunk->write_fd_);
                     }
                     chunk->write_fd_ = -1;
@@ -631,9 +702,11 @@ storage_pool::~storage_pool()
             (void)::close(device.uncached_readfd_);
         }
         if (device.uncached_writefd_ != -1) {
+            (void)::fsync(device.uncached_writefd_);
             (void)::close(device.uncached_writefd_);
         }
         if (device.cached_readwritefd_ != -1) {
+            (void)::fsync(device.cached_readwritefd_);
             (void)::close(device.cached_readwritefd_);
         }
     }
@@ -741,6 +814,11 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
     }
     chunks_[which][id].chunk = ret;
     return ret;
+}
+
+storage_pool storage_pool::clone_as_read_only() const
+{
+    return storage_pool(this, clone_as_read_only_tag_{});
 }
 
 MONAD_ASYNC_NAMESPACE_END

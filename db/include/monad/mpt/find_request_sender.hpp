@@ -14,7 +14,7 @@ class find_request_sender
     NibblesView key_;
     inflight_map_t *const inflights_{nullptr};
     std::optional<find_result_type> res_;
-    bool _tid_checked{false};
+    bool tid_checked_{false};
 
     MONAD_ASYNC_NAMESPACE::result<void> resume_(
         MONAD_ASYNC_NAMESPACE::erased_connected_operation *io_state,
@@ -53,7 +53,7 @@ public:
         root_ = root;
         key_ = key;
         MONAD_ASSERT(root_.is_valid());
-        _tid_checked = false;
+        tid_checked_ = false;
     }
 
     MONAD_ASYNC_NAMESPACE::result<void>

@@ -151,7 +151,8 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
                     calc_min_offsets(
                         *const_cast<Node *>(&node),
                         aux.physical_to_virtual(
-                            aux.db_metadata()->db_offsets.root_offset));
+                            aux.db_metadata()->db_offsets.root_offset.load(
+                                std::memory_order_acquire)));
                 EXPECT_EQ(
                     node_record.test_min_offset_fast, node_branch_min_fast_off);
                 EXPECT_EQ(

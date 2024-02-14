@@ -119,14 +119,14 @@ opened.
 
         auto mode = MONAD_ASYNC_NAMESPACE::storage_pool::mode::open_existing;
         flags.chunk_capacity = chunk_capacity & 31;
-        flags.open_read_only = !open_writable;
+        flags.open_read_only_allow_dirty = !open_writable;
         if (create_database) {
             mode = MONAD_ASYNC_NAMESPACE::storage_pool::mode::create_if_needed;
-            flags.open_read_only = false;
+            flags.open_read_only_allow_dirty = false;
         }
         else if (truncate_database) {
             mode = MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate;
-            flags.open_read_only = false;
+            flags.open_read_only_allow_dirty = false;
             if (!no_prompt) {
                 auto answer =
                     tty_ask_question("WARNING: --truncate will destroy all "

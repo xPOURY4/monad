@@ -52,7 +52,7 @@ namespace detail
             // these two are advanced after each db block update, they represent
             // the last valid root offset which is always in fast list, and the
             // start of wip slow list offset.
-            chunk_offset_t root_offset;
+            std::atomic<chunk_offset_t> root_offset;
             // starting offsets of current wip db block's contents. all contents
             // starting this point are not yet validated, and should be rewound
             // if restart.
@@ -62,6 +62,47 @@ namespace detail
             compact_virtual_chunk_offset_t last_compact_offset_slow;
             compact_virtual_chunk_offset_t last_compact_offset_range_fast;
             compact_virtual_chunk_offset_t last_compact_offset_range_slow;
+
+            db_offsets_info_t() = delete;
+            db_offsets_info_t(db_offsets_info_t const &) = delete;
+            db_offsets_info_t(db_offsets_info_t &&) = delete;
+            db_offsets_info_t &operator=(db_offsets_info_t const &) = delete;
+            db_offsets_info_t &operator=(db_offsets_info_t &&) = delete;
+            ~db_offsets_info_t() = default;
+
+            constexpr db_offsets_info_t(
+                chunk_offset_t root_offset_,
+                chunk_offset_t start_of_wip_offset_fast_,
+                chunk_offset_t start_of_wip_offset_slow_,
+                compact_virtual_chunk_offset_t last_compact_offset_fast_,
+                compact_virtual_chunk_offset_t last_compact_offset_slow_,
+                compact_virtual_chunk_offset_t last_compact_offset_range_fast_,
+                compact_virtual_chunk_offset_t last_compact_offset_range_slow_)
+                : root_offset(root_offset_)
+                , start_of_wip_offset_fast(start_of_wip_offset_fast_)
+                , start_of_wip_offset_slow(start_of_wip_offset_slow_)
+                , last_compact_offset_fast(last_compact_offset_fast_)
+                , last_compact_offset_slow(last_compact_offset_slow_)
+                , last_compact_offset_range_fast(
+                      last_compact_offset_range_fast_)
+                , last_compact_offset_range_slow(
+                      last_compact_offset_range_slow_)
+            {
+            }
+
+            void store(db_offsets_info_t const &o, std::memory_order ord)
+            {
+                auto const t = o.root_offset.load(std::memory_order_acquire);
+                start_of_wip_offset_fast = o.start_of_wip_offset_fast;
+                start_of_wip_offset_slow = o.start_of_wip_offset_slow;
+                last_compact_offset_fast = o.last_compact_offset_fast;
+                last_compact_offset_slow = o.last_compact_offset_slow;
+                last_compact_offset_range_fast =
+                    o.last_compact_offset_range_fast;
+                last_compact_offset_range_slow =
+                    o.last_compact_offset_range_slow;
+                root_offset.store(t, ord);
+            }
         } db_offsets;
 
         float slow_fast_ratio;
@@ -372,10 +413,10 @@ namespace detail
         }
 
         void
-        advance_offsets_to_(db_offsets_info_t const offsets_to_apply) noexcept
+        advance_offsets_to_(db_offsets_info_t const &offsets_to_apply) noexcept
         {
             auto g = hold_dirty();
-            db_offsets = offsets_to_apply;
+            db_offsets.store(offsets_to_apply, std::memory_order_release);
         }
 
         void update_slow_fast_ratio_(float const ratio) noexcept

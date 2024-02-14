@@ -215,26 +215,46 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         chunk_count * sizeof(detail::db_metadata::chunk_info_t);
     auto cnv_chunk = io->storage_pool().activate_chunk(storage_pool::cnv, 0);
     auto fd = cnv_chunk->write_fd(0);
+    /* If writable, can map maps writable. If read only but allowing
+    dirty, maps are made copy-on-write so writes go into RAM and don't
+    affect the original. This lets us heal any metadata and make forward
+    progress.
+    */
+    bool const can_write_to_map =
+        (!io->storage_pool().is_read_only() ||
+         io->storage_pool().is_read_only_allow_dirty());
     db_metadata_[0] = start_lifetime_as<detail::db_metadata>(::mmap(
         nullptr,
         map_size,
-        PROT_READ | PROT_WRITE,
-        io->storage_pool().is_read_only() ? MAP_PRIVATE : MAP_SHARED,
+        can_write_to_map ? (PROT_READ | PROT_WRITE) : (PROT_READ),
+        io->storage_pool().is_read_only_allow_dirty() ? MAP_PRIVATE
+                                                      : MAP_SHARED,
         fd.first,
         off_t(fd.second)));
     MONAD_ASSERT(db_metadata_[0] != MAP_FAILED);
     db_metadata_[1] = start_lifetime_as<detail::db_metadata>(::mmap(
         nullptr,
         map_size,
-        PROT_READ | PROT_WRITE,
-        io->storage_pool().is_read_only() ? MAP_PRIVATE : MAP_SHARED,
+        can_write_to_map ? (PROT_READ | PROT_WRITE) : (PROT_READ),
+        io->storage_pool().is_read_only_allow_dirty() ? MAP_PRIVATE
+                                                      : MAP_SHARED,
         fd.first,
         off_t(fd.second + cnv_chunk->capacity() / 2)));
     MONAD_ASSERT(db_metadata_[1] != MAP_FAILED);
-    // If the front copy vanished for some reason ...
+    /* If the front copy vanished for some reason ... this can happen
+    if something or someone zaps the front bytes of the partition.
+    */
     if (0 != memcmp(db_metadata_[0]->magic, "MND0", 4)) {
         if (0 == memcmp(db_metadata_[1]->magic, "MND0", 4)) {
-            memcpy(db_metadata_[0], db_metadata_[1], map_size);
+            if (can_write_to_map) {
+                // Overwrite the front copy with the backup copy
+                memcpy(db_metadata_[0], db_metadata_[1], map_size);
+            }
+            else {
+                // We don't have writable maps, so can't forward progress
+                throw std::runtime_error("First copy of metadata corrupted, "
+                                         "but not opened for healing");
+            }
         }
     }
     // Replace any dirty copy with the non-dirty copy
@@ -243,11 +263,40 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         MONAD_ASSERT(
             !db_metadata_[0]->is_dirty().load(std::memory_order_acquire) ||
             !db_metadata_[1]->is_dirty().load(std::memory_order_acquire));
-        if (db_metadata_[0]->is_dirty().load(std::memory_order_acquire)) {
-            memcpy(db_metadata_[0], db_metadata_[1], map_size);
+        if (can_write_to_map) {
+            // Replace the dirty copy with the non-dirty copy
+            if (db_metadata_[0]->is_dirty().load(std::memory_order_acquire)) {
+                memcpy(db_metadata_[0], db_metadata_[1], map_size);
+            }
+            else if (db_metadata_[1]->is_dirty().load(
+                         std::memory_order_acquire)) {
+                memcpy(db_metadata_[1], db_metadata_[0], map_size);
+            }
         }
-        else if (db_metadata_[1]->is_dirty().load(std::memory_order_acquire)) {
-            memcpy(db_metadata_[1], db_metadata_[0], map_size);
+        else {
+            if (db_metadata_[0]->is_dirty().load(std::memory_order_acquire) ||
+                db_metadata_[1]->is_dirty().load(std::memory_order_acquire)) {
+                // Wait a bit to see if they clear before complaining
+                auto const begin = std::chrono::steady_clock::now();
+                while (std::chrono::steady_clock::now() - begin <
+                           std::chrono::seconds(1) &&
+                       (db_metadata_[0]->is_dirty().load(
+                            std::memory_order_acquire) ||
+                        db_metadata_[1]->is_dirty().load(
+                            std::memory_order_acquire))) {
+                    std::this_thread::yield();
+                }
+                /* If after one second a dirty bit remains set, and we don't
+                have writable maps, can't forward progress.
+                */
+                if (db_metadata_[0]->is_dirty().load(
+                        std::memory_order_acquire) ||
+                    db_metadata_[1]->is_dirty().load(
+                        std::memory_order_acquire)) {
+                    throw std::runtime_error("DB metadata was closed dirty, "
+                                             "but not opened for healing");
+                }
+            }
         }
     }
     if (0 != memcmp(db_metadata_[0]->magic, "MND0", 4)) {
@@ -330,10 +379,10 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         memcpy(db_metadata_[1]->magic, "MND0", 4);
 
         if (!io->is_read_only()) {
-            // Default behavior: initialize node writers to start at the start
-            // of available slow and fast list respectively. Make sure the
-            // initial fast/slow offset points into a block in use as a sanity
-            // check
+            // Default behavior: initialize node writers to start at the
+            // start of available slow and fast list respectively. Make sure
+            // the initial fast/slow offset points into a block in use as a
+            // sanity check
             reset_node_writers();
         }
     }
@@ -376,20 +425,20 @@ void UpdateAuxImpl::reset_node_writers()
         init_node_writer(db_metadata()->db_offsets.start_of_wip_offset_slow);
 }
 
-/* upsert() supports both on disk and in memory db updates. User should always
-use this interface to upsert updates to db. Here are what it does:
-- if `compaction`, erase outdated history block if any, and update compaction
-offsets;
+/* upsert() supports both on disk and in memory db updates. User should
+always use this interface to upsert updates to db. Here are what it does:
+- if `compaction`, erase outdated history block if any, and update
+compaction offsets;
 - copy state from last version to new version if new version not yet exist;
 - upsert `updates` should include everything nested under
 version number;
 - if it's on disk, update db_metadata min max versions.
 
-Note that `version` on each call of upsert() does not always grow incrementally,
-users are allowed to insert version 0,1,2,3,4, then restore db from version
-3 and continue with version 4,5,6... However, it is not allowed to skip a
-version, for example for a call sequence to insert version 0,1,2,3,4,6, the call
-to insert version 6 will fail.
+Note that `version` on each call of upsert() does not always grow
+incrementally, users are allowed to insert version 0,1,2,3,4, then restore
+db from version 3 and continue with version 4,5,6... However, it is not
+allowed to skip a version, for example for a call sequence to insert version
+0,1,2,3,4,6, the call to insert version 6 will fail.
 */
 Node::UniquePtr UpdateAuxImpl::do_update(
     Node::UniquePtr prev_root, StateMachine &sm, UpdateList &&updates,
@@ -583,7 +632,8 @@ void UpdateAuxImpl::free_compacted_chunks()
                     .chunk(monad::async::storage_pool::seq, idx)
                     ->destroy_contents();
                 append(
-                    UpdateAuxImpl::chunk_list::free, idx); // append not prepend
+                    UpdateAuxImpl::chunk_list::free,
+                    idx); // append not prepend
             }
         };
     MONAD_ASSERT(

@@ -1,7 +1,7 @@
-#include <monad/mpt/update.hpp>
 #include "test_fixtures_gtest.hpp"
 
 #include <monad/async/config.hpp>
+#include <monad/mpt/update.hpp>
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/update.hpp>

@@ -579,7 +579,8 @@ public:
     chunk_offset_t get_root_offset() const noexcept
     {
         MONAD_ASSERT(this->is_on_disk());
-        return db_metadata()->db_offsets.root_offset;
+        return db_metadata()->db_offsets.root_offset.load(
+            std::memory_order_acquire);
     }
 
     chunk_offset_t get_start_of_wip_fast_offset() const noexcept

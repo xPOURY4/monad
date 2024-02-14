@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <mutex>
 #include <span>
+#include <variant>
 #include <vector>
 
 MONAD_ASYNC_NAMESPACE_BEGIN
@@ -326,11 +327,15 @@ public:
         uint32_t interleave_chunks_evenly : 1;
         //! Whether to open the database read-only
         uint32_t open_read_only : 1;
+        //! Whether to open the database read-only allowing a dirty closed
+        //! database
+        uint32_t open_read_only_allow_dirty : 1;
 
         constexpr creation_flags()
             : chunk_capacity(28)
             , interleave_chunks_evenly(false)
             , open_read_only(false)
+            , open_read_only_allow_dirty(false)
         {
         }
     };
@@ -340,7 +345,7 @@ public:
     using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
 
 private:
-    bool const is_read_only_;
+    bool const is_read_only_, is_read_only_allow_dirty_;
     std::vector<device> devices_;
 
     // Lock protects everything below this
@@ -357,9 +362,16 @@ private:
 
     device make_device_(
         mode op, device::type_t_ type, std::filesystem::path const &path,
-        int fd, uint64_t dev_no, creation_flags flags);
+        int fd, std::variant<uint64_t, device const *> dev_no_or_dev,
+        creation_flags flags);
 
     void fill_chunks_(creation_flags flags);
+
+    struct clone_as_read_only_tag_
+    {
+    };
+
+    storage_pool(storage_pool const *src, clone_as_read_only_tag_);
 
 public:
     //! \brief Type of chunk, conventional or sequential
@@ -386,6 +398,13 @@ public:
         return is_read_only_;
     }
 
+    //! \brief True if the storage pool was opened read only but a dirty closed
+    //! state is to be allowed
+    bool is_read_only_allow_dirty() const noexcept
+    {
+        return is_read_only_allow_dirty_;
+    }
+
     //! \brief Returns a list of the backing storage devices
     std::span<device const> devices() const noexcept
     {
@@ -405,6 +424,9 @@ public:
     std::shared_ptr<class chunk> chunk(chunk_type which, uint32_t id) const;
     //! \brief Activate a chunk (i.e. open file descriptors to it, if necessary)
     std::shared_ptr<class chunk> activate_chunk(chunk_type which, uint32_t id);
+
+    //! \brief Clones an existing storage pool as read-only
+    storage_pool clone_as_read_only() const;
 };
 
 MONAD_ASYNC_NAMESPACE_END

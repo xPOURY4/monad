@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <compare>
 #include <cstdint>
@@ -143,3 +144,56 @@ static constexpr uint16_t DMA_PAGE_BITS = 6;
 static constexpr uint16_t DMA_PAGE_SIZE = (1U << DMA_PAGE_BITS);
 
 MONAD_ASYNC_NAMESPACE_END
+
+namespace std
+{
+    template <>
+    class atomic<MONAD_ASYNC_NAMESPACE::chunk_offset_t>
+    {
+        atomic<uint64_t> v_;
+
+    public:
+        using value_type = MONAD_ASYNC_NAMESPACE::chunk_offset_t;
+
+        constexpr bool is_lock_free() const noexcept
+        {
+            return v_.is_lock_free();
+        }
+
+        constexpr atomic(value_type v) noexcept
+            : v_(std::bit_cast<uint64_t>(v))
+        {
+        }
+
+        atomic(atomic const &) = delete;
+        atomic(atomic &&) = delete;
+        atomic &operator=(atomic const &) = delete;
+        atomic &operator=(atomic &&) = delete;
+
+        void store(
+            value_type v,
+            std::memory_order ord = std::memory_order_seq_cst) noexcept
+        {
+            v_.store(std::bit_cast<uint64_t>(v), ord);
+        }
+
+        value_type
+        load(std::memory_order ord = std::memory_order_seq_cst) const noexcept
+        {
+            return std::bit_cast<value_type>(v_.load(ord));
+        }
+
+        value_type exchange(
+            value_type desired,
+            std::memory_order ord = std::memory_order_seq_cst) noexcept
+        {
+            return std::bit_cast<value_type>(
+                v_.exchange(std::bit_cast<uint64_t>(desired), ord));
+        }
+    };
+}
+
+static_assert(sizeof(std::atomic<MONAD_ASYNC_NAMESPACE::chunk_offset_t>) == 8);
+static_assert(alignof(std::atomic<MONAD_ASYNC_NAMESPACE::chunk_offset_t>) == 8);
+static_assert(std::is_trivially_copyable_v<
+              std::atomic<MONAD_ASYNC_NAMESPACE::chunk_offset_t>>);
