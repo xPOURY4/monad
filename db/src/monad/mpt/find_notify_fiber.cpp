@@ -29,8 +29,8 @@ using namespace MONAD_ASYNC_NAMESPACE;
 
 void find_recursive(
     UpdateAuxImpl &, inflight_map_t &,
-    threadsafe_boost_fibers_promise<find_result_type> &,
-    NodeCursor root, NibblesView key);
+    threadsafe_boost_fibers_promise<find_result_type> &, NodeCursor root,
+    NibblesView key);
 
 namespace
 {
@@ -55,8 +55,7 @@ namespace
             , rd_offset(0, 0)
             , branch_index(parent->to_child_index(branch))
         {
-            chunk_offset_t const offset =
-                aux.virtual_to_physical(parent->fnext(branch_index));
+            chunk_offset_t const offset = parent->fnext(branch_index);
             auto const num_pages_to_load_node = offset.spare;
             bytes_to_read =
                 static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
@@ -152,7 +151,7 @@ void find_recursive(
                  find_result::need_to_continue_in_io_thread});
             return;
         }
-        virtual_chunk_offset_t const offset = node->fnext(child_index);
+        chunk_offset_t const offset = node->fnext(child_index);
         auto cont = [&aux, &inflights, &promise, next_key](
                         NodeCursor node_cursor) -> result<void> {
             find_recursive(aux, inflights, promise, node_cursor, next_key);

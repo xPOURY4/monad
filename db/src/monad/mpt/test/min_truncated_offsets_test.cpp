@@ -122,17 +122,19 @@ TEST_F(OnDiskMerkleTrieGTest, min_truncated_offsets)
             MONAD_ASSERT(parent != nullptr);
             auto const node_offset =
                 parent->fnext(parent->to_child_index(branch_in_parent));
-            if (node_offset.in_fast_list()) {
+            auto const virtual_node_offset =
+                aux.physical_to_virtual(node_offset);
+            if (virtual_node_offset.in_fast_list()) {
                 root_to_node_records.push(
                     {&node,
-                     compact_virtual_chunk_offset_t{node_offset},
+                     compact_virtual_chunk_offset_t{virtual_node_offset},
                      INVALID_COMPACT_VIRTUAL_OFFSET});
             }
             else {
                 root_to_node_records.push(
                     {&node,
                      INVALID_COMPACT_VIRTUAL_OFFSET,
-                     compact_virtual_chunk_offset_t{node_offset}});
+                     compact_virtual_chunk_offset_t{virtual_node_offset}});
             }
         }
 

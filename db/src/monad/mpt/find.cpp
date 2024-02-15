@@ -39,8 +39,7 @@ find_blocking(UpdateAuxImpl const &aux, NodeCursor root, NibblesView const key)
                         node->to_child_index(nibble),
                         read_node_blocking(
                             aux.io->storage_pool(),
-                            aux.virtual_to_physical(
-                                node->fnext(node->to_child_index(nibble)))));
+                            node->fnext(node->to_child_index(nibble))));
                 }
             }
             MONAD_ASSERT(node->next(node->to_child_index(nibble)));
@@ -86,9 +85,7 @@ Nibbles find_min_key_blocking(UpdateAuxImpl const &aux, Node &root)
             if (g2.upgrade_was_atomic() || !node->next(0)) {
                 node->set_next(
                     0,
-                    read_node_blocking(
-                        aux.io->storage_pool(),
-                        aux.virtual_to_physical(node->fnext(0))));
+                    read_node_blocking(aux.io->storage_pool(), node->fnext(0)));
             }
         }
         MONAD_ASSERT(node->next(0));
@@ -118,8 +115,7 @@ Nibbles find_max_key_blocking(UpdateAuxImpl const &aux, Node &root)
                     node->number_of_children() - 1,
                     read_node_blocking(
                         aux.io->storage_pool(),
-                        aux.virtual_to_physical(
-                            node->fnext(node->number_of_children() - 1))));
+                        node->fnext(node->number_of_children() - 1)));
             }
         }
         MONAD_ASSERT(node->next(node->number_of_children() - 1));

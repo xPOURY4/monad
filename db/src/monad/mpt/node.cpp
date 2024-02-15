@@ -100,20 +100,19 @@ unsigned Node::number_of_children() const noexcept
     return static_cast<unsigned>(std::popcount(mask));
 }
 
-virtual_chunk_offset_t const Node::fnext(unsigned const index) const noexcept
+chunk_offset_t const Node::fnext(unsigned const index) const noexcept
 {
     MONAD_DEBUG_ASSERT(index < number_of_children());
-    return unaligned_load<virtual_chunk_offset_t>(
-        fnext_data + index * sizeof(virtual_chunk_offset_t));
+    return unaligned_load<chunk_offset_t>(
+        fnext_data + index * sizeof(chunk_offset_t));
 }
 
-void Node::set_fnext(
-    unsigned const index, virtual_chunk_offset_t const off) noexcept
+void Node::set_fnext(unsigned const index, chunk_offset_t const off) noexcept
 {
     std::memcpy(
-        fnext_data + index * sizeof(virtual_chunk_offset_t),
+        fnext_data + index * sizeof(chunk_offset_t),
         &off,
-        sizeof(virtual_chunk_offset_t));
+        sizeof(chunk_offset_t));
 }
 
 unsigned char *Node::child_min_offset_fast_data() noexcept

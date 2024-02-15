@@ -25,8 +25,7 @@ struct find_request_sender::find_receiver
         , io_state(io_state_)
         , branch_index(sender->root_.node->to_child_index(branch))
     {
-        chunk_offset_t const offset = sender->aux_.virtual_to_physical(
-            sender->root_.node->fnext(branch_index));
+        chunk_offset_t const offset = sender->root_.node->fnext(branch_index);
         auto const num_pages_to_load_node = offset.spare;
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
@@ -119,7 +118,7 @@ find_request_sender::operator()(erased_connected_operation *io_state) noexcept
                 }
                 _tid_checked = true;
             }
-            virtual_chunk_offset_t const offset = node->fnext(child_index);
+            chunk_offset_t const offset = node->fnext(child_index);
             if (inflights_ != nullptr) {
                 auto cont = [this,
                              io_state](NodeCursor const root) -> result<void> {

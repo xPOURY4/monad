@@ -132,7 +132,7 @@ public:
     }
 };
 
-virtual_chunk_offset_t
+chunk_offset_t
 async_write_node_set_spare(UpdateAuxImpl &aux, Node &node, bool is_fast);
 
 node_writer_unique_ptr_type replace_node_writer(
@@ -500,12 +500,12 @@ public:
     void reset_stats();
     void collect_number_nodes_created_stats();
     void collect_compaction_read_stats(
-        virtual_chunk_offset_t node_offset, unsigned bytes_to_read);
+        chunk_offset_t node_offset, unsigned bytes_to_read);
     void collect_compacted_nodes_stats(
         compact_virtual_chunk_offset_t subtrie_min_offset_fast,
         compact_virtual_chunk_offset_t subtrie_min_offset_slow);
     void collect_compacted_nodes_from_to_stats(
-        virtual_chunk_offset_t node_offset, bool rewrite_to_fast);
+        chunk_offset_t node_offset, bool rewrite_to_fast);
     void print_update_stats();
 
     enum class chunk_list : uint8_t
@@ -770,9 +770,9 @@ enum class find_result : uint8_t
 using find_result_type = std::pair<NodeCursor, find_result>;
 
 using inflight_map_t = unordered_dense_map<
-    virtual_chunk_offset_t,
+    chunk_offset_t,
     std::vector<std::function<MONAD_ASYNC_NAMESPACE::result<void>(NodeCursor)>>,
-    virtual_chunk_offset_t_hasher>;
+    chunk_offset_t_hasher>;
 
 // The request type to put to the fiber buffered channel for triedb thread
 // to work on

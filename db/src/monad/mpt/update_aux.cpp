@@ -768,9 +768,10 @@ void UpdateAuxImpl::collect_number_nodes_created_stats()
 }
 
 void UpdateAuxImpl::collect_compaction_read_stats(
-    virtual_chunk_offset_t const node_offset, unsigned const bytes_to_read)
+    chunk_offset_t const physical_node_offset, unsigned const bytes_to_read)
 {
 #if MONAD_MPT_COLLECT_STATS
+    auto const node_offset = physical_to_virtual(physical_node_offset);
     if (compact_virtual_chunk_offset_t(node_offset) <
         (node_offset.in_fast_list() ? compact_offset_fast
                                     : compact_offset_slow)) {
@@ -786,7 +787,7 @@ void UpdateAuxImpl::collect_compaction_read_stats(
     }
     stats.num_compaction_reads++; // count number of compaction reads
 #else
-    (void)node_offset;
+    (void)physical_node_offset;
     (void)bytes_to_read;
 #endif
 }
@@ -809,11 +810,11 @@ void UpdateAuxImpl::collect_compacted_nodes_stats(
 }
 
 void UpdateAuxImpl::collect_compacted_nodes_from_to_stats(
-    virtual_chunk_offset_t const node_offset, bool const rewrite_to_fast)
+    chunk_offset_t const node_offset, bool const rewrite_to_fast)
 {
 #if MONAD_MPT_COLLECT_STATS
-    if (node_offset != INVALID_VIRTUAL_OFFSET) {
-        if (node_offset.in_fast_list()) {
+    if (node_offset != INVALID_OFFSET) {
+        if (db_metadata()->at(node_offset.id)->in_fast_list) {
             if (!rewrite_to_fast) {
                 stats.nodes_copied_from_fast_to_slow++;
             }

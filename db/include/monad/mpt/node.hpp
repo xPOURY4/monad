@@ -28,7 +28,7 @@ constexpr size_t calculate_node_size(
     MONAD_DEBUG_ASSERT(number_of_children || total_child_data_size == 0);
     return size_of_node +
            (sizeof(uint16_t) // child data offset
-            + sizeof(uint32_t) * 2 // min truncated offset
+            + sizeof(compact_virtual_chunk_offset_t) * 2 // min truncated offset
             + sizeof(chunk_offset_t) + sizeof(Node *)) *
                number_of_children +
            total_child_data_size + value_size + path_size + data_size;
@@ -174,16 +174,14 @@ public:
 
     unsigned number_of_children() const noexcept;
 
-    //! fnext
-    virtual_chunk_offset_t const fnext(unsigned index) const noexcept;
-    void set_fnext(unsigned index, virtual_chunk_offset_t) noexcept;
+    //! fnext array that stores physical chunk offset of each child
+    chunk_offset_t const fnext(unsigned index) const noexcept;
+    void set_fnext(unsigned index, chunk_offset_t) noexcept;
 
-    //! min_block_no array
     //! fastlist min_offset array
     unsigned char *child_min_offset_fast_data() noexcept;
     unsigned char const *child_min_offset_fast_data() const noexcept;
     compact_virtual_chunk_offset_t min_offset_fast(unsigned index) noexcept;
-
     void set_min_offset_fast(
         unsigned index, compact_virtual_chunk_offset_t) noexcept;
     //! slowlist min_offset array
@@ -252,7 +250,7 @@ static_assert(alignof(Node) == 4);
 struct ChildData
 {
     Node *ptr{nullptr};
-    virtual_chunk_offset_t offset{INVALID_VIRTUAL_OFFSET};
+    chunk_offset_t offset{INVALID_OFFSET}; // physical offsets
     unsigned char data[32] = {0};
     compact_virtual_chunk_offset_t min_offset_fast{
         INVALID_COMPACT_VIRTUAL_OFFSET};

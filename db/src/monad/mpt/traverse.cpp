@@ -20,8 +20,7 @@ namespace
                 auto const *const next = node.next(idx);
                 if (next == nullptr) {
                     auto const next_disk = Node::UniquePtr{read_node_blocking(
-                        aux.io->storage_pool(),
-                        aux.virtual_to_physical(node.fnext(idx)))};
+                        aux.io->storage_pool(), node.fnext(idx))};
                     preorder_traverse_impl(aux, i, *next_disk, traverse);
                 }
                 else {
