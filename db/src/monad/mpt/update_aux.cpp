@@ -33,29 +33,6 @@ using namespace MONAD_ASYNC_NAMESPACE;
 // consecutive
 // #define MONAD_MPT_INITIALIZE_POOL_WITH_CONSECUTIVE_CHUNKS 1
 
-uint32_t UpdateAuxImpl::chunk_id_from_insertion_count(
-    chunk_list list, detail::unsigned_20 insertion_count) const noexcept
-{
-    MONAD_ASSERT(is_on_disk());
-    uint32_t idx = uint32_t(insertion_count);
-    switch (list) {
-    case chunk_list::free:
-        idx -= uint32_t(db_metadata()->free_list_begin()->insertion_count());
-        break;
-    case chunk_list::fast:
-        idx -= uint32_t(db_metadata()->fast_list_begin()->insertion_count());
-        break;
-    case chunk_list::slow:
-        idx -= uint32_t(db_metadata()->slow_list_begin()->insertion_count());
-        break;
-    }
-    auto const &map = insertion_count_to_chunk_id_[uint8_t(list)];
-    if (idx >= map.size()) {
-        return uint32_t(-1);
-    }
-    return map[idx];
-}
-
 virtual_chunk_offset_t
 UpdateAuxImpl::physical_to_virtual(chunk_offset_t offset) const noexcept
 {
@@ -68,16 +45,6 @@ UpdateAuxImpl::physical_to_virtual(chunk_offset_t offset) const noexcept
         offset.offset,
         ci->in_fast_list,
         offset.spare & virtual_chunk_offset_t::max_spare};
-}
-
-chunk_offset_t
-UpdateAuxImpl::virtual_to_physical(virtual_chunk_offset_t offset) const noexcept
-{
-    auto const id = chunk_id_from_insertion_count(
-        offset.in_fast_list() ? chunk_list::fast : chunk_list::slow,
-        offset.count);
-    MONAD_ASSERT(id < io->chunk_count());
-    return {id, offset.offset, offset.spare};
 }
 
 std::pair<UpdateAuxImpl::chunk_list, detail::unsigned_20>
@@ -119,8 +86,6 @@ void UpdateAuxImpl::append(chunk_list list, uint32_t idx) noexcept
     };
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
-    auto &map = insertion_count_to_chunk_id_[uint8_t(list)];
-    map.emplace_back(idx);
     if (list == chunk_list::free) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
@@ -133,25 +98,13 @@ void UpdateAuxImpl::append(chunk_list list, uint32_t idx) noexcept
 void UpdateAuxImpl::remove(uint32_t idx) noexcept
 {
     MONAD_ASSERT(is_on_disk());
-    bool const in_fast_list = db_metadata_[0]->at_(idx)->in_fast_list;
-    bool const in_slow_list = db_metadata_[0]->at_(idx)->in_slow_list;
-    bool const in_free_list = !in_fast_list && !in_slow_list;
-    chunk_list const list =
-        in_free_list ? chunk_list::free
-                     : (in_fast_list ? chunk_list::fast : chunk_list::slow);
+    bool const is_free_list =
+        (!db_metadata_[0]->at_(idx)->in_fast_list &&
+         !db_metadata_[0]->at_(idx)->in_slow_list);
     auto do_ = [&](detail::db_metadata *m) { m->remove_(m->at_(idx)); };
-    auto &map = insertion_count_to_chunk_id_[uint8_t(list)];
-    MONAD_DEBUG_ASSERT(
-        uint32_t(map.front()) == idx || uint32_t(map.back()) == idx);
-    if (uint32_t(map.back()) == idx) {
-        map.pop_back();
-    }
-    else {
-        map.pop_front();
-    }
     do_(db_metadata_[0]);
     do_(db_metadata_[1]);
-    if (in_free_list) {
+    if (is_free_list) {
         auto chunk = io->storage_pool().chunk(storage_pool::seq, idx);
         auto capacity = chunk->capacity();
         MONAD_DEBUG_ASSERT(chunk->size() == 0);
@@ -385,22 +338,6 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         }
     }
     else { // resume from an existing db and underlying storage devices
-        auto build_insertion_count_to_chunk_id =
-            [&](auto &lst, detail::db_metadata::chunk_info_t const *i) {
-                for (; i != nullptr; i = i->next(db_metadata())) {
-                    lst.emplace_back(i->index(db_metadata()));
-                }
-            };
-        build_insertion_count_to_chunk_id(
-            insertion_count_to_chunk_id_[uint8_t(chunk_list::free)],
-            db_metadata()->free_list_begin());
-        build_insertion_count_to_chunk_id(
-            insertion_count_to_chunk_id_[uint8_t(chunk_list::fast)],
-            db_metadata()->fast_list_begin());
-        build_insertion_count_to_chunk_id(
-            insertion_count_to_chunk_id_[uint8_t(chunk_list::slow)],
-            db_metadata()->slow_list_begin());
-
         if (!io->is_read_only()) {
             // Reset/init node writer's offsets, destroy contents after
             // fast_offset.id chunck

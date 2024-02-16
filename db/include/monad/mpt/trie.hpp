@@ -16,7 +16,6 @@
 
 #include <monad/core/unordered_map.hpp>
 
-#include <boost/container/devector.hpp>
 #ifdef __clang__
     #pragma clang diagnostic push
     #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -148,8 +147,6 @@ class UpdateAuxImpl
     detail::db_metadata *db_metadata_[2]{
         nullptr, nullptr}; // two copies, to prevent sudden process
                            // exits making the DB irretrievable
-
-    ::boost::container::devector<uint32_t> insertion_count_to_chunk_id_[3];
 
     void reset_node_writers();
 
@@ -520,13 +517,8 @@ public:
         return db_metadata_[0];
     }
 
-    uint32_t chunk_id_from_insertion_count(
-        chunk_list list_type,
-        detail::unsigned_20 insertion_count) const noexcept;
-
     // translate between virtual and physical addresses chunk_offset_t
     virtual_chunk_offset_t physical_to_virtual(chunk_offset_t) const noexcept;
-    chunk_offset_t virtual_to_physical(virtual_chunk_offset_t) const noexcept;
 
     // age is relative to the beginning chunk's count
     std::pair<chunk_list, detail::unsigned_20>
@@ -619,7 +611,7 @@ public:
 
 static_assert(
     sizeof(UpdateAuxImpl) ==
-    216 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
+    120 + MONAD_MPT_COLLECT_STATS * sizeof(detail::TrieUpdateCollectedStats));
 static_assert(alignof(UpdateAuxImpl) == 8);
 
 template <lockable_or_void LockType = void>

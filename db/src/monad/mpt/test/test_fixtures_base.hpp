@@ -407,9 +407,6 @@ namespace monad::test
                     std::cout << "\n      Chunk " << idx
                               << " has capacity = " << chunk->capacity()
                               << " consumed = " << chunk->size();
-                    auto chunk_offset_id = aux.chunk_id_from_insertion_count(
-                        UpdateAuxImpl::chunk_list::fast, ci->insertion_count());
-                    MONAD_ASSERT(chunk_offset_id == idx);
                 }
                 std::cout << "\n\n   Slow list:";
                 for (auto const *ci = aux.db_metadata()->slow_list_begin();
@@ -420,9 +417,6 @@ namespace monad::test
                     std::cout << "\n      Chunk " << idx
                               << " has capacity = " << chunk->capacity()
                               << " consumed = " << chunk->size();
-                    auto chunk_offset_id = aux.chunk_id_from_insertion_count(
-                        UpdateAuxImpl::chunk_list::slow, ci->insertion_count());
-                    MONAD_ASSERT(chunk_offset_id == idx);
                 }
                 std::cout << std::endl;
                 return s;
