@@ -5,6 +5,8 @@
 
 #include <monad/mpt/trie.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #include <boost/thread/pthread/shared_mutex.hpp>
 
 #include <cstdint>

@@ -486,6 +486,8 @@ public:
 
     void set_io(MONAD_ASYNC_NAMESPACE::AsyncIO *);
 
+    void unset_io();
+
     Node::UniquePtr do_update(
         Node::UniquePtr prev_root, StateMachine &, UpdateList &&,
         uint64_t version, bool compaction = false);

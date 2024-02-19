@@ -20,6 +20,7 @@
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <boost/container/deque.hpp>
 #include <boost/fiber/operations.hpp>
 
 #include <atomic>
@@ -60,7 +61,7 @@ struct Db::OnDisk
 {
     struct fiber_upsert_request_t
     {
-        threadsafe_boost_fibers_promise<Node::UniquePtr> &promise;
+        threadsafe_boost_fibers_promise<Node::UniquePtr> *promise;
         Node::UniquePtr prev_root;
         StateMachine &sm;
         UpdateList &&updates;
@@ -139,6 +140,12 @@ struct Db::OnDisk
         void run()
         {
             inflight_map_t inflights;
+            ::boost::container::deque<
+                threadsafe_boost_fibers_promise<find_result_type>>
+                find_promises;
+            ::boost::container::deque<
+                threadsafe_boost_fibers_promise<Node::UniquePtr>>
+                upsert_promises;
             /* In case you're wondering why we use a vector for a single
             element, it's because for some odd reason the MoodyCamel concurrent
             queue only supports move only types via its iterator interface. No
@@ -154,11 +161,21 @@ struct Db::OnDisk
                         std::back_inserter(request), 1) > 0) {
                     if (auto *req = std::get_if<1>(&request.front());
                         req != nullptr) {
+                        // The promise needs to hang around until its future is
+                        // destructed, otherwise there is a race within
+                        // Boost.Fiber. So we move the promise out of the
+                        // submitting thread into a local deque which gets
+                        // emptied when its future gets destroyed.
+                        find_promises.emplace_back(std::move(*req->promise));
+                        req->promise = &find_promises.back();
                         find_notify_fiber_future(aux, inflights, *req);
                     }
                     else if (auto *req = std::get_if<2>(&request.front());
                              req != nullptr) {
-                        req->promise.set_value(aux.do_update(
+                        // Ditto to above
+                        upsert_promises.emplace_back(std::move(*req->promise));
+                        req->promise = &upsert_promises.back();
+                        req->promise->set_value(aux.do_update(
                             std::move(req->prev_root),
                             req->sm,
                             std::move(req->updates),
@@ -173,6 +190,17 @@ struct Db::OnDisk
                     did_nothing = false;
                 }
                 if (did_nothing && io.io_in_flight() > 0) {
+                    did_nothing = false;
+                }
+                while (!find_promises.empty() &&
+                       find_promises.front().future_has_been_destroyed()) {
+                    find_promises.pop_front();
+                }
+                while (!upsert_promises.empty() &&
+                       upsert_promises.front().future_has_been_destroyed()) {
+                    upsert_promises.pop_front();
+                }
+                if (!find_promises.empty() || !upsert_promises.empty()) {
                     did_nothing = false;
                 }
                 if (did_nothing) {
@@ -266,12 +294,14 @@ struct Db::OnDisk
         threadsafe_boost_fibers_promise<find_result_type> promise;
         fiber_find_request_t req{
             .promise = &promise, .start = start, .key = key};
+        auto fut = promise.get_future();
         comms.enqueue(req);
+        // promise is racily emptied after this point
         if (worker->sleeping.load(std::memory_order_acquire)) {
             std::unique_lock const g(lock);
             cond.notify_one();
         }
-        return promise.get_future().get();
+        return fut.get();
     }
 
     // threadsafe
@@ -280,18 +310,20 @@ struct Db::OnDisk
         uint64_t const version, bool const enable_compaction)
     {
         threadsafe_boost_fibers_promise<Node::UniquePtr> promise;
+        auto fut = promise.get_future();
         comms.enqueue(fiber_upsert_request_t{
-            .promise = promise,
+            .promise = &promise,
             .prev_root = std::move(prev_root),
             .sm = sm,
             .updates = std::move(updates),
             .version = version,
             .enable_compaction = enable_compaction});
+        // promise is racily emptied after this point
         if (worker->sleeping.load(std::memory_order_acquire)) {
             std::unique_lock const g(lock);
             cond.notify_one();
         }
-        return promise.get_future().get();
+        return fut.get();
     }
 };
 
@@ -318,8 +350,12 @@ Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
 
 Db::~Db()
 {
-    // Force a synchronisation
-    aux_.unique_lock();
+    auto g = aux_.unique_lock();
+    if (on_disk_) {
+        // ondisk must be destroyed before aux is destroyed
+        aux_.unset_io();
+        on_disk_.reset();
+    }
 }
 
 Result<NodeCursor> Db::get(NodeCursor root, NibblesView const key)

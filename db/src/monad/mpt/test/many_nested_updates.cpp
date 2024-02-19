@@ -8,6 +8,8 @@
 #include <monad/mpt/config.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wstringop-overflow="

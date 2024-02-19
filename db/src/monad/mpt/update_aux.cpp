@@ -192,12 +192,7 @@ void UpdateAuxImpl::rewind_to_match_offsets()
 UpdateAuxImpl::~UpdateAuxImpl()
 {
     if (io != nullptr) {
-        auto const chunk_count = io->chunk_count();
-        auto const map_size =
-            sizeof(detail::db_metadata) +
-            chunk_count * sizeof(detail::db_metadata::chunk_info_t);
-        (void)::munmap(db_metadata_[0], map_size);
-        (void)::munmap(db_metadata_[1], map_size);
+        unset_io();
     }
 }
 
@@ -400,6 +395,19 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
 #if defined(__GNUC__) && !defined(__clang__)
     #pragma GCC diagnostic pop
 #endif
+
+void UpdateAuxImpl::unset_io()
+{
+    node_writer_fast.reset();
+    node_writer_slow.reset();
+    auto const chunk_count = io->chunk_count();
+    auto const map_size =
+        sizeof(detail::db_metadata) +
+        chunk_count * sizeof(detail::db_metadata::chunk_info_t);
+    (void)::munmap(db_metadata_[0], map_size);
+    (void)::munmap(db_metadata_[1], map_size);
+    io = nullptr;
+}
 
 void UpdateAuxImpl::reset_node_writers()
 {

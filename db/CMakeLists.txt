@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 
+cmake_policy(SET CMP0144 NEW) ## find_package uses upper-case _ROOT variables
+
+include(CheckCXXSourceRuns)
+
 project(monad_trie)
 enable_testing()
 
@@ -19,7 +23,7 @@ find_package(
 find_package(GTest)
 find_package(
   Boost
-  COMPONENTS fiber json thread
+  COMPONENTS context fiber json thread
   REQUIRED)
 find_package(CLI11 REQUIRED)
   

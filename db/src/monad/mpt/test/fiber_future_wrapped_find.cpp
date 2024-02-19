@@ -10,6 +10,8 @@
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/future/future.hpp>
 #include <boost/fiber/operations.hpp>

@@ -4,6 +4,8 @@
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/util.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #include <cstdint>
 #include <stdexcept>
 

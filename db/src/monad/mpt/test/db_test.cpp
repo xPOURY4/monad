@@ -3,16 +3,18 @@
 #include <gtest/gtest.h>
 
 #include <monad/core/assert.h>
+#include <monad/core/byte_string.hpp>
 #include <monad/core/hex_literal.hpp>
 #include <monad/core/small_prng.hpp>
-#include <monad/core/byte_string.hpp>
-#include <monad/mpt/trie.hpp>
 #include <monad/mpt/db.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
 #include <monad/mpt/traverse.hpp>
+#include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
 #include <monad/mpt/util.hpp>
+
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
 
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/operations.hpp>

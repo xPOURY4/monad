@@ -5,6 +5,8 @@
 #include <monad/mpt/node.hpp>
 #include <monad/mpt/update.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #include <iostream>
 #include <latch>
 #include <sstream>

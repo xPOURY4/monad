@@ -23,139 +23,169 @@
 
 MONAD_NAMESPACE_BEGIN
 
+namespace detail
+{
+    template <class T>
+    class threadsafe_boost_fibers_future
+    {
+        std::shared_ptr<
+            std::pair<::boost::fibers::promise<T>, ::boost::fibers::future<T>>>
+            state_;
+
+    public:
+        threadsafe_boost_fibers_future() = default;
+        threadsafe_boost_fibers_future(threadsafe_boost_fibers_future const &) =
+            delete;
+        threadsafe_boost_fibers_future(threadsafe_boost_fibers_future &&) =
+            default;
+
+        explicit threadsafe_boost_fibers_future(
+            std::shared_ptr<std::pair<
+                ::boost::fibers::promise<T>, ::boost::fibers::future<T>>>
+                state)
+            : state_(std::move(state))
+        {
+        }
+
+        threadsafe_boost_fibers_future &
+        operator=(threadsafe_boost_fibers_future const &) = delete;
+        threadsafe_boost_fibers_future &
+        operator=(threadsafe_boost_fibers_future &&) = default;
+
+        auto get()
+        {
+            return state_->second.get();
+        }
+
+        auto wait_for(auto const &dur)
+        {
+            return state_->second.wait_for(dur);
+        }
+
+        auto wait_until(auto const &dur)
+        {
+            return state_->second.wait_until(dur);
+        }
+    };
+}
+
 /*! \brief A threadsafe `boost::fibers::promise`.
 
 Rather annoyingly when using Boost.Fibers promises across kernel threads,
-if you destroy the promise in the awoken kernel thread before the kernel
+if you destroy either side in the awoken kernel thread before the kernel
 thread setting the value is done with the promise, you get a segfault.
-This deeply unhelpful behaviour is worked around using an atomic to signal
-when the code setting the promise has finished, and thus it is now safe
-to destroy the promise.
+This deeply unhelpful behaviour is worked around using a shared ptr.
 */
 template <class T>
 class threadsafe_boost_fibers_promise
 {
-    ::boost::fibers::promise<T> promise_;
-    std::atomic<pid_t> promise_can_be_destroyed_{-1};
+    std::shared_ptr<
+        std::pair<::boost::fibers::promise<T>, ::boost::fibers::future<T>>>
+        state_;
 
 public:
-    threadsafe_boost_fibers_promise() {}
+    threadsafe_boost_fibers_promise()
+        : state_(
+              std::make_shared<std::pair<
+                  ::boost::fibers::promise<T>, ::boost::fibers::future<T>>>())
+    {
+    }
 
     threadsafe_boost_fibers_promise(threadsafe_boost_fibers_promise const &) =
         delete;
     threadsafe_boost_fibers_promise(threadsafe_boost_fibers_promise &&) =
-        delete;
+        default;
     threadsafe_boost_fibers_promise &
     operator=(threadsafe_boost_fibers_promise const &) = delete;
     threadsafe_boost_fibers_promise &
-    operator=(threadsafe_boost_fibers_promise &&) = delete;
+    operator=(threadsafe_boost_fibers_promise &&) = default;
+    ~threadsafe_boost_fibers_promise() = default;
 
-    ~threadsafe_boost_fibers_promise()
+    bool future_has_been_destroyed() const noexcept
     {
-        for (;;) {
-            auto const tid =
-                promise_can_be_destroyed_.load(std::memory_order_acquire);
-            if (tid < 0 || tid == gettid()) {
-                break;
-            }
-#if MONAD_BOOST_FIBER_WORKAROUNDS_DEBUG_PRINTING
-            // std::cerr << "promise " << this << " is awaiting can be
-            // destroyed"
-            //           << std::endl;
-#endif
-            ::boost::this_fiber::yield();
-        }
+        return state_.use_count() == 1;
     }
 
     void reset()
     {
-        promise_ = {};
-        promise_can_be_destroyed_.store(-1, std::memory_order_release);
+        state_ = std::make_shared<std::pair<
+            ::boost::fibers::promise<T>,
+            ::boost::fibers::future<T>>>();
     }
 
     auto get_future()
     {
-        auto ret = promise_.get_future();
-        promise_can_be_destroyed_.store(-2, std::memory_order_release);
-        return ret;
+        state_->second = state_->first.get_future();
+        return detail::threadsafe_boost_fibers_future<T>(state_);
     }
 
     void set_exception(std::exception_ptr p)
     {
-        promise_can_be_destroyed_.store(gettid(), std::memory_order_release);
-        promise_.set_exception(std::move(p));
-        promise_can_be_destroyed_.store(-3, std::memory_order_release);
+        state_->first.set_exception(std::move(p));
     }
 
     void set_value(T const &v)
     {
-        promise_can_be_destroyed_.store(gettid(), std::memory_order_release);
-        promise_.set_value(v);
-        promise_can_be_destroyed_.store(-3, std::memory_order_release);
+        state_->first.set_value(v);
     }
 
     void set_value(T &&v)
     {
-        promise_can_be_destroyed_.store(gettid(), std::memory_order_release);
-        promise_.set_value(std::move(v));
-        promise_can_be_destroyed_.store(-3, std::memory_order_release);
+        state_->first.set_value(std::move(v));
     }
 };
 
 template <>
 class threadsafe_boost_fibers_promise<void>
 {
-    ::boost::fibers::promise<void> promise_;
-    std::atomic<pid_t> promise_can_be_destroyed_{-1};
+    std::shared_ptr<std::pair<
+        ::boost::fibers::promise<void>, ::boost::fibers::future<void>>>
+        state_;
 
 public:
-    threadsafe_boost_fibers_promise() {}
+    threadsafe_boost_fibers_promise()
+        : state_(std::make_shared<std::pair<
+                     ::boost::fibers::promise<void>,
+                     ::boost::fibers::future<void>>>())
+    {
+    }
 
     threadsafe_boost_fibers_promise(threadsafe_boost_fibers_promise const &) =
         delete;
     threadsafe_boost_fibers_promise(threadsafe_boost_fibers_promise &&) =
-        delete;
+        default;
     threadsafe_boost_fibers_promise &
     operator=(threadsafe_boost_fibers_promise const &) = delete;
     threadsafe_boost_fibers_promise &
-    operator=(threadsafe_boost_fibers_promise &&) = delete;
+    operator=(threadsafe_boost_fibers_promise &&) = default;
+    ~threadsafe_boost_fibers_promise() = default;
 
-    ~threadsafe_boost_fibers_promise()
+    bool future_has_been_destroyed() const noexcept
     {
-        for (;;) {
-            auto const tid =
-                promise_can_be_destroyed_.load(std::memory_order_acquire);
-            if (tid < 0 || tid == gettid()) {
-                break;
-            }
-#if MONAD_BOOST_FIBER_WORKAROUNDS_DEBUG_PRINTING
-            // std::cerr << "promise " << this << " is awaiting can be
-            // destroyed"
-            //           << std::endl;
-#endif
-            ::boost::this_fiber::yield();
-        }
+        return state_.use_count() == 1;
+    }
+
+    void reset()
+    {
+        state_ = std::make_shared<std::pair<
+            ::boost::fibers::promise<void>,
+            ::boost::fibers::future<void>>>();
     }
 
     auto get_future()
     {
-        auto ret = promise_.get_future();
-        promise_can_be_destroyed_.store(-2, std::memory_order_release);
-        return ret;
+        state_->second = state_->first.get_future();
+        return detail::threadsafe_boost_fibers_future<void>(state_);
     }
 
     void set_exception(std::exception_ptr p)
     {
-        promise_can_be_destroyed_.store(gettid(), std::memory_order_release);
-        promise_.set_exception(std::move(p));
-        promise_can_be_destroyed_.store(-3, std::memory_order_release);
+        state_->first.set_exception(std::move(p));
     }
 
     void set_value()
     {
-        promise_can_be_destroyed_.store(gettid(), std::memory_order_release);
-        promise_.set_value();
-        promise_can_be_destroyed_.store(-3, std::memory_order_release);
+        state_->first.set_value();
     }
 };
 

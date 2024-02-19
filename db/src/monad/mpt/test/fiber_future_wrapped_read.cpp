@@ -8,6 +8,8 @@
 #include <monad/async/util.hpp>
 #include <monad/core/small_prng.hpp>
 
+#include <monad/test/gtest_signal_stacktrace_printer.hpp> // NOLINT
+
 #include <boost/fiber/future/async.hpp>
 #include <boost/fiber/future/future.hpp>
 #include <boost/fiber/future/future_status.hpp>
