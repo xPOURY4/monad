@@ -15,7 +15,8 @@ ReadOnlyDb::ReadOnlyDb(ReadOnlyOnDiskDbConfig const &options)
             async::storage_pool::mode::open_existing,
             pool_options};
     }()}
-    , ring_{io::Ring{options.uring_entries, options.sq_thread_cpu}}
+    , ring_{monad::io::RingConfig{
+          options.uring_entries, false, options.sq_thread_cpu}}
     , rwbuf_{io::make_buffers_for_read_only(
           ring_, options.rd_buffers,
           async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE)}

@@ -118,8 +118,11 @@ struct Db::OnDisk
                     options.append ? async::storage_pool::mode::open_existing
                                    : async::storage_pool::mode::truncate};
             }()}
-            , ring1{io::Ring{options.uring_entries, options.sq_thread_cpu}}
-            , ring2{io::Ring{options.wr_buffers, std::nullopt}}
+            , ring1{
+                  {options.uring_entries,
+                   options.enable_io_polling,
+                   options.sq_thread_cpu}}
+            , ring2{options.wr_buffers}
             , rwbuf{io::make_buffers_for_segregated_read_write(
                   ring1, ring2, options.rd_buffers, options.wr_buffers,
                   async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE,

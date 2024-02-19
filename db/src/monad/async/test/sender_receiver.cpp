@@ -713,7 +713,7 @@ TEST_F(AsyncIO, external_thread_sender_receiver)
 {
     using namespace MONAD_ASYNC_NAMESPACE;
     // Do NOT use this for i/o, as we reuse testio's io_uring state
-    static monad::io::Ring const controller_executor_ring(1, 0);
+    static monad::io::Ring const controller_executor_ring(1);
     static std::unique_ptr<MONAD_ASYNC_NAMESPACE::AsyncIO> controller_executor;
 
     struct controller_notifying_io_receiver

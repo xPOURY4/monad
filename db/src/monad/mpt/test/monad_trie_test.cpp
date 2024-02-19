@@ -250,6 +250,7 @@ int main(int argc, char *argv[])
     bool realistic_corpus = false;
     bool random_keys = false;
     bool compaction = false;
+    bool use_iopoll = false;
     int file_size_db = 512; // truncate to 512 gb by default
     uint64_t block_id = uint64_t(-1);
     unsigned random_read_benchmark_threads = 0;
@@ -281,6 +282,7 @@ int main(int argc, char *argv[])
         cli.add_flag(
             "--random-keys", random_keys, "generate random integers as keys");
         cli.add_flag("--compaction", compaction, "perform compaction on disk");
+        cli.add_flag("--use-iopoll", use_iopoll, "use i/o polling in io_uring");
         cli.add_option(
             "--block-id", block_id, "block id to start inserting at");
         cli.add_option(
@@ -392,11 +394,10 @@ int main(int argc, char *argv[])
                    : MONAD_ASYNC_NAMESPACE::storage_pool::mode::truncate};
 
         // init uring
-        monad::io::Ring ring1(512, sq_thread_cpu),
-            ring2(
-                16
-                /* max concurrent write buffers in use <= 6 */,
-                std::nullopt);
+        monad::io::Ring ring1({512, use_iopoll, sq_thread_cpu}),
+            ring2(16
+                  /* max concurrent write buffers in use <= 6 */
+            );
 
         // init buffer
         monad::io::Buffers rwbuf = make_buffers_for_segregated_read_write(
@@ -843,7 +844,7 @@ int main(int argc, char *argv[])
                 std::cout << "   Done!" << std::endl;
             }
 
-            {
+            if (!use_iopoll) {
                 auto db = load_db();
                 UpdateAux<> &aux = std::get<0>(*db);
                 NodeCursor state_start = get<2>(*db);

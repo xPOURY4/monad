@@ -154,16 +154,19 @@ AsyncIO::AsyncIO(class storage_pool &pool, monad::io::Buffers &rwbuf)
 
     // create and register the message type pipe for threadsafe communications
     // read side is nonblocking, write side is blocking
-    MONAD_ASSERT(
-        ::pipe2((int *)&fds_, O_NONBLOCK | O_DIRECT | O_CLOEXEC) != -1);
-    MONAD_ASSERT(::fcntl(fds_.msgwrite, F_SETFL, O_DIRECT | O_CLOEXEC) != -1);
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
-    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
-    MONAD_ASSERT(sqe);
-    io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
-    io_uring_sqe_set_data(
-        sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
-    MONAD_ASSERT(io_uring_submit(ring) >= 0);
+    if (!(ring->flags & IORING_SETUP_IOPOLL)) {
+        MONAD_ASSERT(
+            ::pipe2((int *)&fds_, O_NONBLOCK | O_DIRECT | O_CLOEXEC) != -1);
+        MONAD_ASSERT(
+            ::fcntl(fds_.msgwrite, F_SETFL, O_DIRECT | O_CLOEXEC) != -1);
+        struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+        MONAD_ASSERT(sqe);
+        io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
+        io_uring_sqe_set_data(
+            sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
+        MONAD_ASSERT(io_uring_submit(ring) >= 0);
+    }
 
     // TODO(niall): In the future don't activate all the chunks, as
     // theoretically zoned storage may enforce a maximum open zone count in
@@ -455,10 +458,28 @@ bool AsyncIO::poll_uring_(bool blocking)
 
     if (wr_ring != nullptr && records_.inflight_wr > 0) {
         ring = wr_ring;
+        if (wr_uring_->must_call_uring_submit() ||
+            !!(wr_ring->flags & IORING_SETUP_IOPOLL)) {
+            // If i/o polling is on, but there is no kernel thread to do the
+            // polling for us OR the kernel thread has gone to sleep, we need to
+            // call the io_uring_enter syscall from userspace to do the
+            // completions processing. From studying the liburing source code,
+            // this will do it.
+            io_uring_submit(wr_ring);
+        }
         io_uring_peek_cqe(wr_ring, &cqe);
     }
     if (cqe == nullptr) {
         ring = other_ring;
+        if (uring_.must_call_uring_submit() ||
+            !!(other_ring->flags & IORING_SETUP_IOPOLL)) {
+            // If i/o polling is on, but there is no kernel thread to do the
+            // polling for us OR the kernel thread has gone to sleep, we need to
+            // call the io_uring_enter syscall from userspace to do the
+            // completions processing. From studying the liburing source code,
+            // this will do it.
+            io_uring_submit(other_ring);
+        }
         if (blocking && inflight_ts == 0 && records_.inflight_wr == 0 &&
             detail::AsyncIO_per_thread_state().empty()) {
             MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));

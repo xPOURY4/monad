@@ -38,7 +38,7 @@ namespace
             MONAD_ASSERT(
                 -1 != ::pwrite(fd.first, &c, 1, static_cast<off_t>(fd.second)));
         }
-        monad::io::Ring testring(1, 0);
+        monad::io::Ring testring(1);
         monad::io::Buffers testrwbuf =
             monad::io::make_buffers_for_read_only(testring, 1, 1UL << 13);
         monad::async::AsyncIO testio(pool, testrwbuf);
@@ -73,7 +73,7 @@ namespace
         int max_recursion_count = 0;
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(128, 0);
+        monad::io::Ring testring;
         monad::io::Buffers testrwbuf = monad::io::make_buffers_for_read_only(
             testring, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
         monad::async::AsyncIO testio(pool, testrwbuf);
@@ -133,7 +133,7 @@ namespace
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Ring testring1, testring2(1);
         monad::io::Buffers testrwbuf =
             monad::io::make_buffers_for_segregated_read_write(
                 testring1,
@@ -170,7 +170,7 @@ namespace
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring(128, 0);
+        monad::io::Ring testring;
         monad::io::Buffers testrwbuf = monad::io::make_buffers_for_read_only(
             testring, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
         monad::async::AsyncIO testio(pool, testrwbuf);
@@ -258,10 +258,11 @@ namespace
     {
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring1(4, 0),
+        monad::io::Ring testring1(4),
             testring2(
-                sqe_exhaustion_does_not_reorder_writes_receiver::COUNT,
-                std::nullopt);
+                {sqe_exhaustion_does_not_reorder_writes_receiver::COUNT,
+                 false,
+                 std::nullopt});
         monad::io::Buffers testrwbuf =
             monad::io::make_buffers_for_segregated_read_write(
                 testring1,

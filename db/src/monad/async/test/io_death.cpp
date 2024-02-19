@@ -30,7 +30,7 @@ namespace
 
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Ring testring1, testring2(1);
         monad::io::Buffers testrwbuf =
             monad::io::make_buffers_for_segregated_read_write(
                 testring1,
@@ -79,7 +79,7 @@ namespace
 
         monad::async::storage_pool pool(
             monad::async::use_anonymous_inode_tag{});
-        monad::io::Ring testring1(128, 0), testring2(1, std::nullopt);
+        monad::io::Ring testring1, testring2(1);
         monad::io::Buffers testrwbuf = make_buffers_for_segregated_read_write(
             testring1,
             testring2,

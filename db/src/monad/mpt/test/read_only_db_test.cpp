@@ -39,7 +39,7 @@ TEST_F(ReadOnlyDBTest, read_only_dbs_track_writable_db)
     std::latch do_append(1), append_done(1), second_block_checked(1);
     std::atomic<int> done{0};
     auto fut = std::async(std::launch::async, [&] {
-        monad::io::Ring ring{2, 0};
+        monad::io::Ring ring{2};
         monad::io::Buffers rwbuf{monad::io::make_buffers_for_read_only(
             ring,
             2,

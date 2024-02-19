@@ -139,7 +139,7 @@ opened.
             }
         }
         MONAD_ASYNC_NAMESPACE::storage_pool pool{{storage_paths}, mode, flags};
-        monad::io::Ring ring(1, 0);
+        monad::io::Ring ring(1);
         monad::io::Buffers rwbuf = monad::io::make_buffers_for_read_only(
             ring,
             2,

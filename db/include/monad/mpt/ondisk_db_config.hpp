@@ -12,6 +12,7 @@ struct OnDiskDbConfig
 {
     bool append{false};
     bool compaction{false};
+    bool enable_io_polling{false};
     unsigned rd_buffers{1024};
     unsigned wr_buffers{4};
     unsigned uring_entries{512};
