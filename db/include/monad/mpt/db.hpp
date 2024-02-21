@@ -39,20 +39,20 @@ public:
     ~Db();
 
     //! May wait on a fiber future
-    Result<byte_string_view> get(NibblesView, uint64_t block_id = 0);
+    Result<byte_string_view> get(NibblesView, uint64_t block_id = 0) const;
     //! May wait on a fiber future
-    Result<byte_string_view> get_data(NibblesView, uint64_t block_id = 0);
+    Result<byte_string_view> get_data(NibblesView, uint64_t block_id = 0) const;
     //! May wait on a fiber future
-    Result<NodeCursor> get(NodeCursor, NibblesView);
+    Result<NodeCursor> get(NodeCursor, NibblesView) const;
     //! May wait on a fiber future
-    Result<byte_string_view> get_data(NodeCursor, NibblesView);
+    Result<byte_string_view> get_data(NodeCursor, NibblesView) const;
     //! May wait on a fiber future
     void
     upsert(UpdateList, uint64_t block_id = 0, bool enable_compaction = true);
     //! It is always called from the main thread and should never wait on a
     //! fiber future.
     void traverse(NibblesView prefix, TraverseMachine &, uint64_t block_id = 0);
-    NodeCursor root() noexcept;
+    NodeCursor root() const noexcept;
 };
 
 MONAD_MPT_NAMESPACE_END

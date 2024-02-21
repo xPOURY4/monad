@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -485,11 +486,21 @@ void storage_pool::fill_chunks_(creation_flags flags)
         }
         else if (device.metadata_->config_hash != uint32_t(hashshouldbe)) {
             std::stringstream str;
-            str << "Storage pool source " << device.current_path()
-                << " was initialised with a configuration different to this "
-                   "storage pool. Is a device missing or is there an extra "
-                   "device from when the pool was first created?";
-            throw std::runtime_error(std::move(str).str());
+            if (!flags.disable_mismatching_storage_pool_check) {
+                str << "Storage pool source " << device.current_path()
+                    << " was initialised with a configuration different to "
+                       "this storage pool. Is a device missing or is there an "
+                       "extra device from when the pool was first created?";
+                throw std::runtime_error(std::move(str).str());
+            }
+            else {
+                std::cerr << "WARNING: Storage pool source "
+                          << device.current_path()
+                          << " was initialised with a configuration different "
+                             "to this storage pool. Only proceeding because "
+                             "disable_mismatching_storage_pool_check = true"
+                          << std::endl;
+            }
         }
     }
     // First block of each device goes to conventional, remainder go to
@@ -550,7 +561,7 @@ storage_pool::storage_pool(storage_pool const *src, clone_as_read_only_tag_)
     flags.open_read_only = true;
     for (auto const &src_device : src->devices_) {
         devices_.push_back([&] {
-            const auto path = src_device.current_path();
+            auto const path = src_device.current_path();
             int const fd = [&] {
                 if (!path.empty()) {
                     return ::open(path.c_str(), O_PATH | O_CLOEXEC);

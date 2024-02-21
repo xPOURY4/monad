@@ -330,12 +330,18 @@ public:
         //! Whether to open the database read-only allowing a dirty closed
         //! database
         uint32_t open_read_only_allow_dirty : 1;
+        //! Whether to disable the check which prevents use of a storage config
+        //! different to the one the pool was created with. Disabling that check
+        //! can cause pool data loss, as well as system data loss as it will
+        //! happily use any partition you feed it, including the system drive.
+        uint32_t disable_mismatching_storage_pool_check : 1;
 
         constexpr creation_flags()
             : chunk_capacity(28)
             , interleave_chunks_evenly(false)
             , open_read_only(false)
             , open_read_only_allow_dirty(false)
+            , disable_mismatching_storage_pool_check(false)
         {
         }
     };

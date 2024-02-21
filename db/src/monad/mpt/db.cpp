@@ -10,6 +10,7 @@
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
 #include <monad/mpt/config.hpp>
+#include <monad/mpt/db_error.hpp>
 #include <monad/mpt/detail/boost_fiber_workarounds.hpp>
 #include <monad/mpt/find_request_sender.hpp>
 #include <monad/mpt/nibbles_view.hpp>
@@ -32,7 +33,6 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
-#include <system_error>
 #include <thread>
 #include <utility>
 #include <variant>
@@ -41,13 +41,6 @@
 #include <fcntl.h>
 #include <linux/fs.h>
 #include <unistd.h>
-
-// TODO unstable paths between versions
-#if __has_include(<boost/outcome/experimental/status-code/generic_code.hpp>)
-    #include <boost/outcome/experimental/status-code/generic_code.hpp>
-#else
-    #include <boost/outcome/experimental/status-code/status-code/generic_code.hpp>
-#endif
 
 #undef BLOCK_SIZE // without this concurrentqueue.h gets sad
 #include "concurrentqueue.h"
@@ -358,37 +351,39 @@ Db::~Db()
     }
 }
 
-Result<NodeCursor> Db::get(NodeCursor root, NibblesView const key)
+Result<NodeCursor> Db::get(NodeCursor root, NibblesView const key) const
 {
     auto const [it, result] = (on_disk_ != nullptr)
                                   ? on_disk_->find_fiber_blocking(root, key)
                                   : find_blocking(aux_, root, key);
     if (result != find_result::success) {
-        return system_error2::errc::no_such_file_or_directory;
+        return DbError::key_not_found;
     }
     MONAD_DEBUG_ASSERT(it.node != nullptr);
     MONAD_DEBUG_ASSERT(it.node->has_value());
     return it;
 }
 
-Result<byte_string_view> Db::get(NibblesView const key, uint64_t const block_id)
+Result<byte_string_view>
+Db::get(NibblesView const key, uint64_t const block_id) const
 {
     auto res = get(root(), serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id));
     if (!res.has_value()) {
-        return system_error2::errc::no_such_file_or_directory;
+        return DbError::key_not_found;
     }
     res = get(res.value(), key);
     if (!res.has_value()) {
-        return system_error2::errc::no_such_file_or_directory;
+        return DbError::key_not_found;
     }
     return res.value().node->value();
 }
 
-Result<byte_string_view> Db::get_data(NodeCursor root, NibblesView const key)
+Result<byte_string_view>
+Db::get_data(NodeCursor root, NibblesView const key) const
 {
     auto res = get(root, key);
     if (!res.has_value()) {
-        return system_error2::errc::no_such_file_or_directory;
+        return DbError::key_not_found;
     }
     MONAD_DEBUG_ASSERT(res.value().node != nullptr);
 
@@ -396,11 +391,11 @@ Result<byte_string_view> Db::get_data(NodeCursor root, NibblesView const key)
 }
 
 Result<byte_string_view>
-Db::get_data(NibblesView const key, uint64_t const block_id)
+Db::get_data(NibblesView const key, uint64_t const block_id) const
 {
     auto res = get(root(), serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id));
     if (!res.has_value()) {
-        return system_error2::errc::no_such_file_or_directory;
+        return DbError::key_not_found;
     }
     return get_data(res.value(), key);
 }
@@ -436,7 +431,7 @@ void Db::traverse(
     preorder_traverse(aux_, *node, machine);
 }
 
-NodeCursor Db::root() noexcept
+NodeCursor Db::root() const noexcept
 {
     return root_ ? NodeCursor{*root_} : NodeCursor{};
 }

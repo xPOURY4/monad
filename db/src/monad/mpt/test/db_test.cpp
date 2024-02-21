@@ -9,6 +9,7 @@
 #include <monad/mpt/db.hpp>
 #include <monad/mpt/nibbles_view.hpp>
 #include <monad/mpt/ondisk_db_config.hpp>
+#include <monad/mpt/read_only_db.hpp>
 #include <monad/mpt/traverse.hpp>
 #include <monad/mpt/trie.hpp>
 #include <monad/mpt/update.hpp>
@@ -47,6 +48,39 @@ namespace
         StateMachineAlwaysMerkle machine;
         Db db{machine, OnDiskDbConfig{}};
     };
+
+    struct OnDiskDbWithFileFixture : public ::testing::Test
+    {
+        std::filesystem::path const dbname;
+        StateMachineAlwaysMerkle machine;
+        OnDiskDbConfig config;
+        Db db;
+
+        OnDiskDbWithFileFixture()
+            : dbname{[] {
+                std::filesystem::path ret(
+                    MONAD_ASYNC_NAMESPACE::working_temporary_directory() /
+                    "monad_db_test_XXXXXX");
+                int const fd = ::mkstemp((char *)ret.native().data());
+                MONAD_ASSERT(fd != -1);
+                MONAD_ASSERT(
+                    -1 !=
+                    ::ftruncate(
+                        fd, static_cast<off_t>(8ULL * 1024 * 1024 * 1024)));
+                ::close(fd);
+                return ret;
+            }()}
+            , machine{StateMachineAlwaysMerkle{}}
+            , config{OnDiskDbConfig{.dbname_paths = {dbname}}}
+            , db{machine, config}
+        {
+        }
+
+        ~OnDiskDbWithFileFixture()
+        {
+            std::filesystem::remove(dbname);
+        }
+    };
 }
 
 template <typename TFixture>
@@ -56,6 +90,95 @@ struct DbTest : public TFixture
 
 using DbTypes = ::testing::Types<InMemoryDbFixture, OnDiskDbFixture>;
 TYPED_TEST_SUITE(DbTest, DbTypes);
+
+TEST_F(OnDiskDbWithFileFixture, read_only_db)
+{
+    auto const &kv = fixed_updates::kv;
+
+    auto const prefix = 0x00_hex;
+    uint64_t const block_id = 0x123;
+
+    {
+        auto u1 = make_update(kv[0].first, kv[0].second);
+        auto u2 = make_update(kv[1].first, kv[1].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+
+        this->db.upsert(std::move(ul_prefix), block_id);
+    }
+
+    EXPECT_EQ(
+        this->db.get(prefix + kv[0].first, block_id).value(), kv[0].second);
+    EXPECT_EQ(
+        this->db.get(prefix + kv[1].first, block_id).value(), kv[1].second);
+    EXPECT_EQ(
+        this->db.get_data(prefix, block_id).value(),
+        0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
+
+    ReadOnlyOnDiskDbConfig ro_config{.dbname_paths = this->config.dbname_paths};
+    ReadOnlyDb ro_db{ro_config};
+
+    EXPECT_EQ(ro_db.get(prefix + kv[0].first, block_id).value(), kv[0].second);
+    EXPECT_EQ(ro_db.get(prefix + kv[1].first, block_id).value(), kv[1].second);
+    EXPECT_EQ(
+        ro_db.get_data(prefix, block_id).value(),
+        0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
+    EXPECT_TRUE(ro_db.is_latest());
+
+    {
+        auto u1 = make_update(kv[2].first, kv[2].second);
+        auto u2 = make_update(kv[3].first, kv[3].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+
+        this->db.upsert(std::move(ul_prefix), block_id);
+    }
+
+    EXPECT_EQ(
+        this->db.get(prefix + kv[2].first, block_id).value(), kv[2].second);
+    EXPECT_EQ(
+        this->db.get(prefix + kv[3].first, block_id).value(), kv[3].second);
+    EXPECT_EQ(
+        this->db.get_data(prefix, block_id).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+
+    // This needs to not change until told
+    EXPECT_FALSE(ro_db.is_latest());
+    EXPECT_EQ(ro_db.get(prefix + kv[0].first, block_id).value(), kv[0].second);
+    EXPECT_EQ(ro_db.get(prefix + kv[1].first, block_id).value(), kv[1].second);
+    EXPECT_EQ(
+        ro_db.get_data(prefix, block_id).value(),
+        0x05a697d6698c55ee3e4d472c4907bca2184648bcfdd0e023e7ff7089dc984e7e_hex);
+
+    EXPECT_FALSE(ro_db.is_latest());
+    ro_db.load_latest();
+    EXPECT_TRUE(ro_db.is_latest());
+
+    // New one reports new
+    EXPECT_EQ(ro_db.get(prefix + kv[2].first, block_id).value(), kv[2].second);
+    EXPECT_EQ(ro_db.get(prefix + kv[3].first, block_id).value(), kv[3].second);
+    EXPECT_EQ(
+        ro_db.get_data(prefix, block_id).value(),
+        0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
+}
 
 TYPED_TEST(DbTest, simple_with_same_prefix)
 {
@@ -393,7 +516,7 @@ TYPED_TEST(DbTest, scalability)
                         ::boost::this_fiber::yield();
                     }
                     while (latch.load(std::memory_order_relaxed) == 0) {
-                        const size_t idx = rand() % COUNT;
+                        size_t const idx = rand() % COUNT;
                         auto r = this->db.get(keys[idx]);
                         MONAD_ASSERT(r);
                         ops.fetch_add(1, std::memory_order_relaxed);
@@ -441,7 +564,7 @@ TYPED_TEST(DbTest, scalability)
                         ::boost::this_fiber::yield();
                     }
                     while (latch.load(std::memory_order_relaxed) == 0) {
-                        const size_t idx = rand() % COUNT;
+                        size_t const idx = rand() % COUNT;
                         auto r = this->db.get(keys[idx]);
                         MONAD_ASSERT(r);
                         ops.fetch_add(1, std::memory_order_relaxed);
