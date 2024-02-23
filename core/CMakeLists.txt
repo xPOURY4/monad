@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
+cmake_policy(SET CMP0144 NEW) ## find_package uses upper-case _ROOT variables
+
+include(CheckCXXSourceRuns)
 include(CheckCXXSymbolExists)
 
 project(monad_core LANGUAGES C CXX ASM)
@@ -15,10 +18,27 @@ find_our_dependency(absl REQUIRED)
 
 cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
 if(linux_flavour MATCHES "debian|ubuntu")
-  find_package(Boost REQUIRED COMPONENTS fiber stacktrace_backtrace)
+  find_package(Boost REQUIRED COMPONENTS context fiber stacktrace_backtrace)
 else()
-  find_package(Boost REQUIRED COMPONENTS fiber stacktrace_addr2line)
+  find_package(Boost REQUIRED COMPONENTS context fiber stacktrace_addr2line)
 endif()
+function(check_if_boost_fiber_needs_ucontext_macro)
+  set(prog "#include <boost/context/fiber.hpp>\nint main(void){\n::boost::context::fiber foo;\nreturn 0;\n}")
+  set(CMAKE_REQUIRED_LIBRARIES "Boost::context")
+  check_cxx_source_runs("${prog}" BOOST_FIBER_LINKS_WITHOUT_ADDITIONAL_MACROS)
+  if(NOT BOOST_FIBER_LINKS_WITHOUT_ADDITIONAL_MACROS)
+    set(CMAKE_REQUIRED_DEFINITIONS "-DBOOST_USE_UCONTEXT=1")
+    check_cxx_source_runs("${prog}" BOOST_FIBER_LINKS_WITH_BOOST_USE_UCONTEXT_MACRO)
+    if(BOOST_FIBER_LINKS_WITH_BOOST_USE_UCONTEXT_MACRO)
+      get_target_property(var Boost::context INTERFACE_COMPILE_DEFINITIONS)
+      list(APPEND var "-DBOOST_USE_UCONTEXT=1")
+      set_target_properties(Boost::context PROPERTIES INTERFACE_COMPILE_DEFINITIONS "${var}")
+    else()
+      message(FATAL_ERROR "FATAL: Boost.Context needs additional help to link, and I need to be taught what")
+    endif()
+  endif()
+endfunction()
+check_if_boost_fiber_needs_ucontext_macro()
 
 find_package(TBB REQUIRED)
 

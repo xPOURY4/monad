@@ -71,6 +71,10 @@ Buffers::Buffers(
 
 Buffers::~Buffers()
 {
+    if (wr_ring_ != nullptr) {
+        MONAD_ASSERT(!io_uring_unregister_buffers(
+            const_cast<io_uring *>(&wr_ring_->get_ring())));
+    }
     MONAD_ASSERT(!io_uring_unregister_buffers(
         const_cast<io_uring *>(&ring_.get_ring())));
 }

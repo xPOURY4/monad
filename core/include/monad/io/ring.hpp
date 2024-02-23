@@ -17,8 +17,10 @@ public:
     Ring(unsigned entries, std::optional<unsigned> sq_thread_cpu);
     ~Ring();
 
-    Ring(Ring &&) = default;
-    Ring &operator=(Ring &&) = default;
+    Ring(Ring const &) = delete;
+    Ring(Ring &&) = delete;
+    Ring &operator=(Ring const &) = delete;
+    Ring &operator=(Ring &&) = delete;
 
     [[gnu::always_inline]] io_uring const &get_ring() const
     {
