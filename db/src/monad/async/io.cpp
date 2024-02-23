@@ -419,7 +419,9 @@ void AsyncIO::poll_uring_while_submission_queue_full_()
     auto *ring = const_cast<io_uring *>(&uring_.get_ring());
     // if completions is getting close to full, drain some to prevent
     // completions getting dropped, which would break everything.
-    while (io_uring_cq_ready(ring) > (*ring->cq.kring_entries >> 1)) {
+    auto const max_cq_entries =
+        eager_completions_ ? 0 : (*ring->cq.kring_entries >> 1);
+    while (io_uring_cq_ready(ring) > max_cq_entries) {
         if (!poll_uring_(false, 0)) {
             break;
         }
@@ -455,165 +457,240 @@ bool AsyncIO::poll_uring_(bool blocking, unsigned poll_rings_mask)
     auto *const wr_ring = (wr_uring_ != nullptr)
                               ? const_cast<io_uring *>(&wr_uring_->get_ring())
                               : nullptr;
-    io_uring *ring = nullptr;
-    auto const inflight_ts =
-        records_.inflight_ts.load(std::memory_order_acquire);
-
-    if (wr_ring != nullptr && records_.inflight_wr > 0 &&
-        (poll_rings_mask & 2) == 0) {
-        ring = wr_ring;
-        if (wr_uring_->must_call_uring_submit() ||
-            !!(wr_ring->flags & IORING_SETUP_IOPOLL)) {
-            // If i/o polling is on, but there is no kernel thread to do the
-            // polling for us OR the kernel thread has gone to sleep, we
-            // need to call the io_uring_enter syscall from userspace to do
-            // the completions processing. From studying the liburing source
-            // code, this will do it.
-            io_uring_submit(wr_ring);
+    auto dequeue_concurrent_read_ios_pending = [&]() {
+        if (concurrent_read_io_limit_ > 0) {
+            auto const max_cq_entries =
+                eager_completions_ ? 0 : (*other_ring->cq.kring_entries >> 1);
+            for (auto *state = concurrent_read_ios_pending_.first;
+                 state != nullptr;
+                 state = concurrent_read_ios_pending_.first) {
+                if (records_.inflight_rd >= concurrent_read_io_limit_ ||
+                    io_uring_sq_space_left(other_ring) == 0 ||
+                    io_uring_cq_ready(other_ring) > max_cq_entries) {
+                    break;
+                }
+                auto *next =
+                    erased_connected_operation::rbtree_node_traits::get_right(
+                        state);
+                if (next == nullptr) {
+                    MONAD_DEBUG_ASSERT(concurrent_read_ios_pending_.count == 1);
+                    concurrent_read_ios_pending_.first =
+                        concurrent_read_ios_pending_.last = nullptr;
+                }
+                else {
+                    concurrent_read_ios_pending_.first = next;
+                }
+                concurrent_read_ios_pending_.count--;
+                state->reinitiate();
+            }
         }
-        io_uring_peek_cqe(wr_ring, &cqe);
-        if ((poll_rings_mask & 1) != 0) {
-            if (blocking && inflight_ts == 0 &&
+    };
+    dequeue_concurrent_read_ios_pending();
+
+    io_uring *ring = nullptr;
+    erased_connected_operation *state = nullptr;
+    result<size_t> res(success(0));
+    auto get_cqe = [&] {
+        auto const inflight_ts =
+            records_.inflight_ts.load(std::memory_order_acquire);
+
+        if (wr_ring != nullptr && records_.inflight_wr > 0 &&
+            (poll_rings_mask & 2) == 0) {
+            ring = wr_ring;
+            if (wr_uring_->must_call_uring_submit() ||
+                !!(wr_ring->flags & IORING_SETUP_IOPOLL)) {
+                // If i/o polling is on, but there is no kernel thread to do the
+                // polling for us OR the kernel thread has gone to sleep, we
+                // need to call the io_uring_enter syscall from userspace to do
+                // the completions processing. From studying the liburing source
+                // code, this will do it.
+                io_uring_submit(wr_ring);
+            }
+            io_uring_peek_cqe(wr_ring, &cqe);
+            if ((poll_rings_mask & 1) != 0) {
+                if (blocking && inflight_ts == 0 &&
+                    detail::AsyncIO_per_thread_state().empty()) {
+                    MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
+                }
+                if (cqe == nullptr) {
+                    return false;
+                }
+            }
+        }
+        if (cqe == nullptr) {
+            ring = other_ring;
+            if (uring_.must_call_uring_submit() ||
+                !!(other_ring->flags & IORING_SETUP_IOPOLL)) {
+                // If i/o polling is on, but there is no kernel thread to do the
+                // polling for us OR the kernel thread has gone to sleep, we
+                // need to call the io_uring_enter syscall from userspace to do
+                // the completions processing. From studying the liburing source
+                // code, this will do it.
+                io_uring_submit(other_ring);
+            }
+            if (blocking && inflight_ts == 0 && records_.inflight_wr == 0 &&
                 detail::AsyncIO_per_thread_state().empty()) {
                 MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
             }
-            if (cqe == nullptr) {
-                return false;
-            }
-        }
-    }
-    if (cqe == nullptr) {
-        ring = other_ring;
-        if (uring_.must_call_uring_submit() ||
-            !!(other_ring->flags & IORING_SETUP_IOPOLL)) {
-            // If i/o polling is on, but there is no kernel thread to do the
-            // polling for us OR the kernel thread has gone to sleep, we
-            // need to call the io_uring_enter syscall from userspace to do
-            // the completions processing. From studying the liburing source
-            // code, this will do it.
-            io_uring_submit(other_ring);
-        }
-        if (blocking && inflight_ts == 0 && records_.inflight_wr == 0 &&
-            detail::AsyncIO_per_thread_state().empty()) {
-            MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
-        }
-        else {
-            // If nothing in io_uring and there are no threadsafe ops in flight,
-            // return false
-            if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
-                return false;
-            }
-        }
-    }
-#ifndef NDEBUG
-    int const cqe_res =
-        (cqe != nullptr) ? cqe->res : 0; // useful in the debugger
-    (void)cqe_res;
-#endif
-
-    void *data = (cqe != nullptr)
-                     ? io_uring_cqe_get_data(cqe)
-                     : detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC;
-    MONAD_ASSERT(data);
-    erased_connected_operation *state = nullptr;
-    result<size_t> res(success(0));
-    if (data == detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC) {
-        // MSG_READ pipe has a message for us. It is simply the pointer to
-        // the connected operation state for us to complete.
-        MONAD_ASSERT(cqe == nullptr || cqe->res == POLLIN);
-        if (cqe != nullptr && !(cqe->flags & IORING_CQE_F_MORE)) {
-            // Rearm the poll
-            struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
-            MONAD_ASSERT(sqe);
-            io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
-            io_uring_sqe_set_data(
-                sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
-            MONAD_ASSERT(io_uring_submit(ring) >= 0);
-        }
-        auto readed =
-            ::read(fds_.msgread, &state, sizeof(erased_connected_operation *));
-        if (readed >= 0) {
-            MONAD_ASSERT(sizeof(erased_connected_operation *) == readed);
-            // Writes flushed in the submitting thread must be acquired now
-            // before state can be dereferenced
-            std::atomic_thread_fence(std::memory_order_acquire);
-        }
-        else {
-            if (EAGAIN == errno || EWOULDBLOCK == errno) {
-                // Spurious wakeup
-                if (cqe != nullptr) {
-                    io_uring_cqe_seen(ring, cqe);
-                    cqe = nullptr;
+            else {
+                // If nothing in io_uring and there are no threadsafe ops in
+                // flight, return false
+                if (0 != io_uring_peek_cqe(ring, &cqe) && inflight_ts == 0) {
+                    return false;
                 }
-                return true;
+            }
+        }
+
+        void *data = (cqe != nullptr)
+                         ? io_uring_cqe_get_data(cqe)
+                         : detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC;
+        MONAD_ASSERT(data);
+        if (data == detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC) {
+            // MSG_READ pipe has a message for us. It is simply the pointer to
+            // the connected operation state for us to complete.
+            MONAD_ASSERT(cqe == nullptr || cqe->res == POLLIN);
+            if (cqe != nullptr && !(cqe->flags & IORING_CQE_F_MORE)) {
+                // Rearm the poll
+                struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
+                MONAD_ASSERT(sqe);
+                io_uring_prep_poll_multishot(sqe, fds_.msgread, POLLIN);
+                io_uring_sqe_set_data(
+                    sqe, detail::ASYNC_IO_MSG_PIPE_READY_IO_URING_DATA_MAGIC);
+                MONAD_ASSERT(io_uring_submit(ring) >= 0);
+            }
+            auto readed = ::read(
+                fds_.msgread, &state, sizeof(erased_connected_operation *));
+            if (readed >= 0) {
+                MONAD_ASSERT(sizeof(erased_connected_operation *) == readed);
+                // Writes flushed in the submitting thread must be acquired now
+                // before state can be dereferenced
+                std::atomic_thread_fence(std::memory_order_acquire);
             }
             else {
-                MONAD_ASSERT(readed >= 0);
+                if (EAGAIN == errno || EWOULDBLOCK == errno) {
+                    // Spurious wakeup
+                    if (cqe != nullptr) {
+                        io_uring_cqe_seen(ring, cqe);
+                        cqe = nullptr;
+                    }
+                    return true;
+                }
+                else {
+                    MONAD_ASSERT(readed >= 0);
+                }
             }
-        }
-    }
-    else {
-        state = reinterpret_cast<erased_connected_operation *>(data);
-        res = (cqe->res < 0) ? result<size_t>(posix_code(-cqe->res))
-                             : result<size_t>(cqe->res);
-    }
-    if (cqe != nullptr) {
-        io_uring_cqe_seen(ring, cqe);
-        cqe = nullptr;
-    }
-
-    bool is_read_or_write = false;
-    if (state->is_read()) {
-        --records_.inflight_rd;
-        is_read_or_write = true;
-        // For now, only silently retry reads
-        [[unlikely]] if (
-            res.has_error() &&
-            res.assume_error() == errc::resource_unavailable_try_again) {
-            /* This is what the io_uring source code does when
-            EAGAIN comes back in a cqe and the submission queue
-            is full. It effectively is a "hard pace", and given how
-            rare EAGAIN is, it's probably not a bad idea to truly
-            slow things down if it occurs.
-            */
-            while (io_uring_sq_space_left(ring) == 0) {
-                ::usleep(50);
-                MONAD_ASSERT(io_uring_sqring_wait(ring) >= 0);
-            }
-            state->reinitiate();
-            return true;
-        }
-    }
-    else if (state->is_write()) {
-        --records_.inflight_wr;
-        is_read_or_write = true;
-    }
-    else if (state->is_timeout()) {
-        --records_.inflight_tm;
-    }
-    else if (state->is_threadsafeop()) {
-        records_.inflight_ts.fetch_sub(1, std::memory_order_acq_rel);
-    }
-    else if (state->is_read_scatter()) {
-        --records_.inflight_rd_scatter;
-    }
-#ifndef NDEBUG
-    else {
-        abort();
-    }
-#endif
-    erased_connected_operation_unique_ptr_type h2;
-    std::unique_ptr<erased_connected_operation> h3;
-    if (state->lifetime_is_managed_internally()) {
-        if (is_read_or_write) {
-            h2 = erased_connected_operation_unique_ptr_type{state};
         }
         else {
-            h3 = std::unique_ptr<erased_connected_operation>(state);
+            state = reinterpret_cast<erased_connected_operation *>(data);
+            res = (cqe->res < 0) ? result<size_t>(posix_code(-cqe->res))
+                                 : result<size_t>(cqe->res);
         }
+        if (cqe != nullptr) {
+            io_uring_cqe_seen(ring, cqe);
+            cqe = nullptr;
+        }
+
+        if (capture_io_latencies_) {
+            state->elapsed =
+                std::chrono::steady_clock::now() - state->initiated;
+        }
+        return true;
+    };
+
+    auto process_cqe = [&] {
+        bool is_read_or_write = false;
+        if (state->is_read()) {
+            --records_.inflight_rd;
+            is_read_or_write = true;
+            // For now, only silently retry reads
+            [[unlikely]] if (
+                res.has_error() &&
+                res.assume_error() == errc::resource_unavailable_try_again) {
+                records_.reads_retried++;
+                /* This is what the io_uring source code does when
+                EAGAIN comes back in a cqe and the submission queue
+                is full. It effectively is a "hard pace", and given how
+                rare EAGAIN is, it's probably not a bad idea to truly
+                slow things down if it occurs.
+                */
+                while (io_uring_sq_space_left(ring) == 0) {
+                    ::usleep(50);
+                    MONAD_ASSERT(io_uring_sqring_wait(ring) >= 0);
+                }
+                state->reinitiate();
+                return true;
+            }
+            // Speculative read i/o deque
+            dequeue_concurrent_read_ios_pending();
+        }
+        else if (state->is_write()) {
+            --records_.inflight_wr;
+            is_read_or_write = true;
+        }
+        else if (state->is_timeout()) {
+            --records_.inflight_tm;
+        }
+        else if (state->is_threadsafeop()) {
+            records_.inflight_ts.fetch_sub(1, std::memory_order_acq_rel);
+        }
+        else if (state->is_read_scatter()) {
+            --records_.inflight_rd_scatter;
+        }
+#ifndef NDEBUG
+        else {
+            abort();
+        }
+#endif
+        erased_connected_operation_unique_ptr_type h2;
+        std::unique_ptr<erased_connected_operation> h3;
+        if (state->lifetime_is_managed_internally()) {
+            if (is_read_or_write) {
+                h2 = erased_connected_operation_unique_ptr_type{state};
+            }
+            else {
+                h3 = std::unique_ptr<erased_connected_operation>(state);
+            }
+        }
+        state->completed(std::move(res));
+        return true;
+    };
+    if (!eager_completions_) {
+        auto ret = get_cqe();
+        if (state == nullptr) {
+            return ret;
+        }
+        return process_cqe();
     }
-    state->completed(std::move(res));
-    return true;
+
+    struct completion_t
+    {
+        io_uring *ring{nullptr};
+        erased_connected_operation *state{nullptr};
+        result<size_t> res{success(0)};
+    };
+
+    std::vector<completion_t> completions;
+    completions.reserve(
+        2 + io_uring_sq_ready(other_ring) +
+        ((wr_ring != nullptr) ? io_uring_sq_ready(wr_ring) : 0));
+    for (;;) {
+        ring = nullptr;
+        state = nullptr;
+        res = 0;
+        get_cqe();
+        if (state == nullptr) {
+            break;
+        }
+        completions.emplace_back(ring, state, std::move(res));
+        blocking = false;
+    }
+    for (auto &i : completions) {
+        ring = i.ring;
+        state = i.state;
+        res = std::move(i.res);
+        process_cqe();
+    }
+    return !completions.empty();
 }
 
 unsigned AsyncIO::deferred_initiations_in_flight() const noexcept
@@ -673,6 +750,9 @@ void AsyncIO::submit_threadsafe_invocation_request(
     for (;;) {
         auto written = ::write(fds_.msgwrite, &uring_data, sizeof(uring_data));
         if (written == sizeof(uring_data)) {
+            if (capture_io_latencies_) {
+                uring_data->initiated = std::chrono::steady_clock::now();
+            }
             break;
         }
         MONAD_ASSERT(written == -1);

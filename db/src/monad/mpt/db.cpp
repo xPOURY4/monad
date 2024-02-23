@@ -127,6 +127,9 @@ struct Db::OnDisk
             , io{pool, rwbuf}
             , compaction{options.compaction}
         {
+            io.set_capture_io_latencies(options.capture_io_latencies);
+            io.set_concurrent_read_io_limit(options.concurrent_read_io_limit);
+            io.set_eager_completions(options.eager_completions);
         }
 
         // Runs in the triedb worker thread

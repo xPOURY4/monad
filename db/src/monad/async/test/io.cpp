@@ -7,6 +7,7 @@
 #include <monad/async/io.hpp>
 #include <monad/async/io_senders.hpp>
 #include <monad/async/storage_pool.hpp>
+#include <monad/core/array.hpp>
 #include <monad/core/assert.h>
 #include <monad/io/buffers.hpp>
 #include <monad/io/ring.hpp>
@@ -309,5 +310,66 @@ namespace
             offset2 += monad::async::DISK_PAGE_SIZE;
         }
         EXPECT_EQ(seq.back(), offset - monad::async::DISK_PAGE_SIZE);
+    }
+
+    TEST(AsyncIO, eager_completions)
+    {
+        static constexpr size_t COUNT = 1024;
+        monad::async::storage_pool pool(
+            monad::async::use_anonymous_inode_tag{});
+        monad::io::Ring testring1(COUNT);
+        monad::io::Buffers testrwbuf = monad::io::make_buffers_for_read_only(
+            testring1, 1, monad::async::AsyncIO::MONAD_IO_BUFFERS_READ_SIZE);
+        monad::async::AsyncIO testio(pool, testrwbuf);
+
+        struct receiver_t
+        {
+            void set_value(
+                monad::async::erased_connected_operation *,
+                monad::async::timed_delay_sender::result_type res)
+            {
+                MONAD_ASSERT(res);
+            }
+        };
+
+        using connected_state_type = decltype(monad::async::connect(
+            testio,
+            monad::async::timed_delay_sender(std::chrono::seconds(0)),
+            receiver_t{}));
+
+        auto run_test = [&] {
+            auto states = monad::make_array<connected_state_type, COUNT>(
+                std::piecewise_construct,
+                testio,
+                monad::async::timed_delay_sender(std::chrono::seconds(0)),
+                receiver_t{});
+            for (auto &i : states) {
+                i.initiate();
+            }
+            testio.wait_until_done();
+            long min = LONG_MAX, max = 0;
+            for (auto &i : states) {
+                auto diff =
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        i.elapsed)
+                        .count();
+                if (diff < min) {
+                    min = diff;
+                }
+                if (diff > max) {
+                    max = diff;
+                }
+            }
+            return std::pair{min, max};
+        };
+        testio.set_capture_io_latencies(true);
+        auto [normal_min, normal_max] = run_test();
+        testio.set_eager_completions(true);
+        auto [eager_min, eager_max] = run_test();
+        std::cout << "   Normal i/o min latency: " << normal_min;
+        std::cout << "\n   Eager i/o min latency: " << eager_min;
+        std::cout << "\n   Normal i/o max latency: " << normal_max;
+        std::cout << "\n   Eager i/o max latency: " << eager_max;
+        std::cout << std::endl;
     }
 }

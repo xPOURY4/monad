@@ -6,6 +6,7 @@
 
 #include <boost/intrusive/rbtree_algorithms.hpp>
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -284,8 +285,16 @@ protected:
            list of operations to be initiated when the thread stack unwinds. It
            stops using it before initiation.
 
+           - `right` gets used by `AsyncIO::submit_request_()` to keep a
+           forward list of operations initiated awaiting submission when
+           concurrent operations submitted exceeds the runtime concurrency
+           limit.
+
            - i/o read uses `key` between initiation and completion. It says what
            offset to add to bytes transferred returned.
+
+           - i/o write uses `key` between initiation and completion. It says
+           what offset the write is being performed at.
         */
         union
         {
@@ -293,7 +302,18 @@ protected:
             erased_connected_operation *parent_;
         };
 
-        rbtree_t_ *left{nullptr}, *right{nullptr};
+        union
+        {
+            rbtree_t_ *left{nullptr};
+            erased_connected_operation *left_;
+        };
+
+        union
+        {
+            rbtree_t_ *right{nullptr};
+            erased_connected_operation *right_;
+        };
+
         file_offset_t key : 63 {0};
         file_offset_t color : 1 {false};
     } rbtree_;
@@ -321,6 +341,13 @@ protected:
         bool never_defer, bool is_retry) noexcept = 0;
 
 public:
+    union
+    {
+        std::chrono::steady_clock::time_point initiated;
+        std::chrono::steady_clock::duration
+            elapsed; // set upon completion if capture_io_latencies enabled
+    };
+
     struct rbtree_node_traits
     {
         using node = rbtree_t_;
@@ -401,6 +428,30 @@ public:
             erased_connected_operation *n, erased_connected_operation *parent)
         {
             n->rbtree_.parent_ = parent;
+        }
+
+        static erased_connected_operation *
+        get_left(erased_connected_operation const *n)
+        {
+            return n->rbtree_.left_;
+        }
+
+        static void set_left(
+            erased_connected_operation *n, erased_connected_operation *left)
+        {
+            n->rbtree_.left_ = left;
+        }
+
+        static erased_connected_operation *
+        get_right(erased_connected_operation const *n)
+        {
+            return n->rbtree_.right_;
+        }
+
+        static void set_right(
+            erased_connected_operation *n, erased_connected_operation *right)
+        {
+            n->rbtree_.right_ = right;
         }
 
         static file_offset_t get_key(erased_connected_operation const *n)
@@ -550,7 +601,7 @@ public:
     void reset() {}
 };
 
-static_assert(sizeof(erased_connected_operation) == 56);
+static_assert(sizeof(erased_connected_operation) == 64);
 static_assert(alignof(erased_connected_operation) == 8);
 
 MONAD_ASYNC_NAMESPACE_END

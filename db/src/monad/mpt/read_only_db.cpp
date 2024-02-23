@@ -25,6 +25,9 @@ ReadOnlyDb::ReadOnlyDb(ReadOnlyOnDiskDbConfig const &options)
     , last_loaded_offset_{aux_.get_root_offset()}
     , root_{Node::UniquePtr{read_node_blocking(pool_, last_loaded_offset_)}}
 {
+    io_.set_capture_io_latencies(options.capture_io_latencies);
+    io_.set_concurrent_read_io_limit(options.concurrent_read_io_limit);
+    io_.set_eager_completions(options.eager_completions);
 }
 
 bool ReadOnlyDb::is_latest() const

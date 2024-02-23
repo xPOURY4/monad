@@ -32,7 +32,13 @@ struct IORecord
     unsigned inflight_wr{0};
     unsigned inflight_tm{0};
     std::atomic<unsigned> inflight_ts{0};
-    unsigned nreads{0}; // Reads done since last `flush()`
+
+    unsigned max_inflight_rd{0};
+    unsigned max_inflight_rd_scatter{0};
+    unsigned max_inflight_wr{0};
+
+    unsigned nreads{0};
+    unsigned reads_retried{0}; // Reads which got a EAGAIN and were retried
 };
 
 class AsyncIO final
@@ -76,9 +82,18 @@ private:
     monad::io::Buffers &rwbuf_;
     monad::io::BufferPool rd_pool_;
     monad::io::BufferPool wr_pool_;
+    bool eager_completions_{false};
+    bool capture_io_latencies_{false};
 
     // IO records
     IORecord records_;
+    unsigned concurrent_read_io_limit_{0};
+
+    struct
+    {
+        unsigned count{0};
+        erased_connected_operation *first{nullptr}, *last{nullptr};
+    } concurrent_read_ios_pending_;
 
     void submit_request_(
         std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
@@ -140,15 +155,21 @@ public:
 
     unsigned io_in_flight() const noexcept
     {
-        return records_.inflight_rd + records_.inflight_rd_scatter +
-               records_.inflight_wr + records_.inflight_tm +
+        return records_.inflight_rd + concurrent_read_ios_pending_.count +
+               records_.inflight_rd_scatter + records_.inflight_wr +
+               records_.inflight_tm +
                records_.inflight_ts.load(std::memory_order_relaxed) +
                deferred_initiations_in_flight();
     }
 
     unsigned reads_in_flight() const noexcept
     {
-        return records_.inflight_rd;
+        return records_.inflight_rd + concurrent_read_ios_pending_.count;
+    }
+
+    unsigned max_reads_in_flight() const noexcept
+    {
+        return records_.max_inflight_rd;
     }
 
     unsigned reads_scatter_in_flight() const noexcept
@@ -156,9 +177,19 @@ public:
         return records_.inflight_rd_scatter;
     }
 
+    unsigned max_reads_scatter_in_flight() const noexcept
+    {
+        return records_.max_inflight_rd_scatter;
+    }
+
     unsigned writes_in_flight() const noexcept
     {
         return records_.inflight_wr;
+    }
+
+    unsigned max_writes_in_flight() const noexcept
+    {
+        return records_.max_inflight_wr;
     }
 
     unsigned timers_in_flight() const noexcept
@@ -171,6 +202,36 @@ public:
     unsigned threadsafeops_in_flight() const noexcept
     {
         return records_.inflight_ts.load(std::memory_order_relaxed);
+    }
+
+    unsigned concurrent_read_io_limit() const noexcept
+    {
+        return concurrent_read_io_limit_;
+    }
+
+    void set_concurrent_read_io_limit(unsigned v) noexcept
+    {
+        concurrent_read_io_limit_ = v;
+    }
+
+    bool eager_completions() const noexcept
+    {
+        return eager_completions_;
+    }
+
+    void set_eager_completions(bool v) noexcept
+    {
+        eager_completions_ = v;
+    }
+
+    bool capture_io_latencies() const noexcept
+    {
+        return capture_io_latencies_;
+    }
+
+    void set_capture_io_latencies(bool v) noexcept
+    {
+        capture_io_latencies_ = v;
     }
 
     // The number of submission and completion entries remaining right now. Can
@@ -234,8 +295,13 @@ public:
     void flush()
     {
         wait_until_done();
-        // Uncomment this to log number of async read requests
-        // std::cout << "nreads: " << records_.nreads << std::endl;
+    }
+
+    void reset_records()
+    {
+        records_.max_inflight_rd = 0;
+        records_.max_inflight_rd_scatter = 0;
+        records_.max_inflight_wr = 0;
         records_.nreads = 0;
     }
 
@@ -243,8 +309,39 @@ public:
         std::span<std::byte> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
+        if (concurrent_read_io_limit_ > 0) {
+            if (records_.inflight_rd >= concurrent_read_io_limit_) {
+                auto *state = (erased_connected_operation *)uring_data;
+                erased_connected_operation::rbtree_node_traits::set_right(
+                    state, nullptr);
+                if (concurrent_read_ios_pending_.last == nullptr) {
+                    MONAD_DEBUG_ASSERT(
+                        concurrent_read_ios_pending_.first == nullptr);
+                    concurrent_read_ios_pending_.first =
+                        concurrent_read_ios_pending_.last = state;
+                    MONAD_DEBUG_ASSERT(concurrent_read_ios_pending_.count == 0);
+                }
+                else {
+                    MONAD_DEBUG_ASSERT(
+                        erased_connected_operation::rbtree_node_traits::
+                            get_right(concurrent_read_ios_pending_.last) ==
+                        nullptr);
+                    erased_connected_operation::rbtree_node_traits::set_right(
+                        concurrent_read_ios_pending_.last, state);
+                    concurrent_read_ios_pending_.last = state;
+                }
+                concurrent_read_ios_pending_.count++;
+                return size_t(-1); // we never complete immediately
+            }
+        }
+
         submit_request_(buffer, offset, uring_data);
-        ++records_.inflight_rd;
+        if (capture_io_latencies_) {
+            uring_data->initiated = std::chrono::steady_clock::now();
+        }
+        if (++records_.inflight_rd > records_.max_inflight_rd) {
+            records_.max_inflight_rd = records_.inflight_rd;
+        }
         ++records_.nreads;
         return size_t(-1); // we never complete immediately
     }
@@ -252,9 +349,15 @@ public:
     size_t submit_read_request(
         std::span<const struct iovec> buffers, chunk_offset_t offset,
         erased_connected_operation *uring_data)
+
     {
         submit_request_(buffers, offset, uring_data);
-        ++records_.inflight_rd_scatter;
+        if (capture_io_latencies_) {
+            uring_data->initiated = std::chrono::steady_clock::now();
+        }
+        if (++records_.inflight_rd_scatter > records_.max_inflight_rd_scatter) {
+            records_.max_inflight_rd_scatter = records_.inflight_rd_scatter;
+        }
         ++records_.nreads;
         return size_t(-1); // we never complete immediately
     }
@@ -264,7 +367,12 @@ public:
         erased_connected_operation *uring_data)
     {
         submit_request_(buffer, offset, uring_data);
-        ++records_.inflight_wr;
+        if (capture_io_latencies_) {
+            uring_data->initiated = std::chrono::steady_clock::now();
+        }
+        if (++records_.inflight_wr > records_.max_inflight_wr) {
+            records_.max_inflight_wr = records_.inflight_wr;
+        }
     }
 
     // WARNING: Must exist until completion!
@@ -283,6 +391,9 @@ public:
         timed_invocation_state *info, erased_connected_operation *uring_data)
     {
         submit_request_(info, uring_data);
+        if (capture_io_latencies_) {
+            uring_data->initiated = std::chrono::steady_clock::now();
+        }
         ++records_.inflight_tm;
     }
 
@@ -484,6 +595,8 @@ public:
     void notify_operation_initiation_success_(
         detail::connected_operation_storage<Base, Sender, Receiver> *state)
     {
+        (void)state;
+#if MONAD_TRIE_ENABLE_WRITEBACK_CACHE
         if constexpr (detail::connected_operation_storage<
                           Base,
                           Sender,
@@ -505,6 +618,7 @@ public:
             extant_write_operations_::insert_equal_lower_bound(
                 &extant_write_operations_header_, p, pred);
         }
+#endif
     }
 
     template <class Base, sender Sender, receiver Receiver>
@@ -519,6 +633,9 @@ public:
         detail::connected_operation_storage<Base, Sender, Receiver> *state,
         result<T> &res)
     {
+        (void)state;
+        (void)res;
+#if MONAD_TRIE_ENABLE_WRITEBACK_CACHE
         if constexpr (detail::connected_operation_storage<
                           Base,
                           Sender,
@@ -541,6 +658,7 @@ public:
                         state));
             }
         }
+#endif
     }
 
 private:
@@ -554,9 +672,9 @@ using erased_connected_operation_ptr =
     AsyncIO::erased_connected_operation_unique_ptr_type;
 
 #ifdef MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
-static_assert(sizeof(AsyncIO) == 176);
-#else
 static_assert(sizeof(AsyncIO) == 224);
+#else
+static_assert(sizeof(AsyncIO) == 272);
 #endif
 static_assert(alignof(AsyncIO) == 8);
 

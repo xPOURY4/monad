@@ -40,6 +40,7 @@
 #include <iostream>
 #include <random>
 #include <stdexcept>
+#include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -121,12 +122,14 @@ Node::UniquePtr batch_upsert_commit(
     fprintf(
         stdout,
         "next_key_id: %lu, nkeys upserted: %lu, upsert+commit in RAM: %f "
-        "/s, total_t %.4f s\n=====\n",
+        "/s, total_t %.4f s, max creads %u\n=====\n",
         (key_offset + vec_idx + nkeys) % MAX_NUM_KEYS,
         nkeys,
         (double)nkeys / tm_ram,
-        tm_ram);
+        tm_ram,
+        aux.io->max_reads_in_flight());
     fflush(stdout);
+    aux.io->reset_records();
 
     if (csv_writer) {
         csv_writer << (key_offset + vec_idx + nkeys) << ","
@@ -254,6 +257,16 @@ int main(int argc, char *argv[])
     int file_size_db = 512; // truncate to 512 gb by default
     uint64_t block_id = uint64_t(-1);
     unsigned random_read_benchmark_threads = 0;
+    unsigned concurrent_read_io_limit = 0;
+
+    struct runtime_reconfig_t
+    {
+        std::filesystem::path path;
+        std::chrono::steady_clock::time_point last_parsed;
+
+        unsigned concurrent_read_io_limit = 0;
+
+    } runtime_reconfig;
 
     CLI::App cli{"monad_merge_trie_test"};
     try {
@@ -295,6 +308,15 @@ int main(int argc, char *argv[])
             random_read_benchmark_threads,
             "how many threads with which to do random reads of the written "
             "database after the write test ends (default is run no test)");
+        cli.add_option(
+            "--concurrent-read-io-limit",
+            concurrent_read_io_limit,
+            "the maximum number of concurrent reads to perform at a time "
+            "(default is no limit)");
+        cli.add_option(
+            "--runtime-reconfig-file",
+            runtime_reconfig.path,
+            "a file to parse every five seconds to adjust config as test runs");
         cli.parse(argc, argv);
 
         MONAD_ASSERT(in_memory + append < 2);
@@ -409,6 +431,42 @@ int main(int argc, char *argv[])
             MONAD_ASYNC_NAMESPACE::AsyncIO::MONAD_IO_BUFFERS_WRITE_SIZE);
 
         auto io = MONAD_ASYNC_NAMESPACE::AsyncIO{pool, rwbuf};
+        io.set_concurrent_read_io_limit(concurrent_read_io_limit);
+        auto check_runtime_reconfig = [&] {
+            auto const now = std::chrono::steady_clock::now();
+            if (now - runtime_reconfig.last_parsed > std::chrono::seconds(5)) {
+                runtime_reconfig.last_parsed = now;
+                if (std::filesystem::exists(runtime_reconfig.path)) {
+                    std::ifstream s(runtime_reconfig.path);
+                    std::string key, equals, value;
+                    while (!s.eof()) {
+                        s >> key >> equals;
+                        if (equals == "=") {
+                            if (key == "concurrent_read_io_limit") {
+                                s >> runtime_reconfig.concurrent_read_io_limit;
+                                if (runtime_reconfig.concurrent_read_io_limit !=
+                                    concurrent_read_io_limit) {
+                                    concurrent_read_io_limit =
+                                        runtime_reconfig
+                                            .concurrent_read_io_limit;
+                                    io.set_concurrent_read_io_limit(
+                                        concurrent_read_io_limit);
+                                    std::cout << "concurrent_read_io_limit = "
+                                              << concurrent_read_io_limit
+                                              << std::endl;
+                                }
+                            }
+                            else {
+                                std::cerr << "WARNING: File "
+                                          << runtime_reconfig.path
+                                          << " had unknown key '" << key << "'."
+                                          << std::endl;
+                            }
+                        }
+                    }
+                }
+            }
+        };
 
         {
             UpdateAux<> aux{};
@@ -431,6 +489,7 @@ int main(int argc, char *argv[])
             uint64_t const max_key = n_slices * SLICE_LEN + key_offset;
             /* start profiling upsert and commit */
             for (uint64_t iter = 0; iter < n_slices; ++iter) {
+                check_runtime_reconfig();
                 // renew keccak values
                 if (!(iter * SLICE_LEN % keccak_cap)) {
                     auto begin_prepare_keccak =
