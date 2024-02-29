@@ -342,22 +342,52 @@ namespace monad::test
         }
     };
 
+    struct FillDBWithChunksConfig
+    {
+        size_t chunks_to_fill;
+        size_t chunks_max{64};
+        bool alternate_slow_fast_writer{false};
+        bool use_anonymous_inode{true};
+    };
+
     template <
-        size_t chunks_to_fill, bool alternate_slow_fast_writer,
-        monad::mpt::lockable_or_void LockType, class Base>
+        FillDBWithChunksConfig Config, monad::mpt::lockable_or_void LockType,
+        class Base>
     struct FillDBWithChunks : public Base
     {
         struct state_t
         {
-            MONAD_ASYNC_NAMESPACE::storage_pool pool{
-                MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{}, [] {
-                    MONAD_ASYNC_NAMESPACE::storage_pool::creation_flags flags;
-                    auto const bitpos =
-                        std::countr_zero(MONAD_ASYNC_NAMESPACE::AsyncIO::
-                                             MONAD_IO_BUFFERS_WRITE_SIZE);
-                    flags.chunk_capacity = bitpos;
-                    return flags;
-                }()};
+            MONAD_ASYNC_NAMESPACE::storage_pool pool{[] {
+                MONAD_ASYNC_NAMESPACE::storage_pool::creation_flags flags;
+                auto const bitpos =
+                    std::countr_zero(MONAD_ASYNC_NAMESPACE::AsyncIO::
+                                         MONAD_IO_BUFFERS_WRITE_SIZE);
+                flags.chunk_capacity = bitpos;
+                if constexpr (Config.use_anonymous_inode) {
+                    return MONAD_ASYNC_NAMESPACE::storage_pool(
+                        MONAD_ASYNC_NAMESPACE::use_anonymous_inode_tag{},
+                        flags);
+                }
+                char temppath[] = "monad_test_fixture_XXXXXX";
+                const int fd = mkstemp(temppath);
+                if (-1 == fd) {
+                    abort();
+                }
+                if (-1 ==
+                    ftruncate(
+                        fd,
+                        Config.chunks_max * MONAD_ASYNC_NAMESPACE::AsyncIO::
+                                                MONAD_IO_BUFFERS_WRITE_SIZE +
+                            24576)) {
+                    abort();
+                }
+                ::close(fd);
+                std::filesystem::path temppath2(temppath);
+                return MONAD_ASYNC_NAMESPACE::storage_pool(
+                    {&temppath2, 1},
+                    MONAD_ASYNC_NAMESPACE::storage_pool::mode::create_if_needed,
+                    flags);
+            }()};
             monad::io::Ring ring1{2};
             monad::io::Ring ring2{4};
             monad::io::Buffers rwbuf{
@@ -377,10 +407,20 @@ namespace monad::test
             state_t()
             {
                 aux.alternate_slow_fast_node_writer_unit_testing_only(
-                    alternate_slow_fast_writer);
-                ensure_total_chunks(chunks_to_fill);
+                    Config.alternate_slow_fast_writer);
+                ensure_total_chunks(Config.chunks_to_fill);
                 std::cout << "After suite set up before testing:";
                 print(std::cout);
+            }
+
+            ~state_t()
+            {
+                for (auto &device : pool.devices()) {
+                    auto const path = device.current_path();
+                    if (std::filesystem::exists(path)) {
+                        std::filesystem::remove(path);
+                    }
+                }
             }
 
             std::ostream &print(std::ostream &s) const
@@ -418,6 +458,9 @@ namespace monad::test
                               << " has capacity = " << chunk->capacity()
                               << " consumed = " << chunk->size();
                 }
+                std::cout << "\n\n   Free list: "
+                          << aux.db_metadata()->capacity_in_free_list
+                          << " bytes.";
                 std::cout << std::endl;
                 return s;
             }

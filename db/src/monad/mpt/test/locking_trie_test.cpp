@@ -139,7 +139,8 @@ public:
 };
 
 struct LockingTrieTest
-    : public monad::test::FillDBWithChunksGTest<2, false, TestMutex>
+    : public monad::test::FillDBWithChunksGTest<
+          monad::test::FillDBWithChunksConfig{.chunks_to_fill = 2}, TestMutex>
 {
 };
 

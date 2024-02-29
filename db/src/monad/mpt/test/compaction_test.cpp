@@ -21,7 +21,8 @@ using namespace monad::literals;
 static constexpr size_t CHUNKS_TO_FILL = 8;
 
 struct CompactionTest
-    : public monad::test::FillDBWithChunksGTest<CHUNKS_TO_FILL>
+    : public monad::test::FillDBWithChunksGTest<
+          monad::test::FillDBWithChunksConfig{.chunks_to_fill = CHUNKS_TO_FILL}>
 {
 };
 

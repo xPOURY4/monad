@@ -209,7 +209,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         sizeof(detail::db_metadata) +
         chunk_count * sizeof(detail::db_metadata::chunk_info_t);
     auto cnv_chunk = io->storage_pool().activate_chunk(storage_pool::cnv, 0);
-    auto fd = cnv_chunk->write_fd(0);
+    auto fdr = cnv_chunk->read_fd();
+    auto fdw = cnv_chunk->write_fd(0);
     /* If writable, can map maps writable. If read only but allowing
     dirty, maps are made copy-on-write so writes go into RAM and don't
     affect the original. This lets us heal any metadata and make forward
@@ -224,8 +225,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         can_write_to_map ? (PROT_READ | PROT_WRITE) : (PROT_READ),
         io->storage_pool().is_read_only_allow_dirty() ? MAP_PRIVATE
                                                       : MAP_SHARED,
-        fd.first,
-        off_t(fd.second)));
+        fdw.first,
+        off_t(fdr.second)));
     MONAD_ASSERT(db_metadata_[0] != MAP_FAILED);
     db_metadata_[1] = start_lifetime_as<detail::db_metadata>(::mmap(
         nullptr,
@@ -233,9 +234,18 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         can_write_to_map ? (PROT_READ | PROT_WRITE) : (PROT_READ),
         io->storage_pool().is_read_only_allow_dirty() ? MAP_PRIVATE
                                                       : MAP_SHARED,
-        fd.first,
-        off_t(fd.second + cnv_chunk->capacity() / 2)));
+        fdw.first,
+        off_t(fdr.second + cnv_chunk->capacity() / 2)));
     MONAD_ASSERT(db_metadata_[1] != MAP_FAILED);
+    /* If on a storage which ignores TRIM, and the user just truncated
+    an existing triedb, all the magics will be valid but the pool has
+    been reset. Solve this by detecting when a pool has just been truncated
+    and ensure all triedb structures are also reset.
+    */
+    if (io_->storage_pool().is_newly_truncated()) {
+        memset(db_metadata_[0]->magic, 0, sizeof(db_metadata_[0]->magic));
+        memset(db_metadata_[1]->magic, 0, sizeof(db_metadata_[1]->magic));
+    }
     /* If the front copy vanished for some reason ... this can happen
     if something or someone zaps the front bytes of the partition.
     */

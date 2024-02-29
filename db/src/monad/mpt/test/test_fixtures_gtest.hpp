@@ -30,16 +30,13 @@ namespace monad::test
     };
 
     template <
-        size_t chunks_to_fill, bool alternate_slow_fast_writer = false,
+        FillDBWithChunksConfig Config,
         monad::mpt::lockable_or_void LockType = void>
     struct FillDBWithChunksGTest
-        : public FillDBWithChunks<
-              chunks_to_fill, alternate_slow_fast_writer, LockType,
-              ::testing::Test>
+        : public FillDBWithChunks<Config, LockType, ::testing::Test>
     {
         using FillDBWithChunks<
-            chunks_to_fill, alternate_slow_fast_writer, LockType,
-            ::testing::Test>::FillDBWithChunks;
+            Config, LockType, ::testing::Test>::FillDBWithChunks;
     };
 
 }

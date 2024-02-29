@@ -17,7 +17,8 @@ static constexpr size_t CHUNKS_TO_FILL = 3;
 
 // Note that storage pool is configured with 8MB storage chunks
 struct NodeWriterTest
-    : public monad::test::FillDBWithChunksGTest<CHUNKS_TO_FILL>
+    : public monad::test::FillDBWithChunksGTest<
+          monad::test::FillDBWithChunksConfig{.chunks_to_fill = CHUNKS_TO_FILL}>
 {
 private:
     uint32_t rewind_fast_list_(unsigned const remaining_bytes_in_chunk)

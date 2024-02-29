@@ -82,6 +82,7 @@ namespace
         std::vector<std::byte> buffer(1024 * 1024);
         memset(buffer.data(), 0xee, buffer.size());
         std::cout << "\n\nWriting to conventional chunk ..." << std::endl;
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
         auto fd = chunk1->write_fd(buffer.size());
         EXPECT_EQ(fd.second, 0);
         MONAD_ASSERT(
@@ -90,18 +91,18 @@ namespace
                       buffer.data(),
                       buffer.size(),
                       static_cast<off_t>(fd.second)));
-        EXPECT_EQ(chunk1->size(), buffer.size());
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
 
         memset(buffer.data(), 0xaa, buffer.size());
         fd = chunk1->write_fd(buffer.size());
-        EXPECT_EQ(fd.second, buffer.size());
+        EXPECT_EQ(fd.second, 0);
         MONAD_ASSERT(
             -1 != ::pwrite(
                       fd.first,
                       buffer.data(),
                       buffer.size(),
-                      static_cast<off_t>(fd.second)));
-        EXPECT_EQ(chunk1->size(), buffer.size() * 2);
+                      static_cast<off_t>(fd.second + buffer.size())));
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
         print_pool_statistics(pool);
 
         memset(buffer.data(), 0x77, buffer.size());
@@ -195,7 +196,7 @@ namespace
                   << std::endl;
         print_pool_statistics(pool);
         chunk3->destroy_contents();
-        EXPECT_EQ(chunk1->size(), buffer.size() * 2);
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
         EXPECT_EQ(chunk2->size(), buffer.size() * 2);
         EXPECT_EQ(chunk3->size(), 0);
         check(chunk1, 0xee, 0xaa);
@@ -206,7 +207,7 @@ namespace
         std::cout << "\n\nDestroying contents of conventional chunk ..."
                   << std::endl;
         chunk1->destroy_contents();
-        EXPECT_EQ(chunk1->size(), 0);
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
         EXPECT_EQ(chunk2->size(), buffer.size() * 2);
         EXPECT_EQ(chunk3->size(), 0);
         check(chunk1, 0x00, 0x00);
@@ -217,7 +218,7 @@ namespace
         std::cout << "\n\nDestroying contents of first sequential chunk ..."
                   << std::endl;
         chunk2->destroy_contents();
-        EXPECT_EQ(chunk1->size(), 0);
+        EXPECT_EQ(chunk1->size(), chunk1->capacity()); // always full
         EXPECT_EQ(chunk2->size(), 0);
         EXPECT_EQ(chunk3->size(), 0);
         check(chunk1, 0x00, 0x00);

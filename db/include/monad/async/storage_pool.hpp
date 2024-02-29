@@ -100,6 +100,7 @@ public:
                 return ret;
             }
 
+            // Only used for seq chunks
             std::span<std::atomic<uint32_t>>
             chunk_bytes_used(file_offset_t end_of_this_offset) const noexcept
             {
@@ -112,6 +113,7 @@ public:
                     count};
             }
 
+            // Bytes used by the pool metadata on this device
             size_t total_size(file_offset_t end_of_this_offset) const noexcept
             {
                 auto count = chunks(end_of_this_offset);
@@ -351,7 +353,7 @@ public:
     using seq_chunk_ptr = std::shared_ptr<seq_chunk>;
 
 private:
-    bool const is_read_only_, is_read_only_allow_dirty_;
+    bool const is_read_only_, is_read_only_allow_dirty_, is_newly_truncated_;
     std::vector<device> devices_;
 
     // Lock protects everything below this
@@ -409,6 +411,13 @@ public:
     bool is_read_only_allow_dirty() const noexcept
     {
         return is_read_only_allow_dirty_;
+    }
+
+    //! \brief True if the storage pool was just truncated, and structures may
+    //! need reinitialising
+    bool is_newly_truncated() const noexcept
+    {
+        return is_newly_truncated_;
     }
 
     //! \brief Returns a list of the backing storage devices

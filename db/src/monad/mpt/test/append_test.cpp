@@ -19,8 +19,12 @@ struct AppendTest : public TFixture
 {
 };
 
-using AppendTestFastListOnly = monad::test::FillDBWithChunksGTest<2, false>;
-using AppendTestSlowAndFastList = monad::test::FillDBWithChunksGTest<2, true>;
+using AppendTestFastListOnly =
+    monad::test::FillDBWithChunksGTest<monad::test::FillDBWithChunksConfig{
+        .chunks_to_fill = 2, .alternate_slow_fast_writer = false}>;
+using AppendTestSlowAndFastList =
+    monad::test::FillDBWithChunksGTest<monad::test::FillDBWithChunksConfig{
+        .chunks_to_fill = 2, .alternate_slow_fast_writer = true}>;
 
 using AppendTestTypes =
     ::testing::Types<AppendTestFastListOnly, AppendTestSlowAndFastList>;

@@ -131,6 +131,9 @@ std::pair<int, file_offset_t>
 storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
 {
     if (device().is_file() || device().is_block_device()) {
+        if (!append_only_) {
+            return std::pair<int, file_offset_t>{write_fd_, offset_};
+        }
         auto *metadata = device().metadata_;
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device().size_of_file_);
@@ -155,6 +158,10 @@ file_offset_t storage_pool::chunk::size() const
 {
     if (device().is_file() || device().is_block_device()) {
         auto *metadata = device().metadata_;
+        if (!append_only_) {
+            // Conventional chunks are always full
+            return metadata->chunk_capacity;
+        }
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device().size_of_file_);
         return chunk_bytes_used[device_zone_id()].load(
@@ -213,11 +220,13 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
                       static_cast<off_t>(capacity_ - bytes))) {
             throw std::system_error(errno, std::system_category());
         }
-        auto *metadata = device().metadata_;
-        auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device().size_of_file_);
+        if (append_only_) {
+            auto *metadata = device().metadata_;
+            auto chunk_bytes_used =
+                metadata->chunk_bytes_used(device().size_of_file_);
         chunk_bytes_used[device_zone_id()].store(
-            bytes, std::memory_order_release);
+                bytes, std::memory_order_release);
+        }
         return true;
     }
     if (device().is_block_device()) {
@@ -276,11 +285,13 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
                 throw std::system_error(errno, std::system_category());
             }
         }
-        auto *metadata = device().metadata_;
-        auto chunk_bytes_used =
-            metadata->chunk_bytes_used(device().size_of_file_);
+        if (append_only_) {
+            auto *metadata = device().metadata_;
+            auto chunk_bytes_used =
+                metadata->chunk_bytes_used(device().size_of_file_);
         chunk_bytes_used[device_zone_id()].store(
-            bytes, std::memory_order_release);
+                bytes, std::memory_order_release);
+        }
         return true;
     }
     /* For zonefs, the documentation is unclear if you can truncate
@@ -337,10 +348,11 @@ storage_pool::device storage_pool::make_device_(
     default:
         abort();
     }
-    if (stat.st_size < 256 * 1024 * 1024 + CPU_PAGE_SIZE) {
+    if (stat.st_size < CPU_PAGE_SIZE) {
         std::stringstream str;
         str << "Storage pool source " << path
-            << " must be at least 256Mb + 4Kb long to be used with storage "
+            << " must be at least 4Kb long to be used with "
+               "storage "
                "pool";
         throw std::runtime_error(std::move(str).str());
     }
@@ -373,10 +385,11 @@ storage_pool::device storage_pool::make_device_(
                     << " has not been initialised for use with storage pool";
                 throw std::runtime_error(std::move(str).str());
             }
-            if (stat.st_size < 256 * 1024 * 1024 + CPU_PAGE_SIZE) {
+            if (stat.st_size < (1LL << flags.chunk_capacity) + CPU_PAGE_SIZE) {
                 std::stringstream str;
                 str << "Storage pool source " << path
-                    << " must be at least 256Mb + 4Kb long to be initialised "
+                    << " must be at least chunk_capacity + 4Kb long to be "
+                       "initialised "
                        "for use with storage pool";
                 throw std::runtime_error(std::move(str).str());
             }
@@ -404,17 +417,26 @@ storage_pool::device storage_pool::make_device_(
                 abort();
             }
             memset(buffer, 0, DISK_PAGE_SIZE * 2);
-            memcpy(metadata_footer->magic, "MND0", 4);
             MONAD_DEBUG_ASSERT(
                 chunk_capacity <= std::numeric_limits<uint32_t>::max());
+            for (off_t offset2 = static_cast<off_t>(
+                     offset - round_up_align<DISK_PAGE_BITS>(
+                                  (monad::async::file_offset_t(stat.st_size) /
+                                   chunk_capacity * sizeof(uint32_t))));
+                 offset2 < static_cast<off_t>(offset);
+                 offset2 += DISK_PAGE_SIZE) {
+                MONAD_ASSERT(
+                    ::pwrite(readwritefd, buffer, DISK_PAGE_SIZE, offset2) > 0);
+            }
+            memcpy(metadata_footer->magic, "MND0", 4);
             metadata_footer->chunk_capacity =
                 static_cast<uint32_t>(chunk_capacity);
             MONAD_ASSERT(
-                -1 != ::pwrite(
-                          readwritefd,
-                          buffer,
-                          static_cast<size_t>(bytesread),
-                          static_cast<off_t>(offset)));
+                ::pwrite(
+                    readwritefd,
+                    buffer,
+                    static_cast<size_t>(bytesread),
+                    static_cast<off_t>(offset)) > 0);
         }
         total_size =
             metadata_footer->total_size(static_cast<size_t>(stat.st_size));
@@ -554,7 +576,7 @@ void storage_pool::fill_chunks_(creation_flags flags)
 storage_pool::storage_pool(storage_pool const *src, clone_as_read_only_tag_)
     : is_read_only_(true)
     , is_read_only_allow_dirty_(false)
-
+    , is_newly_truncated_(false)
 {
     devices_.reserve(src->devices_.size());
     creation_flags flags;
@@ -611,6 +633,7 @@ storage_pool::storage_pool(
     creation_flags flags)
     : is_read_only_(flags.open_read_only || flags.open_read_only_allow_dirty)
     , is_read_only_allow_dirty_(flags.open_read_only_allow_dirty)
+    , is_newly_truncated_(mode == mode::truncate)
 {
     devices_.reserve(sources.size());
     for (auto const &source : sources) {
@@ -662,6 +685,7 @@ storage_pool::storage_pool(
 storage_pool::storage_pool(use_anonymous_inode_tag, creation_flags flags)
     : is_read_only_(flags.open_read_only || flags.open_read_only_allow_dirty)
     , is_read_only_allow_dirty_(flags.open_read_only_allow_dirty)
+    , is_newly_truncated_(false)
 {
     int const fd = make_temporary_inode();
     auto unfd = make_scope_exit([fd]() noexcept { ::close(fd); });

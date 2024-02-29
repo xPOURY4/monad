@@ -16,7 +16,9 @@
 using namespace MONAD_ASYNC_NAMESPACE;
 using namespace MONAD_MPT_NAMESPACE;
 
-struct ReadOnlyDBTest : public monad::test::FillDBWithChunksGTest<1>
+struct ReadOnlyDBTest
+    : public monad::test::FillDBWithChunksGTest<
+          monad::test::FillDBWithChunksConfig{.chunks_to_fill = 1}>
 {
 };
 
