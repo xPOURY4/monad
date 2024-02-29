@@ -14,18 +14,20 @@ option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(PROJECT_IS_TOP_LEVEL)
   add_subdirectory("monad-core")
+  include("monad-core/cmake/find_our_dependency.cmake")
 endif()
 
 find_package(
   Boost 1.83  ## 1.83 really is the minimum
-  COMPONENTS ""
-  REQUIRED)
-find_package(GTest)
-find_package(
-  Boost
   COMPONENTS context fiber json thread
   REQUIRED)
 find_package(CLI11 REQUIRED)
+find_package(GTest)
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(archive REQUIRED IMPORTED_TARGET libarchive)
+pkg_check_modules(zstd REQUIRED IMPORTED_TARGET libzstd)
+
   
 # ##############################################################################
 # libs
@@ -86,7 +88,7 @@ target_link_libraries(monad_trie PUBLIC monad_core)
 add_executable(monad_mpt "${PROJECT_SOURCE_DIR}/src/monad/mpt/cli_tool_main.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/cli_tool_impl.cpp")
 monad_core_compile_options(monad_mpt)
-target_link_libraries(monad_mpt PUBLIC monad_trie CLI11::CLI11)
+target_link_libraries(monad_mpt PUBLIC monad_trie PkgConfig::zstd PkgConfig::archive CLI11::CLI11)
 
 function(add_trie_test)
   set(ONE_VALUE_ARGS TARGET TEST_FILTER)

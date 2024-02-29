@@ -335,6 +335,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         chunks.reserve(chunk_count);
         for (uint32_t n = 0; n < chunk_count; n++) {
             auto chunk = io->storage_pool().chunk(storage_pool::seq, n);
+            MONAD_DEBUG_ASSERT(chunk->zone_id().first == storage_pool::seq);
+            MONAD_DEBUG_ASSERT(chunk->zone_id().second == n);
             MONAD_ASSERT(chunk->size() == 0); // chunks must actually be free
             chunks.push_back(n);
         }
@@ -360,6 +362,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
                 override_insertion_count(db_metadata_[0]);
                 override_insertion_count(db_metadata_[1]);
             }
+            auto *i = db_metadata_[0]->at_(id);
+            MONAD_ASSERT(i->index(db_metadata_[0]) == id);
         };
         // root offset is the front of fast list
         chunk_offset_t const fast_offset(chunks.front(), 0);
@@ -372,6 +376,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
         // insert the rest of the chunks to free list
         for (uint32_t const i : chunks_after_second) {
             append(chunk_list::free, i);
+            auto *i_ = db_metadata_[0]->at_(i);
+            MONAD_ASSERT(i_->index(db_metadata_[0]) == i);
         }
 
         // Mark as done, init root offset for the new database as invalid

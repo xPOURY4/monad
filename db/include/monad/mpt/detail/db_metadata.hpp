@@ -105,6 +105,9 @@ namespace detail
             }
         } db_offsets;
 
+        /* NOTE Remember to update the DB restore implementation in the CLI tool
+        if you modify anything after this!
+        */
         float slow_fast_ratio;
         uint64_t min_db_history_version;
         uint64_t max_db_history_version;

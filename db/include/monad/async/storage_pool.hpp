@@ -53,6 +53,13 @@ pathological i/o performance loss at usually the most inconvenient times.
 class storage_pool
 {
 public:
+    //! \brief Type of chunk, conventional or sequential
+    enum chunk_type
+    {
+        cnv = 0,
+        seq = 1
+    };
+
     /*! \brief A source of backing storage for the storage pool.
      */
     class device
@@ -78,7 +85,7 @@ public:
         {
             // Preceding this is an array of uint32_t of chunk bytes used
 
-            uint32_t spare0_; // set aside for flags later
+            uint32_t spare_[13]; // set aside for flags later
             uint32_t config_hash; // hash of this configuration
             uint32_t chunk_capacity;
             uint8_t magic[4]; // "MND0" for v1 of this metadata
@@ -120,6 +127,8 @@ public:
                 return sizeof(metadata_t) + count * sizeof(uint32_t);
             }
         } *const metadata_;
+
+        static_assert(sizeof(metadata_t) == 64);
 
         constexpr device(
             int cached_readwritefd, type_t_ type, uint64_t unique_hash,
@@ -176,20 +185,23 @@ public:
         int read_fd_{-1}, write_fd_{-1};
         file_offset_t const offset_{file_offset_t(-1)},
             capacity_{file_offset_t(-1)};
-        uint32_t chunkid_{uint32_t(-1)};
+        uint32_t const chunkid_within_device_{uint32_t(-1)};
+        uint32_t const chunkid_within_zone_{uint32_t(-1)};
         bool const owns_readfd_{false}, owns_writefd_{false},
             append_only_{false};
 
         constexpr chunk(
             class device &device, int read_fd, int write_fd,
-            file_offset_t offset, file_offset_t capacity, uint32_t chunkid,
+            file_offset_t offset, file_offset_t capacity,
+            uint32_t chunkid_within_device, uint32_t chunkid_within_zone,
             bool owns_readfd, bool owns_writefd, bool append_only)
             : device_(device)
             , read_fd_(read_fd)
             , write_fd_(write_fd)
             , offset_(offset)
             , capacity_(capacity)
-            , chunkid_(chunkid)
+            , chunkid_within_device_(chunkid_within_device)
+            , chunkid_within_zone_(chunkid_within_zone)
             , owns_readfd_(owns_readfd)
             , owns_writefd_(owns_writefd)
             , append_only_(append_only)
@@ -243,10 +255,14 @@ public:
             return capacity_;
         }
 
-        //! \brief Returns the chunk id of this zone on its device
-        uint32_t device_zone_id() const noexcept
+        //! \brief Returns the type of zone and id within that zone (starts from
+        //! zero for conventional and sequential)
+        std::pair<chunk_type, uint32_t> zone_id() const noexcept
         {
-            return chunkid_;
+            if (append_only_) {
+                return {chunk_type::seq, chunkid_within_zone_};
+            }
+            return {chunk_type::cnv, chunkid_within_zone_};
         }
 
         //! \brief Returns the current amount of the zone filled with data (note
@@ -363,7 +379,7 @@ private:
     {
         std::weak_ptr<class chunk> chunk;
         class device &device;
-        uint32_t const zone_id;
+        uint32_t const chunk_offset_into_device;
     };
 
     std::vector<chunk_info_> chunks_[2];
@@ -382,13 +398,6 @@ private:
     storage_pool(storage_pool const *src, clone_as_read_only_tag_);
 
 public:
-    //! \brief Type of chunk, conventional or sequential
-    enum chunk_type
-    {
-        cnv = 0,
-        seq = 1
-    };
-
     //! \brief Constructs a storage pool from the list of backing storage
     //! sources
     storage_pool(

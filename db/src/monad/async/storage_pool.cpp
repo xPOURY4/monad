@@ -86,8 +86,11 @@ std::pair<file_offset_t, file_offset_t> storage_pool::device::capacity() const
     }
     case device::type_t_::block_device: {
         file_offset_t capacity;
+        // Start with the pool metadata on the device
         file_offset_t used =
             round_up_align<CPU_PAGE_BITS>(metadata_->total_size(size_of_file_));
+        // Add the capacity of the cnv chunk
+        used += metadata_->chunk_capacity;
         if (ioctl(
                 cached_readwritefd_,
                 _IOR(0x12, 114, size_t) /*BLKGETSIZE64*/,
@@ -142,10 +145,10 @@ storage_pool::chunk::write_fd(size_t bytes_which_shall_be_written) noexcept
             std::numeric_limits<uint32_t>::max());
         auto size =
             (bytes_which_shall_be_written > 0)
-                ? chunk_bytes_used[device_zone_id()].fetch_add(
+                ? chunk_bytes_used[chunkid_within_device_].fetch_add(
                       static_cast<uint32_t>(bytes_which_shall_be_written),
                       std::memory_order_acq_rel)
-                : chunk_bytes_used[device_zone_id()].load(
+                : chunk_bytes_used[chunkid_within_device_].load(
                       std::memory_order_acquire);
         MONAD_ASSERT(
             size + bytes_which_shall_be_written <= metadata->chunk_capacity);
@@ -164,7 +167,7 @@ file_offset_t storage_pool::chunk::size() const
         }
         auto chunk_bytes_used =
             metadata->chunk_bytes_used(device().size_of_file_);
-        return chunk_bytes_used[device_zone_id()].load(
+        return chunk_bytes_used[chunkid_within_device_].load(
             std::memory_order_acquire);
     }
     throw std::runtime_error("zonefs support isn't implemented yet");
@@ -224,7 +227,7 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
             auto *metadata = device().metadata_;
             auto chunk_bytes_used =
                 metadata->chunk_bytes_used(device().size_of_file_);
-        chunk_bytes_used[device_zone_id()].store(
+            chunk_bytes_used[chunkid_within_device_].store(
                 bytes, std::memory_order_release);
         }
         return true;
@@ -289,7 +292,7 @@ bool storage_pool::chunk::try_trim_contents(uint32_t bytes)
             auto *metadata = device().metadata_;
             auto chunk_bytes_used =
                 metadata->chunk_bytes_used(device().size_of_file_);
-        chunk_bytes_used[device_zone_id()].store(
+            chunk_bytes_used[chunkid_within_device_].store(
                 bytes, std::memory_order_release);
         }
         return true;
@@ -512,16 +515,23 @@ void storage_pool::fill_chunks_(creation_flags flags)
                 str << "Storage pool source " << device.current_path()
                     << " was initialised with a configuration different to "
                        "this storage pool. Is a device missing or is there an "
-                       "extra device from when the pool was first created?";
+                       "extra device from when the pool was first "
+                       "created?\n\nYou should use the monad_mpt tool to copy "
+                       "and move databases around, NOT by copying partition "
+                       "contents!";
                 throw std::runtime_error(std::move(str).str());
             }
             else {
-                std::cerr << "WARNING: Storage pool source "
-                          << device.current_path()
-                          << " was initialised with a configuration different "
-                             "to this storage pool. Only proceeding because "
-                             "disable_mismatching_storage_pool_check = true"
-                          << std::endl;
+                str << "Storage pool source " << device.current_path()
+                    << " was initialised with a configuration different to "
+                       "this storage pool. Is a device missing or is there an "
+                       "extra device from when the pool was first "
+                       "created?\n\nYou should use the monad_mpt tool to copy "
+                       "and move databases around, NOT by copying partition "
+                       "contents\n\nSince the monad_mpt tool was added, the "
+                       "flag disable_mismatching_storage_pool_check is no "
+                       "longer needed and has been disabled.";
+                throw std::runtime_error(std::move(str).str());
             }
         }
     }
@@ -795,6 +805,7 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
             0,
             devices_[id].metadata_->chunk_capacity,
             id,
+            id,
             false,
             false,
             false));
@@ -828,10 +839,11 @@ storage_pool::activate_chunk(chunk_type const which, uint32_t const id)
             chunkinfo.device,
             fds[0],
             fds[1],
-            file_offset_t(chunkinfo.zone_id) *
+            file_offset_t(chunkinfo.chunk_offset_into_device) *
                 chunkinfo.device.metadata_->chunk_capacity,
             chunkinfo.device.metadata_->chunk_capacity,
-            chunkinfo.zone_id,
+            chunkinfo.chunk_offset_into_device,
+            id,
             false,
             false,
             true));
