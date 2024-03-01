@@ -364,9 +364,8 @@ void UpdateAuxImpl::set_io(AsyncIO *io_)
             append(chunk_list::free, i);
         }
 
-        // Mark as done
-        advance_offsets_to(fast_offset, fast_offset, slow_offset);
-        MONAD_ASSERT(get_root_offset().id == db_metadata()->fast_list.begin);
+        // Mark as done, init root offset for the new database as invalid
+        advance_offsets_to(INVALID_OFFSET, fast_offset, slow_offset);
 
         std::atomic_signal_fence(
             std::memory_order_seq_cst); // no compiler reordering here

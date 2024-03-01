@@ -118,10 +118,7 @@ struct Db::OnDisk
                     options.append ? async::storage_pool::mode::open_existing
                                    : async::storage_pool::mode::truncate};
             }()}
-            , ring1{
-                  {options.uring_entries,
-                   options.enable_io_polling,
-                   options.sq_thread_cpu}}
+            , ring1{{options.uring_entries, options.enable_io_polling, options.sq_thread_cpu}}
             , ring2{options.wr_buffers}
             , rwbuf{io::make_buffers_for_segregated_read_write(
                   ring1, ring2, options.rd_buffers, options.wr_buffers,
@@ -333,15 +330,13 @@ Db::Db(StateMachine &machine, OnDiskDbConfig const &config)
     : on_disk_{std::make_unique<OnDisk>(aux_, config)}
     , aux_{&on_disk_->worker->io}
     , root_(
-          config.append ? Node::UniquePtr{read_node_blocking(
-                              on_disk_->worker->pool, aux_.get_root_offset())}
-                        : Node::UniquePtr{})
+          aux_.get_root_offset() != INVALID_OFFSET
+              ? Node::UniquePtr{read_node_blocking(
+                    on_disk_->worker->pool, aux_.get_root_offset())}
+              : Node::UniquePtr{})
     , machine_{machine}
 {
     MONAD_DEBUG_ASSERT(aux_.is_on_disk());
-    if (config.append) {
-        MONAD_ASSERT(root_);
-    }
 }
 
 Db::~Db()
