@@ -434,4 +434,18 @@ NodeCursor Db::root() const noexcept
     return root_ ? NodeCursor{*root_} : NodeCursor{};
 }
 
+std::optional<uint64_t> Db::get_latest_block_id() const
+{
+    return root_ ? std::make_optional<uint64_t>(
+                       aux_.max_version_in_db_history(*root_))
+                 : std::nullopt;
+}
+
+std::optional<uint64_t> Db::get_earliest_block_id() const
+{
+    return root_ ? std::make_optional<uint64_t>(
+                       aux_.min_version_in_db_history(*root_))
+                 : std::nullopt;
+}
+
 MONAD_MPT_NAMESPACE_END

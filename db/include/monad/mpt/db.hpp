@@ -53,6 +53,8 @@ public:
     //! fiber future.
     void traverse(NibblesView prefix, TraverseMachine &, uint64_t block_id = 0);
     NodeCursor root() const noexcept;
+    std::optional<uint64_t> get_latest_block_id() const;
+    std::optional<uint64_t> get_earliest_block_id() const;
 };
 
 MONAD_MPT_NAMESPACE_END
