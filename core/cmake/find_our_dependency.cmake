@@ -29,6 +29,12 @@ function(find_our_dependency name)
   if(NOT TARGET ${FIND_DEPENDENCY_IMPORTED_TARGET})
     # Used to create an imported cmake target when needed
     macro(make_imported_target)
+      if(NOT EXISTS "${${name}_LIBRARY}")
+        message(FATAL_ERROR "FATAL: ${name}_LIBRARY=${${name}_LIBRARY} does not exist")
+      endif()
+      if(NOT EXISTS "${${name}_INCLUDE_DIR}")
+        message(FATAL_ERROR "FATAL: ${name}_INCLUDE_DIR=${${name}_INCLUDE_DIR} does not exist")
+      endif()
       add_library(${FIND_DEPENDENCY_IMPORTED_TARGET} UNKNOWN IMPORTED)
       set_target_properties(${FIND_DEPENDENCY_IMPORTED_TARGET} PROPERTIES
         IMPORTED_LOCATION "${${name}_LIBRARY}"
@@ -41,15 +47,18 @@ function(find_our_dependency name)
     # package manager, it will be found now.
     find_package(${name} ${QUIET})
     if(${name}_FOUND)
-      make_imported_target()
+      if(NOT TARGET ${FIND_DEPENDENCY_IMPORTED_TARGET})
+        message(FATAL_ERROR "FATAL: IMPORTED_TARGET=${FIND_DEPENDENCY_IMPORTED_TARGET} does not equal the target defined by find_package(${name}), which successfully found the dependency.")
+      endif()
     else()
       # Second ask pkg-config for the local system for the dependency. Autotools
       # will register packages here, cmake may also do so if you install a package.
       pkg_check_modules(${name} ${QUIET} IMPORTED_TARGET ${FIND_DEPENDENCY_IMPORTED_TARGET})
       if(NOT ${name}_FOUND)
         # Third simply ask the local OS installation for the dependency.
-        find_library(${name} NAMES "${name}" ${QUIET})
-        if(${name})
+        find_library(${name}_LIBRARY NAMES "${name}" ${QUIET})
+        if(${name}_LIBRARY)
+          find_path(${name}_INCLUDE_DIR NAMES "${name}.h" ${QUIET})
           make_imported_target()
         endif()
       endif()

@@ -14,7 +14,6 @@ option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ##############################################################################
 
 include("cmake/find_our_dependency.cmake")
-find_our_dependency(absl REQUIRED)
 
 cmake_host_system_information(RESULT linux_flavour QUERY DISTRIB_ID)
 if(linux_flavour MATCHES "debian|ubuntu")
