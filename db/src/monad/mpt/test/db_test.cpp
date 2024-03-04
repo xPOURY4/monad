@@ -180,6 +180,60 @@ TEST_F(OnDiskDbWithFileFixture, read_only_db)
         0x22f3b7fc4b987d8327ec4525baf4cb35087a75d9250a8a3be45881dd889027ad_hex);
 }
 
+TEST(DbTest, load_correct_root_upon_repon_nonempty_db)
+{
+    std::filesystem::path const dbname{
+        MONAD_ASYNC_NAMESPACE::working_temporary_directory() /
+        "monad_db_test_reopen_XXXXXX"};
+    StateMachineAlwaysMerkle machine{};
+    OnDiskDbConfig config{.dbname_paths = {dbname}, .file_size_db = 8};
+
+    auto const &kv = fixed_updates::kv;
+    auto const prefix = 0x00_hex;
+    uint64_t const block_id = 0x123;
+
+    {
+        Db db{machine, config};
+        // db is init to empty
+        EXPECT_FALSE(db.root().is_valid());
+        EXPECT_FALSE(db.get_latest_block_id().has_value());
+    }
+
+    { // reopen the same db with append flag turned on
+        config.append = true;
+        Db db{machine, config};
+        // db is still empty
+        EXPECT_FALSE(db.root().is_valid());
+        EXPECT_FALSE(db.get_latest_block_id().has_value());
+
+        auto u1 = make_update(kv[2].first, kv[2].second);
+        auto u2 = make_update(kv[3].first, kv[3].second);
+        UpdateList ul;
+        ul.push_front(u1);
+        ul.push_front(u2);
+
+        auto u_prefix = Update{
+            .key = prefix,
+            .value = monad::byte_string_view{},
+            .incarnation = false,
+            .next = std::move(ul)};
+        UpdateList ul_prefix;
+        ul_prefix.push_front(u_prefix);
+
+        // db will have a valid root and root offset after this line
+        db.upsert(std::move(ul_prefix), block_id);
+    }
+
+    { // reopen the same db again, this time we will have a valid root loaded
+        config.append = true;
+        Db db{machine, config};
+        EXPECT_TRUE(db.root().is_valid());
+        EXPECT_TRUE(db.get_latest_block_id().has_value());
+        EXPECT_EQ(db.get_latest_block_id().value(), block_id);
+        EXPECT_EQ(db.get_earliest_block_id().value(), block_id);
+    }
+}
+
 TYPED_TEST(DbTest, simple_with_same_prefix)
 {
     auto const &kv = fixed_updates::kv;
