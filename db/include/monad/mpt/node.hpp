@@ -334,7 +334,7 @@ Node::UniquePtr make_node(
     std::optional<byte_string_view> value, byte_string_view data);
 
 // create node: either branch/extension, with or without leaf
-Node *create_node(
+Node *create_node_with_children(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
     std::optional<byte_string_view> value = std::nullopt);
 

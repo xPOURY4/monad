@@ -28,18 +28,19 @@ namespace monad::test
 
     struct EmptyCompute final : Compute
     {
-        virtual unsigned
-        compute_len(std::span<ChildData> const, uint16_t const) override
+        virtual unsigned compute_len(
+            std::span<ChildData>, uint16_t, NibblesView,
+            std::optional<byte_string_view>) override
         {
             return 0;
         }
 
-        virtual unsigned compute_branch(unsigned char *const, Node *) override
+        virtual unsigned compute_branch(unsigned char *, Node *) override
         {
             return 0;
         }
 
-        virtual unsigned compute(unsigned char *const, Node *) override
+        virtual unsigned compute(unsigned char *, Node *) override
         {
             return 0;
         }
@@ -56,7 +57,7 @@ namespace monad::test
     class StateMachineWithBlockNo final : public StateMachine
     {
     private:
-        static constexpr auto block_num_size = 12;
+        static constexpr auto block_num_size = BLOCK_NUM_NIBBLES_LEN;
         static constexpr auto cache_depth = block_num_size + 6;
         static constexpr auto max_depth = block_num_size + 64 + 64;
         size_t depth{0};
@@ -107,6 +108,60 @@ namespace monad::test
     static_assert(sizeof(StateMachineWithBlockNo) == 16);
     static_assert(alignof(StateMachineWithBlockNo) == 8);
 
+    class StateMachineVarLenTrieWithBlockNo final : public StateMachine
+    {
+    private:
+        static constexpr auto block_num_size = BLOCK_NUM_NIBBLES_LEN;
+        static constexpr auto cache_depth = block_num_size + 6;
+        static constexpr auto max_depth = block_num_size + 65;
+        size_t depth{0};
+
+    public:
+        virtual std::unique_ptr<StateMachine> clone() const override
+        {
+            return std::make_unique<StateMachineVarLenTrieWithBlockNo>(*this);
+        }
+
+        virtual void down(unsigned char) override
+        {
+            ++depth;
+        }
+
+        virtual void up(size_t n) override
+        {
+            MONAD_DEBUG_ASSERT(n <= depth);
+            depth -= n;
+        }
+
+        virtual Compute &get_compute() const override
+        {
+            static VarLenMerkleCompute m{};
+            static RootVarLenMerkleCompute rm{};
+            static EmptyCompute e{};
+            if (MONAD_LIKELY(depth > block_num_size)) {
+                return m;
+            }
+            else if (depth < block_num_size) {
+                return e;
+            }
+            return rm;
+        }
+
+        virtual constexpr bool cache() const override
+        {
+            MONAD_ASSERT(depth <= max_depth);
+            return depth < cache_depth;
+        }
+
+        virtual constexpr bool compact() const override
+        {
+            return depth >= block_num_size;
+        }
+    };
+
+    static_assert(sizeof(StateMachineVarLenTrieWithBlockNo) == 16);
+    static_assert(alignof(StateMachineVarLenTrieWithBlockNo) == 8);
+
     template <class Compute, size_t cache_depth = 6>
     class StateMachineAlways final : public StateMachine
     {
@@ -152,6 +207,7 @@ namespace monad::test
 
     using StateMachineAlwaysEmpty = StateMachineAlways<EmptyCompute>;
     using StateMachineAlwaysMerkle = StateMachineAlways<MerkleCompute>;
+    using StateMachineAlwaysVarLen = StateMachineAlways<VarLenMerkleCompute>;
 
     Node::UniquePtr upsert_vector(
         UpdateAuxImpl &aux, StateMachine &sm, Node::UniquePtr old,
@@ -369,7 +425,7 @@ namespace monad::test
                         flags);
                 }
                 char temppath[] = "monad_test_fixture_XXXXXX";
-                const int fd = mkstemp(temppath);
+                int const fd = mkstemp(temppath);
                 if (-1 == fd) {
                     abort();
                 }

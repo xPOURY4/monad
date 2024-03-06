@@ -62,6 +62,7 @@ add_library(
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/trie.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/util.hpp"
   "${PROJECT_SOURCE_DIR}/include/monad/mpt/update.hpp"
+  "${PROJECT_SOURCE_DIR}/src/monad/mpt/compute.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/copy_node.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/db.cpp"
   "${PROJECT_SOURCE_DIR}/src/monad/mpt/find_notify_fiber.cpp"

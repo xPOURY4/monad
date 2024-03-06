@@ -467,8 +467,6 @@ Node::UniquePtr make_node(
     }
 
     auto const number_of_children = static_cast<size_t>(std::popcount(mask));
-    MONAD_DEBUG_ASSERT(
-        data_size == 0 || (number_of_children && value.has_value()));
     std::vector<uint16_t> child_data_offsets;
     child_data_offsets.reserve(children.size());
     uint16_t total_child_data_size = 0;
@@ -522,12 +520,13 @@ Node::UniquePtr make_node(
 }
 
 // all children's offset are set before creating parent
-Node *create_node(
+// create node with at least one child
+Node *create_node_with_children(
     Compute &comp, uint16_t const mask, std::span<ChildData> children,
     NibblesView const path, std::optional<byte_string_view> const value)
 {
-    auto const data_size =
-        value.has_value() ? comp.compute_len(children, mask) : 0;
+    MONAD_ASSERT(mask);
+    auto const data_size = comp.compute_len(children, mask, path, value);
     auto node = make_node(mask, children, path, value, data_size);
     MONAD_DEBUG_ASSERT(node);
     if (data_size) {

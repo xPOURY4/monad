@@ -462,7 +462,8 @@ Node *create_node_from_children_if_any(
             }
         }
     }
-    return create_node(sm.get_compute(), mask, children, path, leaf_data);
+    return create_node_with_children(
+        sm.get_compute(), mask, children, path, leaf_data);
 }
 
 void create_node_compute_data_possibly_async(

@@ -16,9 +16,13 @@ using namespace monad::literals;
 struct DummyCompute final : Compute
 {
     // hash length = 1
-    virtual unsigned
-    compute_len(std::span<ChildData> const children, uint16_t const) override
+    virtual unsigned compute_len(
+        std::span<ChildData> const children, uint16_t const, NibblesView const,
+        std::optional<monad::byte_string_view> const value) override
     {
+        if (!value.has_value()) {
+            return 0;
+        }
         unsigned len = 0;
         for (auto const &i : children) {
             len += i.len;
@@ -66,7 +70,8 @@ TEST(NodeTest, leaf_single_branch)
     children[0].ptr = child;
     NibblesView const path2{1, 10, path.data()};
     uint16_t const mask = 1u << 0xc;
-    Node::UniquePtr node{create_node(comp, mask, children, path2, value)};
+    Node::UniquePtr node{
+        create_node_with_children(comp, mask, children, path2, value)};
 
     EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
@@ -92,7 +97,8 @@ TEST(NodeTest, leaf_multiple_branches)
     children[1].ptr = child2;
     NibblesView const path2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    Node::UniquePtr node{create_node(comp, mask, children, path2, value)};
+    Node::UniquePtr node{
+        create_node_with_children(comp, mask, children, path2, value)};
 
     EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
@@ -118,7 +124,8 @@ TEST(NodeTest, branch_node)
     children[1].ptr = child2;
     NibblesView const path2{1, 1, path.data()}; // path2 is empty
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    Node::UniquePtr node{create_node(comp, mask, children, path2)};
+    Node::UniquePtr node{
+        create_node_with_children(comp, mask, children, path2)};
 
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->data_len, 0);
@@ -144,7 +151,8 @@ TEST(NodeTest, extension_node)
     children[1].ptr = child2;
     NibblesView const path2{1, 10, path.data()};
     uint16_t const mask = (1u << 0xa) | (1u << 0xc);
-    Node::UniquePtr node{create_node(comp, mask, children, path2)};
+    Node::UniquePtr node{
+        create_node_with_children(comp, mask, children, path2)};
 
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->path_nibble_view(), path2);

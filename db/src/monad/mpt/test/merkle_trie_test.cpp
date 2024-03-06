@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <list>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -808,6 +809,8 @@ TYPED_TEST(TrieTest, root_data_always_hashed)
 
 TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
 {
+    this->sm = std::make_unique<StateMachineWithBlockNo>();
+
     auto const &kv = fixed_updates::kv;
     uint64_t const start_block_id = 0x123;
     auto const prefix = 0x00_hex;
@@ -866,4 +869,163 @@ TYPED_TEST(TrieTest, aux_do_update_fixed_history_len)
     for (uint64_t i = 0; i < 400; ++i) {
         upsert_same_kv_once(start_block_id + i);
     }
+}
+
+TYPED_TEST(TrieTest, variable_length_trie)
+{
+    this->sm = std::make_unique<StateMachineAlwaysVarLen>();
+
+    auto const key0 = 0x80_hex;
+    auto const key1 = 0x01_hex;
+    auto const key16 = 0x10_hex;
+    auto const key128 = 0x8180_hex;
+    auto const key256 = 0x820100_hex;
+    auto const keylong = 0x808182_hex;
+
+    auto const value = 0xbeef_hex;
+
+    // single element in trie
+    this->root =
+        upsert_updates(this->aux, *this->sm, {}, make_update(keylong, value));
+    EXPECT_EQ(
+        this->root_hash(),
+        0x82a7b59bf8abe584aef31b580efaadbf19d0eba0e4ea8986e23db14ba9be6cb2_hex);
+
+    // multiple keys
+    this->root = upsert_updates(
+        this->aux,
+        *this->sm,
+        {},
+        make_update(key0, value),
+        make_update(key1, value),
+        make_update(key16, value),
+        make_update(key128, value),
+        make_update(key256, value),
+        make_update(keylong, value));
+
+    EXPECT_EQ(
+        this->root_hash(),
+        0x162ce2fb5920c8d988691f4e826deb4f41951ea6343d4d8894b6ea3f5fbb4be0_hex);
+
+    // longer value
+    auto const long_value =
+        0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex;
+    this->root = upsert_updates(
+        this->aux,
+        *this->sm,
+        {},
+        make_update(key0, long_value),
+        make_update(key1, long_value),
+        make_update(key16, long_value),
+        make_update(key128, long_value),
+        make_update(key256, long_value),
+        make_update(keylong, long_value));
+    EXPECT_EQ(
+        this->root_hash(),
+        0x1a904a5579e7f301af64aeebbce5189b9df1e534fd2a4b642e604e92834a7611_hex);
+
+    // find
+    {
+        auto [node0, res] = find_blocking(this->aux, *this->root, key0);
+        EXPECT_EQ(res, monad::mpt::find_result::success);
+        EXPECT_EQ(node0.node->value(), long_value);
+    }
+
+    {
+        auto [node_long, res] = find_blocking(this->aux, *this->root, keylong);
+        EXPECT_EQ(res, monad::mpt::find_result::success);
+        EXPECT_EQ(node_long.node->value(), long_value);
+    }
+}
+
+TYPED_TEST(TrieTest, variable_length_trie_with_prefix)
+{
+    this->sm = std::make_unique<StateMachineVarLenTrieWithBlockNo>();
+
+    auto const key0 = 0x80_hex;
+    auto const key1 = 0x01_hex;
+    auto const key16 = 0x10_hex;
+    auto const key128 = 0x8180_hex;
+    auto const key256 = 0x820100_hex;
+    auto const keylong = 0x808182_hex;
+    auto const value =
+        0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef_hex;
+
+    uint64_t const block_id = 0x123;
+    auto const block_number_prefix =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+
+    std::list<Update> updates_alloc;
+    UpdateList updates;
+
+    updates.push_front(updates_alloc.emplace_back(make_update(key0, value)));
+    updates.push_front(updates_alloc.emplace_back(make_update(key1, value)));
+    updates.push_front(updates_alloc.emplace_back(make_update(key16, value)));
+    updates.push_front(updates_alloc.emplace_back(make_update(key128, value)));
+    updates.push_front(updates_alloc.emplace_back(make_update(key256, value)));
+    updates.push_front(updates_alloc.emplace_back(make_update(keylong, value)));
+
+    this->root = upsert_updates(
+        this->aux,
+        *this->sm,
+        {},
+        make_update(
+            block_number_prefix,
+            monad::byte_string_view{},
+            false,
+            std::move(updates)));
+
+    auto [root_it, res] =
+        find_blocking(this->aux, NodeCursor{*this->root}, block_number_prefix);
+    EXPECT_EQ(res, find_result::success);
+    EXPECT_EQ(
+        root_it.node->data(),
+        0x1a904a5579e7f301af64aeebbce5189b9df1e534fd2a4b642e604e92834a7611_hex);
+
+    // find
+    {
+        auto [node0, res] =
+            find_blocking(this->aux, *this->root, block_number_prefix + key0);
+        EXPECT_EQ(res, monad::mpt::find_result::success);
+        EXPECT_EQ(node0.node->value(), value);
+    }
+
+    {
+        auto [node_long, res] = find_blocking(
+            this->aux, *this->root, block_number_prefix + keylong);
+        EXPECT_EQ(res, monad::mpt::find_result::success);
+        EXPECT_EQ(node_long.node->value(), value);
+    }
+}
+
+TYPED_TEST(TrieTest, single_value_variable_length_trie_with_prefix)
+{
+    this->sm = std::make_unique<StateMachineVarLenTrieWithBlockNo>();
+
+    uint64_t const block_id = 0x123;
+    auto const block_number_prefix =
+        serialize_as_big_endian<BLOCK_NUM_BYTES>(block_id);
+
+    auto const keylong = 0x808182_hex;
+    auto const value = 0xbeef_hex;
+
+    UpdateList updates;
+    Update u = make_update(keylong, value);
+    updates.push_front(u);
+
+    this->root = upsert_updates(
+        this->aux,
+        *this->sm,
+        {},
+        make_update(
+            block_number_prefix,
+            monad::byte_string_view{},
+            false,
+            std::move(updates)));
+    auto [root_it, res] =
+        find_blocking(this->aux, NodeCursor{*this->root}, block_number_prefix);
+    EXPECT_EQ(res, find_result::success);
+    EXPECT_EQ(
+        root_it.node->data(),
+        0x82a7b59bf8abe584aef31b580efaadbf19d0eba0e4ea8986e23db14ba9be6cb2_hex);
 }

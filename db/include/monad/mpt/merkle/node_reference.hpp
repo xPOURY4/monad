@@ -14,9 +14,9 @@ MONAD_MPT_NAMESPACE_BEGIN
 inline unsigned
 to_node_reference(byte_string_view rlp, unsigned char *dest) noexcept
 {
-    if (MONAD_LIKELY(rlp.size() >= 32)) {
+    if (MONAD_LIKELY(rlp.size() >= KECCAK256_SIZE)) {
         keccak256(rlp.data(), rlp.size(), dest);
-        return 32;
+        return KECCAK256_SIZE;
     }
     else {
         std::memcpy(dest, rlp.data(), rlp.size());
