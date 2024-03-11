@@ -881,9 +881,12 @@ namespace allocators
     #if MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
             auto *ret = (value_type *)std::malloc(n);
     #else
-            size_t const i = get_index(n);
-            auto &_impl = _pools()[i];
-            auto *const ret = (value_type *)_impl.malloc();
+            auto *const ret =
+                (n > upper_bound) ? (value_type *)std::malloc(n) : [&] {
+                    size_t const i = get_index(n);
+                    auto &_impl = _pools()[i];
+                    return (value_type *)_impl.malloc();
+                }();
     #endif
             if (ret == nullptr) {
                 throw std::bad_alloc();
@@ -897,16 +900,21 @@ namespace allocators
             (void)n;
             std::free(p);
     #else
-            size_t const i = get_index(n);
-            auto &_impl = _pools()[i];
-            _impl.free(p);
+            if (n > upper_bound) {
+                (void)n;
+                std::free(p);
+            }
+            else {
+                size_t const i = get_index(n);
+                auto &_impl = _pools()[i];
+                _impl.free(p);
+            }
     #endif
         }
     };
 #endif
 
     /**************************************************************************/
-
 }
 
 MONAD_NAMESPACE_END

@@ -208,7 +208,12 @@ namespace
             alloc.deallocate(p5, 64);
         }
 
-        EXPECT_THROW((void)alloc.allocate(65), std::invalid_argument);
+        // success on allocating size larger than upper bound
+        auto *const p6 = alloc.allocate(65);
+        EXPECT_TRUE(p5 != nullptr);
+        if (p6) {
+            alloc.deallocate(p6, 65);
+        }
     }
 #endif
 }
