@@ -26,7 +26,8 @@ struct find_request_sender::find_receiver
         , branch_index(sender->root_.node->to_child_index(branch))
     {
         chunk_offset_t const offset = sender->root_.node->fnext(branch_index);
-        auto const num_pages_to_load_node = offset.spare;
+        auto const num_pages_to_load_node =
+            node_disk_pages_spare_15{offset}.to_pages();
         bytes_to_read =
             static_cast<unsigned>(num_pages_to_load_node << DISK_PAGE_BITS);
         rd_offset = offset;

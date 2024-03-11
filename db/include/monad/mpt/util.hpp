@@ -48,7 +48,6 @@ struct virtual_chunk_offset_t
     static constexpr file_offset_t max_offset = (1ULL << 28) - 1;
     static constexpr file_offset_t max_count = (1U << 20) - 1;
     static constexpr file_offset_t max_spare = (1U << 15) - 1;
-    static constexpr file_offset_t top_bit_mask_in_spare = 1U << 15;
 
     static constexpr virtual_chunk_offset_t invalid_value() noexcept
     {

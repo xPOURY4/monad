@@ -3,6 +3,7 @@
 #include <monad/async/storage_pool.hpp>
 #include <monad/core/byte_string.hpp>
 #include <monad/core/endian.hpp> // NOLINT
+#include <monad/core/keccak.h>
 #include <monad/core/math.hpp>
 #include <monad/mem/allocators.hpp>
 #include <monad/mpt/detail/unsigned_20.hpp>
@@ -18,7 +19,7 @@ struct Compute;
 class NibblesView;
 class Node;
 
-static constexpr size_t size_of_node = 12;
+static constexpr size_t size_of_node = 16;
 
 constexpr size_t calculate_node_size(
     size_t const number_of_children, size_t const total_child_data_size,
@@ -33,6 +34,58 @@ constexpr size_t calculate_node_size(
                number_of_children +
            total_child_data_size + value_size + path_size + data_size;
 }
+
+struct node_disk_pages_spare_15
+{
+    struct spare_type_15
+    {
+        uint16_t count : 10;
+        uint16_t shift : 5;
+        uint16_t reserved0_ : 1;
+    };
+
+    union spare_dual
+    {
+        spare_type_15 spare;
+        uint16_t value;
+
+        constexpr spare_dual(uint16_t v)
+            : value(v)
+        {
+        }
+    } value;
+
+    static constexpr unsigned count_bits = 10;
+    static constexpr size_t max_count = (1UL << 10) - 1;
+    static constexpr uint16_t max_shift = (1U << 5) - 1;
+
+    explicit constexpr node_disk_pages_spare_15(chunk_offset_t const offset)
+        : value(static_cast<uint16_t>(offset.spare))
+    {
+    }
+
+    explicit constexpr node_disk_pages_spare_15(unsigned const pages)
+        : value{0}
+    {
+        unsigned const exp = pages >> count_bits;
+        auto const shift = static_cast<uint16_t>(
+            std::numeric_limits<decltype(exp)>::digits - std::countl_zero(exp));
+        value.spare.count =
+            ((pages >> shift) + bool(pages & ((1u << shift) - 1))) & max_count;
+        value.spare.shift = shift & max_shift;
+    }
+
+    constexpr unsigned to_pages() const noexcept
+    {
+        return static_cast<unsigned>(value.spare.count) << value.spare.shift;
+    }
+
+    // conversion to uint16_t
+    explicit constexpr operator uint16_t() const noexcept
+    {
+        return value.value;
+    }
+};
 
 /* A note on generic trie
 
@@ -61,6 +114,7 @@ defined differently in each section, and we leave the actual computation to the
 We store node data to its parent's storage to avoid an extra read of child node
 to retrieve child data.
 */
+
 class Node
 {
     struct prevent_public_construction_tag
@@ -68,19 +122,18 @@ class Node
     };
 
 public:
-    static constexpr size_t max_value_size =
-        std::numeric_limits<uint16_t>::max();
-    static constexpr size_t max_children = 16;
-    static constexpr size_t max_size = calculate_node_size(
-        max_children, max_children * 32, max_value_size, 32, 32);
-    static constexpr size_t max_disk_size = max_size - (sizeof(Node *) * 16);
-    static_assert(max_size == 66539);
-    static_assert(max_disk_size == 66411);
+    static constexpr size_t max_size_for_boost_pools = 66544;
+    static constexpr size_t max_number_of_children = 16;
+    static constexpr size_t max_disk_size =
+        256 * 1024 * 1024; // 256mb, same as storage chunk size
+    static constexpr size_t max_size =
+        max_disk_size + max_number_of_children * KECCAK256_SIZE;
 #if !MONAD_CORE_ALLOCATORS_DISABLE_BOOST_OBJECT_POOL
     static constexpr size_t allocator_divisor = 16;
     using BytesAllocator = allocators::array_of_boost_pools_allocator<
         round_up<size_t>(size_of_node, allocator_divisor),
-        round_up<size_t>(max_size, allocator_divisor), allocator_divisor>;
+        round_up<size_t>(max_size_for_boost_pools, allocator_divisor),
+        allocator_divisor>;
     static_assert(BytesAllocator::allocation_upper_bound == 66544);
 #else
     using BytesAllocator = allocators::malloc_free_allocator<std::byte>;
@@ -107,14 +160,13 @@ public:
     } bitpacked{0};
 
     static_assert(sizeof(bitpacked) == 1);
-
-    /* size (in byte) of user-passed leaf data */
-    uint16_t value_len{0};
     /* size (in byte) of intermediate cache for branch hash */
     uint8_t data_len{0};
     uint8_t path_nibble_index_end{0};
     /* node on disk size */
     uint32_t disk_size{0};
+    /* size (in byte) of user-passed leaf data */
+    uint32_t value_len{0};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -242,7 +294,7 @@ public:
 
 static_assert(std::is_standard_layout_v<Node>, "required by offsetof");
 static_assert(sizeof(Node) == size_of_node);
-static_assert(sizeof(Node) == 12);
+static_assert(sizeof(Node) == 16);
 static_assert(alignof(Node) == 4);
 
 // ChildData is for temporarily holding a child's info, including child ptr,
@@ -286,7 +338,9 @@ Node *create_node(
     Compute &, uint16_t mask, std::span<ChildData> children, NibblesView path,
     std::optional<byte_string_view> value = std::nullopt);
 
-void serialize_node_to_buffer(unsigned char *write_pos, Node const &);
+void serialize_node_to_buffer(
+    unsigned char *const write_pos, unsigned bytes_to_write, Node const &,
+    unsigned offset = 0);
 
 Node::UniquePtr
 deserialize_node_from_buffer(unsigned char const *read_pos, size_t max_bytes);

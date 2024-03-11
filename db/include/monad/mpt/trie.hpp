@@ -134,10 +134,8 @@ public:
 chunk_offset_t
 async_write_node_set_spare(UpdateAuxImpl &aux, Node &node, bool is_fast);
 
-node_writer_unique_ptr_type replace_node_writer(
-    UpdateAuxImpl &, node_writer_unique_ptr_type &,
-    size_t bytes_yet_to_be_appended_to_existing = 0,
-    size_t bytes_to_write_to_new_writer = 0);
+node_writer_unique_ptr_type
+replace_node_writer(UpdateAuxImpl &, node_writer_unique_ptr_type const &);
 
 // \class Auxiliaries for triedb update
 class UpdateAuxImpl

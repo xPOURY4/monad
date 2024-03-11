@@ -366,8 +366,8 @@ TYPED_TEST(PlainTrieTest, large_values)
     // make sure leaves are not cached
     auto const key1 = 0x0000112_hex;
     auto const key2 = 0x0000123_hex;
-    auto const value1 = monad::byte_string(0x6000, 0xf);
-    auto const value2 = monad::byte_string(0x6000, 0x3);
+    auto const value1 = monad::byte_string(100 * 1024 * 1024, 0xf); // 100 MB
+    auto const value2 = monad::byte_string(255 * 1024 * 1024, 0x3); // 255 MB
 
     auto same_upsert_to_clear_nodes_outside_cache_level = [&] {
         this->root = upsert_updates(

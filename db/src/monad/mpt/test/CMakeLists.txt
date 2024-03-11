@@ -13,6 +13,7 @@ add_trie_test(TARGET many_nested_updates SOURCES "many_nested_updates.cpp" LINK_
 add_trie_test(TARGET merkle_trie_test SOURCES "merkle_trie_test.cpp")
 add_trie_test(TARGET min_truncated_offsets_test SOURCES "min_truncated_offsets_test.cpp")
 add_trie_test(TARGET nibbles_view_test SOURCES "nibbles_view_test.cpp")
+add_trie_test(TARGET node_disk_pages_spare_test SOURCES "node_disk_pages_spare_test.cpp")
 add_trie_test(TARGET node_test SOURCES "node_test.cpp")
 add_trie_test(TARGET node_writer_test SOURCES "node_writer_test.cpp")
 add_trie_test(TARGET plain_trie_test SOURCES "plain_trie_test.cpp")

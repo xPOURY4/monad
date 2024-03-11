@@ -49,8 +49,8 @@ TEST(NodeTest, leaf)
     EXPECT_EQ(node->mask, 0);
     EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path1);
-    EXPECT_EQ(node->get_mem_size(), 21);
-    EXPECT_EQ(node->get_disk_size(), 21);
+    EXPECT_EQ(node->get_mem_size(), 25);
+    EXPECT_EQ(node->get_disk_size(), 25);
 }
 
 TEST(NodeTest, leaf_single_branch)
@@ -71,8 +71,8 @@ TEST(NodeTest, leaf_single_branch)
     EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
     EXPECT_EQ(node->data_len, 1);
-    EXPECT_EQ(node->get_mem_size(), 49);
-    EXPECT_EQ(node->get_disk_size(), 41);
+    EXPECT_EQ(node->get_mem_size(), 53);
+    EXPECT_EQ(node->get_disk_size(), 45);
 }
 
 TEST(NodeTest, leaf_multiple_branches)
@@ -97,8 +97,8 @@ TEST(NodeTest, leaf_multiple_branches)
     EXPECT_EQ(node->value(), value);
     EXPECT_EQ(node->path_nibble_view(), path2);
     EXPECT_EQ(node->data_len, 2);
-    EXPECT_EQ(node->get_mem_size(), 77);
-    EXPECT_EQ(node->get_disk_size(), 61);
+    EXPECT_EQ(node->get_mem_size(), 81);
+    EXPECT_EQ(node->get_disk_size(), 65);
 }
 
 TEST(NodeTest, branch_node)
@@ -123,8 +123,8 @@ TEST(NodeTest, branch_node)
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->data_len, 0);
     EXPECT_EQ(node->path_nibble_view(), path2);
-    EXPECT_EQ(node->get_mem_size(), 66);
-    EXPECT_EQ(node->get_disk_size(), 50);
+    EXPECT_EQ(node->get_mem_size(), 70);
+    EXPECT_EQ(node->get_disk_size(), 54);
 }
 
 TEST(NodeTest, extension_node)
@@ -149,6 +149,18 @@ TEST(NodeTest, extension_node)
     EXPECT_EQ(node->value_len, 0);
     EXPECT_EQ(node->path_nibble_view(), path2);
     EXPECT_EQ(node->data_len, 0);
-    EXPECT_EQ(node->get_mem_size(), 71);
-    EXPECT_EQ(node->get_disk_size(), 55);
+    EXPECT_EQ(node->get_mem_size(), 75);
+    EXPECT_EQ(node->get_disk_size(), 59);
+}
+
+TEST(NodeTest, super_large_node)
+{
+    DummyCompute comp{};
+    size_t const value_len = 255 * 1024 * 1024;
+    monad::byte_string value(value_len, 0);
+    Node::UniquePtr node{make_node(0, {}, {}, value, {})};
+    EXPECT_EQ(node->value_len, value_len);
+    EXPECT_EQ(node->data_len, 0);
+    EXPECT_EQ(node->get_mem_size(), value_len + sizeof(Node));
+    EXPECT_EQ(node->get_disk_size(), value_len + sizeof(Node));
 }

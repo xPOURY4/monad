@@ -51,10 +51,10 @@ Node::Node(
     std::optional<byte_string_view> value, size_t const data_size,
     NibblesView const path)
     : mask(mask)
-    , value_len(static_cast<decltype(value_len)>(
-          value.transform(&byte_string_view::size).value_or(0)))
     , data_len(static_cast<decltype(data_len)>(data_size))
     , path_nibble_index_end(path.end_nibble_)
+    , value_len(static_cast<decltype(value_len)>(
+          value.transform(&byte_string_view::size).value_or(0)))
 {
     MONAD_DEBUG_ASSERT(
         data_size <= std::numeric_limits<decltype(data_len)>::max());
@@ -454,6 +454,12 @@ Node::UniquePtr make_node(
     NibblesView const path, std::optional<byte_string_view> const value,
     size_t const data_size)
 {
+    MONAD_DEBUG_ASSERT(data_size <= KECCAK256_SIZE);
+    if (value.has_value()) {
+        MONAD_DEBUG_ASSERT(
+            value->size() <=
+            std::numeric_limits<decltype(Node::value_len)>::max());
+    }
     for (size_t i = 0; i < 16; ++i) {
         MONAD_DEBUG_ASSERT(
             !std::ranges::contains(children, i, &ChildData::branch) ||
@@ -530,10 +536,13 @@ Node *create_node(
     return node.release();
 }
 
-void serialize_node_to_buffer(unsigned char *const write_pos, Node const &node)
+void serialize_node_to_buffer(
+    unsigned char *const write_pos, unsigned const bytes_to_append,
+    Node const &node, unsigned const offset)
 {
     MONAD_ASSERT(node.disk_size > 0 && node.disk_size <= Node::max_disk_size);
-    memcpy(write_pos, &node, node.disk_size);
+    MONAD_ASSERT(bytes_to_append <= node.disk_size - offset);
+    memcpy(write_pos, (unsigned char *)&node + offset, bytes_to_append);
 }
 
 Node::UniquePtr
@@ -546,6 +555,7 @@ deserialize_node_from_buffer(unsigned char const *read_pos, size_t max_bytes)
     auto const number_of_children = static_cast<unsigned>(std::popcount(mask));
     auto const disk_size =
         unaligned_load<uint32_t>(read_pos + offsetof(Node, disk_size));
+    MONAD_ASSERT(disk_size <= max_bytes);
     auto const alloc_size =
         static_cast<uint32_t>(disk_size + number_of_children * sizeof(Node *));
     MONAD_ASSERT(disk_size > 0 && disk_size <= Node::max_disk_size);
@@ -558,11 +568,12 @@ deserialize_node_from_buffer(unsigned char const *read_pos, size_t max_bytes)
 Node *read_node_blocking(
     MONAD_ASYNC_NAMESPACE::storage_pool &pool, chunk_offset_t node_offset)
 {
-    MONAD_ASSERT(
+    MONAD_DEBUG_ASSERT(
         node_offset.spare <=
         round_up_align<DISK_PAGE_BITS>(Node::max_disk_size));
     // spare bits are number of pages needed to load node
-    unsigned const num_pages_to_load_node = node_offset.spare;
+    unsigned const num_pages_to_load_node =
+        node_disk_pages_spare_15{node_offset}.to_pages();
     unsigned const bytes_to_read = num_pages_to_load_node << DISK_PAGE_BITS;
     file_offset_t const rd_offset =
         round_down_align<DISK_PAGE_BITS>(node_offset.offset);
