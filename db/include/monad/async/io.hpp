@@ -92,7 +92,7 @@ private:
     void submit_request_(timed_invocation_state *state, void *uring_data);
 
     void poll_uring_while_submission_queue_full_();
-    bool poll_uring_(bool blocking);
+    bool poll_uring_(bool blocking, unsigned poll_rings_mask);
 
 public:
     AsyncIO(class storage_pool &pool, monad::io::Buffers &rwbuf);
@@ -187,7 +187,7 @@ public:
     {
         size_t n = 0;
         for (; n < count; n++) {
-            if (!poll_uring_(n == 0)) {
+            if (!poll_uring_(n == 0, 0)) {
                 break;
             }
         }
@@ -208,7 +208,7 @@ public:
     {
         size_t n = 0;
         for (; n < count; n++) {
-            if (!poll_uring_(false)) {
+            if (!poll_uring_(false, 0)) {
                 break;
             }
         }

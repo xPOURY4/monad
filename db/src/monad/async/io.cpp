@@ -420,7 +420,7 @@ void AsyncIO::poll_uring_while_submission_queue_full_()
     // if completions is getting close to full, drain some to prevent
     // completions getting dropped, which would break everything.
     while (io_uring_cq_ready(ring) > (*ring->cq.kring_entries >> 1)) {
-        if (!poll_uring_(false)) {
+        if (!poll_uring_(false, 0)) {
             break;
         }
     }
@@ -432,7 +432,7 @@ void AsyncIO::poll_uring_while_submission_queue_full_()
         // Sometimes io_uring_sq_space_left can be zero at the same
         // time as there is no i/o in flight, in this situation don't
         // sleep waiting for completions which will never come.
-        poll_uring_(io_in_flight() > 0);
+        poll_uring_(io_in_flight() > 0, 0);
         // Rarely io_uring_sq_space_left stays stuck at zero, almost
         // as if the kernel thread went to sleep or disappeared. This
         // function doesn't do anything if io_uring_sq_space_left is
@@ -442,8 +442,11 @@ void AsyncIO::poll_uring_while_submission_queue_full_()
     }
 }
 
-bool AsyncIO::poll_uring_(bool blocking)
+bool AsyncIO::poll_uring_(bool blocking, unsigned poll_rings_mask)
 {
+    // bit 0 in poll_rings_mask blocks read completions, bit 1 blocks write
+    // completions
+    MONAD_DEBUG_ASSERT((poll_rings_mask & 3) != 3);
     auto h = detail::AsyncIO_per_thread_state().enter_completions();
     MONAD_DEBUG_ASSERT(owning_tid_ == gettid());
 
@@ -456,28 +459,38 @@ bool AsyncIO::poll_uring_(bool blocking)
     auto const inflight_ts =
         records_.inflight_ts.load(std::memory_order_acquire);
 
-    if (wr_ring != nullptr && records_.inflight_wr > 0) {
+    if (wr_ring != nullptr && records_.inflight_wr > 0 &&
+        (poll_rings_mask & 2) == 0) {
         ring = wr_ring;
         if (wr_uring_->must_call_uring_submit() ||
             !!(wr_ring->flags & IORING_SETUP_IOPOLL)) {
             // If i/o polling is on, but there is no kernel thread to do the
-            // polling for us OR the kernel thread has gone to sleep, we need to
-            // call the io_uring_enter syscall from userspace to do the
-            // completions processing. From studying the liburing source code,
-            // this will do it.
+            // polling for us OR the kernel thread has gone to sleep, we
+            // need to call the io_uring_enter syscall from userspace to do
+            // the completions processing. From studying the liburing source
+            // code, this will do it.
             io_uring_submit(wr_ring);
         }
         io_uring_peek_cqe(wr_ring, &cqe);
+        if ((poll_rings_mask & 1) != 0) {
+            if (blocking && inflight_ts == 0 &&
+                detail::AsyncIO_per_thread_state().empty()) {
+                MONAD_ASSERT(!io_uring_wait_cqe(ring, &cqe));
+            }
+            if (cqe == nullptr) {
+                return false;
+            }
+        }
     }
     if (cqe == nullptr) {
         ring = other_ring;
         if (uring_.must_call_uring_submit() ||
             !!(other_ring->flags & IORING_SETUP_IOPOLL)) {
             // If i/o polling is on, but there is no kernel thread to do the
-            // polling for us OR the kernel thread has gone to sleep, we need to
-            // call the io_uring_enter syscall from userspace to do the
-            // completions processing. From studying the liburing source code,
-            // this will do it.
+            // polling for us OR the kernel thread has gone to sleep, we
+            // need to call the io_uring_enter syscall from userspace to do
+            // the completions processing. From studying the liburing source
+            // code, this will do it.
             io_uring_submit(other_ring);
         }
         if (blocking && inflight_ts == 0 && records_.inflight_wr == 0 &&
@@ -685,8 +698,9 @@ unsigned char *AsyncIO::poll_uring_while_no_io_buffers_(bool is_write)
                 << std::endl;
             MONAD_ASSERT("no i/o buffers remaining" == nullptr);
         }
-        // Reap completions until a buffer frees up
-        poll_blocking(1);
+        // Reap completions until a buffer frees up, only reaping completions
+        // for the write or other ring exclusively.
+        poll_uring_(1, is_write ? 1 : 2);
         auto *mem = (is_write ? wr_pool_ : rd_pool_).alloc();
         if (mem != nullptr) {
             return mem;
