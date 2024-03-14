@@ -223,7 +223,7 @@ void prepare_keccak(
     else {
         size_t key;
         for (size_t i = 0; i < nkeys; ++i) {
-            key = i + key_offset;
+            key = (i + key_offset) % MAX_NUM_KEYS;
             keccak_keys[i].resize(32);
             keccak256((unsigned char const *)&key, 8, keccak_keys[i].data());
             val = key * 2;
