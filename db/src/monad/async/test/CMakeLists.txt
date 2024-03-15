@@ -47,3 +47,10 @@ gtest_discover_tests(
   PROPERTIES RUN_SERIAL TRUE)
 
 add_trie_test(TARGET storage_pool_test SOURCES "storage_pool.cpp")
+
+
+# monad async perf test
+add_executable(benchmark_io_test "benchmark_io_test.cpp")
+monad_core_compile_options(benchmark_io_test)
+target_link_libraries(benchmark_io_test PUBLIC monad_core CLI11::CLI11 PkgConfig::cap monad_async)
+

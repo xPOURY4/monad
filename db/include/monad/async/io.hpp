@@ -97,13 +97,13 @@ private:
 
     void submit_request_(
         std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
-        void *uring_data);
+        void *uring_data, enum erased_connected_operation::io_priority prio);
     void submit_request_(
         std::span<const struct iovec> buffers, chunk_offset_t chunk_and_offset,
-        void *uring_data);
+        void *uring_data, enum erased_connected_operation::io_priority prio);
     void submit_request_(
         std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
-        void *uring_data);
+        void *uring_data, enum erased_connected_operation::io_priority prio);
     void submit_request_(timed_invocation_state *state, void *uring_data);
 
     void poll_uring_while_submission_queue_full_();
@@ -335,10 +335,10 @@ public:
             }
         }
 
-        submit_request_(buffer, offset, uring_data);
         if (capture_io_latencies_) {
             uring_data->initiated = std::chrono::steady_clock::now();
         }
+        submit_request_(buffer, offset, uring_data, uring_data->io_priority());
         if (++records_.inflight_rd > records_.max_inflight_rd) {
             records_.max_inflight_rd = records_.inflight_rd;
         }
@@ -351,10 +351,10 @@ public:
         erased_connected_operation *uring_data)
 
     {
-        submit_request_(buffers, offset, uring_data);
         if (capture_io_latencies_) {
             uring_data->initiated = std::chrono::steady_clock::now();
         }
+        submit_request_(buffers, offset, uring_data, uring_data->io_priority());
         if (++records_.inflight_rd_scatter > records_.max_inflight_rd_scatter) {
             records_.max_inflight_rd_scatter = records_.inflight_rd_scatter;
         }
@@ -366,10 +366,10 @@ public:
         std::span<std::byte const> buffer, chunk_offset_t offset,
         erased_connected_operation *uring_data)
     {
-        submit_request_(buffer, offset, uring_data);
         if (capture_io_latencies_) {
             uring_data->initiated = std::chrono::steady_clock::now();
         }
+        submit_request_(buffer, offset, uring_data, uring_data->io_priority());
         if (++records_.inflight_wr > records_.max_inflight_wr) {
             records_.max_inflight_wr = records_.inflight_wr;
         }

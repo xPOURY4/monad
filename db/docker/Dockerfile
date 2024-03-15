@@ -22,8 +22,9 @@ RUN /opt/install-tools.sh
 RUN /opt/install-deps.sh
 
 RUN apt install -y \
- libcli11-dev \
  libarchive-dev \
+ libcap-dev \
+ libcli11-dev \
  libzstd-dev
 
 FROM base as build_and_test

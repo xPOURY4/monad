@@ -268,11 +268,19 @@ public:
         deferred
     };
 
+    enum class io_priority : uint8_t
+    {
+        highest,
+        normal,
+        idle
+    };
+
 protected:
     operation_type operation_type_{operation_type::unknown};
     bool being_executed_{false};
     bool lifetime_managed_internally_{
         false}; // some factory classes may deallocate states on their own
+    io_priority io_priority_{io_priority::normal};
     std::atomic<AsyncIO *> io_{
         nullptr}; // set at construction if associated with an AsyncIO instance,
                   // which isn't mandatory
@@ -545,6 +553,16 @@ public:
         return lifetime_managed_internally_;
     }
 
+    enum io_priority io_priority() const noexcept
+    {
+        return io_priority_;
+    }
+
+    void set_io_priority(enum io_priority v) noexcept
+    {
+        io_priority_ = v;
+    }
+
     //! The executor instance being used, which may be none.
     AsyncIO *executor() noexcept
     {
@@ -598,7 +616,10 @@ public:
         return do_possibly_deferred_initiate_(true, true);
     }
 
-    void reset() {}
+    void reset()
+    {
+        io_priority_ = io_priority::normal;
+    }
 };
 
 static_assert(sizeof(erased_connected_operation) == 64);

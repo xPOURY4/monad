@@ -33,6 +33,7 @@
 #include <fcntl.h>
 #include <liburing.h>
 #include <liburing/io_uring.h>
+#include <linux/ioprio.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <sys/resource.h> // for setrlimit
@@ -278,7 +279,7 @@ AsyncIO::~AsyncIO()
 
 void AsyncIO::submit_request_(
     std::span<std::byte> buffer, chunk_offset_t chunk_and_offset,
-    void *uring_data)
+    void *uring_data, enum erased_connected_operation::io_priority prio)
 {
     MONAD_DEBUG_ASSERT(uring_data != nullptr);
     MONAD_DEBUG_ASSERT((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
@@ -301,6 +302,17 @@ void AsyncIO::submit_request_(
         ci.ptr->read_fd().second + chunk_and_offset.offset,
         0);
     sqe->flags |= IOSQE_FIXED_FILE;
+    switch (prio) {
+    case erased_connected_operation::io_priority::highest:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 7);
+        break;
+    case erased_connected_operation::io_priority::idle:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0);
+        break;
+    default:
+        sqe->ioprio = 0;
+        break;
+    }
 
     io_uring_sqe_set_data(sqe, uring_data);
     MONAD_ASSERT(
@@ -309,7 +321,7 @@ void AsyncIO::submit_request_(
 
 void AsyncIO::submit_request_(
     std::span<const struct iovec> buffers, chunk_offset_t chunk_and_offset,
-    void *uring_data)
+    void *uring_data, enum erased_connected_operation::io_priority prio)
 {
     MONAD_DEBUG_ASSERT(uring_data != nullptr);
     assert((chunk_and_offset.offset & (DISK_PAGE_SIZE - 1)) == 0);
@@ -343,6 +355,17 @@ void AsyncIO::submit_request_(
             ci.ptr->read_fd().second + chunk_and_offset.offset);
     }
     sqe->flags |= IOSQE_FIXED_FILE;
+    switch (prio) {
+    case erased_connected_operation::io_priority::highest:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 7);
+        break;
+    case erased_connected_operation::io_priority::idle:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0);
+        break;
+    default:
+        sqe->ioprio = 0;
+        break;
+    }
 
     io_uring_sqe_set_data(sqe, uring_data);
     MONAD_ASSERT(
@@ -351,7 +374,7 @@ void AsyncIO::submit_request_(
 
 void AsyncIO::submit_request_(
     std::span<std::byte const> buffer, chunk_offset_t chunk_and_offset,
-    void *uring_data)
+    void *uring_data, enum erased_connected_operation::io_priority prio)
 {
     MONAD_DEBUG_ASSERT(uring_data != nullptr);
     MONAD_ASSERT(!rwbuf_.is_read_only());
@@ -381,6 +404,20 @@ void AsyncIO::submit_request_(
     sqe->flags |= IOSQE_FIXED_FILE;
     if (wr_ring != &uring_.get_ring()) {
         sqe->flags |= IOSQE_IO_DRAIN;
+    }
+    // TODO(niall) test this to see if it helps prevent overwhelming the device
+    // with writes
+    // sqe->rw_flags |= RWF_DSYNC;
+    switch (prio) {
+    case erased_connected_operation::io_priority::highest:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 7);
+        break;
+    case erased_connected_operation::io_priority::idle:
+        sqe->ioprio = IOPRIO_PRIO_VALUE(IOPRIO_CLASS_IDLE, 0);
+        break;
+    default:
+        sqe->ioprio = 0;
+        break;
     }
 
     io_uring_sqe_set_data(sqe, uring_data);
@@ -748,11 +785,11 @@ void AsyncIO::submit_threadsafe_invocation_request(
     // All writes to uring_data must be flushed before doing this
     std::atomic_thread_fence(std::memory_order_release);
     for (;;) {
+        if (capture_io_latencies_) {
+            uring_data->initiated = std::chrono::steady_clock::now();
+        }
         auto written = ::write(fds_.msgwrite, &uring_data, sizeof(uring_data));
         if (written == sizeof(uring_data)) {
-            if (capture_io_latencies_) {
-                uring_data->initiated = std::chrono::steady_clock::now();
-            }
             break;
         }
         MONAD_ASSERT(written == -1);

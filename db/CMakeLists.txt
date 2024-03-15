@@ -14,7 +14,6 @@ option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(PROJECT_IS_TOP_LEVEL)
   add_subdirectory("monad-core")
-  include("monad-core/cmake/find_our_dependency.cmake")
 endif()
 
 find_package(
@@ -26,6 +25,7 @@ find_package(GTest)
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(archive REQUIRED IMPORTED_TARGET libarchive)
+pkg_check_modules(cap REQUIRED IMPORTED_TARGET libcap)
 pkg_check_modules(zstd REQUIRED IMPORTED_TARGET libzstd)
 
   
