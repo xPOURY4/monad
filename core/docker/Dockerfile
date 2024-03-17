@@ -1,4 +1,4 @@
-# docker build -f docker/Dockerfile .
+# syntax=docker/dockerfile:1-labs
 
 FROM ubuntu:22.04 as base
 
@@ -33,4 +33,5 @@ RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} CFL
 
 RUN cd src && ./scripts/build.sh
 
-RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./scripts/test.sh
+# security=insecure for tests which use io_uring
+RUN --security=insecure cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./scripts/test.sh
