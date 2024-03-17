@@ -901,7 +901,6 @@ namespace allocators
             std::free(p);
     #else
             if (n > upper_bound) {
-                (void)n;
                 std::free(p);
             }
             else {
