@@ -1,4 +1,4 @@
-# docker build -f docker/Dockerfile .
+# syntax=docker/dockerfile:1-labs
 
 FROM ubuntu:22.04 as base
 
@@ -41,4 +41,5 @@ RUN cd src && ./monad-core/scripts/build.sh
 # Replace the line below with this when you want CI to print exactly where it is hanging at
 # RUN cd src && ctest --output-on-failure -V --test-dir build
 
-RUN cd src && PYTHONPATH="monad-core" CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./monad-core/scripts/test.sh
+# security=insecure for tests which use io_uring
+RUN --security=insecure cd src && PYTHONPATH="monad-core" CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./monad-core/scripts/test.sh
