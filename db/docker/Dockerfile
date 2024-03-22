@@ -22,13 +22,10 @@ RUN /opt/install-tools.sh
 RUN /opt/install-deps.sh
 
 RUN apt install -y \
-  libarchive-dev \
-  libbrotli-dev \
-  libcap-dev \
-  libcli11-dev \
-  libgmp-dev \
-  libtbb-dev \
-  libzstd-dev
+ libarchive-dev \
+ libcap-dev \
+ libcli11-dev \
+ libzstd-dev
 
 FROM base as build_and_test
 
@@ -38,9 +35,14 @@ ARG CC
 ARG CXX
 ARG CMAKE_BUILD_TYPE
 
-RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ASMFLAGS="-march=haswell" ./monad-core/scripts/configure.sh
+RUN cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} \
+   CFLAGS="-march=haswell" CXXFLAGS="-march=haswell" ASMFLAGS="-march=haswell" \
+   ./monad-core/scripts/configure.sh
 
 RUN cd src && ./monad-core/scripts/build.sh
 
+# Replace the line below with this when you want CI to print exactly where it is hanging at
+# RUN cd src && ctest --output-on-failure -V --test-dir build
+
 # security=insecure for tests which use io_uring
-RUN --security=insecure cd src && CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./monad-core/scripts/test.sh
+RUN --security=insecure cd src && PYTHONPATH="monad-core" CC=${CC:?} CXX=${CXX:?} CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?} ./monad-core/scripts/test.sh

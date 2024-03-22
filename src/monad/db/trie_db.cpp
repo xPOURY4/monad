@@ -86,7 +86,9 @@ namespace
 
     struct EmptyCompute : public Compute
     {
-        virtual unsigned compute_len(std::span<ChildData>, uint16_t) override
+        virtual unsigned compute_len(
+            std::span<ChildData>, uint16_t, NibblesView,
+            std::optional<byte_string_view>) override
         {
             return 0;
         };

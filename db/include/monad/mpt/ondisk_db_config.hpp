@@ -1,0 +1,28 @@
+#pragma once
+
+#include <monad/mpt/config.hpp>
+
+#include <filesystem>
+
+MONAD_MPT_NAMESPACE_BEGIN
+
+struct StateMachine;
+
+struct OnDiskDbConfig
+{
+    bool append{false};
+    bool compaction{false};
+    bool enable_io_polling{false};
+    bool capture_io_latencies{false};
+    bool eager_completions{false};
+    unsigned rd_buffers{1024};
+    unsigned wr_buffers{4};
+    unsigned uring_entries{512};
+    std::optional<unsigned> sq_thread_cpu{0};
+    std::optional<uint64_t> start_block_id{std::nullopt};
+    std::vector<std::filesystem::path> dbname_paths{};
+    int64_t file_size_db{512}; // truncate files to this size
+    unsigned concurrent_read_io_limit{1024};
+};
+
+MONAD_MPT_NAMESPACE_END
