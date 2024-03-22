@@ -1,6 +1,3 @@
-[submodule "monad-core"]
-	path = monad-core
-	url = git@github.com:monad-crypto/monad-core.git
 [submodule "monad-trie"]
 	path = monad-trie
 	url = git@github.com:monad-crypto/monad-trie.git
@@ -26,3 +23,19 @@
 [submodule "third_party/yellowpaper"]
 	path = third_party/yellowpaper
 	url = https://github.com/ethereum/yellowpaper.git
+[submodule "ethash"]
+	path = core/third_party/ethash
+	url = https://github.com/monad-crypto/ethash.git
+	branch = monad
+[submodule "core/third_party/nanobench"]
+	path = core/third_party/nanobench
+	url = https://github.com/martinus/nanobench.git
+[submodule "core/third_party/nlohmann_json"]
+	path = core/third_party/nlohmann_json
+	url = https://github.com/nlohmann/json.git
+[submodule "core/third_party/quill"]
+	path = core/third_party/quill
+	url = https://github.com/odygrd/quill.git
+[submodule "core/third_party/unordered_dense"]
+	path = core/third_party/unordered_dense
+	url = https://github.com/martinus/unordered_dense.git

@@ -1,0 +1,26 @@
+function(monad_add_test target)
+  add_executable(${target} ${ARGN})
+  monad_core_compile_options(${target})
+  target_link_libraries(${target} monad_core GTest::GTest GTest::Main)
+  add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+endfunction()
+
+monad_add_test(allocators_test "allocators.cpp")
+monad_add_test(array_test "array.cpp")
+monad_add_test(backtrace_test "backtrace.cpp")
+monad_add_test(dynamic_allocator_test "dynamic_allocator.cpp")
+monad_add_test(encode_test "encode_test.cpp")
+monad_add_test(hugemem_test "huge_mem.cpp")
+target_link_libraries(hugemem_test GTest::gmock)
+monad_add_test(io_buffers_test "io_buffers.cpp")
+monad_add_test(literal_test "literal_test.cpp")
+monad_add_test(unordered_map_test "unordered_map.cpp")
+
+# ##############################################################################
+# ethash
+# ##############################################################################
+
+add_executable(ethash-test
+               "../third_party/ethash/test/unittests/test_keccak.cpp")
+target_link_libraries(ethash-test PRIVATE ethash::global-context
+                                          GTest::gtest_main)
