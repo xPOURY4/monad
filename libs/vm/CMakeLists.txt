@@ -12,4 +12,5 @@ find_package(LLVM REQUIRED CONFIG)
 add_subdirectory(third_party/evmc)
 
 add_subdirectory(src/compiler)
+add_subdirectory(src/runtime)
 add_subdirectory(src/vm)
