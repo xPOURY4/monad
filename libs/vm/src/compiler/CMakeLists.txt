@@ -1,4 +1,4 @@
-add_library(compiler lib.cpp)
+add_library(compiler lib.cpp lexer.cpp)
 
 monad_compile_options(compiler)
 monad_link_llvm(compiler)
