@@ -4,8 +4,8 @@ on: pull_request
 
 jobs:
     build:
+        name: Build compiler
         runs-on: ubuntu-24.04
-
         steps:
             - uses: actions/checkout@v4
               with:
