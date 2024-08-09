@@ -4,6 +4,8 @@ project(monad-compiler)
 
 option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(LLVM REQUIRED CONFIG)
+
 add_subdirectory(third_party/evmc)
 
-add_subdirectory(src/compiler)
+add_subdirectory(src/vm)
