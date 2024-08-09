@@ -14,8 +14,13 @@ namespace monad::compiler
         constexpr auto contract_entrypoint = "monad_evm_contract_main";
     }
 
-    std::unique_ptr<llvm::Module>
-    compile_evm_bytecode(uint8_t const *code, size_t code_size);
+    struct compile_result
+    {
+        std::unique_ptr<llvm::Module> mod;
+        llvm::Function *entrypoint;
+    };
+
+    compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size);
 
     llvm::FunctionType *contract_entrypoint_type();
     llvm::Function *build_entrypoint(llvm::Module &mod);

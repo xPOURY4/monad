@@ -1,6 +1,10 @@
+#include <vm/execute_jit.h>
+
 #include <compiler/compiler.h>
 
 #include <evmc/evmc.hpp>
+
+#include <llvm/Support/TargetSelect.h>
 
 namespace
 {
@@ -17,15 +21,27 @@ namespace
     {
         (void)vm;
         (void)host;
-        (void)context;
         (void)rev;
         (void)msg;
 
-        auto mod = monad::compiler::compile_evm_bytecode(code, code_size);
+        auto [mod, entrypoint] =
+            monad::compiler::compile_evm_bytecode(code, code_size);
         assert(mod && "Failed to compile bytecode");
 
-        return evmc_result{
+        auto engine = monad::vm::create_engine(std::move(mod));
+        assert(engine.has_value() && "Failed to create execution engine");
+
+        engine.value()->finalizeObject();
+        auto jit_entry_fn =
+            reinterpret_cast<void (*)(evmc_result *, evmc_host_context *)>(
+                engine.value()->getPointerToFunction(entrypoint));
+
+        auto result = evmc_result{
             evmc_status_code::EVMC_FAILURE, 0, 0, nullptr, 0, nullptr};
+
+        jit_entry_fn(&result, context);
+
+        return result;
     }
 
     evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
@@ -38,6 +54,10 @@ namespace
 
 extern "C" evmc_vm *evmc_create_monad_compiler_vm()
 {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmParser();
+    llvm::InitializeNativeTargetAsmPrinter();
+
     return new evmc_vm{
         EVMC_ABI_VERSION,
         "monad-compiler-vm",

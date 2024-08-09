@@ -1,9 +1,18 @@
-add_library(monad-compiler-vm SHARED vm.cpp)
+add_library(monad-compiler-vm SHARED
+    vm.cpp
+    execute_jit.cpp
+)
 
 monad_compile_options(monad-compiler-vm)
+monad_link_llvm(monad-compiler-vm)
+
 target_link_libraries(monad-compiler-vm
     PRIVATE
         evmc::evmc
         compiler
         runtime
+)
+
+target_include_directories(monad-compiler-vm
+    PUBLIC include
 )

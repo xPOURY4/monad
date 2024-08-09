@@ -28,8 +28,7 @@ namespace
 namespace monad::compiler
 {
 
-    std::unique_ptr<llvm::Module>
-    compile_evm_bytecode(uint8_t const *code, size_t code_size)
+    compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size)
     {
         (void)code;
         (void)code_size;
@@ -39,7 +38,7 @@ namespace monad::compiler
         auto entrypoint = build_entrypoint(*mod);
         build_no_op_return(*entrypoint);
 
-        return mod;
+        return {std::move(mod), entrypoint};
     }
 
     llvm::FunctionType *contract_entrypoint_type()
