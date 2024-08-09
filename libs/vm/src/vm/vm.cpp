@@ -9,16 +9,20 @@
 namespace
 {
 
-    void destroy(evmc_vm *vm)
-    {
-        (void)vm;
-    }
+    void destroy(evmc_vm *) {}
 
     evmc_result execute(
         evmc_vm *vm, evmc_host_interface const *host,
         evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
         uint8_t const *code, size_t code_size)
     {
+        // This function is currently a shortest-path implementation to taking
+        // an `llvm::Module` and executing it via a JIT mechanism. It therefore
+        // has a few important issues and limitations:
+        //   - It uses the legacy `ExecutionEngine` API rather than ORCv2
+        //   - The engine is rebuilt for every contract execution
+        //   - Contracts will be recompiled every time they're executed
+
         (void)vm;
         (void)host;
         (void)rev;
@@ -44,14 +48,19 @@ namespace
         return result;
     }
 
-    evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
+    evmc_capabilities_flagset get_capabilities(evmc_vm *)
     {
-        (void)vm;
         return EVMC_CAPABILITY_EVM1;
     }
 
 }
 
+/**
+ * This function is a special entrypoint recognised by EVMC-compatible host
+ * implementations. When a host loads `libmonad-compiler-vm.so` as a VM library,
+ * it demangles the name to produce `evmc_create_monad_compiler_vm`, then loads
+ * this function to construct the VM.
+ */
 extern "C" evmc_vm *evmc_create_monad_compiler_vm()
 {
     llvm::InitializeNativeTarget();
