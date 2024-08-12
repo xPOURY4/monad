@@ -2,12 +2,11 @@
 
 #include <llvm/ExecutionEngine/MCJIT.h>
 
-#include <expected>
 #include <string>
 
 namespace monad::vm
 {
-    std::expected<std::unique_ptr<llvm::ExecutionEngine>, std::string>
+    std::unique_ptr<llvm::ExecutionEngine>
     create_engine(std::unique_ptr<llvm::Module> mod)
     {
         auto target_opts = llvm::TargetOptions{};
@@ -20,7 +19,7 @@ namespace monad::vm
                               .create();
 
         if (!engine_ptr) {
-            return std::unexpected(err);
+            throw std::runtime_error(err);
         }
 
         return std::unique_ptr<llvm::ExecutionEngine>(engine_ptr);

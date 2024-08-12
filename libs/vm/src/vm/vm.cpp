@@ -33,15 +33,14 @@ namespace
         assert(mod && "Failed to compile bytecode");
 
         auto engine = monad::vm::create_engine(std::move(mod));
-        assert(engine.has_value() && "Failed to create execution engine");
 
-        engine.value()->finalizeObject();
+        engine->finalizeObject();
         auto jit_entry_fn =
             reinterpret_cast<void (*)(evmc_result *, evmc_host_context *)>(
-                engine.value()->getPointerToFunction(entrypoint));
+                engine->getPointerToFunction(entrypoint));
 
         auto result = evmc_result{
-            evmc_status_code::EVMC_FAILURE, 0, 0, nullptr, 0, nullptr};
+            evmc_status_code::EVMC_FAILURE, 0, 0, nullptr, 0, nullptr, {}, {}};
 
         jit_entry_fn(&result, context);
 
