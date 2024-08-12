@@ -11,6 +11,27 @@ jobs:
               with:
                 submodules: true
             
+            - name: Install dependencies
+              run: |
+                sudo apt install -y     \
+                    build-essential     \
+                    cmake               \
+                    llvm-18-dev         \
+                    libcli11-dev
+
+            - name: Build compiler
+              run: |
+                cmake -S . -B build
+                cmake --build build
+
+    code-quality:
+        name: Code quality checks
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                submodules: true
+
             - name: Formatting Check
               uses: jidicula/clang-format-action@v4.13.0
               with:
@@ -23,15 +44,11 @@ jobs:
                     build-essential     \
                     cmake               \
                     llvm-18-dev         \
-                    libcli11-dev        \
-                    ninja-build
+                    libcli11-dev
 
-            - name: Build compiler
+            - name: Set up build system
               run: |
-                mkdir build
-                cd build
-                cmake -GNinja ..
-                cmake --build .
+                cmake -S . -B build
 
             - name: Run clang-tidy checks
               run: |
