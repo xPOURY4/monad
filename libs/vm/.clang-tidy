@@ -20,6 +20,7 @@
                     clang-analyzer*,
                     google-build-explicit-make-pair,
                     google-explicit-constructor,
+                    llvm-include-order,
                     misc-const-correctness,
                     misc-definitions-in-headers,
                     misc-include-cleaner,
