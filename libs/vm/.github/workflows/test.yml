@@ -6,6 +6,11 @@ jobs:
     build:
         name: Build compiler
         runs-on: ubuntu-24.04
+        strategy:
+          matrix:
+            CMAKE_BUILD_TYPE: [RelWithDebInfo, Debug]
+            compiler: [{CXX: g++-13, CC: gcc-13}, {CXX: clang++-18, CC: clang-18}]
+
         steps:
             - uses: actions/checkout@v4
               with:
@@ -21,7 +26,10 @@ jobs:
 
             - name: Build compiler
               run: |
-                cmake -S . -B build
+                cmake -S . -B build                                 \
+                  -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }} \
+                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
+                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build
 
     code-quality:
