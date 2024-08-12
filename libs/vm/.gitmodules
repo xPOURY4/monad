@@ -1,3 +1,6 @@
 [submodule "third_party/evmc"]
 	path = third_party/evmc
 	url = git@github.com:ethereum/evmc.git
+[submodule "intx"]
+	path = third_party/intx
+	url = git@github.com:chfast/intx.git

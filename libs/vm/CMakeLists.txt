@@ -14,6 +14,7 @@ find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
 
 add_subdirectory(third_party/evmc)
+add_subdirectory(third_party/intx)
 
 add_subdirectory(src/compiler)
 add_subdirectory(src/monad-evmc)
