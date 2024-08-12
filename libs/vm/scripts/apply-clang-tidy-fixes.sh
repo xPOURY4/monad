@@ -5,7 +5,17 @@ if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
   git status --untracked-files=no
   exit 1
 fi
+
 BUILDDIR=$1/
+shift
+
+RUN_CLANG_TIDY="$1"
+shift
+
+if [ -z "$RUN_CLANG_TIDY" ]; then
+  RUN_CLANG_TIDY=run-clang-tidy
+fi
+
 if [[ -z "$1" && -f "build/compile_commands.json" ]]; then
   BUILDDIR=build/
 fi
@@ -17,7 +27,7 @@ if [[ ! -f "${BUILDDIR}compile_commands.json" ]]; then
   exit 1
 fi
 pushd "$BUILDDIR"
-run-clang-tidy -fix -format "^((?!/third_party/).)+\.(c|cpp|cxx)$" | tee apply-clang-tidy-fixes.log
+"$RUN_CLANG_TIDY" -fix -format "^((?!/third_party/).)+\.(c|cpp|cxx)$" | tee apply-clang-tidy-fixes.log
 popd
 if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
   git status --untracked-files=no
