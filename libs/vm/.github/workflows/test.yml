@@ -26,3 +26,11 @@ jobs:
                 cd build
                 cmake -GNinja ..
                 cmake --build .
+
+            - name: Run clang-tidy checks
+              run: |
+                ./scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
+                if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
+                  echo "Fixes applied; please re-run locally and commit!"
+                  exit 1
+                fi
