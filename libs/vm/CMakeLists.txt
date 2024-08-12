@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(monad-compiler)
 
-option(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(cmake/LinkLLVM.cmake)
 include(cmake/MonadCompileOptions.cmake)
