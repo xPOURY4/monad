@@ -9,6 +9,69 @@ execution. The work in this project is a C++ reimplementation of the
 [`monad-jit`][jit] project, with the eventual aim of merging the compiler into
 the core Monad monorepo.
 
+## Building & Running
+
+The compiler is built and tested in CI on Ubuntu 24.04. To build locally, first
+install the following dependencies via `apt`:
+```
+build-essential
+cmake
+llvm-18-dev
+libcli11-dev
+```
+
+Then, from the project root:
+```console
+$ cmake -S . -B build
+$ cmake --build build
+```
+
+Currently, the only tests supported by the compiler are the basic VM
+compatibility checks exposed by [EVMC][evmc]. To test the compiler against this
+tool, build [EVMC][evmc] following the project documentation:
+```console
+$ cd $evmc
+$ cmake -S . -B build -DEVMC_TESTING=On
+$ cmake --build build
+```
+
+Then, run the VM tester tool against the library built by the compiler project
+(presuming that the two projects are in sibling directories):
+```console
+$ ./build/bin/evmc-vmtester ../monad-compiler/build/src/vm/libmonad-compiler-vm.so
+EVMC VM Tester 12.0.0
+Testing ../monad-compiler/build/src/vm/libmonad-compiler-vm.so
+
+[==========] Running 10 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 10 tests from evmc_vm_test
+[ RUN      ] evmc_vm_test.abi_version_match
+[       OK ] evmc_vm_test.abi_version_match (0 ms)
+[ RUN      ] evmc_vm_test.name
+[       OK ] evmc_vm_test.name (0 ms)
+[ RUN      ] evmc_vm_test.version
+[       OK ] evmc_vm_test.version (0 ms)
+[ RUN      ] evmc_vm_test.capabilities
+[       OK ] evmc_vm_test.capabilities (0 ms)
+[ RUN      ] evmc_vm_test.execute_call
+[       OK ] evmc_vm_test.execute_call (49 ms)
+[ RUN      ] evmc_vm_test.execute_create
+[       OK ] evmc_vm_test.execute_create (0 ms)
+[ RUN      ] evmc_vm_test.set_option_unknown_name
+[       OK ] evmc_vm_test.set_option_unknown_name (0 ms)
+[ RUN      ] evmc_vm_test.set_option_empty_value
+[       OK ] evmc_vm_test.set_option_empty_value (0 ms)
+[ RUN      ] evmc_vm_test.set_option_unknown_value
+[       OK ] evmc_vm_test.set_option_unknown_value (0 ms)
+[ RUN      ] evmc_vm_test.precompile_test
+[       OK ] evmc_vm_test.precompile_test (0 ms)
+[----------] 10 tests from evmc_vm_test (50 ms total)
+
+[----------] Global test environment tear-down
+[==========] 10 tests from 1 test suite ran. (50 ms total)
+[  PASSED  ] 10 tests.
+```
+
 ## Structure
 
 There are four main components:
