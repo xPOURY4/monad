@@ -10,6 +10,12 @@ jobs:
             - uses: actions/checkout@v4
               with:
                 submodules: true
+            
+            - name: Formatting Check
+              uses: jidicula/clang-format-action@v4.13.0
+              with:
+                exclude-regex: '(build|third_party)'
+                clang-format-version: 18
 
             - name: Install dependencies
               run: |
