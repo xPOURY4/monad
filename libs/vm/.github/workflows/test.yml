@@ -29,7 +29,8 @@ jobs:
                 cmake -S . -B build                                 \
                   -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }} \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
-                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
+                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}   \
+                  -DLLVM_DIR=$(llvm-config-18 --cmakedir)
                 cmake --build build
 
     code-quality:
