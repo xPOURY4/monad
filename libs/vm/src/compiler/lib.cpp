@@ -1,8 +1,16 @@
 #include <compiler/compiler.h>
 
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Type.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
 
 namespace
 {
@@ -19,7 +27,7 @@ namespace
     // try to execute it.
     void build_no_op_return(llvm::Function &func)
     {
-        auto entry_block = llvm::BasicBlock::Create(context, "entry", &func);
+        auto *entry_block = llvm::BasicBlock::Create(context, "entry", &func);
         auto b = llvm::IRBuilder(entry_block);
         b.CreateRetVoid();
     }
@@ -35,7 +43,7 @@ namespace monad::compiler
 
         auto mod = std::make_unique<llvm::Module>("monad-evm", context);
 
-        auto entrypoint = build_entrypoint(*mod);
+        auto *entrypoint = build_entrypoint(*mod);
         build_no_op_return(*entrypoint);
 
         return {std::move(mod), entrypoint};
@@ -43,8 +51,8 @@ namespace monad::compiler
 
     llvm::FunctionType *contract_entrypoint_type()
     {
-        auto void_ty = llvm::Type::getVoidTy(context);
-        auto ptr_ty = llvm::PointerType::getUnqual(context);
+        auto *void_ty = llvm::Type::getVoidTy(context);
+        auto *ptr_ty = llvm::PointerType::getUnqual(context);
 
         return llvm::FunctionType::get(void_ty, {ptr_ty, ptr_ty}, false);
     }

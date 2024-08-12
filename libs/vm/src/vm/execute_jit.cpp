@@ -1,8 +1,12 @@
 #include <vm/execute_jit.h>
 
-#include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/IR/Module.h>
 
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace monad::vm
 {
@@ -12,11 +16,11 @@ namespace monad::vm
         auto target_opts = llvm::TargetOptions{};
         auto err = std::string{};
 
-        auto engine_ptr = llvm::EngineBuilder(std::move(mod))
-                              .setErrorStr(&err)
-                              .setEngineKind(llvm::EngineKind::JIT)
-                              .setTargetOptions(target_opts)
-                              .create();
+        auto *engine_ptr = llvm::EngineBuilder(std::move(mod))
+                               .setErrorStr(&err)
+                               .setEngineKind(llvm::EngineKind::JIT)
+                               .setTargetOptions(target_opts)
+                               .create();
 
         if (!engine_ptr) {
             throw std::runtime_error(err);

@@ -1,10 +1,14 @@
+#include <compiler/compiler.h>
 #include <vm/execute_jit.h>
 
-#include <compiler/compiler.h>
-
-#include <evmc/evmc.hpp>
+#include <evmc/evmc.h>
 
 #include <llvm/Support/TargetSelect.h>
+
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
 
 namespace
 {

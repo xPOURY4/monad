@@ -5,9 +5,10 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
+#include <iterator>
 #include <optional>
 #include <vector>
 
