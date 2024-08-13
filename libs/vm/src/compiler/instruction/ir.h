@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../bytecode/ir.h"
 #include <unordered_map>
-
+#include "../bytecode/ir.h"
+ 
 using block_id = std::size_t;
 
 enum class Terminator
@@ -16,7 +16,7 @@ enum class Terminator
     SelfDestruct
 };
 
-static constexpr block_id INVALID_BLOCK_ID = -1;
+static constexpr block_id INVALID_BLOCK_ID = (block_id)-1;
 
 struct Block
 {

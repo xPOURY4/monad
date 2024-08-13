@@ -2,9 +2,9 @@
 
 namespace
 {
-    uint256_t to_uint256_t(int const n, uint8_t const *src)
+    uint256_t to_uint256_t(std::size_t const n, uint8_t const *src)
     {
-        assert(n <= 32);
+        assert(n >= 0 && n <= 32);
 
         if (n == 0) {
             return 0;
@@ -23,7 +23,7 @@ BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
     byte_offset curr_offset = 0;
     while (curr_offset < byte_code.size()) {
         uint8_t opcode = byte_code[curr_offset];
-        int n = opCodeInfo[opcode].num_args;
+        std::size_t n = opCodeInfo[opcode].num_args;
         tokens.emplace_back(
             curr_offset, opcode, to_uint256_t(n, &byte_code[curr_offset]));
         curr_offset += 1 + n;
@@ -113,7 +113,7 @@ OpCodeInfo const opCodeInfo[] = {
     {"CHAINID", 0, 0, true, 2}, // 0x46,
     {"SELFBALANCE", 0, 0, true, 5}, // 0x47,
     {"BASEFEE", 0, 0, true, 2}, // 0x48,
-    {"BLOBHASH", 0, 1, true}, // 0x49,
+    {"BLOBHASH", 0, 1, true, 3}, // 0x49,
     {"BLOBBASEFEE", 0, 0, true, 2}, // 0x4A,
     UNKNOWN_OPCODE_INFO,
     UNKNOWN_OPCODE_INFO,
@@ -133,10 +133,10 @@ OpCodeInfo const opCodeInfo[] = {
     {"MSIZE", 0, 0, true, 2}, // 0x59,
     {"GAS", 0, 0, true, 2}, // 0x5A,
     {"JUMPDEST", 0, 0, false, 1}, // 0x5B,
-    {"TLOAD", 0, 1, true}, // 0x5C,
-    {"TSTORE", 0, 2, false}, // 0x5D,
-    {"MCOPY", 0, 3, false}, // 0x5E,
-    {"PUSH0", 0, 0, true}, // 0x5F,
+    {"TLOAD", 0, 1, true, 100}, // 0x5C,
+    {"TSTORE", 0, 2, false, 100}, // 0x5D,
+    {"MCOPY", 0, 3, false, 3}, // 0x5E,
+    {"PUSH0", 0, 0, true, 2}, // 0x5F,
 
     {"PUSH1", 1, 0, true, 3}, // 0x60,
     {"PUSH2", 2, 0, true, 3}, // 0x61,
@@ -304,7 +304,7 @@ OpCodeInfo const opCodeInfo[] = {
     {"STATICCALL", 0, 6, true, 100}, // 0xFA,
     UNKNOWN_OPCODE_INFO,
     UNKNOWN_OPCODE_INFO,
-    {"REVERT", 0, 2, false}, // 0xFD,
+    {"REVERT", 0, 2, false, 0}, // 0xFD,
     UNKNOWN_OPCODE_INFO,
-    {"SELFDESTRUCT", 0, 1, false} // 0xFF,
+    {"SELFDESTRUCT", 0, 1, false, 5000} // 0xFF,
 };
