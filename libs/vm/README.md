@@ -18,10 +18,12 @@ build-essential
 cmake
 llvm-18-dev
 libcli11-dev
+libgtest-dev
 ```
 
 Then, from the project root:
 ```console
+$ git submodule update --init --recursive
 $ cmake -S . -B build
 $ cmake --build build
 ```
@@ -30,10 +32,17 @@ Currently, the only tests supported by the compiler are the basic VM
 compatibility checks exposed by [EVMC][evmc]. To test the compiler against this
 tool, build [EVMC][evmc] following the project documentation:
 ```console
-$ cd $evmc
+$ ls
+evmc monad-compiler
+$ cd evmc
 $ cmake -S . -B build -DEVMC_TESTING=On
 $ cmake --build build
 ```
+
+Note that this build of EVMC is **not** the same one used in the
+`monad-compiler` submodule; there is a [CMake conflict][hunter] when building
+the EVMC test applications as part of our submodule. Instead, use a separate
+top-level copy of EVMC alongside `monad-compiler`.
 
 Then, run the VM tester tool against the library built by the compiler project
 (presuming that the two projects are in sibling directories):
@@ -87,3 +96,4 @@ There are four main components:
 
 [evmc]: https://github.com/ethereum/evmc
 [jit]: https://github.com/monad-crypto/monad-jit
+[hunter]: https://github.com/ethereum/evmc/pull/169
