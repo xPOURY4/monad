@@ -1,5 +1,7 @@
 #include "ir.h"
-#include "intx/intx.hpp"
+
+#include <intx/intx.hpp>
+
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -36,10 +38,7 @@ BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
     }
 }
 
-#define UNKNOWN_OPCODE_INFO                                                    \
-    {                                                                          \
-        "UNKNOWN", 0, 0, false, 0                                              \
-    }
+#define UNKNOWN_OPCODE_INFO {"UNKNOWN", 0, 0, false, 0}
 
 OpCodeInfo const opCodeInfo[] = {
     {"STOP", 0, 0, false, 0}, // 0x00

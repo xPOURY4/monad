@@ -1,7 +1,8 @@
 #pragma once
 
-#include <cstdint>
 #include <intx/intx.hpp>
+
+#include <cstdint>
 #include <string_view>
 #include <vector>
 

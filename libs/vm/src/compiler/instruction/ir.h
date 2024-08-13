@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../bytecode/ir.h"
+
 #include <unordered_map>
 
 using block_id = std::size_t;
