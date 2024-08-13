@@ -29,7 +29,8 @@ jobs:
                     build-essential     \
                     cmake               \
                     llvm-18-dev         \
-                    libcli11-dev
+                    libcli11-dev        \
+                    libgtest-dev
 
             - name: Build compiler
               working-directory: compiler
@@ -52,6 +53,10 @@ jobs:
               run: |
                 evmc/build/bin/evmc-vmtester compiler/build/src/vm/libmonad-compiler-vm.so
 
+            - name: Run tests
+              run: |
+                ctest --test-dir build
+
     code-quality:
         name: Code quality checks
         runs-on: ubuntu-24.04
@@ -72,7 +77,8 @@ jobs:
                     build-essential     \
                     cmake               \
                     llvm-18-dev         \
-                    libcli11-dev
+                    libcli11-dev        \
+                    libgtest-dev
 
             - name: Set up build system
               run: |
