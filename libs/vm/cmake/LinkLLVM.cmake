@@ -3,5 +3,5 @@ function(monad_link_llvm target)
        USE_SHARED true)
 
     target_include_directories(${target}
-        SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
+        SYSTEM PRIVATE ${LLVM_INCLUDE_DIRS})
 endfunction()

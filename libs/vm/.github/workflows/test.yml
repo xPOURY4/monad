@@ -55,7 +55,9 @@ jobs:
 
             - name: Run tests
               run: |
-                ctest --test-dir build
+                ctest                     \
+                  --test-dir build        \
+                  --output-on-failure
 
     code-quality:
         name: Code quality checks

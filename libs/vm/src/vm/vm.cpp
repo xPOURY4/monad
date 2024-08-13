@@ -1,5 +1,6 @@
 #include <compiler/compiler.h>
 #include <vm/execute_jit.h>
+#include <vm/vm.h>
 
 #include <evmc/evmc.h>
 
