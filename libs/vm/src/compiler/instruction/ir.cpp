@@ -1,5 +1,7 @@
 #include "ir.h"
+#include "../bytecode/ir.h"
 #include <cassert>
+#include <vector>
 
 block_id InstructionIR::curr_block_id()
 {
