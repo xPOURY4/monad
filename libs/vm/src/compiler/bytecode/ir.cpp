@@ -1,16 +1,10 @@
 #include "ir.h"
-#include "intx/intx.hpp"
-#include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <vector>
 
 namespace
 {
     uint256_t to_uint256_t(std::size_t const n, uint8_t const *src)
     {
-        assert(n >= 0 && n <= 32);
+        assert(n <= 32);
 
         if (n == 0) {
             return 0;
@@ -28,8 +22,8 @@ BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
 {
     byte_offset curr_offset = 0;
     while (curr_offset < byte_code.size()) {
-        uint8_t const opcode = byte_code[curr_offset];
-        std::size_t const n = opCodeInfo[opcode].num_args;
+        uint8_t opcode = byte_code[curr_offset];
+        std::size_t n = opCodeInfo[opcode].num_args;
         tokens.emplace_back(
             curr_offset, opcode, to_uint256_t(n, &byte_code[curr_offset]));
         curr_offset += 1 + n;
