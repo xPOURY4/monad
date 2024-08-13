@@ -1,8 +1,8 @@
 #pragma once
 
-#include <unordered_map>
 #include "../bytecode/ir.h"
- 
+#include <unordered_map>
+
 using block_id = std::size_t;
 
 enum class Terminator

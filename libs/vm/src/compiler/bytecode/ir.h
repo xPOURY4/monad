@@ -1,17 +1,18 @@
 #pragma once
 
 #include <cstdint>
+#include <intx/intx.hpp>
 #include <string_view>
 #include <vector>
-#include <intx/intx.hpp>
- 
+
 using byte_offset = std::size_t;
 using uint256_t = ::intx::uint256;
 
 struct Token
-{ byte_offset token_offset;
-  uint8_t token_opcode;
-  uint256_t token_data; // only used by push
+{
+    byte_offset token_offset;
+    uint8_t token_opcode;
+    uint256_t token_data; // only used by push
 };
 
 class BytecodeIR
