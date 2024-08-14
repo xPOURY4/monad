@@ -35,12 +35,12 @@ namespace monad::compiler
     class InstructionIR
     {
     public:
-        InstructionIR(BytecodeIR &byte_code);
+        InstructionIR(BytecodeIR const &byte_code);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
     private:
-        block_id curr_block_id();
+        block_id curr_block_id() const;
         void add_jump_dest(byte_offset offset);
         void add_block();
         void add_terminator(Terminator t);

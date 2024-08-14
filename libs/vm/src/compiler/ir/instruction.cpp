@@ -7,7 +7,7 @@
 namespace monad::compiler
 {
 
-    block_id InstructionIR::curr_block_id()
+    block_id InstructionIR::curr_block_id() const
     {
         return blocks.size() - 1;
     }
@@ -34,7 +34,7 @@ namespace monad::compiler
         blocks.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    InstructionIR::InstructionIR(BytecodeIR &byte_code)
+    InstructionIR::InstructionIR(BytecodeIR const &byte_code)
     {
 
         enum class St
@@ -47,7 +47,7 @@ namespace monad::compiler
 
         add_block();
 
-        for (auto &tok : byte_code.tokens) {
+        for (auto const &tok : byte_code.tokens) {
             if (st == St::OUTSIDE_BLOCK) {
                 if (tok.token_opcode == JUMPDEST) {
                     add_block();
