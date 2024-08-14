@@ -19,8 +19,7 @@ namespace monad::compiler
         llvm::Function *entrypoint;
     };
 
-    compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size);
+    llvm::LLVMContext &context();
 
-    llvm::FunctionType *contract_entrypoint_type();
-    llvm::Function *build_entrypoint(llvm::Module &mod);
+    compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size);
 }

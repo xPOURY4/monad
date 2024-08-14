@@ -1,4 +1,7 @@
 #include <compiler/compiler.h>
+#include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
+#include <compiler/ir/simple_llvm.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -19,50 +22,24 @@ namespace
     // static-storage context that will live for the program's entire lifetime.
     // This will need to be revisited in the future if we ever do anything more
     // sophisticated inside the compiler.
-    llvm::LLVMContext context;
-
-    // This function is a stub that we should remove once the compiler actually
-    // starts to work properly end-to-end; it's just here for the purposes of
-    // making the smallest possible implementation that doesn't crash when we
-    // try to execute it.
-    void build_no_op_return(llvm::Function &func)
-    {
-        auto *entry_block = llvm::BasicBlock::Create(context, "entry", &func);
-        auto b = llvm::IRBuilder(entry_block);
-        b.CreateRetVoid();
-    }
+    llvm::LLVMContext compiler_context;
 }
 
 namespace monad::compiler
 {
+    llvm::LLVMContext &context()
+    {
+        return ::compiler_context;
+    }
 
     compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size)
     {
-        (void)code;
-        (void)code_size;
+        auto program = std::vector(code, code + code_size);
+        auto bytecode = BytecodeIR(program);
+        auto blocks = InstructionIR(program);
+        auto llvm = SimpleLLVMIR(blocks);
 
-        auto mod = std::make_unique<llvm::Module>("monad-evm", context);
-
-        auto *entrypoint = build_entrypoint(*mod);
-        build_no_op_return(*entrypoint);
-
-        return {std::move(mod), entrypoint};
+        return std::move(llvm).result();
     }
 
-    llvm::FunctionType *contract_entrypoint_type()
-    {
-        auto *void_ty = llvm::Type::getVoidTy(context);
-        auto *ptr_ty = llvm::PointerType::getUnqual(context);
-
-        return llvm::FunctionType::get(void_ty, {ptr_ty, ptr_ty}, false);
-    }
-
-    llvm::Function *build_entrypoint(llvm::Module &mod)
-    {
-        return llvm::Function::Create(
-            contract_entrypoint_type(),
-            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-            constants::contract_entrypoint,
-            mod);
-    }
 }
