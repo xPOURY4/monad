@@ -1,4 +1,4 @@
-#include "ir.h"
+#include <compiler/ir/bytecode.h>
 
 #include <intx/intx.hpp>
 

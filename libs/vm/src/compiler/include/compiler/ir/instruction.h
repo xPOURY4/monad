@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../bytecode/ir.h"
+#include <compiler/ir/bytecode.h>
 
 #include <unordered_map>
 

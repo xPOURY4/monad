@@ -1,5 +1,5 @@
-#include "ir.h"
-#include "../bytecode/ir.h"
+#include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 
 #include <cassert>
 #include <vector>

@@ -1,4 +1,8 @@
-add_library(compiler lib.cpp bytecode/ir.cpp instruction/ir.cpp)
+add_library(compiler
+    lib.cpp
+    ir/bytecode.cpp
+    ir/instruction.cpp
+)
 
 monad_compile_options(compiler)
 monad_link_llvm(compiler)
