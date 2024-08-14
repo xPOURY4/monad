@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <compiler/ir/bytecode.h>
 
 #include <intx/intx.hpp>
@@ -11,7 +12,8 @@
 
 namespace
 {
-    uint256_t to_uint256_t(std::size_t const n, uint8_t const *src)
+    uint256_t to_uint256_t(
+        std::size_t const n, std::size_t const remaining, uint8_t const *src)
     {
         assert(n <= 32);
 
@@ -21,7 +23,7 @@ namespace
 
         uint8_t dst[32] = {};
 
-        std::memcpy(dst, src, n);
+        std::memcpy(&dst[32 - n], src, std::min(n, remaining));
 
         return intx::be::load<uint256_t>(dst);
     }
@@ -36,10 +38,26 @@ namespace monad::compiler
         while (curr_offset < byte_code.size()) {
             uint8_t const opcode = byte_code[curr_offset];
             std::size_t const n = opcode_info_table[opcode].num_args;
+            byte_offset const opcode_offset = curr_offset;
+
+            curr_offset++;
+
             tokens.emplace_back(
-                curr_offset, opcode, to_uint256_t(n, &byte_code[curr_offset]));
-            curr_offset += 1 + n;
+                opcode_offset,
+                opcode,
+                to_uint256_t(
+                    n,
+                    byte_code.size() - curr_offset,
+                    &byte_code[curr_offset]));
+
+            curr_offset += n;
         }
+    }
+
+    bool operator==(Token const &a, Token const &b)
+    {
+        return a.token_offset == b.token_offset &&
+               a.token_opcode == b.token_opcode && a.token_data == b.token_data;
     }
 
 }

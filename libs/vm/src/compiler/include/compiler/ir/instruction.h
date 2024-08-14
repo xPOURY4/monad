@@ -32,6 +32,8 @@ namespace monad::compiler
                                    // INVALID_BLOCK_ID
     };
 
+    bool operator==(Block const &a, Block const &b);
+
     class InstructionIR
     {
     public:

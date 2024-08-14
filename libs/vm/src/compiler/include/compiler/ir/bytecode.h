@@ -20,6 +20,8 @@ namespace monad::compiler
         uint256_t token_data; // only used by push
     };
 
+    bool operator==(Token const &a, Token const &b);
+
     class BytecodeIR
     {
     public:

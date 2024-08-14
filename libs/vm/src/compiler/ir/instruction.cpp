@@ -7,6 +7,12 @@
 namespace monad::compiler
 {
 
+    bool operator==(Block const &a, Block const &b)
+    {
+        return a.instrs == b.instrs && a.terminator == b.terminator &&
+               a.fallthrough_dest == b.fallthrough_dest;
+    }
+
     block_id InstructionIR::curr_block_id() const
     {
         return blocks.size() - 1;
