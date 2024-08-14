@@ -2,6 +2,7 @@
 
 #include <compiler/ir/bytecode.h>
 
+#include <limits>
 #include <unordered_map>
 
 using block_id = std::size_t;
@@ -20,7 +21,8 @@ namespace monad::compiler
         SelfDestruct
     };
 
-    inline constexpr block_id INVALID_BLOCK_ID = (block_id)-1;
+    inline constexpr block_id INVALID_BLOCK_ID =
+        std::numeric_limits<block_id>::max();
 
     struct Block
     {
