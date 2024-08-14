@@ -11,7 +11,7 @@ namespace monad::compiler
 {
     namespace constants
     {
-        constexpr auto contract_entrypoint = "monad_evm_contract_main";
+        inline constexpr auto contract_entrypoint = "monad_evm_contract_main";
     }
 
     struct compile_result
