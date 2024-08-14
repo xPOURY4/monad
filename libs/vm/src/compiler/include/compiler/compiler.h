@@ -1,5 +1,4 @@
-#ifndef MONAD_COMPILER_H
-#define MONAD_COMPILER_H
+#pragma once
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
@@ -25,5 +24,3 @@ namespace monad::compiler
     llvm::FunctionType *contract_entrypoint_type();
     llvm::Function *build_entrypoint(llvm::Module &mod);
 }
-
-#endif
