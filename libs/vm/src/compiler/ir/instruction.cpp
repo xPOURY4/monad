@@ -2,6 +2,7 @@
 #include <compiler/ir/instruction.h>
 
 #include <cassert>
+#include <tuple>
 #include <vector>
 
 namespace monad::compiler
@@ -9,8 +10,8 @@ namespace monad::compiler
 
     bool operator==(Block const &a, Block const &b)
     {
-        return a.instrs == b.instrs && a.terminator == b.terminator &&
-               a.fallthrough_dest == b.fallthrough_dest;
+        return std::tie(a.instrs, a.terminator, a.fallthrough_dest) ==
+               std::tie(b.instrs, b.terminator, b.fallthrough_dest);
     }
 
     block_id InstructionIR::curr_block_id() const

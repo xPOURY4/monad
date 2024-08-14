@@ -1,12 +1,15 @@
-#include <cstdint>
-#include <gtest/gtest.h>
-#include <unordered_map>
-#include <vector>
-
 #include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <intx/intx.hpp>
+#include <unordered_map>
+#include <vector>
+
 using namespace monad::compiler;
+using namespace intx;
 
 void tokens_eq(
     std::vector<uint8_t> const &in, std::vector<Token> const &expected)
@@ -29,7 +32,12 @@ TEST(BytecodeTest, ToTokens)
     tokens_eq({PUSH1}, {{0, PUSH1, 0x0}});
     tokens_eq({PUSH2, 0xff}, {{0, PUSH2, 0xff00}});
     tokens_eq({PUSH4, 0xaa, 0xbb}, {{0, PUSH4, 0xaabb0000}});
-    tokens_eq({PUSH32, 0xff}, {{0, PUSH32, (uint256_t)0xff << 248}});
+
+    tokens_eq(
+        {PUSH32, 0xab},
+        {{0,
+          PUSH32,
+          0xab00000000000000000000000000000000000000000000000000000000000000_u256}});
 }
 
 void blocks_eq(

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <tuple>
 #include <vector>
 
 namespace
@@ -56,8 +57,8 @@ namespace monad::compiler
 
     bool operator==(Token const &a, Token const &b)
     {
-        return a.token_offset == b.token_offset &&
-               a.token_opcode == b.token_opcode && a.token_data == b.token_data;
+        return std::tie(a.token_offset, a.token_opcode, a.token_data) ==
+               std::tie(b.token_offset, b.token_opcode, b.token_data);
     }
 
 }
