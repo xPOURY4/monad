@@ -6,5 +6,6 @@ monad_link_llvm(monad-evmc)
 target_link_libraries(monad-evmc
     PRIVATE
         compiler
+        utils
         CLI11::CLI11
 )

@@ -1,4 +1,5 @@
 #include <compiler/compiler.h>
+#include <utils/load_program.h>
 
 #include <CLI/CLI.hpp>
 
@@ -25,13 +26,7 @@ std::vector<uint8_t> load_program(fs::path const &path)
             "Malformed hex input (expecting an even number of hex characters)");
     }
 
-    auto program = std::vector<uint8_t>(hex_chars.size() / 2);
-
-    for (auto i = 0u; i < hex_chars.size(); i += 2) {
-        std::from_chars(&hex_chars[i], &hex_chars[i + 1], program[i / 2], 16);
-    }
-
-    return program;
+    return monad::utils::parse_hex_program(hex_chars);
 }
 
 int main(int argc, char **argv)
