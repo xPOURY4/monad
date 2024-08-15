@@ -5,6 +5,7 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 
+#include <charconv>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -17,7 +18,20 @@ namespace fs = std::filesystem;
 std::vector<uint8_t> load_program(fs::path const &path)
 {
     auto in = std::ifstream(path);
-    return std::vector<uint8_t>(std::istreambuf_iterator<char>(in), {});
+    auto hex_chars = std::vector<char>(std::istreambuf_iterator<char>(in), {});
+
+    if (hex_chars.size() % 2 != 0) {
+        throw std::runtime_error(
+            "Malformed hex input (expecting an even number of hex characters)");
+    }
+
+    auto program = std::vector<uint8_t>(hex_chars.size() / 2);
+
+    for (auto i = 0u; i < hex_chars.size(); i += 2) {
+        std::from_chars(&hex_chars[i], &hex_chars[i + 1], program[i / 2], 16);
+    }
+
+    return program;
 }
 
 int main(int argc, char **argv)
