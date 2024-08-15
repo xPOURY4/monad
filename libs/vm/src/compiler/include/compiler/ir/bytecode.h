@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <format>
 #include <string_view>
 #include <vector>
 
@@ -319,3 +320,56 @@ namespace monad::compiler
         opcode_info_table.size() == 256,
         "Must have opcode info for exact opcode range [0x00, 0xFF)");
 }
+
+template <>
+struct std::formatter<uint256_t>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(uint256_t const &v, std::format_context &ctx) const
+    {
+        return std::format_to(ctx.out(), "0x{}", intx::to_string(v, 16));
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::Token>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto
+    format(monad::compiler::Token const &tok, std::format_context &ctx) const
+    {
+        return std::format_to(
+            ctx.out(),
+            "({}, {}, {})",
+            tok.token_offset,
+            monad::compiler::opcode_info_table[tok.token_opcode].name,
+            tok.token_data);
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::BytecodeIR>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::BytecodeIR const &ir, std::format_context &ctx) const
+    {
+        std::format_to(ctx.out(), "bytecode:");
+        for (monad::compiler::Token const &tok : ir.tokens) {
+            std::format_to(ctx.out(), "\n  {}", tok);
+        }
+        return std::format_to(ctx.out(), "\n");
+    }
+};

@@ -202,3 +202,95 @@ namespace monad::compiler
     };
 
 }
+
+template <>
+struct std::formatter<monad::compiler::Terminator>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto
+    format(monad::compiler::Terminator const &t, std::format_context &ctx) const
+    {
+        std::string_view v;
+        switch (t) {
+        case monad::compiler::Terminator::JumpDest:
+            v = "JumpDest";
+            break;
+        case monad::compiler::Terminator::JumpI:
+            v = "JumpI";
+            break;
+        case monad::compiler::Terminator::Jump:
+            v = "Jump";
+            break;
+        case monad::compiler::Terminator::Return:
+            v = "Return";
+            break;
+        case monad::compiler::Terminator::Revert:
+            v = "Revert";
+            break;
+        case monad::compiler::Terminator::SelfDestruct:
+            v = "SelfDestruct";
+            break;
+        default:
+            assert(t == monad::compiler::Terminator::Stop);
+            v = "Stop";
+            break;
+        }
+        return std::format_to(ctx.out(), "{}", v);
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::Block>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto
+    format(monad::compiler::Block const &blk, std::format_context &ctx) const
+    {
+
+        for (monad::compiler::Token const &tok : blk.instrs) {
+            std::format_to(ctx.out(), "      {}\n", tok);
+        }
+
+        std::format_to(ctx.out(), "    {}", blk.terminator);
+        if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {
+            std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
+        }
+        return std::format_to(ctx.out(), "\n");
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::InstructionIR>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::InstructionIR const &ir,
+        std::format_context &ctx) const
+    {
+
+        std::format_to(ctx.out(), "instruction:\n");
+        int i = 0;
+        for (monad::compiler::Block const &blk : ir.blocks) {
+            std::format_to(ctx.out(), "  block {}:\n", i);
+            std::format_to(ctx.out(), "{}", blk);
+            i++;
+        }
+        std::format_to(ctx.out(), "\n  jumpdests:\n");
+        for (auto const &[k, v] : ir.jumpdests) {
+            std::format_to(ctx.out(), "    {}:{}\n", k, v);
+        }
+        return std::format_to(ctx.out(), "");
+    }
+};

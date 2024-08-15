@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <format>
 #include <intx/intx.hpp>
 #include <unordered_map>
 #include <vector>
@@ -15,6 +16,20 @@ void tokens_eq(
     std::vector<uint8_t> const &in, std::vector<Token> const &expected)
 {
     EXPECT_EQ(BytecodeIR(in).tokens, expected);
+}
+
+TEST(TokenTest, Formatter)
+{
+    EXPECT_EQ(std::format("{}", Token{4, PUSH1, 0x42}), "(4, PUSH1, 0x42)");
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            Token{
+                0,
+                PUSH32,
+                0xab00000000000000000000000000000000000000000000000000000000000000_u256}),
+        "(0, PUSH32, "
+        "0xab00000000000000000000000000000000000000000000000000000000000000)");
 }
 
 TEST(BytecodeTest, ToTokens)
@@ -40,6 +55,16 @@ TEST(BytecodeTest, ToTokens)
           0xab00000000000000000000000000000000000000000000000000000000000000_u256}});
 }
 
+TEST(BytecodeTest, Formatter)
+{
+    EXPECT_EQ(std::format("{}", BytecodeIR({})), "bytecode:\n");
+    EXPECT_EQ(
+        std::format("{}", BytecodeIR({STOP})), "bytecode:\n  (0, STOP, 0x0)\n");
+    EXPECT_EQ(
+        std::format("{}", BytecodeIR({STOP, PUSH1, 0xab})),
+        "bytecode:\n  (0, STOP, 0x0)\n  (1, PUSH1, 0xab)\n");
+}
+
 void blocks_eq(
     std::vector<uint8_t> const &in,
     std::unordered_map<byte_offset, block_id> const &expected_jumpdests,
@@ -59,6 +84,17 @@ using Terminator::Return;
 using Terminator::Revert;
 using Terminator::SelfDestruct;
 using Terminator::Stop;
+
+TEST(TerminatorText, Formatter)
+{
+    EXPECT_EQ(std::format("{}", JumpDest), "JumpDest");
+    EXPECT_EQ(std::format("{}", JumpI), "JumpI");
+    EXPECT_EQ(std::format("{}", Jump), "Jump");
+    EXPECT_EQ(std::format("{}", Return), "Return");
+    EXPECT_EQ(std::format("{}", Revert), "Revert");
+    EXPECT_EQ(std::format("{}", SelfDestruct), "SelfDestruct");
+    EXPECT_EQ(std::format("{}", Stop), "Stop");
+}
 
 TEST(InstructionTest, ToBlocks)
 {
@@ -100,4 +136,37 @@ TEST(InstructionTest, ToBlocks)
         {{4, 1}, {5, 1}},
         {{{{0, ADD, 0}, {1, ADD, 0}}, Jump, INVALID_BLOCK_ID},
          {{}, SelfDestruct, INVALID_BLOCK_ID}});
+}
+
+TEST(BlockTest, Formatter)
+{
+    EXPECT_EQ(
+        std::format("{}", Block{{}, Return, INVALID_BLOCK_ID}), "    Return\n");
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            Block{{{0, ADD, 0}, {1, ADD, 0}}, SelfDestruct, INVALID_BLOCK_ID}),
+        "      (0, ADD, 0x0)\n      (1, ADD, 0x0)\n    SelfDestruct\n");
+    EXPECT_EQ(
+        std::format("{}", Block{{{1, ADD, 0}}, JumpI, 0}),
+        "      (1, ADD, 0x0)\n    JumpI 0\n");
+}
+
+TEST(InstructionTest, Formatter)
+{
+    EXPECT_EQ(
+        std::format("{}", InstructionIR(BytecodeIR({}))),
+        "instruction:\n  block 0:\n    Stop\n\n  jumpdests:\n");
+    EXPECT_EQ(
+        std::format(
+            "{}", InstructionIR(BytecodeIR({JUMPDEST, ADD, ADD, JUMPDEST}))),
+        "instruction:\n  block 0:\n      (1, ADD, 0x0)\n      (2, ADD, 0x0)\n  "
+        "  JumpDest 1\n  block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    "
+        "0:0\n");
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            InstructionIR(BytecodeIR({JUMPDEST, JUMPDEST, ADD, JUMPDEST}))),
+        "instruction:\n  block 0:\n      (2, ADD, 0x0)\n    JumpDest 1\n  "
+        "block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    1:0\n    0:0\n");
 }
