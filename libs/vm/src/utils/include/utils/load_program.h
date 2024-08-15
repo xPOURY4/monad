@@ -18,13 +18,13 @@ namespace monad::utils
     std::vector<uint8_t> parse_hex_program(It begin, It end)
     {
         auto hex_size = std::distance(begin, end);
-        auto program = std::vector<uint8_t>(hex_size / 2);
+        auto program =
+            std::vector<uint8_t>(static_cast<std::size_t>(hex_size / 2));
 
-        auto out_begin = program.begin();
+        auto output_it = program.begin();
         auto out_end = program.end();
 
-        for (auto input_it = begin, output_it = out_begin;
-             input_it != end && output_it != out_end;
+        for (auto input_it = begin; input_it != end && output_it != out_end;
              input_it += 2, output_it++) {
             auto *begin_char = &*input_it;
             auto *end_char = begin_char + 2;

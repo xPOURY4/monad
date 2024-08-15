@@ -2,6 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 using namespace monad::utils;
 
 void test_case(std::string const &in, std::vector<uint8_t> const &out)
