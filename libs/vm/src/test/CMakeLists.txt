@@ -18,3 +18,13 @@ add_test(
     NAME "VM Tests"
     COMMAND vm-tests
 )
+
+add_executable(utils-tests utils_tests.cpp)
+
+monad_compile_options(utils-tests)
+target_link_libraries(utils-tests utils GTest::gtest_main)
+
+add_test(
+    NAME "Utility Tests"
+    COMMAND utils-tests
+)
