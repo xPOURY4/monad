@@ -20,12 +20,6 @@ std::vector<uint8_t> load_program(fs::path const &path)
 {
     auto in = std::ifstream(path);
     auto hex_chars = std::vector<char>(std::istreambuf_iterator<char>(in), {});
-
-    if (hex_chars.size() % 2 != 0) {
-        throw std::runtime_error(
-            "Malformed hex input (expecting an even number of hex characters)");
-    }
-
     return monad::utils::parse_hex_program(hex_chars);
 }
 
