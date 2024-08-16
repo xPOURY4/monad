@@ -44,7 +44,7 @@ namespace
     llvm::Function *build_slow_jump_table(
         llvm::Module &mod,
         std::unordered_map<byte_offset, block_id> const &jump_table,
-        std::vector<llvm::BasicBlock *> const &blocks)
+        std::vector<std::pair<llvm::BasicBlock *, Block>> const &blocks)
     {
         auto *block_address_ty = llvm::PointerType::getUnqual(context());
         auto *block_id_ty =
@@ -86,7 +86,8 @@ namespace
             auto *offset_const = llvm::ConstantInt::get(block_id_ty, offset);
             switch_table->addCase(offset_const, case_block);
 
-            auto *block_addr = llvm::BlockAddress::get(blocks[block_id]);
+            auto [llvm_block, _] = blocks[block_id];
+            auto *block_addr = llvm::BlockAddress::get(llvm_block);
             phi->addIncoming(block_addr, case_block);
         }
 
@@ -148,8 +149,9 @@ namespace monad::compiler
             "Cannot compile program with no basic blocks");
 
         for (auto const &b : instrs.blocks) {
-            evm_blocks.push_back(compile_block(b));
+            evm_blocks.emplace_back(compile_block(b), b);
         }
+        compile_block_terminators();
 
         build_slow_jump_table(*mod, instrs.jumpdests, evm_blocks);
     }
@@ -164,5 +166,21 @@ namespace monad::compiler
         (void)b;
         auto *block = llvm::BasicBlock::Create(context(), "", entry_point);
         return block;
+    }
+
+    void SimpleLLVMIR::compile_block_terminators()
+    {
+        for (auto const &[llvm_block, original_block] : evm_blocks) {
+            switch (original_block.terminator) {
+            case Terminator::JumpDest:
+                llvm::BranchInst::Create(
+                    evm_blocks[original_block.fallthrough_dest].first,
+                    llvm_block);
+                break;
+
+            default:
+                break;
+            }
+        }
     }
 }

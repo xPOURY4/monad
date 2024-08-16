@@ -22,12 +22,13 @@ namespace monad::compiler
     private:
         std::unique_ptr<llvm::Module> mod;
         llvm::Function *entry_point;
-        std::vector<llvm::BasicBlock *> evm_blocks;
+        std::vector<std::pair<llvm::BasicBlock *, Block>> evm_blocks;
 
         llvm::GlobalVariable *stack;
         llvm::GlobalVariable *stack_pointer;
 
         llvm::BasicBlock *compile_block(Block const &b) const;
+        void compile_block_terminators();
     };
 
 }
