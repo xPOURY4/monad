@@ -17,6 +17,7 @@ namespace monad::vm
         auto err = std::string{};
 
         auto *engine_ptr = llvm::EngineBuilder(std::move(mod))
+                               .setVerifyModules(true)
                                .setErrorStr(&err)
                                .setEngineKind(llvm::EngineKind::JIT)
                                .setTargetOptions(target_opts)

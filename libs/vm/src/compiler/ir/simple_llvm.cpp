@@ -47,8 +47,7 @@ namespace
         std::vector<std::pair<llvm::BasicBlock *, Block>> const &blocks)
     {
         auto *block_address_ty = llvm::PointerType::getUnqual(context());
-        auto *block_id_ty =
-            llvm::IntegerType::get(context(), sizeof(block_id) * CHAR_BIT);
+        auto *block_id_ty = llvm::IntegerType::get(context(), 256);
 
         auto *table_fn_ty =
             llvm::FunctionType::get(block_address_ty, {block_id_ty}, false);
@@ -145,6 +144,12 @@ namespace monad::compiler
         , stack_pointer(build_evm_stack_pointer(*mod))
         , push(build_push_function())
         , pop(build_pop_function())
+        , entry(llvm::BasicBlock::Create(context(), "entry", entry_point))
+        , stop(llvm::BasicBlock::Create(context(), "stop", entry_point))
+        , revert(llvm::BasicBlock::Create(context(), "revert", entry_point))
+        , self_destruct(
+              llvm::BasicBlock::Create(context(), "self_destruct", entry_point))
+        , return_(llvm::BasicBlock::Create(context(), "return", entry_point))
     {
         assert(
             instrs.blocks.size() > 0 &&
@@ -152,6 +157,14 @@ namespace monad::compiler
 
         for (auto const &b : instrs.blocks) {
             evm_blocks.emplace_back(compile_block(b), b);
+        }
+
+        auto b = llvm::IRBuilder(entry);
+        b.CreateBr(evm_blocks[0].first);
+
+        for (auto *exn_block : {stop, revert, self_destruct, return_}) {
+            b.SetInsertPoint(exn_block);
+            b.CreateRetVoid();
         }
 
         jump_table = build_slow_jump_table(*mod, instrs.jumpdests, evm_blocks);
@@ -184,7 +197,7 @@ namespace monad::compiler
 
         auto *sp = b.CreateLoad(stack_pointer_type(), sp_ptr);
 
-        auto *stack_item = b.CreateGEP(word_type(), stack, {zero, sp});
+        auto *stack_item = b.CreateGEP(word_type(), stack, {sp});
         b.CreateStore(push_fn->getArg(0), stack_item);
 
         auto *one = llvm::ConstantInt::get(stack_pointer_type(), 1);
@@ -218,7 +231,7 @@ namespace monad::compiler
         auto *new_sp = b.CreateSub(sp, one);
         b.CreateStore(new_sp, sp_ptr);
 
-        auto *stack_item = b.CreateGEP(word_type(), stack, {zero, new_sp});
+        auto *stack_item = b.CreateGEP(word_type(), stack, {new_sp});
         auto *ret_val = b.CreateLoad(word_type(), stack_item);
         b.CreateRet(ret_val);
 
@@ -273,7 +286,20 @@ namespace monad::compiler
                     llvm_block);
                 break;
 
-            default:
+            case Terminator::Stop:
+                b.CreateBr(stop);
+                break;
+
+            case Terminator::Revert:
+                b.CreateBr(revert);
+                break;
+
+            case Terminator::SelfDestruct:
+                b.CreateBr(self_destruct);
+                break;
+
+            case Terminator::Return:
+                b.CreateBr(return_);
                 break;
             }
         }

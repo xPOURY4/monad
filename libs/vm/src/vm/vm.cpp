@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <utility>
 
 namespace
@@ -38,6 +39,7 @@ namespace
         assert(mod && "Failed to compile bytecode");
 
         auto engine = monad::vm::create_engine(std::move(mod));
+        std::cout << engine->getErrorMessage() << '\n';
 
         engine->finalizeObject();
         auto jit_entry_fn =

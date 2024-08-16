@@ -32,6 +32,12 @@ namespace monad::compiler
         llvm::Function *pop;
         llvm::Function *jump_table;
 
+        llvm::BasicBlock *entry;
+        llvm::BasicBlock *stop;
+        llvm::BasicBlock *revert;
+        llvm::BasicBlock *self_destruct;
+        llvm::BasicBlock *return_;
+
         llvm::Function *build_push_function();
         llvm::Function *build_pop_function();
 
