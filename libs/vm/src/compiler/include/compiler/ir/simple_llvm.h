@@ -24,6 +24,9 @@ namespace monad::compiler
         llvm::Function *entry_point;
         std::vector<llvm::BasicBlock *> evm_blocks;
 
+        llvm::GlobalVariable *stack;
+        llvm::GlobalVariable *stack_pointer;
+
         llvm::BasicBlock *compile_block(Block const &b) const;
     };
 

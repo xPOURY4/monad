@@ -92,6 +92,46 @@ namespace
 
         return table_fn;
     }
+
+    llvm::IntegerType *word_type()
+    {
+        return llvm::IntegerType::get(context(), 256);
+    }
+
+    llvm::IntegerType *stack_pointer_type()
+    {
+        return llvm::IntegerType::get(context(), 16);
+    }
+
+    llvm::GlobalVariable *build_evm_stack(llvm::Module &mod)
+    {
+        constexpr auto stack_size = 1024;
+
+        auto *stack_type = llvm::ArrayType::get(word_type(), stack_size);
+
+        auto *stack = new llvm::GlobalVariable(
+            stack_type,
+            false,
+            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::ConstantAggregateZero::get(stack_type),
+            "evm_stack");
+
+        mod.insertGlobalVariable(stack);
+        return stack;
+    }
+
+    llvm::GlobalVariable *build_evm_stack_pointer(llvm::Module &mod)
+    {
+        auto *stack_ptr = new llvm::GlobalVariable(
+            stack_pointer_type(),
+            false,
+            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::ConstantInt::get(stack_pointer_type(), 0),
+            "evm_stack_pointer");
+
+        mod.insertGlobalVariable(stack_ptr);
+        return stack_ptr;
+    }
 }
 
 namespace monad::compiler
@@ -100,6 +140,8 @@ namespace monad::compiler
         : mod(std::make_unique<llvm::Module>("monad-evm", context()))
         , entry_point(build_entrypoint(*mod))
         , evm_blocks{}
+        , stack(build_evm_stack(*mod))
+        , stack_pointer(build_evm_stack_pointer(*mod))
     {
         assert(
             instrs.blocks.size() > 0 &&
