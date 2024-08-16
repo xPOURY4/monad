@@ -12,6 +12,8 @@ namespace monad::compiler
     {
         inline constexpr auto contract_entrypoint = "monad_evm_contract_main";
         inline constexpr auto jump_table = "monad_evm_jump_table";
+        inline constexpr auto push = "monad_evm_push";
+        inline constexpr auto pop = "monad_evm_pop";
     }
 
     struct compile_result

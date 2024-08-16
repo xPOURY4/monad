@@ -143,6 +143,8 @@ namespace monad::compiler
         , evm_blocks{}
         , stack(build_evm_stack(*mod))
         , stack_pointer(build_evm_stack_pointer(*mod))
+        , push(build_push_function())
+        , pop(build_pop_function())
     {
         assert(
             instrs.blocks.size() > 0 &&
@@ -159,6 +161,67 @@ namespace monad::compiler
     compile_result SimpleLLVMIR::result() &&
     {
         return {std::move(mod), entry_point};
+    }
+
+    llvm::Function *SimpleLLVMIR::build_push_function()
+    {
+        auto *fn_ty = llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context()), {word_type()}, false);
+
+        auto *push_fn = llvm::Function::Create(
+            fn_ty,
+            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            constants::push,
+            *mod);
+
+        auto *entry = llvm::BasicBlock::Create(context(), "entry", push_fn);
+        auto b = llvm::IRBuilder(entry);
+
+        auto *zero =
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context()), 0);
+        auto *sp_ptr = b.CreateGEP(stack_pointer_type(), stack_pointer, {zero});
+
+        auto *sp = b.CreateLoad(stack_pointer_type(), sp_ptr);
+
+        auto *stack_item = b.CreateGEP(word_type(), stack, {zero, sp});
+        b.CreateStore(push_fn->getArg(0), stack_item);
+
+        auto *one = llvm::ConstantInt::get(stack_pointer_type(), 1);
+        auto *new_sp = b.CreateAdd(sp, one);
+        b.CreateStore(new_sp, sp_ptr);
+
+        b.CreateRetVoid();
+        return push_fn;
+    }
+
+    llvm::Function *SimpleLLVMIR::build_pop_function()
+    {
+        auto *fn_ty = llvm::FunctionType::get(word_type(), {}, false);
+
+        auto *pop_fn = llvm::Function::Create(
+            fn_ty,
+            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            constants::pop,
+            *mod);
+
+        auto *entry = llvm::BasicBlock::Create(context(), "entry", pop_fn);
+        auto b = llvm::IRBuilder(entry);
+
+        auto *zero =
+            llvm::ConstantInt::get(llvm::IntegerType::getInt32Ty(context()), 0);
+        auto *sp_ptr = b.CreateGEP(stack_pointer_type(), stack_pointer, {zero});
+
+        auto *sp = b.CreateLoad(stack_pointer_type(), sp_ptr);
+
+        auto *one = llvm::ConstantInt::get(stack_pointer_type(), 1);
+        auto *new_sp = b.CreateSub(sp, one);
+        b.CreateStore(new_sp, sp_ptr);
+
+        auto *stack_item = b.CreateGEP(word_type(), stack, {zero, new_sp});
+        auto *ret_val = b.CreateLoad(word_type(), stack_item);
+        b.CreateRet(ret_val);
+
+        return pop_fn;
     }
 
     llvm::BasicBlock *SimpleLLVMIR::compile_block(Block const &b) const

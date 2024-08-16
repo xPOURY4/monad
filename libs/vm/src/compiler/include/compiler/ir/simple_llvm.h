@@ -27,6 +27,12 @@ namespace monad::compiler
         llvm::GlobalVariable *stack;
         llvm::GlobalVariable *stack_pointer;
 
+        llvm::Function *push;
+        llvm::Function *pop;
+
+        llvm::Function *build_push_function();
+        llvm::Function *build_pop_function();
+
         llvm::BasicBlock *compile_block(Block const &b) const;
         void compile_block_terminators();
     };
