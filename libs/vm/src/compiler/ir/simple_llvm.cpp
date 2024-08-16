@@ -54,7 +54,7 @@ namespace
 
         auto *table_fn = llvm::Function::Create(
             table_fn_ty,
-            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             constants::jump_table,
             mod);
 
@@ -112,7 +112,7 @@ namespace
         auto *stack = new llvm::GlobalVariable(
             stack_type,
             false,
-            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             llvm::ConstantAggregateZero::get(stack_type),
             "evm_stack");
 
@@ -125,7 +125,7 @@ namespace
         auto *stack_ptr = new llvm::GlobalVariable(
             stack_pointer_type(),
             false,
-            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             llvm::ConstantInt::get(stack_pointer_type(), 0),
             "evm_stack_pointer");
 
@@ -184,7 +184,7 @@ namespace monad::compiler
 
         auto *push_fn = llvm::Function::Create(
             fn_ty,
-            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             constants::push,
             *mod);
 
@@ -214,7 +214,7 @@ namespace monad::compiler
 
         auto *pop_fn = llvm::Function::Create(
             fn_ty,
-            llvm::GlobalValue::LinkageTypes::InternalLinkage,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             constants::pop,
             *mod);
 
@@ -241,7 +241,7 @@ namespace monad::compiler
     llvm::BasicBlock *SimpleLLVMIR::compile_block(Block const &b) const
     {
         (void)b;
-        auto *block = llvm::BasicBlock::Create(context(), "", entry_point);
+        auto *block = llvm::BasicBlock::Create(context(), "evm", entry_point);
         return block;
     }
 
