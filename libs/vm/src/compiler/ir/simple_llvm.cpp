@@ -153,9 +153,10 @@ namespace monad::compiler
         for (auto const &b : instrs.blocks) {
             evm_blocks.emplace_back(compile_block(b), b);
         }
-        compile_block_terminators();
 
-        build_slow_jump_table(*mod, instrs.jumpdests, evm_blocks);
+        jump_table = build_slow_jump_table(*mod, instrs.jumpdests, evm_blocks);
+
+        compile_block_terminators();
     }
 
     compile_result SimpleLLVMIR::result() &&
@@ -235,6 +236,13 @@ namespace monad::compiler
     {
         for (auto const &[llvm_block, original_block] : evm_blocks) {
             switch (original_block.terminator) {
+            case Terminator::Jump: {
+                auto *offset = call_pop(llvm_block);
+                auto *dest = call_jump_table(offset, llvm_block);
+                dynamic_jump(dest, llvm_block);
+                break;
+            }
+
             case Terminator::JumpDest:
                 llvm::BranchInst::Create(
                     evm_blocks[original_block.fallthrough_dest].first,
@@ -245,5 +253,33 @@ namespace monad::compiler
                 break;
             }
         }
+    }
+
+    llvm::CallInst *
+    SimpleLLVMIR::call_pop(llvm::BasicBlock *insert_at_end) const
+    {
+        return llvm::CallInst::Create(
+            pop->getFunctionType(), pop, "", insert_at_end);
+    }
+
+    llvm::CallInst *SimpleLLVMIR::call_jump_table(
+        llvm::Value *arg, llvm::BasicBlock *insert_at_end) const
+    {
+        return llvm::CallInst::Create(
+            jump_table->getFunctionType(),
+            jump_table,
+            {arg},
+            "",
+            insert_at_end);
+    }
+
+    llvm::IndirectBrInst *SimpleLLVMIR::dynamic_jump(
+        llvm::Value *dest, llvm::BasicBlock *insert_at_end) const
+    {
+        auto *inst = llvm::IndirectBrInst::Create(dest, 0, insert_at_end);
+        for (auto const &[llvm_block, _] : evm_blocks) {
+            inst->addDestination(llvm_block);
+        }
+        return inst;
     }
 }
