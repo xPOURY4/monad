@@ -240,8 +240,11 @@ namespace monad::compiler
 
     llvm::BasicBlock *SimpleLLVMIR::compile_block(Block const &b) const
     {
-        (void)b;
         auto *block = llvm::BasicBlock::Create(context(), "evm", entry_point);
+        auto builder = llvm::IRBuilder(block);
+        for (auto const &inst : b.instrs) {
+            compile_instruction(builder, inst);
+        }
         return block;
     }
 
@@ -305,9 +308,31 @@ namespace monad::compiler
         }
     }
 
+    void SimpleLLVMIR::compile_instruction(
+        llvm::IRBuilder<> &b, Token const &inst) const
+    {
+        auto op = inst.token_opcode;
+        if (op >= PUSH0 && op <= PUSH32) {
+            b.Insert(call_push(inst.token_data));
+        }
+    }
+
     llvm::CallInst *SimpleLLVMIR::call_pop() const
     {
         return llvm::CallInst::Create(pop->getFunctionType(), pop);
+    }
+
+    llvm::CallInst *SimpleLLVMIR::call_push(uint256_t immediate) const
+    {
+        auto words = std::array<uint64_t, 4>{};
+        for (auto i = 0u; i < 4; ++i) {
+            words[i] = immediate[i];
+        }
+
+        auto big_val = llvm::APInt(256, words);
+        auto *arg = llvm::ConstantInt::get(context(), big_val);
+
+        return llvm::CallInst::Create(push->getFunctionType(), push, {arg});
     }
 
     llvm::CallInst *SimpleLLVMIR::call_jump_table(llvm::Value *arg) const

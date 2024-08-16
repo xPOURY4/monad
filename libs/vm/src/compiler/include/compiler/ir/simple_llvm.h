@@ -4,6 +4,7 @@
 #include <compiler/ir/instruction.h>
 
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 
@@ -44,7 +45,10 @@ namespace monad::compiler
         llvm::BasicBlock *compile_block(Block const &b) const;
         void compile_block_terminators();
 
+        void compile_instruction(llvm::IRBuilder<> &b, Token const &inst) const;
+
         llvm::CallInst *call_pop() const;
+        llvm::CallInst *call_push(uint256_t immediate) const;
         llvm::CallInst *call_jump_table(llvm::Value *arg) const;
 
         llvm::IndirectBrInst *dynamic_jump(llvm::Value *dest) const;
