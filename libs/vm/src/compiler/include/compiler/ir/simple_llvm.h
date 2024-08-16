@@ -38,12 +38,10 @@ namespace monad::compiler
         llvm::BasicBlock *compile_block(Block const &b) const;
         void compile_block_terminators();
 
-        llvm::CallInst *call_pop(llvm::BasicBlock *insert_at_end) const;
-        llvm::CallInst *call_jump_table(
-            llvm::Value *arg, llvm::BasicBlock *insert_at_end) const;
+        llvm::CallInst *call_pop() const;
+        llvm::CallInst *call_jump_table(llvm::Value *arg) const;
 
-        llvm::IndirectBrInst *
-        dynamic_jump(llvm::Value *dest, llvm::BasicBlock *insert_at_end) const;
+        llvm::IndirectBrInst *dynamic_jump(llvm::Value *dest) const;
     };
 
 }

@@ -234,12 +234,36 @@ namespace monad::compiler
 
     void SimpleLLVMIR::compile_block_terminators()
     {
+        auto b = llvm::IRBuilder(context());
         for (auto const &[llvm_block, original_block] : evm_blocks) {
+            b.SetInsertPoint(llvm_block);
+
             switch (original_block.terminator) {
             case Terminator::Jump: {
-                auto *offset = call_pop(llvm_block);
-                auto *dest = call_jump_table(offset, llvm_block);
-                dynamic_jump(dest, llvm_block);
+                auto *offset = b.Insert(call_pop());
+                auto *dest = b.Insert(call_jump_table(offset));
+                b.Insert(dynamic_jump(dest));
+                break;
+            }
+
+            case Terminator::JumpI: {
+                auto *offset = b.Insert(call_pop());
+                auto *cond_word = b.Insert(call_pop());
+
+                auto *fallthrough_cond =
+                    b.CreateICmpEQ(cond_word, b.getIntN(256, 0));
+
+                auto *dynamic_br_block = llvm::BasicBlock::Create(
+                    context(), "", llvm_block->getParent());
+
+                b.CreateCondBr(
+                    fallthrough_cond,
+                    evm_blocks[original_block.fallthrough_dest].first,
+                    dynamic_br_block);
+
+                b.SetInsertPoint(dynamic_br_block);
+                auto *dest = b.Insert(call_jump_table(offset));
+                b.Insert(dynamic_jump(dest));
                 break;
             }
 
@@ -255,28 +279,20 @@ namespace monad::compiler
         }
     }
 
-    llvm::CallInst *
-    SimpleLLVMIR::call_pop(llvm::BasicBlock *insert_at_end) const
+    llvm::CallInst *SimpleLLVMIR::call_pop() const
     {
-        return llvm::CallInst::Create(
-            pop->getFunctionType(), pop, "", insert_at_end);
+        return llvm::CallInst::Create(pop->getFunctionType(), pop);
     }
 
-    llvm::CallInst *SimpleLLVMIR::call_jump_table(
-        llvm::Value *arg, llvm::BasicBlock *insert_at_end) const
+    llvm::CallInst *SimpleLLVMIR::call_jump_table(llvm::Value *arg) const
     {
         return llvm::CallInst::Create(
-            jump_table->getFunctionType(),
-            jump_table,
-            {arg},
-            "",
-            insert_at_end);
+            jump_table->getFunctionType(), jump_table, {arg});
     }
 
-    llvm::IndirectBrInst *SimpleLLVMIR::dynamic_jump(
-        llvm::Value *dest, llvm::BasicBlock *insert_at_end) const
+    llvm::IndirectBrInst *SimpleLLVMIR::dynamic_jump(llvm::Value *dest) const
     {
-        auto *inst = llvm::IndirectBrInst::Create(dest, 0, insert_at_end);
+        auto *inst = llvm::IndirectBrInst::Create(dest, 0);
         for (auto const &[llvm_block, _] : evm_blocks) {
             inst->addDestination(llvm_block);
         }
