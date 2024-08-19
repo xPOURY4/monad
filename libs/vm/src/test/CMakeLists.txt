@@ -8,7 +8,7 @@ add_test(
     COMMAND compiler-tests
 )
 
-add_executable(vm-tests vm_tests.cpp)
+add_executable(vm-tests vm_tests.cpp simple_execution_tests.cpp)
 
 monad_compile_options(vm-tests)
 target_link_libraries(vm-tests monad-compiler-vm GTest::gtest_main evmc::evmc)

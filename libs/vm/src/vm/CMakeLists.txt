@@ -7,8 +7,11 @@ monad_compile_options(monad-compiler-vm)
 monad_link_llvm(monad-compiler-vm)
 
 target_link_libraries(monad-compiler-vm
-    PRIVATE
+    PUBLIC
+        intx::intx
         evmc::evmc
+    PRIVATE
+        utils
         compiler
         runtime
 )
