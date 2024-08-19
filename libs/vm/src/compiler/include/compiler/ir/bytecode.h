@@ -34,9 +34,9 @@ namespace monad::compiler
     {
         std::string_view name;
         std::size_t num_args;
-        int min_stack;
+        std::size_t min_stack;
         bool increases_stack;
-        int min_gas;
+        std::uint64_t min_gas;
     };
 
     inline constexpr auto unknown_opcode_info =

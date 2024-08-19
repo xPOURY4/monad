@@ -1,5 +1,6 @@
 #include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
+#include <compiler/ir/registers.h>
 
 #include <gtest/gtest.h>
 
@@ -85,7 +86,7 @@ using Terminator::Revert;
 using Terminator::SelfDestruct;
 using Terminator::Stop;
 
-TEST(TerminatorText, Formatter)
+TEST(TerminatorTest, Formatter)
 {
     EXPECT_EQ(std::format("{}", JumpDest), "JumpDest");
     EXPECT_EQ(std::format("{}", JumpI), "JumpI");
@@ -152,21 +153,151 @@ TEST(BlockTest, Formatter)
         "      (1, ADD, 0x0)\n    JumpI 0\n");
 }
 
-TEST(InstructionTest, Formatter)
+auto const instrIR0 = InstructionIR(BytecodeIR({}));
+auto const instrIR1 = InstructionIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
+auto const instrIR2 =
+    InstructionIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
+
+TEST(InstructionIRTest, Formatter)
 {
     EXPECT_EQ(
-        std::format("{}", InstructionIR(BytecodeIR({}))),
+        std::format("{}", instrIR0),
         "instruction:\n  block 0:\n    Stop\n\n  jumpdests:\n");
     EXPECT_EQ(
-        std::format(
-            "{}", InstructionIR(BytecodeIR({JUMPDEST, ADD, ADD, JUMPDEST}))),
-        "instruction:\n  block 0:\n      (1, ADD, 0x0)\n      (2, ADD, 0x0)\n  "
+        std::format("{}", instrIR1),
+        "instruction:\n  block 0:\n      (1, SUB, 0x0)\n      (2, SUB, 0x0)\n  "
         "  JumpDest 1\n  block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    "
         "0:0\n");
     EXPECT_EQ(
+        std::format("{}", instrIR2),
+        "instruction:\n  block 0:\n      (2, SUB, 0x0)\n    JumpDest 1\n  "
+        "block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    1:0\n    0:0\n");
+}
+
+TEST(RegistersValueTest, Formatter)
+{
+    EXPECT_EQ(
+        std::format("{}", registers::Value{registers::ValueIs::LITERAL, 0x42}),
+        "0x42");
+    EXPECT_EQ(
+        std::format("{}", registers::Value{registers::ValueIs::PARAM_ID, 42}),
+        "%p42");
+    EXPECT_EQ(
+        std::format(
+            "{}", registers::Value{registers::ValueIs::REGISTER_ID, 42}),
+        "%r42");
+}
+
+TEST(RegistersInstrTest, Formatter)
+{
+    EXPECT_EQ(
+        std::format(
+            "{}", registers::Instr{registers::NO_REGISTER_ID, {0, POP, 0}, {}}),
+        "POP [ ]");
+    EXPECT_EQ(
         std::format(
             "{}",
-            InstructionIR(BytecodeIR({JUMPDEST, JUMPDEST, ADD, JUMPDEST}))),
-        "instruction:\n  block 0:\n      (2, ADD, 0x0)\n    JumpDest 1\n  "
-        "block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    1:0\n    0:0\n");
+            registers::Instr{
+                1,
+                {0, SUB, 0},
+                {registers::Value{registers::ValueIs::LITERAL, 0},
+                 registers::Value{registers::ValueIs::PARAM_ID, 0}}}),
+        "%r1 = SUB [ 0x0 %p0 ]");
+}
+
+TEST(RegistersBlock, Formatter)
+{
+    registers::Block blk = {0, {}, {}, Stop, INVALID_BLOCK_ID};
+
+    EXPECT_EQ(
+        std::format("{}", blk),
+        "    min_params: 0\n    Stop\n    output: [ ]\n");
+
+    registers::Block blk1 = {
+        1,
+        {registers::Instr{
+            1,
+            {0, SUB, 0},
+            {registers::Value{registers::ValueIs::LITERAL, 0},
+             registers::Value{registers::ValueIs::PARAM_ID, 0}}}},
+        {registers::Value{registers::ValueIs::REGISTER_ID, 1}},
+        Stop,
+        INVALID_BLOCK_ID};
+    EXPECT_EQ(
+        std::format("{}", blk1),
+        "    min_params: 1\n      %r1 = SUB [ 0x0 %p0 ]\n    Stop\n    output: "
+        "[ %r1 ]\n");
+
+    registers::Block blk2 = {
+        2,
+        {registers::Instr{
+             1,
+             {0, SUB, 0},
+             {registers::Value{registers::ValueIs::LITERAL, 0},
+              registers::Value{registers::ValueIs::PARAM_ID, 0}}},
+         registers::Instr{
+             registers::NO_REGISTER_ID,
+             {0, PUSH3, 0},
+             {registers::Value{registers::ValueIs::LITERAL, 0xab}}},
+         registers::Instr{2, {0, PC, 0}, {}}
+
+        },
+        {registers::Value{registers::ValueIs::LITERAL, 0x42},
+         registers::Value{registers::ValueIs::PARAM_ID, 0},
+         registers::Value{registers::ValueIs::REGISTER_ID, 1}},
+        Stop,
+        INVALID_BLOCK_ID};
+    EXPECT_EQ(
+        std::format("{}", blk2),
+        "    min_params: 2\n      %r1 = SUB [ 0x0 %p0 ]\n      PUSH3 [ 0xab "
+        "]\n      %r2 = PC [ ]\n    Stop\n    output: [ 0x42 %p0 %r1 ]\n");
+}
+
+TEST(RegistersIR, Formatter)
+{
+    EXPECT_EQ(
+        std::format("{}", registers::RegistersIR(instrIR0)),
+        "registers:\n"
+        "  block 0:\n"
+        "    min_params: 0\n"
+        "    Stop\n"
+        "    output: [ ]\n"
+        "\n"
+        "  jumpdests:\n");
+    EXPECT_EQ(
+        std::format("{}", registers::RegistersIR(instrIR1)),
+        "registers:\n"
+        "  block 0:\n"
+        "    min_params: 3\n"
+        "      %r1 = SUB [ %p0 %p1 ]\n"
+        "      %r2 = SUB [ %r1 %p2 ]\n"
+        "    JumpDest 1\n"
+        "    output: [ %r2 ]\n"
+        "  block 1:\n"
+        "    min_params: 0\n"
+        "    Stop\n"
+        "    output: [ ]\n"
+        "\n"
+        "  jumpdests:\n"
+        "    3:1\n"
+        "    0:0\n"
+
+    );
+    EXPECT_EQ(
+        std::format("{}", registers::RegistersIR(instrIR2)),
+        "registers:\n"
+        "  block 0:\n"
+        "    min_params: 2\n"
+        "      %r2 = SUB [ %p0 %p1 ]\n"
+        "    JumpDest 1\n"
+        "    output: [ %r2 ]\n"
+        "  block 1:\n"
+        "    min_params: 0\n"
+        "    Stop\n"
+        "    output: [ ]\n"
+        "\n"
+        "  jumpdests:\n"
+        "    3:1\n"
+        "    1:0\n"
+        "    0:0\n");
 }
