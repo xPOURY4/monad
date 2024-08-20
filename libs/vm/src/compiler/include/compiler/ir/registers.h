@@ -55,15 +55,18 @@ struct std::formatter<monad::compiler::registers::Value>
         return ctx.begin();
     }
 
-    auto format(monad::compiler::registers::Value const &val, std::format_context &ctx) const
+    auto format(
+        monad::compiler::registers::Value const &val,
+        std::format_context &ctx) const
     {
         switch (val.is) {
-            case monad::compiler::registers::ValueIs::PARAM_ID:
-                return std::format_to(ctx.out(), "%p{}", intx::to_string(val.data, 10));
-            case monad::compiler::registers::ValueIs::COMPUTED:
-                return std::format_to(ctx.out(), "COMPUTED");
-            default:
-                return std::format_to(ctx.out(), "{}", val.data);
+        case monad::compiler::registers::ValueIs::PARAM_ID:
+            return std::format_to(
+                ctx.out(), "%p{}", intx::to_string(val.data, 10));
+        case monad::compiler::registers::ValueIs::COMPUTED:
+            return std::format_to(ctx.out(), "COMPUTED");
+        default:
+            return std::format_to(ctx.out(), "{}", val.data);
         }
     }
 };
@@ -76,7 +79,9 @@ struct std::formatter<monad::compiler::registers::Block>
         return ctx.begin();
     }
 
-    auto format(monad::compiler::registers::Block const &blk, std::format_context &ctx) const
+    auto format(
+        monad::compiler::registers::Block const &blk,
+        std::format_context &ctx) const
     {
 
         std::format_to(ctx.out(), "    min_params: {}\n", blk.min_params);
@@ -120,4 +125,3 @@ struct std::formatter<monad::compiler::registers::RegistersIR>
         return std::format_to(ctx.out(), "");
     }
 };
-

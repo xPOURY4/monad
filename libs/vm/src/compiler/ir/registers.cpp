@@ -74,12 +74,11 @@ namespace monad::compiler::registers
                 stack.pop_front();
             }
 
-        if (info.increases_stack) {
-            stack.push_front({ValueIs::COMPUTED, 0});
-            continue;
+            if (info.increases_stack) {
+                stack.push_front({ValueIs::COMPUTED, 0});
+                continue;
+            }
         }
-
-    }
 
         for (auto const &val : stack) {
             out.output.push_back(val);

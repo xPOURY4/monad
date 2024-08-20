@@ -207,11 +207,7 @@ TEST(RegistersBlock, Formatter)
     output: [ ]
 )");
 
-    registers::Block blk1 = {
-        1,
-        {computed()},
-        Stop,
-        INVALID_BLOCK_ID};
+    registers::Block blk1 = {1, {computed()}, Stop, INVALID_BLOCK_ID};
 
     EXPECT_EQ(
         std::format("{}", blk1),
@@ -221,10 +217,7 @@ TEST(RegistersBlock, Formatter)
 )");
 
     registers::Block blk2 = {
-        2,
-        {computed(), param_id(0), lit(0x42)},
-        Stop,
-        INVALID_BLOCK_ID};
+        2, {computed(), param_id(0), lit(0x42)}, Stop, INVALID_BLOCK_ID};
     EXPECT_EQ(
         std::format("{}", blk2),
         R"(    min_params: 2
