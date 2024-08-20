@@ -1,5 +1,5 @@
+#include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
 
 #include <cassert>
 #include <tuple>
@@ -14,34 +14,34 @@ namespace monad::compiler
                std::tie(b.instrs, b.terminator, b.fallthrough_dest);
     }
 
-    block_id InstructionIR::curr_block_id() const
+    block_id BasicBlocksIR::curr_block_id() const
     {
         return blocks.size() - 1;
     }
 
-    void InstructionIR::add_jump_dest(byte_offset offset)
+    void BasicBlocksIR::add_jump_dest(byte_offset offset)
     {
         jumpdests.emplace(offset, curr_block_id());
     }
 
-    void InstructionIR::add_block()
+    void BasicBlocksIR::add_block()
     {
         blocks.emplace_back(
             std::vector<Token>{}, Terminator::Stop, INVALID_BLOCK_ID);
     }
 
-    void InstructionIR::add_terminator(Terminator t)
+    void BasicBlocksIR::add_terminator(Terminator t)
     {
         blocks.back().terminator = t;
     }
 
-    void InstructionIR::add_fallthrough_terminator(Terminator t)
+    void BasicBlocksIR::add_fallthrough_terminator(Terminator t)
     {
         blocks.back().terminator = t;
         blocks.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    InstructionIR::InstructionIR(BytecodeIR const &byte_code)
+    BasicBlocksIR::BasicBlocksIR(BytecodeIR const &byte_code)
     {
 
         enum class St

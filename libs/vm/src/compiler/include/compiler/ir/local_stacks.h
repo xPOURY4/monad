@@ -1,11 +1,9 @@
 #pragma once
 
+#include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
 
-using RegisterId = uint256_t;
-
-namespace monad::compiler::registers
+namespace monad::compiler::local_stacks
 {
     enum class ValueIs
     {
@@ -30,10 +28,10 @@ namespace monad::compiler::registers
                                    // INVALID_BLOCK_ID
     };
 
-    class RegistersIR
+    class LocalStacksIR
     {
     public:
-        RegistersIR(InstructionIR const &ir);
+        LocalStacksIR(BasicBlocksIR const &ir);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
@@ -48,7 +46,7 @@ namespace monad::compiler::registers
 }
 
 template <>
-struct std::formatter<monad::compiler::registers::Value>
+struct std::formatter<monad::compiler::local_stacks::Value>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -56,14 +54,14 @@ struct std::formatter<monad::compiler::registers::Value>
     }
 
     auto format(
-        monad::compiler::registers::Value const &val,
+        monad::compiler::local_stacks::Value const &val,
         std::format_context &ctx) const
     {
         switch (val.is) {
-        case monad::compiler::registers::ValueIs::PARAM_ID:
+        case monad::compiler::local_stacks::ValueIs::PARAM_ID:
             return std::format_to(
                 ctx.out(), "%p{}", intx::to_string(val.data, 10));
-        case monad::compiler::registers::ValueIs::COMPUTED:
+        case monad::compiler::local_stacks::ValueIs::COMPUTED:
             return std::format_to(ctx.out(), "COMPUTED");
         default:
             return std::format_to(ctx.out(), "{}", val.data);
@@ -72,7 +70,7 @@ struct std::formatter<monad::compiler::registers::Value>
 };
 
 template <>
-struct std::formatter<monad::compiler::registers::Block>
+struct std::formatter<monad::compiler::local_stacks::Block>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -80,7 +78,7 @@ struct std::formatter<monad::compiler::registers::Block>
     }
 
     auto format(
-        monad::compiler::registers::Block const &blk,
+        monad::compiler::local_stacks::Block const &blk,
         std::format_context &ctx) const
     {
 
@@ -91,7 +89,7 @@ struct std::formatter<monad::compiler::registers::Block>
             std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
         }
         std::format_to(ctx.out(), "\n    output: [");
-        for (monad::compiler::registers::Value const &val : blk.output) {
+        for (monad::compiler::local_stacks::Value const &val : blk.output) {
             std::format_to(ctx.out(), " {}", val);
         }
         return std::format_to(ctx.out(), " ]\n");
@@ -99,7 +97,7 @@ struct std::formatter<monad::compiler::registers::Block>
 };
 
 template <>
-struct std::formatter<monad::compiler::registers::RegistersIR>
+struct std::formatter<monad::compiler::local_stacks::LocalStacksIR>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -107,13 +105,13 @@ struct std::formatter<monad::compiler::registers::RegistersIR>
     }
 
     auto format(
-        monad::compiler::registers::RegistersIR const &ir,
+        monad::compiler::local_stacks::LocalStacksIR const &ir,
         std::format_context &ctx) const
     {
 
-        std::format_to(ctx.out(), "registers:\n");
+        std::format_to(ctx.out(), "local_stacks:\n");
         int i = 0;
-        for (monad::compiler::registers::Block const &blk : ir.blocks) {
+        for (monad::compiler::local_stacks::Block const &blk : ir.blocks) {
             std::format_to(ctx.out(), "  block {}:\n", i);
             std::format_to(ctx.out(), "{}", blk);
             i++;

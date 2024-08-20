@@ -1,8 +1,8 @@
 add_library(compiler
     lib.cpp
     ir/bytecode.cpp
-    ir/instruction.cpp
-    ir/registers.cpp
+    ir/basic_blocks.cpp
+    ir/local_stacks.cpp
 )
 
 monad_compile_options(compiler)

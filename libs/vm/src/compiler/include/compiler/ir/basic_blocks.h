@@ -34,10 +34,10 @@ namespace monad::compiler
 
     bool operator==(Block const &a, Block const &b);
 
-    class InstructionIR
+    class BasicBlocksIR
     {
     public:
-        InstructionIR(BytecodeIR const &byte_code);
+        BasicBlocksIR(BytecodeIR const &byte_code);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
@@ -268,7 +268,7 @@ struct std::formatter<monad::compiler::Block>
 };
 
 template <>
-struct std::formatter<monad::compiler::InstructionIR>
+struct std::formatter<monad::compiler::BasicBlocksIR>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -276,11 +276,11 @@ struct std::formatter<monad::compiler::InstructionIR>
     }
 
     auto format(
-        monad::compiler::InstructionIR const &ir,
+        monad::compiler::BasicBlocksIR const &ir,
         std::format_context &ctx) const
     {
 
-        std::format_to(ctx.out(), "instruction:\n");
+        std::format_to(ctx.out(), "basic_blocks:\n");
         int i = 0;
         for (monad::compiler::Block const &blk : ir.blocks) {
             std::format_to(ctx.out(), "  block {}:\n", i);

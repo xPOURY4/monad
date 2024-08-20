@@ -1,6 +1,6 @@
+#include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/ir/registers.h>
+#include <compiler/ir/local_stacks.h>
 
 #include <gtest/gtest.h>
 
@@ -72,7 +72,7 @@ void blocks_eq(
     std::vector<Block> const &expected_blocks)
 {
     BytecodeIR const actual_bc(in);
-    InstructionIR const actual(actual_bc);
+    BasicBlocksIR const actual(actual_bc);
 
     EXPECT_EQ(actual.jumpdests, expected_jumpdests);
     EXPECT_EQ(actual.blocks, expected_blocks);
@@ -97,7 +97,7 @@ TEST(TerminatorTest, Formatter)
     EXPECT_EQ(std::format("{}", Stop), "Stop");
 }
 
-TEST(InstructionTest, ToBlocks)
+TEST(BasicBlocksTest, ToBlocks)
 {
     blocks_eq({}, {}, {{{}, Stop, INVALID_BLOCK_ID}});
     blocks_eq({STOP}, {}, {{{}, Stop, INVALID_BLOCK_ID}});
@@ -153,52 +153,53 @@ TEST(BlockTest, Formatter)
         "      (1, ADD, 0x0)\n    JumpI 0\n");
 }
 
-auto const instrIR0 = InstructionIR(BytecodeIR({}));
-auto const instrIR1 = InstructionIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
+auto const instrIR0 = BasicBlocksIR(BytecodeIR({}));
+auto const instrIR1 = BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
 auto const instrIR2 =
-    InstructionIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
+    BasicBlocksIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
 
-TEST(InstructionIRTest, Formatter)
+TEST(BasicBlocksIRTest, Formatter)
 {
     EXPECT_EQ(
         std::format("{}", instrIR0),
-        "instruction:\n  block 0:\n    Stop\n\n  jumpdests:\n");
+        "basic_blocks:\n  block 0:\n    Stop\n\n  jumpdests:\n");
     EXPECT_EQ(
         std::format("{}", instrIR1),
-        "instruction:\n  block 0:\n      (1, SUB, 0x0)\n      (2, SUB, 0x0)\n  "
+        "basic_blocks:\n  block 0:\n      (1, SUB, 0x0)\n      (2, SUB, 0x0)\n "
+        " "
         "  JumpDest 1\n  block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    "
         "0:0\n");
     EXPECT_EQ(
         std::format("{}", instrIR2),
-        "instruction:\n  block 0:\n      (2, SUB, 0x0)\n    JumpDest 1\n  "
+        "basic_blocks:\n  block 0:\n      (2, SUB, 0x0)\n    JumpDest 1\n  "
         "block 1:\n    Stop\n\n  jumpdests:\n    3:1\n    1:0\n    0:0\n");
 }
 
-registers::Value lit(uint256_t x)
+local_stacks::Value lit(uint256_t x)
 {
-    return registers::Value{registers::ValueIs::LITERAL, x};
+    return local_stacks::Value{local_stacks::ValueIs::LITERAL, x};
 }
 
-registers::Value param_id(uint256_t x)
+local_stacks::Value param_id(uint256_t x)
 {
-    return registers::Value{registers::ValueIs::PARAM_ID, x};
+    return local_stacks::Value{local_stacks::ValueIs::PARAM_ID, x};
 }
 
-registers::Value computed()
+local_stacks::Value computed()
 {
-    return registers::Value{registers::ValueIs::COMPUTED, 0};
+    return local_stacks::Value{local_stacks::ValueIs::COMPUTED, 0};
 }
 
-TEST(RegistersValueTest, Formatter)
+TEST(LocalStacksValueTest, Formatter)
 {
     EXPECT_EQ(std::format("{}", lit(0x42)), "0x42");
     EXPECT_EQ(std::format("{}", param_id(42)), "%p42");
     EXPECT_EQ(std::format("{}", computed()), "COMPUTED");
 }
 
-TEST(RegistersBlock, Formatter)
+TEST(LocalStacksBlock, Formatter)
 {
-    registers::Block blk = {0, {}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk = {0, {}, Stop, INVALID_BLOCK_ID};
 
     EXPECT_EQ(
         std::format("{}", blk),
@@ -207,7 +208,7 @@ TEST(RegistersBlock, Formatter)
     output: [ ]
 )");
 
-    registers::Block blk1 = {1, {computed()}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk1 = {1, {computed()}, Stop, INVALID_BLOCK_ID};
 
     EXPECT_EQ(
         std::format("{}", blk1),
@@ -216,7 +217,7 @@ TEST(RegistersBlock, Formatter)
     output: [ COMPUTED ]
 )");
 
-    registers::Block blk2 = {
+    local_stacks::Block blk2 = {
         2, {computed(), param_id(0), lit(0x42)}, Stop, INVALID_BLOCK_ID};
     EXPECT_EQ(
         std::format("{}", blk2),
@@ -226,11 +227,11 @@ TEST(RegistersBlock, Formatter)
 )");
 }
 
-TEST(RegistersIR, Formatter)
+TEST(LocalStacksIR, Formatter)
 {
     EXPECT_EQ(
-        std::format("{}", registers::RegistersIR(instrIR0)),
-        R"(registers:
+        std::format("{}", local_stacks::LocalStacksIR(instrIR0)),
+        R"(local_stacks:
   block 0:
     min_params: 0
     Stop
@@ -240,8 +241,8 @@ TEST(RegistersIR, Formatter)
 )");
 
     EXPECT_EQ(
-        std::format("{}", registers::RegistersIR(instrIR1)),
-        R"(registers:
+        std::format("{}", local_stacks::LocalStacksIR(instrIR1)),
+        R"(local_stacks:
   block 0:
     min_params: 3
     JumpDest 1
@@ -257,8 +258,8 @@ TEST(RegistersIR, Formatter)
 )");
 
     EXPECT_EQ(
-        std::format("{}", registers::RegistersIR(instrIR2)),
-        R"(registers:
+        std::format("{}", local_stacks::LocalStacksIR(instrIR2)),
+        R"(local_stacks:
   block 0:
     min_params: 2
     JumpDest 1
