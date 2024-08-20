@@ -68,9 +68,7 @@ namespace monad::compiler::local_stacks
                 continue;
             }
 
-            std::vector<Value> args;
             for (std::size_t i = 0; i < info.min_stack; ++i) {
-                args.push_back(stack[0]);
                 stack.pop_front();
             }
 

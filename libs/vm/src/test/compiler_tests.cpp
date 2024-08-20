@@ -274,4 +274,31 @@ TEST(LocalStacksIR, Formatter)
     1:0
     0:0
 )");
+
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+                {PUSH0,
+                 PUSH1,
+                 0xa,
+                 PC,
+                 PC,
+                 ADD,
+                 PC,
+                 DUP1,
+                 DUP3,
+                 SWAP1,
+                 POP,
+                 SWAP4,
+                 DUP6,
+                 SWAP7})))),
+        R"(local_stacks:
+  block 0:
+    min_params: 2
+    Stop
+    output: [ %p1 0x0 0x6 COMPUTED 0xa COMPUTED %p0 %p0 ]
+
+  jumpdests:
+)");
 }
