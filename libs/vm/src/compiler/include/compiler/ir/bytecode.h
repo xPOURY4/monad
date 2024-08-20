@@ -16,9 +16,9 @@ namespace monad::compiler
 
     struct Token
     {
-        byte_offset token_offset;
-        uint8_t token_opcode;
-        uint256_t token_data; // only used by push
+        byte_offset offset;
+        uint8_t opcode;
+        uint256_t data; // only used by push
     };
 
     bool operator==(Token const &a, Token const &b);
@@ -349,9 +349,9 @@ struct std::formatter<monad::compiler::Token>
         return std::format_to(
             ctx.out(),
             "({}, {}, {})",
-            tok.token_offset,
-            monad::compiler::opcode_info_table[tok.token_opcode].name,
-            tok.token_data);
+            tok.offset,
+            monad::compiler::opcode_info_table[tok.opcode].name,
+            tok.data);
     }
 };
 

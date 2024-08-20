@@ -57,8 +57,8 @@ namespace monad::compiler
 
     bool operator==(Token const &a, Token const &b)
     {
-        return std::tie(a.token_offset, a.token_opcode, a.token_data) ==
-               std::tie(b.token_offset, b.token_opcode, b.token_data);
+        return std::tie(a.offset, a.opcode, a.data) ==
+               std::tie(b.offset, b.opcode, b.data);
     }
 
 }

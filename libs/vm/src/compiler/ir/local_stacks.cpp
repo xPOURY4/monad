@@ -1,5 +1,5 @@
-#include "compiler/ir/bytecode.h"
 #include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/bytecode.h>
 #include <compiler/ir/local_stacks.h>
 
 #include <cstddef>
@@ -30,15 +30,15 @@ namespace monad::compiler::local_stacks
         std::deque<Value> stack;
 
         for (auto const &tok : in.instrs) {
-            auto const opcode = tok.token_opcode;
+            auto const opcode = tok.opcode;
 
             if (is_push_opcode(opcode)) {
-                stack.emplace_front(ValueIs::LITERAL, tok.token_data);
+                stack.emplace_front(ValueIs::LITERAL, tok.data);
                 continue;
             }
 
             if (opcode == PC) {
-                stack.emplace_front(ValueIs::LITERAL, tok.token_offset);
+                stack.emplace_front(ValueIs::LITERAL, tok.offset);
                 continue;
             }
 

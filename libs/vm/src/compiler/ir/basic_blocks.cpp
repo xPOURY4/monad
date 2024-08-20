@@ -56,22 +56,22 @@ namespace monad::compiler
 
         for (auto const &tok : byte_code.tokens) {
             if (st == St::OUTSIDE_BLOCK) {
-                if (tok.token_opcode == JUMPDEST) {
+                if (tok.opcode == JUMPDEST) {
                     add_block();
                     st = St::INSIDE_BLOCK;
-                    add_jump_dest(tok.token_offset);
+                    add_jump_dest(tok.offset);
                 }
             }
             else {
                 assert(st == St::INSIDE_BLOCK);
-                switch (tok.token_opcode) {
+                switch (tok.opcode) {
                 case JUMPDEST:
                     if (blocks.back().instrs.size() >
                         0) { // jumpdest terminator
                         add_fallthrough_terminator(Terminator::JumpDest);
                         add_block();
                     }
-                    add_jump_dest(tok.token_offset);
+                    add_jump_dest(tok.offset);
                     break;
 
                 case JUMPI:
