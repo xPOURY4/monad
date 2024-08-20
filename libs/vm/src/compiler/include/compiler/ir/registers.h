@@ -7,34 +7,22 @@ using RegisterId = uint256_t;
 
 namespace monad::compiler::registers
 {
-    inline constexpr RegisterId NO_REGISTER_ID =
-        std::numeric_limits<RegisterId>::max();
-
     enum class ValueIs
     {
         PARAM_ID,
-        REGISTER_ID,
+        COMPUTED,
         LITERAL
     };
 
     struct Value
     {
         ValueIs is;
-        uint256_t data;
-    };
-
-    struct Instr
-    {
-        RegisterId result; // INVALID_REGISTER_ID if the instruction doesn't
-                           // return a value
-        Token instr;
-        std::vector<Value> params;
+        uint256_t data; // unused if COMPUTED
     };
 
     struct Block
     {
         std::size_t min_params;
-        std::vector<Instr> instrs;
         std::vector<Value> output;
 
         Terminator terminator;
@@ -67,48 +55,16 @@ struct std::formatter<monad::compiler::registers::Value>
         return ctx.begin();
     }
 
-    auto format(
-        monad::compiler::registers::Value const &val,
-        std::format_context &ctx) const
+    auto format(monad::compiler::registers::Value const &val, std::format_context &ctx) const
     {
         switch (val.is) {
-        case monad::compiler::registers::ValueIs::PARAM_ID:
-            return std::format_to(
-                ctx.out(), "%p{}", intx::to_string(val.data, 10));
-        case monad::compiler::registers::ValueIs::REGISTER_ID:
-            return std::format_to(
-                ctx.out(), "%r{}", intx::to_string(val.data, 10));
-        default:
-            return std::format_to(ctx.out(), "{}", val.data);
+            case monad::compiler::registers::ValueIs::PARAM_ID:
+                return std::format_to(ctx.out(), "%p{}", intx::to_string(val.data, 10));
+            case monad::compiler::registers::ValueIs::COMPUTED:
+                return std::format_to(ctx.out(), "COMPUTED");
+            default:
+                return std::format_to(ctx.out(), "{}", val.data);
         }
-    }
-};
-
-template <>
-struct std::formatter<monad::compiler::registers::Instr>
-{
-    constexpr auto parse(std::format_parse_context &ctx)
-    {
-        return ctx.begin();
-    }
-
-    auto format(
-        monad::compiler::registers::Instr const &instr,
-        std::format_context &ctx) const
-    {
-        if (instr.result != monad::compiler::registers::NO_REGISTER_ID) {
-            std::format_to(
-                ctx.out(), "%r{} = ", intx::to_string(instr.result, 10));
-        }
-
-        std::format_to(
-            ctx.out(),
-            "{} [",
-            monad::compiler::opcode_info_table[instr.instr.token_opcode].name);
-        for (monad::compiler::registers::Value const &val : instr.params) {
-            std::format_to(ctx.out(), " {}", val);
-        }
-        return std::format_to(ctx.out(), " ]");
     }
 };
 
@@ -120,16 +76,10 @@ struct std::formatter<monad::compiler::registers::Block>
         return ctx.begin();
     }
 
-    auto format(
-        monad::compiler::registers::Block const &blk,
-        std::format_context &ctx) const
+    auto format(monad::compiler::registers::Block const &blk, std::format_context &ctx) const
     {
 
         std::format_to(ctx.out(), "    min_params: {}\n", blk.min_params);
-
-        for (monad::compiler::registers::Instr const &instr : blk.instrs) {
-            std::format_to(ctx.out(), "      {}\n", instr);
-        }
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
         if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {
@@ -170,3 +120,4 @@ struct std::formatter<monad::compiler::registers::RegistersIR>
         return std::format_to(ctx.out(), "");
     }
 };
+

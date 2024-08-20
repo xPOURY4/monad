@@ -1,6 +1,7 @@
 #include "compiler/ir/bytecode.h"
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/registers.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -25,7 +26,7 @@ namespace monad::compiler::registers
 
     Block RegistersIR::to_block(monad::compiler::Block const &in)
     {
-        Block out = {0, {}, {}, in.terminator, in.fallthrough_dest};
+        Block out = {0, {}, in.terminator, in.fallthrough_dest};
         std::deque<Value> stack;
 
         for (auto const &tok : in.instrs) {
@@ -33,13 +34,11 @@ namespace monad::compiler::registers
 
             if (is_push_opcode(opcode)) {
                 stack.emplace_front(ValueIs::LITERAL, tok.token_data);
-                out.instrs.push_back({NO_REGISTER_ID, tok, {}});
                 continue;
             }
 
             if (opcode == PC) {
                 stack.emplace_front(ValueIs::LITERAL, tok.token_offset);
-                out.instrs.push_back({NO_REGISTER_ID, tok, {}});
                 continue;
             }
 
@@ -53,13 +52,11 @@ namespace monad::compiler::registers
 
             if (opcode == POP) {
                 stack.pop_front();
-                out.instrs.push_back({NO_REGISTER_ID, tok, {}});
                 continue;
             }
 
             if (is_dup_opcode(opcode)) {
                 stack.push_front(stack[opcode - DUP1]);
-                out.instrs.push_back({NO_REGISTER_ID, tok, {}});
                 continue;
             }
 
@@ -68,7 +65,6 @@ namespace monad::compiler::registers
                 uint const i = 1 + opcode - SWAP1;
                 stack[0] = stack[i];
                 stack[i] = tmp;
-                out.instrs.push_back({NO_REGISTER_ID, tok, {}});
                 continue;
             }
 
@@ -78,16 +74,12 @@ namespace monad::compiler::registers
                 stack.pop_front();
             }
 
-            if (info.increases_stack) {
-                RegisterId const reg_id = tok.token_offset;
-                // using token offset as our unique register id
-                stack.push_front({ValueIs::REGISTER_ID, reg_id});
-                out.instrs.push_back({reg_id, tok, args});
-                continue;
-            }
-
-            out.instrs.push_back({NO_REGISTER_ID, tok, args});
+        if (info.increases_stack) {
+            stack.push_front({ValueIs::COMPUTED, 0});
+            continue;
         }
+
+    }
 
         for (auto const &val : stack) {
             out.output.push_back(val);
