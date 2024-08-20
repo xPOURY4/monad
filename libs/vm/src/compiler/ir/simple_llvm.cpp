@@ -1,14 +1,28 @@
+#include <compiler/compiler.h>
+#include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/ir/simple_llvm.h>
 
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
 
+#include <array>
 #include <cassert>
+#include <cstdint>
 #include <format>
-#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -139,7 +153,6 @@ namespace monad::compiler
     SimpleLLVMIR::SimpleLLVMIR(InstructionIR const &instrs)
         : mod(std::make_unique<llvm::Module>("monad-evm", context()))
         , entry_point(build_entrypoint(*mod))
-        , evm_blocks{}
         , stack(build_evm_stack(*mod))
         , stack_pointer(build_evm_stack_pointer(*mod))
         , push(build_push_function())

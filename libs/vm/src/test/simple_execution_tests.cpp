@@ -1,5 +1,7 @@
 #include <vm/vm.h>
 
+#include <intx/intx.hpp>
+
 #include <gtest/gtest.h>
 
 using namespace monad::vm::testing;

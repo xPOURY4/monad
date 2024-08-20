@@ -5,15 +5,13 @@
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/GlobalValue.h>
-#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Type.h>
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <utility>
+#include <vector>
 
 namespace
 {

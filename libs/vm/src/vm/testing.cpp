@@ -3,8 +3,16 @@
 #include <vm/execute_jit.h>
 #include <vm/vm.h>
 
+#include <evmc/evmc.h>
+
+#include <intx/intx.hpp>
+
 #include <cassert>
-#include <tuple>
+#include <cstddef>
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace monad::vm::testing
 {
