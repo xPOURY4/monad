@@ -1,59 +1,73 @@
 #include <vm/vm.h>
 
 #include <gtest/gtest.h>
-#include <iostream>
 
-using namespace monad::vm;
+using namespace monad::vm::testing;
 
 TEST(SimpleExecutionTests, Stop)
 {
-    auto [entry, stack_ptr, stack] = jit_compile_program("00");
-    entry(nullptr, nullptr);
+    auto contract = standalone_evm_jit("00");
+    contract();
 
-    ASSERT_EQ(*stack_ptr, 0);
+    ASSERT_EQ(contract.stack_pointer(), 0);
 }
 
 TEST(SimpleExecutionTests, Push0)
 {
-    auto [entry, stack_ptr, stack] = jit_compile_program("5F00");
-    entry(nullptr, nullptr);
+    auto contract = standalone_evm_jit("5F00");
+    contract();
 
-    ASSERT_EQ(*stack_ptr, 1);
-    ASSERT_EQ(stack[0], 0);
+    ASSERT_EQ(contract.stack_pointer(), 1);
+    ASSERT_EQ(contract.stack(0), 0);
 }
 
 TEST(SimpleExecutionTests, Push1)
 {
-    auto [entry, stack_ptr, stack] = jit_compile_program("600100");
-    entry(nullptr, nullptr);
+    auto contract = standalone_evm_jit("600100");
+    contract();
 
-    ASSERT_EQ(*stack_ptr, 1);
-    ASSERT_EQ(stack[0], 1);
+    ASSERT_EQ(contract.stack_pointer(), 1);
+    ASSERT_EQ(contract.stack(0), 1);
 }
 
 TEST(SimpleExecutionTests, MultiplePushes)
 {
-    auto [entry, stack_ptr, stack] =
-        jit_compile_program("5F60116122226233333300");
-    entry(nullptr, nullptr);
+    auto contract = standalone_evm_jit("5F60116122226233333300");
+    contract();
 
-    ASSERT_EQ(*stack_ptr, 4);
-    ASSERT_EQ(stack[0], 0);
-    ASSERT_EQ(stack[1], 0x11);
-    ASSERT_EQ(stack[2], 0x2222);
-    ASSERT_EQ(stack[3], 0x333333);
+    ASSERT_EQ(contract.stack_pointer(), 4);
+    ASSERT_EQ(contract.stack(0), 0);
+    ASSERT_EQ(contract.stack(1), 0x11);
+    ASSERT_EQ(contract.stack(2), 0x2222);
+    ASSERT_EQ(contract.stack(3), 0x333333);
 }
 
 TEST(SimpleExecutionTests, Push32)
 {
     using namespace intx;
 
-    auto [entry, stack_ptr, stack] = jit_compile_program(
+    auto contract = standalone_evm_jit(
         "7F323232323232323232323232323232323232323232323232323232323232323200");
-    entry(nullptr, nullptr);
+    contract();
 
-    ASSERT_EQ(*stack_ptr, 1);
+    ASSERT_EQ(contract.stack_pointer(), 1);
     ASSERT_EQ(
-        stack[0],
+        contract.stack(0),
         0x3232323232323232323232323232323232323232323232323232323232323232_u256);
+}
+
+TEST(SimpleExecutionTests, TwoPrograms)
+{
+    auto contract_a = standalone_evm_jit("631234567863FEDCAB9800");
+    auto contract_b = standalone_evm_jit("5F00");
+
+    contract_a();
+    contract_b();
+
+    ASSERT_EQ(contract_a.stack_pointer(), 2);
+    ASSERT_EQ(contract_b.stack_pointer(), 1);
+
+    ASSERT_EQ(contract_a.stack(0), 0x12345678);
+    ASSERT_EQ(contract_a.stack(1), 0xFEDCAB98);
+    ASSERT_EQ(contract_b.stack(0), 0);
 }

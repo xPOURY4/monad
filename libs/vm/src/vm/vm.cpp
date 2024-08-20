@@ -65,41 +65,6 @@ namespace
 
 }
 
-namespace monad::vm
-{
-    jit_result jit_compile_program(std::string const &in)
-    {
-        auto bytes = utils::parse_hex_program(in);
-
-        auto [mod, entrypoint] =
-            monad::compiler::compile_evm_bytecode(bytes.data(), bytes.size());
-        assert(mod && "Failed to compile bytecode");
-
-        auto engine = monad::vm::create_engine(std::move(mod));
-        if (engine->hasError()) {
-            throw std::runtime_error(engine->getErrorMessage());
-        }
-
-        auto jit_entry_fn =
-            reinterpret_cast<void (*)(evmc_result *, evmc_host_context *)>(
-                engine->getPointerToFunction(entrypoint));
-        assert(jit_entry_fn && "Failed to get pointer to entrypoint");
-
-        auto *stack_pointer = reinterpret_cast<uint16_t *>(
-            engine->getGlobalValueAddress("evm_stack_pointer"));
-        assert(stack_pointer && "Failed to get pointer to stack pointer");
-
-        auto *stack = reinterpret_cast<::intx::uint256 *>(
-            engine->getGlobalValueAddress("evm_stack"));
-        assert(stack && "Failed to get pointer to stack");
-
-        engine->finalizeObject();
-
-        engine.release();
-        return {jit_entry_fn, stack_pointer, stack};
-    }
-}
-
 /**
  * This function is a special entrypoint recognised by EVMC-compatible host
  * implementations. When a host loads `libmonad-compiler-vm.so` as a VM library,

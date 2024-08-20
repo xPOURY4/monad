@@ -14,6 +14,8 @@ namespace monad::compiler
         inline constexpr auto jump_table = "monad_evm_jump_table";
         inline constexpr auto push = "monad_evm_push";
         inline constexpr auto pop = "monad_evm_pop";
+        inline constexpr auto stack = "monad_evm_stack";
+        inline constexpr auto stack_pointer = "monad_evm_stack_pointer";
     }
 
     struct compile_result

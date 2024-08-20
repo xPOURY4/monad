@@ -114,7 +114,7 @@ namespace
             false,
             llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             llvm::ConstantAggregateZero::get(stack_type),
-            "evm_stack");
+            constants::stack);
 
         mod.insertGlobalVariable(stack);
         return stack;
@@ -127,7 +127,7 @@ namespace
             false,
             llvm::GlobalValue::LinkageTypes::ExternalLinkage,
             llvm::ConstantInt::get(stack_pointer_type(), 0),
-            "evm_stack_pointer");
+            constants::stack_pointer);
 
         mod.insertGlobalVariable(stack_ptr);
         return stack_ptr;
