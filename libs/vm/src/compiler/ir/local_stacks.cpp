@@ -31,7 +31,7 @@ namespace monad::compiler::local_stacks
             0, {}, std::move(in.instrs), in.terminator, in.fallthrough_dest};
         std::deque<Value> stack;
 
-        for (auto const &tok : in.instrs) {
+        for (auto const &tok : out.instrs) {
             auto const opcode = tok.opcode;
 
             if (is_push_opcode(opcode)) {
