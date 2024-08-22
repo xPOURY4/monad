@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <utility>
 #include <vector>
 
 namespace monad::compiler::local_stacks
@@ -24,9 +25,10 @@ namespace monad::compiler::local_stacks
         return opcode >= DUP1 && opcode <= DUP16;
     }
 
-    Block LocalStacksIR::to_block(monad::compiler::Block const &in)
+    Block LocalStacksIR::to_block(monad::compiler::Block const &&in)
     {
-        Block out = {0, {}, in.terminator, in.fallthrough_dest};
+        Block out = {
+            0, {}, std::move(in.instrs), in.terminator, in.fallthrough_dest};
         std::deque<Value> stack;
 
         for (auto const &tok : in.instrs) {
@@ -85,13 +87,13 @@ namespace monad::compiler::local_stacks
         return out;
     }
 
-    LocalStacksIR::LocalStacksIR(BasicBlocksIR const &ir)
+    LocalStacksIR::LocalStacksIR(BasicBlocksIR const &&ir)
     {
         jumpdests = ir.jumpdests;
         blocks = {};
 
         for (monad::compiler::Block const &blk : ir.blocks) {
-            blocks.push_back(to_block(blk));
+            blocks.push_back(to_block(std::move(blk)));
         }
     }
 

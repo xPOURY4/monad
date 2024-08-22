@@ -23,6 +23,7 @@ namespace monad::compiler::local_stacks
         std::size_t min_params;
         std::vector<Value> output;
 
+        std::vector<Token> instrs;
         Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID
@@ -31,7 +32,7 @@ namespace monad::compiler::local_stacks
     class LocalStacksIR
     {
     public:
-        LocalStacksIR(BasicBlocksIR const &ir);
+        LocalStacksIR(BasicBlocksIR const &&ir);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
@@ -40,7 +41,7 @@ namespace monad::compiler::local_stacks
         bool is_dup_opcode(uint8_t const opcode);
         bool is_swap_opcode(uint8_t const opcode);
 
-        Block to_block(monad::compiler::Block const &block);
+        Block to_block(monad::compiler::Block const &&block);
     };
 
 }
@@ -83,6 +84,10 @@ struct std::formatter<monad::compiler::local_stacks::Block>
     {
 
         std::format_to(ctx.out(), "    min_params: {}\n", blk.min_params);
+
+        for (monad::compiler::Token const &tok : blk.instrs) {
+            std::format_to(ctx.out(), "      {}\n", tok);
+        }
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
         if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {

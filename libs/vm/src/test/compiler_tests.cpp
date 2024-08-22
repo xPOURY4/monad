@@ -8,6 +8,7 @@
 #include <format>
 #include <intx/intx.hpp>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 using namespace monad::compiler;
@@ -199,7 +200,7 @@ TEST(LocalStacksValueTest, Formatter)
 
 TEST(LocalStacksBlock, Formatter)
 {
-    local_stacks::Block blk = {0, {}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk = {0, {}, {}, Stop, INVALID_BLOCK_ID};
 
     EXPECT_EQ(
         std::format("{}", blk),
@@ -208,7 +209,7 @@ TEST(LocalStacksBlock, Formatter)
     output: [ ]
 )");
 
-    local_stacks::Block blk1 = {1, {computed()}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk1 = {1, {computed()}, {}, Stop, INVALID_BLOCK_ID};
 
     EXPECT_EQ(
         std::format("{}", blk1),
@@ -218,7 +219,7 @@ TEST(LocalStacksBlock, Formatter)
 )");
 
     local_stacks::Block blk2 = {
-        2, {computed(), param_id(0), lit(0x42)}, Stop, INVALID_BLOCK_ID};
+        2, {computed(), param_id(0), lit(0x42)}, {}, Stop, INVALID_BLOCK_ID};
     EXPECT_EQ(
         std::format("{}", blk2),
         R"(    min_params: 2
@@ -230,7 +231,7 @@ TEST(LocalStacksBlock, Formatter)
 TEST(LocalStacksIR, Formatter)
 {
     EXPECT_EQ(
-        std::format("{}", local_stacks::LocalStacksIR(instrIR0)),
+        std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR0))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -241,10 +242,12 @@ TEST(LocalStacksIR, Formatter)
 )");
 
     EXPECT_EQ(
-        std::format("{}", local_stacks::LocalStacksIR(instrIR1)),
+        std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR1))),
         R"(local_stacks:
   block 0:
     min_params: 3
+      (1, SUB, 0x0)
+      (2, SUB, 0x0)
     JumpDest 1
     output: [ COMPUTED ]
   block 1:
@@ -258,10 +261,11 @@ TEST(LocalStacksIR, Formatter)
 )");
 
     EXPECT_EQ(
-        std::format("{}", local_stacks::LocalStacksIR(instrIR2)),
+        std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR2))),
         R"(local_stacks:
   block 0:
     min_params: 2
+      (2, SUB, 0x0)
     JumpDest 1
     output: [ COMPUTED ]
   block 1:
@@ -296,6 +300,19 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0:
     min_params: 2
+      (0, PUSH0, 0x0)
+      (1, PUSH1, 0xa)
+      (3, PC, 0x0)
+      (4, PC, 0x0)
+      (5, ADD, 0x0)
+      (6, PC, 0x0)
+      (7, DUP1, 0x0)
+      (8, DUP3, 0x0)
+      (9, SWAP1, 0x0)
+      (10, POP, 0x0)
+      (11, SWAP4, 0x0)
+      (12, DUP6, 0x0)
+      (13, SWAP7, 0x0)
     Stop
     output: [ %p1 0x0 0x6 COMPUTED 0xa COMPUTED %p0 %p0 ]
 
