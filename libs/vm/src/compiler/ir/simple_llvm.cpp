@@ -1,6 +1,6 @@
 #include <compiler/compiler.h>
+#include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
 #include <compiler/ir/simple_llvm.h>
 
 #include <llvm/IR/BasicBlock.h>
@@ -150,7 +150,7 @@ namespace
 
 namespace monad::compiler
 {
-    SimpleLLVMIR::SimpleLLVMIR(InstructionIR const &instrs)
+    SimpleLLVMIR::SimpleLLVMIR(BasicBlocksIR const &instrs)
         : mod(std::make_unique<llvm::Module>("monad-evm", context()))
         , entry_point(build_entrypoint(*mod))
         , stack(build_evm_stack(*mod))
@@ -324,9 +324,9 @@ namespace monad::compiler
     void SimpleLLVMIR::compile_instruction(
         llvm::IRBuilder<> &b, Token const &inst) const
     {
-        auto op = inst.token_opcode;
+        auto op = inst.opcode;
         if (op >= PUSH0 && op <= PUSH32) {
-            b.Insert(call_push(inst.token_data));
+            b.Insert(call_push(inst.data));
         }
     }
 

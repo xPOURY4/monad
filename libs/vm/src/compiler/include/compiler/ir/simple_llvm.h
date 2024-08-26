@@ -1,7 +1,7 @@
 #pragma once
 
 #include <compiler/compiler.h>
-#include <compiler/ir/instruction.h>
+#include <compiler/ir/basic_blocks.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
@@ -17,7 +17,7 @@ namespace monad::compiler
     class SimpleLLVMIR
     {
     public:
-        SimpleLLVMIR(InstructionIR const &instrs);
+        SimpleLLVMIR(BasicBlocksIR const &instrs);
 
         compile_result result() &&;
 

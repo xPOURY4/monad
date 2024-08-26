@@ -1,6 +1,6 @@
 #include <compiler/compiler.h>
+#include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
 #include <compiler/ir/simple_llvm.h>
 
 #include <llvm/IR/BasicBlock.h>
@@ -34,7 +34,7 @@ namespace monad::compiler
     {
         auto program = std::vector(code, code + code_size);
         auto bytecode = BytecodeIR(program);
-        auto blocks = InstructionIR(program);
+        auto blocks = BasicBlocksIR(program);
         auto llvm = SimpleLLVMIR(blocks);
 
         return std::move(llvm).result();
