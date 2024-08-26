@@ -1,5 +1,7 @@
 #pragma once
 
+#include <runtime/runtime.h>
+
 #include <evmc/evmc.h>
 
 #include <intx/intx.hpp>
@@ -62,7 +64,7 @@ namespace monad::vm::testing
         void operator()() const;
 
     private:
-        void (*entry_point_)(evmc_result *, evmc_host_context *);
+        void (*entry_point_)(monad_runtime_interface *);
         uint16_t *stack_pointer_;
         ::intx::uint256 *stack_;
 

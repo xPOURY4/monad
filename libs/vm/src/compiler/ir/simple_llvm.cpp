@@ -36,7 +36,7 @@ namespace
         auto *void_ty = llvm::Type::getVoidTy(context());
         auto *ptr_ty = llvm::PointerType::getUnqual(context());
 
-        return llvm::FunctionType::get(void_ty, {ptr_ty, ptr_ty}, false);
+        return llvm::FunctionType::get(void_ty, {ptr_ty}, false);
     }
 
     llvm::Function *build_entrypoint(llvm::Module &mod)

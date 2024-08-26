@@ -11,10 +11,10 @@ target_link_libraries(monad-compiler-vm
     PUBLIC
         intx::intx
         evmc::evmc
+        runtime
     PRIVATE
         utils
         compiler
-        runtime
 )
 
 target_include_directories(monad-compiler-vm

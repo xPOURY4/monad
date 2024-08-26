@@ -29,9 +29,8 @@ namespace monad::vm::testing
             throw std::runtime_error(engine->getErrorMessage());
         }
 
-        entry_point_ =
-            reinterpret_cast<void (*)(evmc_result *, evmc_host_context *)>(
-                engine->getPointerToFunction(entrypoint));
+        entry_point_ = reinterpret_cast<void (*)(monad_runtime_interface *)>(
+            engine->getPointerToFunction(entrypoint));
         assert(entry_point_ && "Failed to get pointer to entrypoint");
 
         stack_pointer_ = reinterpret_cast<uint16_t *>(
@@ -96,7 +95,7 @@ namespace monad::vm::testing
     void standalone_evm_jit::operator()() const
     {
         assert(entry_point_ && "Entry point is null");
-        entry_point_(nullptr, nullptr);
+        entry_point_(nullptr);
     }
 
     void standalone_evm_jit::destroy_engine()

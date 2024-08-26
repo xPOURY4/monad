@@ -34,6 +34,7 @@ namespace
         (void)host;
         (void)rev;
         (void)msg;
+        (void)context;
 
         auto [mod, entrypoint] =
             monad::compiler::compile_evm_bytecode(code, code_size);
@@ -44,15 +45,23 @@ namespace
 
         engine->finalizeObject();
         auto jit_entry_fn =
-            reinterpret_cast<void (*)(evmc_result *, evmc_host_context *)>(
+            reinterpret_cast<void (*)(monad_runtime_interface *)>(
                 engine->getPointerToFunction(entrypoint));
 
         auto result = evmc_result{
             evmc_status_code::EVMC_FAILURE, 0, 0, nullptr, 0, nullptr, {}, {}};
 
-        jit_entry_fn(&result, context);
+        auto interface = monad_runtime_interface{
+            .result = result,
+            .host = host,
+            .context = context,
+            .revision = rev,
+            .message = msg,
+        };
 
-        return result;
+        jit_entry_fn(&interface);
+
+        return interface.result;
     }
 
     evmc_capabilities_flagset get_capabilities(evmc_vm *)
