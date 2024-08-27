@@ -120,6 +120,13 @@ namespace
         return llvm::IntegerType::get(context(), 16);
     }
 
+    llvm::FunctionType *runtime_hook_type()
+    {
+        auto *ptr_ty = llvm::PointerType::getUnqual(context());
+        return llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context()), {ptr_ty, ptr_ty}, false);
+    }
+
     llvm::GlobalVariable *build_evm_stack(llvm::Module &mod)
     {
         constexpr auto stack_size = 1024;
@@ -178,12 +185,18 @@ namespace monad::compiler
         auto b = llvm::IRBuilder(entry);
         b.CreateBr(evm_blocks[0].first);
 
-        for (auto *exn_block : {stop, revert, self_destruct, return_}) {
+        for (auto *exn_block : {revert, self_destruct, return_}) {
             b.SetInsertPoint(exn_block);
             b.CreateRetVoid();
         }
 
         jump_table = build_slow_jump_table(*mod, instrs.jumpdests, evm_blocks);
+
+        auto *host_interface = entry_point->getArg(0);
+
+        b.SetInsertPoint(stop);
+        b.Insert(call_runtime_function("stop", host_interface));
+        b.CreateRetVoid();
 
         compile_block_terminators();
     }
@@ -355,6 +368,21 @@ namespace monad::compiler
     {
         return llvm::CallInst::Create(
             jump_table->getFunctionType(), jump_table, {arg});
+    }
+
+    llvm::CallInst *SimpleLLVMIR::call_runtime_function(
+        std::string const &name, llvm::Value *interface,
+        llvm::Value *extra) const
+    {
+        if (extra == nullptr) {
+            extra = llvm::ConstantPointerNull::get(
+                llvm::PointerType::getUnqual(context()));
+        }
+
+        auto qualified_name = std::format("monad_evm_runtime_{}", name);
+        auto fn = mod->getOrInsertFunction(qualified_name, runtime_hook_type());
+
+        return llvm::CallInst::Create(fn, {interface, extra});
     }
 
     llvm::IndirectBrInst *SimpleLLVMIR::dynamic_jump(llvm::Value *dest) const

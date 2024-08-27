@@ -1,4 +1,5 @@
 #include <compiler/compiler.h>
+#include <runtime/runtime.h>
 #include <vm/execute_jit.h>
 #include <vm/vm.h>
 
@@ -82,6 +83,8 @@ extern "C" evmc_vm *evmc_create_monad_compiler_vm()
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmParser();
     llvm::InitializeNativeTargetAsmPrinter();
+
+    monad::vm::bind_runtime();
 
     return new evmc_vm{
         EVMC_ABI_VERSION,

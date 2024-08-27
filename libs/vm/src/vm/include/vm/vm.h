@@ -10,6 +10,11 @@
 
 extern "C" evmc_vm *evmc_create_monad_compiler_vm();
 
+namespace monad::vm
+{
+    void bind_runtime();
+}
+
 namespace monad::vm::testing
 {
     /**

@@ -1,6 +1,7 @@
 add_library(monad-compiler-vm SHARED
     vm.cpp
     execute_jit.cpp
+    bind_runtime.cpp
     testing.cpp
 )
 
