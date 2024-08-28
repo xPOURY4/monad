@@ -1,6 +1,7 @@
 name: Compiler Tests
 
-on: pull_request
+on:
+  push:
 
 jobs:
     build:
@@ -12,6 +13,23 @@ jobs:
             compiler: [{CXX: g++-13, CC: gcc-13}, {CXX: clang++-18, CC: clang-18}]
 
         steps:
+            - name: Generate token
+              # Use the Github App private key to request an installation
+              # token with read-only access to the organization's private
+              # repositories. This token is then used in the checkout step
+              # (but not in subsequent steps that create releases and upload
+              # assets, those still use the default token that has write
+              # access to the current repository).
+              id: generate_token
+              uses: tibdex/github-app-token@v2
+              with:
+                app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+                private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+                # Limit permissions to what we need (these need to be
+                # configured in the app settings as well).
+                permissions: >-
+                  {"contents": "read"}
+
             - uses: actions/checkout@v4
               with:
                 submodules: true
@@ -22,6 +40,13 @@ jobs:
               with:
                 repository: ethereum/evmc
                 path: evmc
+
+            - name: Check out Monad core
+              uses: actions/checkout@v4
+              with:
+                token: ${{ steps.generate_token.outputs.token }}
+                repository: monad-crypto/monad
+                path: monad
  
             - name: Install dependencies
               run: |
