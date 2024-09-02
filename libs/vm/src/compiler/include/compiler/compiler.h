@@ -16,6 +16,7 @@ namespace monad::compiler
         inline constexpr auto pop = "monad_evm_pop";
         inline constexpr auto stack = "monad_evm_stack";
         inline constexpr auto stack_pointer = "monad_evm_stack_pointer";
+        inline constexpr auto gas_left = "monad_evm_gas_left";
     }
 
     struct compile_result

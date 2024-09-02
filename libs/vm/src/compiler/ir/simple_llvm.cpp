@@ -156,6 +156,22 @@ namespace
         mod.insertGlobalVariable(stack_ptr);
         return stack_ptr;
     }
+
+    llvm::GlobalVariable *build_evm_gas_left(llvm::Module &mod)
+    {
+        auto *i64_ty = llvm::IntegerType::get(context(), 64);
+
+        auto *gas_left = new llvm::GlobalVariable(
+            i64_ty,
+            false,
+            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
+            llvm::ConstantInt::get(
+                i64_ty, std::numeric_limits<uint64_t>::max()),
+            constants::gas_left);
+
+        mod.insertGlobalVariable(gas_left);
+        return gas_left;
+    }
 }
 
 namespace monad::compiler
@@ -165,6 +181,7 @@ namespace monad::compiler
         , entry_point(build_entrypoint(*mod))
         , stack(build_evm_stack(*mod))
         , stack_pointer(build_evm_stack_pointer(*mod))
+        , gas_left(build_evm_gas_left(*mod))
         , push(build_push_function())
         , pop(build_pop_function())
         , entry(llvm::BasicBlock::Create(context(), "entry", entry_point))

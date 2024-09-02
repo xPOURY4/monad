@@ -28,6 +28,7 @@ namespace monad::compiler
 
         llvm::GlobalVariable *stack;
         llvm::GlobalVariable *stack_pointer;
+        llvm::GlobalVariable *gas_left;
 
         llvm::Function *push;
         llvm::Function *pop;
