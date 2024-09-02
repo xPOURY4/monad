@@ -60,6 +60,8 @@ namespace
             .message = msg,
         };
 
+        monad_evm_runtime_set_gas(msg->gas);
+
         jit_entry_fn(&interface);
 
         return interface.result;

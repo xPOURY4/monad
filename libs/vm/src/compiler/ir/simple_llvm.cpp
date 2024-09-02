@@ -16,6 +16,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <array>
 #include <cassert>
@@ -165,8 +166,7 @@ namespace
             i64_ty,
             false,
             llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-            llvm::ConstantInt::get(
-                i64_ty, std::numeric_limits<uint64_t>::max()),
+            nullptr,
             constants::gas_left);
 
         mod.insertGlobalVariable(gas_left);
@@ -360,7 +360,18 @@ namespace monad::compiler
         auto op = inst.opcode;
         if (op >= PUSH0 && op <= PUSH32) {
             b.Insert(call_push(inst.data));
+
+            auto gas = (op == PUSH0) ? 2 : 3;
+            spend_static_gas(b, gas);
         }
+    }
+
+    void SimpleLLVMIR::spend_static_gas(llvm::IRBuilder<> &b, int64_t gas) const
+    {
+        auto *global = mod->getGlobalVariable(constants::gas_left);
+        auto *old_val = b.CreateLoad(b.getInt64Ty(), global);
+        auto *new_val = b.CreateSub(old_val, b.getInt64(gas));
+        b.CreateStore(new_val, global);
     }
 
     llvm::CallInst *SimpleLLVMIR::call_pop() const

@@ -7,6 +7,8 @@ extern "C"
 {
 #endif
 
+extern int64_t monad_evm_gas_left;
+
 struct monad_runtime_interface
 {
     struct evmc_result result;
@@ -17,6 +19,7 @@ struct monad_runtime_interface
 };
 
 void monad_evm_runtime_stop(struct monad_runtime_interface *host, void *args);
+void monad_evm_runtime_set_gas(int64_t value);
 
 #ifdef __cplusplus
 }
