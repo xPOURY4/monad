@@ -7,7 +7,7 @@
 
 int64_t monad_evm_gas_left = LLONG_MAX;
 
-void monad_evm_runtime_stop(struct monad_runtime_interface *host, void *)
+void monad_evm_runtime_stop(struct monad_runtime_interface *host)
 {
     host->result.status_code = EVMC_SUCCESS;
     host->result.gas_left = monad_evm_gas_left;

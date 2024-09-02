@@ -18,7 +18,7 @@ struct monad_runtime_interface
     struct evmc_message const *message;
 };
 
-void monad_evm_runtime_stop(struct monad_runtime_interface *host, void *args);
+void monad_evm_runtime_stop(struct monad_runtime_interface *host);
 void monad_evm_runtime_set_gas(int64_t value);
 
 #ifdef __cplusplus
