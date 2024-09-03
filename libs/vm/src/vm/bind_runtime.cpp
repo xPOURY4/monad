@@ -14,7 +14,8 @@ namespace monad::vm
 {
     void bind_runtime()
     {
-        BIND_SYMBOL(monad_evm_runtime_stop);
         BIND_SYMBOL(monad_evm_gas_left);
+        BIND_SYMBOL(monad_evm_runtime_sstore);
+        BIND_SYMBOL(monad_evm_runtime_stop);
     }
 }

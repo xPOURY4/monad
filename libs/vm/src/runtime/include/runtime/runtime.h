@@ -18,6 +18,9 @@ struct monad_runtime_interface
     struct evmc_message const *message;
 };
 
+void monad_evm_runtime_sstore(
+    struct monad_runtime_interface *host, uint8_t *key_bytes,
+    uint8_t *val_bytes);
 void monad_evm_runtime_stop(struct monad_runtime_interface *host);
 void monad_evm_runtime_set_gas(int64_t value);
 

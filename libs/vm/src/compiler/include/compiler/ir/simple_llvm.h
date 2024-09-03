@@ -53,9 +53,13 @@ namespace monad::compiler
 
         llvm::CallInst *call_pop() const;
         llvm::CallInst *call_push(uint256_t immediate) const;
+        llvm::CallInst *call_push(llvm::Value *val) const;
         llvm::CallInst *call_jump_table(llvm::Value *arg) const;
 
         llvm::CallInst *call_stop(llvm::Value *interface) const;
+        void call_sstore(
+            llvm::IRBuilder<> &b, llvm::Value *interface, llvm::Value *key,
+            llvm::Value *val) const;
 
         llvm::IndirectBrInst *dynamic_jump(llvm::Value *dest) const;
     };

@@ -350,12 +350,31 @@ namespace monad::compiler
     void SimpleLLVMIR::compile_instruction(
         llvm::IRBuilder<> &b, Instruction const &inst) const
     {
+        auto *interface = entry_point->getArg(0);
+
         auto op = inst.opcode;
         if (op >= PUSH0 && op <= PUSH32) {
             b.Insert(call_push(inst.data));
 
             auto gas = (op == PUSH0) ? 2 : 3;
             spend_static_gas(b, gas);
+        }
+
+        switch (op) {
+        case ADD: {
+            auto *x = b.Insert(call_pop());
+            auto *y = b.Insert(call_pop());
+            auto *add = b.CreateAdd(x, y);
+            b.Insert(call_push(add));
+            spend_static_gas(b, 3);
+            break;
+        }
+        case SSTORE: {
+            auto *key = b.Insert(call_pop());
+            auto *val = b.Insert(call_pop());
+            call_sstore(b, interface, key, val);
+            break;
+        }
         }
     }
 
@@ -372,6 +391,11 @@ namespace monad::compiler
         return llvm::CallInst::Create(pop->getFunctionType(), pop);
     }
 
+    llvm::CallInst *SimpleLLVMIR::call_push(llvm::Value *val) const
+    {
+        return llvm::CallInst::Create(push->getFunctionType(), push, {val});
+    }
+
     llvm::CallInst *SimpleLLVMIR::call_push(uint256_t immediate) const
     {
         auto words = std::array<uint64_t, 4>{};
@@ -382,7 +406,7 @@ namespace monad::compiler
         auto big_val = llvm::APInt(256, words);
         auto *arg = llvm::ConstantInt::get(context(), big_val);
 
-        return llvm::CallInst::Create(push->getFunctionType(), push, {arg});
+        return call_push(arg);
     }
 
     llvm::CallInst *SimpleLLVMIR::call_jump_table(llvm::Value *arg) const
@@ -399,6 +423,26 @@ namespace monad::compiler
 
         auto fn = mod->getOrInsertFunction("monad_evm_runtime_stop", stop_ty);
         return llvm::CallInst::Create(fn, {interface});
+    }
+
+    void SimpleLLVMIR::call_sstore(
+        llvm::IRBuilder<> &b, llvm::Value *interface, llvm::Value *key,
+        llvm::Value *val) const
+    {
+        auto *ptr_ty = llvm::PointerType::getUnqual(context());
+        auto *sstore_ty = llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context()), {ptr_ty, ptr_ty, ptr_ty}, false);
+
+        auto *key_ptr = b.CreateAlloca(word_type());
+        b.CreateStore(key, key_ptr);
+
+        auto *val_ptr = b.CreateAlloca(word_type());
+        b.CreateStore(val, val_ptr);
+
+        auto fn =
+            mod->getOrInsertFunction("monad_evm_runtime_sstore", sstore_ty);
+
+        b.CreateCall(fn, {interface, key_ptr, val_ptr});
     }
 
     llvm::IndirectBrInst *SimpleLLVMIR::dynamic_jump(llvm::Value *dest) const
