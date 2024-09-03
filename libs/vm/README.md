@@ -94,6 +94,28 @@ There are four main components:
 - A debugging tool that compiles a contract to LLVM IR and dumps the result to
   `stdout`.
 
+## Documentation
+
+To build the project's documentation using [Doxygen][doxygen], run:
+```console
+$ doxygen
+```
+from the project root.
+
+On Peach machines, the built documentation needs to be accessed over SSH. To run
+a local HTTP server that can be tunneled to your local machine, run:
+```console
+$ ./scripts/serve-docs.sh
+```
+
+Then, on your local machine open an HTTP tunnel over SSH with:
+```console
+$ ssh -N -L 8000:localhost:8000 <user@some-peach>
+```
+
+The documentation is then accessible from `http://localhost:8000` locally.
+
+[doxygen]: https://www.doxygen.nl/
 [evmc]: https://github.com/ethereum/evmc
 [jit]: https://github.com/monad-crypto/monad-jit
 [hunter]: https://github.com/ethereum/evmc/pull/169
