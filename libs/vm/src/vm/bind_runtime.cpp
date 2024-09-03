@@ -1,3 +1,4 @@
+#include <runtime/runtime.h>
 #include <vm/vm.h>
 
 #include <llvm/ADT/StringRef.h>
@@ -6,7 +7,7 @@
 #define BIND_SYMBOL(name)                                                      \
     do {                                                                       \
         llvm::sys::DynamicLibrary::AddSymbol(                                  \
-            #name, reinterpret_cast<void *>(&name));                           \
+            llvm::StringRef(#name), reinterpret_cast<void *>(&name));          \
     }                                                                          \
     while (false);
 

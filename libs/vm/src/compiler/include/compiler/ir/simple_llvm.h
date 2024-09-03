@@ -49,11 +49,11 @@ namespace monad::compiler
         void compile_instruction(
             llvm::IRBuilder<> &b, bytecode::Instruction const &inst) const;
 
-        void spend_static_gas(llvm::IRBuilder<> &b, int64_t gas) const;
+        void spend_static_gas(llvm::IRBuilder<> &b, uint64_t gas) const;
 
         llvm::CallInst *call_pop() const;
-        llvm::CallInst *call_push(uint256_t immediate) const;
         llvm::CallInst *call_push(llvm::Value *val) const;
+        llvm::CallInst *call_push(uint256_t immediate) const;
         llvm::CallInst *call_jump_table(llvm::Value *arg) const;
 
         llvm::CallInst *call_stop(llvm::Value *interface) const;

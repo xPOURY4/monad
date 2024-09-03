@@ -1,10 +1,10 @@
 #include <runtime/runtime.h>
 
+#include <evmc/evmc.h>
+
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 static evmc_bytes32 from_i256_ptr(uint8_t *ptr)
 {

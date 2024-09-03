@@ -16,7 +16,6 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
-#include <llvm/Support/raw_ostream.h>
 
 #include <array>
 #include <cassert>
@@ -356,7 +355,7 @@ namespace monad::compiler
         if (op >= PUSH0 && op <= PUSH32) {
             b.Insert(call_push(inst.data));
 
-            auto gas = (op == PUSH0) ? 2 : 3;
+            auto gas = (op == PUSH0) ? 2u : 3u;
             spend_static_gas(b, gas);
         }
 
@@ -378,7 +377,8 @@ namespace monad::compiler
         }
     }
 
-    void SimpleLLVMIR::spend_static_gas(llvm::IRBuilder<> &b, int64_t gas) const
+    void
+    SimpleLLVMIR::spend_static_gas(llvm::IRBuilder<> &b, uint64_t gas) const
     {
         auto *global = mod->getGlobalVariable(constants::gas_left);
         auto *old_val = b.CreateLoad(b.getInt64Ty(), global);

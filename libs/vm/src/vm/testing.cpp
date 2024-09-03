@@ -1,9 +1,8 @@
 #include <compiler/compiler.h>
+#include <runtime/runtime.h>
 #include <utils/load_program.h>
 #include <vm/execute_jit.h>
 #include <vm/vm.h>
-
-#include <evmc/evmc.h>
 
 #include <intx/intx.hpp>
 
