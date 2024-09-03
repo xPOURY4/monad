@@ -77,8 +77,10 @@ void monad_evm_runtime_sstore(
 
 void monad_evm_runtime_stop(struct monad_runtime_interface *host)
 {
-    host->result.status_code = EVMC_SUCCESS;
-    host->result.gas_left = monad_evm_gas_left;
+    if (host) {
+        host->result.status_code = EVMC_SUCCESS;
+        host->result.gas_left = monad_evm_gas_left;
+    }
 }
 
 void monad_evm_runtime_set_gas(int64_t value)
