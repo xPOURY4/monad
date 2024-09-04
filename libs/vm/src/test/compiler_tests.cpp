@@ -1,6 +1,7 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
 #include <compiler/ir/local_stacks.h>
+#include <compiler/types.h>
 
 #include <gtest/gtest.h>
 

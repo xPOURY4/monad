@@ -1,15 +1,12 @@
 #pragma once
 
-#include <intx/intx.hpp>
+#include <compiler/types.h>
 
 #include <array>
 #include <cstdint>
 #include <format>
 #include <string_view>
 #include <vector>
-
-using byte_offset = std::size_t;
-using uint256_t = ::intx::uint256;
 
 namespace monad::compiler
 {
@@ -320,20 +317,6 @@ namespace monad::compiler
         opcode_info_table.size() == 256,
         "Must have opcode info for exact opcode range [0x00, 0xFF)");
 }
-
-template <>
-struct std::formatter<uint256_t>
-{
-    constexpr auto parse(std::format_parse_context &ctx)
-    {
-        return ctx.begin();
-    }
-
-    auto format(uint256_t const &v, std::format_context &ctx) const
-    {
-        return std::format_to(ctx.out(), "0x{}", intx::to_string(v, 16));
-    }
-};
 
 template <>
 struct std::formatter<monad::compiler::Token>

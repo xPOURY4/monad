@@ -2,6 +2,7 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
 #include <compiler/ir/simple_llvm.h>
+#include <compiler/types.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>

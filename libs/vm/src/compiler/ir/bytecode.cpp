@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <compiler/ir/bytecode.h>
+#include <compiler/types.h>
 
 #include <intx/intx.hpp>
 
