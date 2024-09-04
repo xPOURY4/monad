@@ -48,6 +48,7 @@ jobs:
                 repository: monad-crypto/monad
                 path: monad
                 submodules: recursive
+                ref: bruce/jit-vm
  
             - name: Install dependencies
               run: |
