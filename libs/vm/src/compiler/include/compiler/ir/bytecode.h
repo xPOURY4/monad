@@ -11,24 +11,68 @@
 
 namespace monad::compiler
 {
-
+    /**
+     * Represents an instruction comprising an EVM opcode together with an
+     * associated immediate value (where appropriate) and metadata.
+     */
     struct Token
     {
+        /**
+         * The offset into the source program that this token was found
+         * originally.
+         */
         byte_offset offset;
+
+        /**
+         * Raw byte value representing the EVM opcode of this instruction; this
+         * value is not validated and may correspond to an invalid instruction.
+         */
         uint8_t opcode;
-        uint256_t data; // only used by push
+
+        /**
+         * The 256-bit immediate value associated with an instruction.
+         *
+         * Used only when this instruction has an opcode in the `PUSHN` family,
+         * and zero otherwise.
+         */
+        uint256_t data;
     };
 
     bool operator==(Token const &a, Token const &b);
 
+    /**
+     * Represents an EVM program where raw program bytes have been resolved into
+     * a sequence of logical instructions.
+     *
+     * This representation is conceptually very close to the original binary
+     * format of an EVM program. The only changes made to produce it are:
+     *
+     * - Parsing and grouping of immediate values following PUSH instructions.
+     * - Padding zero bytes at the end of a program that is too short.
+     */
     class BytecodeIR
     {
     public:
+        /**
+         * Construct a bytecode program from a vector of raw bytes.
+         *
+         * No validation or analysis is performed beyond grouping immediate
+         * values for `PUSH` instructions; invalid input bytes will produce an
+         * invalid output program.
+         */
         BytecodeIR(std::vector<uint8_t> const &byte_code);
+
+        /**
+         * The logical EVM instructions lexed from the original binary.
+         */
         std::vector<Token> tokens;
     };
 
 }
+
+/*
+ * Formatter Implementations
+ */
 
 template <>
 struct std::formatter<monad::compiler::Token>

@@ -15,6 +15,14 @@
 
 namespace
 {
+    /**
+     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
+     * value.
+     *
+     * If there are fewer than `n` bytes remaining in the source data (that is,
+     * `remaining < n`), then treat the input as if it had been padded to the
+     * right with zero bytes.
+     */
     uint256_t to_uint256_t(
         std::size_t const n, std::size_t const remaining, uint8_t const *src)
     {
