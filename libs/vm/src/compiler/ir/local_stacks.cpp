@@ -1,30 +1,15 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
 #include <compiler/ir/local_stacks.h>
+#include <compiler/opcodes.h>
 
 #include <cstddef>
-#include <cstdint>
 #include <deque>
 #include <utility>
 #include <vector>
 
 namespace monad::compiler::local_stacks
 {
-    bool LocalStacksIR::is_push_opcode(uint8_t const opcode)
-    {
-        return opcode >= PUSH0 && opcode <= PUSH32;
-    }
-
-    bool LocalStacksIR::is_swap_opcode(uint8_t const opcode)
-    {
-        return opcode >= SWAP1 && opcode <= SWAP16;
-    }
-
-    bool LocalStacksIR::is_dup_opcode(uint8_t const opcode)
-    {
-        return opcode >= DUP1 && opcode <= DUP16;
-    }
-
     Block LocalStacksIR::to_block(monad::compiler::Block const &&in)
     {
         Block out = {

@@ -1,5 +1,6 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
+#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <cassert>

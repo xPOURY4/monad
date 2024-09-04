@@ -1,9 +1,10 @@
-#include <algorithm>
 #include <compiler/ir/bytecode.h>
+#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <intx/intx.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>

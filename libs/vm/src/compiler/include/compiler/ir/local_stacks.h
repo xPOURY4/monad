@@ -37,10 +37,6 @@ namespace monad::compiler::local_stacks
         std::vector<Block> blocks;
 
     private:
-        bool is_push_opcode(uint8_t const opcode);
-        bool is_dup_opcode(uint8_t const opcode);
-        bool is_swap_opcode(uint8_t const opcode);
-
         Block to_block(monad::compiler::Block const &&block);
     };
 
