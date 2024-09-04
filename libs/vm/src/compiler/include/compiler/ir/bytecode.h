@@ -9,13 +9,13 @@
 #include <string_view>
 #include <vector>
 
-namespace monad::compiler
+namespace monad::compiler::bytecode
 {
     /**
      * Represents an instruction comprising an EVM opcode together with an
      * associated immediate value (where appropriate) and metadata.
      */
-    struct Token
+    struct Instruction
     {
         /**
          * The offset into the source program that this token was found
@@ -38,7 +38,7 @@ namespace monad::compiler
         uint256_t data;
     };
 
-    bool operator==(Token const &a, Token const &b);
+    bool operator==(Instruction const &a, Instruction const &b);
 
     /**
      * Represents an EVM program where raw program bytes have been resolved into
@@ -65,7 +65,7 @@ namespace monad::compiler
         /**
          * The logical EVM instructions lexed from the original binary.
          */
-        std::vector<Token> tokens;
+        std::vector<Instruction> instructions;
     };
 
 }
@@ -75,15 +75,16 @@ namespace monad::compiler
  */
 
 template <>
-struct std::formatter<monad::compiler::Token>
+struct std::formatter<monad::compiler::bytecode::Instruction>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
         return ctx.begin();
     }
 
-    auto
-    format(monad::compiler::Token const &tok, std::format_context &ctx) const
+    auto format(
+        monad::compiler::bytecode::Instruction const &tok,
+        std::format_context &ctx) const
     {
         return std::format_to(
             ctx.out(),
@@ -95,7 +96,7 @@ struct std::formatter<monad::compiler::Token>
 };
 
 template <>
-struct std::formatter<monad::compiler::BytecodeIR>
+struct std::formatter<monad::compiler::bytecode::BytecodeIR>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -103,10 +104,11 @@ struct std::formatter<monad::compiler::BytecodeIR>
     }
 
     auto format(
-        monad::compiler::BytecodeIR const &ir, std::format_context &ctx) const
+        monad::compiler::bytecode::BytecodeIR const &ir,
+        std::format_context &ctx) const
     {
         std::format_to(ctx.out(), "bytecode:");
-        for (monad::compiler::Token const &tok : ir.tokens) {
+        for (auto const &tok : ir.instructions) {
             std::format_to(ctx.out(), "\n  {}", tok);
         }
         return std::format_to(ctx.out(), "\n");

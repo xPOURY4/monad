@@ -33,7 +33,7 @@ namespace monad::compiler
     compile_result compile_evm_bytecode(uint8_t const *code, size_t code_size)
     {
         auto program = std::vector(code, code + code_size);
-        auto bytecode = BytecodeIR(program);
+        auto bytecode = bytecode::BytecodeIR(program);
         auto blocks = BasicBlocksIR(program);
         auto llvm = SimpleLLVMIR(blocks);
 

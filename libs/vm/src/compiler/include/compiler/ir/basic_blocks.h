@@ -26,7 +26,7 @@ namespace monad::compiler
 
     struct Block
     {
-        std::vector<Token> instrs;
+        std::vector<bytecode::Instruction> instrs;
         Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID
@@ -37,7 +37,7 @@ namespace monad::compiler
     class BasicBlocksIR
     {
     public:
-        BasicBlocksIR(BytecodeIR const &byte_code);
+        BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
@@ -102,7 +102,7 @@ struct std::formatter<monad::compiler::Block>
     format(monad::compiler::Block const &blk, std::format_context &ctx) const
     {
 
-        for (monad::compiler::Token const &tok : blk.instrs) {
+        for (auto const &tok : blk.instrs) {
             std::format_to(ctx.out(), "      {}\n", tok);
         }
 
@@ -129,7 +129,7 @@ struct std::formatter<monad::compiler::BasicBlocksIR>
 
         std::format_to(ctx.out(), "basic_blocks:\n");
         int i = 0;
-        for (monad::compiler::Block const &blk : ir.blocks) {
+        for (auto const &blk : ir.blocks) {
             std::format_to(ctx.out(), "  block {}:\n", i);
             std::format_to(ctx.out(), "{}", blk);
             i++;

@@ -40,7 +40,7 @@ namespace
     }
 }
 
-namespace monad::compiler
+namespace monad::compiler::bytecode
 {
 
     BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
@@ -53,7 +53,7 @@ namespace monad::compiler
 
             curr_offset++;
 
-            tokens.emplace_back(
+            instructions.emplace_back(
                 opcode_offset,
                 opcode,
                 to_uint256_t(
@@ -65,7 +65,7 @@ namespace monad::compiler
         }
     }
 
-    bool operator==(Token const &a, Token const &b)
+    bool operator==(Instruction const &a, Instruction const &b)
     {
         return std::tie(a.offset, a.opcode, a.data) ==
                std::tie(b.offset, b.opcode, b.data);

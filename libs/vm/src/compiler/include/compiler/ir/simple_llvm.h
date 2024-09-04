@@ -45,7 +45,8 @@ namespace monad::compiler
         llvm::BasicBlock *compile_block(Block const &b) const;
         void compile_block_terminators();
 
-        void compile_instruction(llvm::IRBuilder<> &b, Token const &inst) const;
+        void compile_instruction(
+            llvm::IRBuilder<> &b, bytecode::Instruction const &inst) const;
 
         llvm::CallInst *call_pop() const;
         llvm::CallInst *call_push(uint256_t immediate) const;

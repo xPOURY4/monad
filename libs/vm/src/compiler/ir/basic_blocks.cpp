@@ -29,7 +29,9 @@ namespace monad::compiler
     void BasicBlocksIR::add_block()
     {
         blocks.emplace_back(
-            std::vector<Token>{}, Terminator::Stop, INVALID_BLOCK_ID);
+            std::vector<bytecode::Instruction>{},
+            Terminator::Stop,
+            INVALID_BLOCK_ID);
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
@@ -43,7 +45,7 @@ namespace monad::compiler
         blocks.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    BasicBlocksIR::BasicBlocksIR(BytecodeIR const &byte_code)
+    BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)
     {
 
         enum class St
@@ -56,7 +58,7 @@ namespace monad::compiler
 
         add_block();
 
-        for (auto const &tok : byte_code.tokens) {
+        for (auto const &tok : byte_code.instructions) {
             if (st == St::OUTSIDE_BLOCK) {
                 if (tok.opcode == JUMPDEST) {
                     add_block();

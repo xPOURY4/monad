@@ -29,6 +29,7 @@
 namespace
 {
     using namespace monad::compiler;
+    using namespace monad::compiler::bytecode;
 
     llvm::FunctionType *contract_entrypoint_type()
     {
@@ -324,7 +325,7 @@ namespace monad::compiler
     }
 
     void SimpleLLVMIR::compile_instruction(
-        llvm::IRBuilder<> &b, Token const &inst) const
+        llvm::IRBuilder<> &b, Instruction const &inst) const
     {
         auto op = inst.opcode;
         if (op >= PUSH0 && op <= PUSH32) {

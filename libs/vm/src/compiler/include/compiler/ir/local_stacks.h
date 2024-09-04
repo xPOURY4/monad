@@ -23,7 +23,7 @@ namespace monad::compiler::local_stacks
         std::size_t min_params;
         std::vector<Value> output;
 
-        std::vector<Token> instrs;
+        std::vector<bytecode::Instruction> instrs;
         Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID
@@ -81,7 +81,7 @@ struct std::formatter<monad::compiler::local_stacks::Block>
 
         std::format_to(ctx.out(), "    min_params: {}\n", blk.min_params);
 
-        for (monad::compiler::Token const &tok : blk.instrs) {
+        for (auto const &tok : blk.instrs) {
             std::format_to(ctx.out(), "      {}\n", tok);
         }
 
@@ -112,7 +112,7 @@ struct std::formatter<monad::compiler::local_stacks::LocalStacksIR>
 
         std::format_to(ctx.out(), "local_stacks:\n");
         int i = 0;
-        for (monad::compiler::local_stacks::Block const &blk : ir.blocks) {
+        for (auto const &blk : ir.blocks) {
             std::format_to(ctx.out(), "  block {}:\n", i);
             std::format_to(ctx.out(), "{}", blk);
             i++;
