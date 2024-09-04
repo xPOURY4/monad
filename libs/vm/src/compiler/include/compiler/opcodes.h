@@ -7,18 +7,58 @@
 
 namespace monad::compiler
 {
+    /**
+     * Details of how an individual EVM opcode affects VM state when executed.
+     */
     struct OpCodeInfo
     {
+        /**
+         * The human-readable (disassembled) form of the opcode.
+         */
         std::string_view name;
+
+        /**
+         * The number of argument bytes that follow this opcode in a binary EVM
+         * program.
+         *
+         * This value is 0 for all instructions other than the `PUSHN` family,
+         * each of which expects N bytes to follow.
+         */
         std::size_t num_args;
+
+        /**
+         * The minimum EVM stack size required to execute this instruction.
+         */
         std::size_t min_stack;
+
+        /**
+         * Whether the EVM stack size increases after executing this
+         * instruction.
+         */
         bool increases_stack;
+
+        /**
+         * Minimum static gas required to execute this instruction.
+         *
+         * Some instructions may also consume additional dynamic gas depending
+         * on run-time properties (e.g. memory expansion or storage costs).
+         */
         std::uint64_t min_gas;
     };
 
+    /**
+     * Placeholder value representing an opcode value not currently used by the
+     * EVM specification.
+     */
     inline constexpr auto unknown_opcode_info =
         OpCodeInfo{"UNKNOWN", 0, 0, false, 0};
 
+    /**
+     * Lookup table of opcode info for each possible 1-byte opcode value.
+     *
+     * Some bytes do not correspond to an EVM instruction; looking those bytes
+     * up in this table produces a placeholder value.
+     */
     inline constexpr auto opcode_info_table = std::array{
         OpCodeInfo{"STOP", 0, 0, false, 0}, // 0x00
         OpCodeInfo{"ADD", 0, 2, true, 3}, // 0x01
@@ -297,6 +337,10 @@ namespace monad::compiler
         opcode_info_table.size() == 256,
         "Must have opcode info for exact opcode range [0x00, 0xFF)");
 
+    /**
+     * Mnemonic mapping of human-readable opcode names to their underlying byte
+     * values.
+     */
     enum OpCode : uint8_t
     {
         STOP = 0x00,
