@@ -47,6 +47,7 @@ jobs:
                 token: ${{ steps.generate_token.outputs.token }}
                 repository: monad-crypto/monad
                 path: monad
+                submodules: recursive
  
             - name: Install dependencies
               run: |
@@ -56,6 +57,21 @@ jobs:
                     llvm-18-dev         \
                     libcli11-dev        \
                     libgtest-dev
+
+            - name: Install Monad client dependencies
+              working-directory: monad
+              run: |
+                sudo ./scripts/ubuntu-build/install-boost.sh
+                sudo ./scripts/ubuntu-build/install-deps.sh
+                sudo ./scripts/ubuntu-build/install-tools.sh
+                sudo apt install -y     \
+                    libarchive-dev      \
+                    libbrotli-dev       \
+                    libcap-dev          \
+                    libcli11-dev        \
+                    libgmp-dev          \
+                    libtbb-dev          \
+                    libzstd-dev
 
             - name: Build compiler
               working-directory: compiler
@@ -84,6 +100,23 @@ jobs:
             - name: Run compatibility tests
               run: |
                 evmc/build/bin/evmc-vmtester compiler/build/src/vm/libmonad-compiler-vm.so
+
+            - name: Build Monad client
+              working-directory: monad
+              env:
+                CC: ${{ matrix.compiler.CC }}
+                CXX: ${{ matrix.compiler.CXX }}
+                CMAKE_BUILD_TYPE: ${{ matrix.CMAKE_BUILD_TYPE }}
+                CFLAGS: "-march=haswell"
+                CXXFLAGS: "-march=haswell"
+                ASMFLAGS: "-march=haswell"
+              run: |
+                ./scripts/configure.sh
+                VERBOSE=1 \
+                cmake \
+                  --build build \
+                  --config RelWithDebInfo \
+                  --target monad-ethereum-test
 
     code-quality:
         name: Code quality checks
