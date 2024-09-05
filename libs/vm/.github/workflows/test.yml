@@ -41,6 +41,12 @@ jobs:
                 repository: ethereum/evmc
                 path: evmc
 
+            # The reference we're checking out here is so that we can get a
+            # version of the core monad client that dynamically loads its
+            # execution VM from a shared library. This isn't a change that
+            # should get merged into the upstream client; we'll want to
+            # implement things differently when we come to merge the compiler
+            # and client.
             - name: Check out Monad core
               uses: actions/checkout@v4
               with:
