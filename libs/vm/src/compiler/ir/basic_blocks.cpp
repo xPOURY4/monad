@@ -9,6 +9,10 @@
 
 namespace monad::compiler::basic_blocks
 {
+    /*
+     * IR
+     */
+
     BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)
         : blocks_{}
         , jump_dests_{}
@@ -81,6 +85,42 @@ namespace monad::compiler::basic_blocks
         }
     }
 
+    std::vector<Block> const &BasicBlocksIR::blocks() const
+    {
+        return blocks_;
+    }
+
+    Block const &BasicBlocksIR::block(block_id id) const
+    {
+        return blocks_.at(id);
+    }
+
+    std::unordered_map<byte_offset, block_id> const &
+    BasicBlocksIR::jump_dests() const
+    {
+        return jump_dests_;
+    }
+
+    bool BasicBlocksIR::is_valid() const
+    {
+        auto all_blocks_valid =
+            std::all_of(blocks_.begin(), blocks_.end(), [](auto const &b) {
+                return b.is_valid();
+            });
+
+        auto all_dests_valid = std::all_of(
+            jump_dests_.begin(), jump_dests_.end(), [this](auto const &entry) {
+                auto [offset, block_id] = entry;
+                return block_id < blocks_.size();
+            });
+
+        return all_blocks_valid && all_dests_valid;
+    }
+
+    /*
+     * IR: Private construction methods
+     */
+
     block_id BasicBlocksIR::curr_block_id() const
     {
         return blocks_.size() - 1;
@@ -107,15 +147,21 @@ namespace monad::compiler::basic_blocks
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    std::vector<Block> const &BasicBlocksIR::blocks() const
-    {
-        return blocks_;
-    }
+    /*
+     * Block
+     */
 
-    std::unordered_map<byte_offset, block_id> const &
-    BasicBlocksIR::jump_dests() const
+    bool Block::is_valid() const
     {
-        return jump_dests_;
+        auto no_terminators =
+            std::none_of(instrs.begin(), instrs.end(), [](auto const &i) {
+                return is_terminator_opcode(i.opcode);
+            });
+
+        auto fallthrough_iff = is_fallthrough_terminator(terminator) ==
+                               (fallthrough_dest != INVALID_BLOCK_ID);
+
+        return no_terminators && fallthrough_iff;
     }
 
     bool operator==(Block const &a, Block const &b)

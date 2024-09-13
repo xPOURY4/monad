@@ -9,6 +9,15 @@
 
 namespace monad::compiler::basic_blocks
 {
+    /**
+     * Represents the subset of EVM instructions that may terminate a basic
+     * block.
+     *
+     * After executing one of these instructions, control may not transfer
+     * linearly to the next instruction in the program. Instead, execution may
+     * either jump to a new program counter, or terminate entirely by handing
+     * control back to the VM host.
+     */
     enum class Terminator
     {
         JumpDest,
@@ -20,34 +29,128 @@ namespace monad::compiler::basic_blocks
         SelfDestruct
     };
 
+    /**
+     * Return true if this terminator can implicitly fall through to the next
+     * block in sequence.
+     */
+    constexpr bool is_fallthrough_terminator(Terminator t)
+    {
+        return t == Terminator::JumpDest || t == Terminator::JumpI;
+    }
+
+    /**
+     * A basic block is a linear sequence of EVM instructions ending with a
+     * terminator instruction.
+     */
     struct Block
     {
+        /**
+         * The linear sequence of instructions that make up this block.
+         *
+         * It is legal for the body of a block to be empty; every valid block is
+         * terminated by an instruction.
+         */
         std::vector<bytecode::Instruction> instrs = {};
+
+        /**
+         * The terminator instruction that ends this block.
+         */
         Terminator terminator = Terminator::Stop;
 
-        // value for JumpI and JumpDest, otherwise
-        // INVALID_BLOCK_ID
+        /**
+         * The block ID that control should fall through to at the end of this
+         * block, if the terminator of the block is a `JUMPDEST` or `JUMPI`
+         * instruction.
+         */
         block_id fallthrough_dest = INVALID_BLOCK_ID;
+
+        /**
+         * Returns true if this block is well-formed.
+         *
+         * A well-formed block satisfies the following conditions:
+         * - None of the instructions in `instrs` is a terminator.
+         * - The `fallthrough_dest` is valid iff the block is terminated by a
+         *   `JUMPI` or `JUMPDEST` instruction.
+         */
+        bool is_valid() const;
     };
 
     bool operator==(Block const &a, Block const &b);
 
+    /**
+     * In this representation, the underlying EVM code has been grouped into
+     * basic blocks by splitting the program at terminator instructions.
+     *
+     * Blocks are assigned integer identifiers based on the order in which they
+     * appear in the original program, and a table of jump destinations is
+     * constructed that maps byte offsets in the original program onto these
+     * block identifiers.
+     */
     class BasicBlocksIR
     {
     public:
+        /**
+         * Construct basic blocks from a bytecode program.
+         */
         BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
 
+        /**
+         * The basic blocks in the program.
+         *
+         * Blocks have an implicit integer identifier based on the order in
+         * which they appear in this vector.
+         */
         std::vector<Block> const &blocks() const;
+
+        /**
+         * Retrieve a block by its identifier.
+         */
+        Block const &block(block_id id) const;
+
+        /**
+         * A table mapping byte offsets into the original EVM code onto block
+         * identifiers.
+         */
         std::unordered_map<byte_offset, block_id> const &jump_dests() const;
+
+        /**
+         * A program in this representation is valid if:
+         * - Each block in the program is valid.
+         * - Each entry in the jumpdest table maps to a valid block.
+         */
+        bool is_valid() const;
 
     private:
         std::vector<Block> blocks_;
         std::unordered_map<byte_offset, block_id> jump_dests_;
 
+        /**
+         * During construction, the ID of the block currently being built.
+         */
         block_id curr_block_id() const;
+
+        /**
+         * During construction, add a new entry to the jump destination table
+         * when a `JUMPDEST` instruction is parsed.
+         */
         void add_jump_dest(byte_offset offset);
+
+        /**
+         * During construction, begin building a new block.
+         */
         void add_block();
+
+        /**
+         * During construction, set the terminator for the block currently being
+         * built.
+         */
         void add_terminator(Terminator t);
+
+        /**
+         * During construction, set the terminator for the block currently being
+         * built, and set the fallthrough destination ID to that of the next
+         * block that will be built.
+         */
         void add_fallthrough_terminator(Terminator t);
     };
 }

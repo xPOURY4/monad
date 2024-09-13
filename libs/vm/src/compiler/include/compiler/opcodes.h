@@ -516,4 +516,14 @@ namespace monad::compiler
     {
         return opcode >= DUP1 && opcode <= DUP16;
     }
+
+    /**
+     * Returns `true` if `opcode` is a terminator instruction.
+     */
+    constexpr bool is_terminator_opcode(uint8_t const opcode)
+    {
+        return opcode == JUMPDEST || opcode == JUMPI || opcode == JUMP ||
+               opcode == RETURN || opcode == STOP || opcode == REVERT ||
+               opcode == SELFDESTRUCT;
+    }
 }
