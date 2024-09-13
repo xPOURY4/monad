@@ -47,6 +47,10 @@ namespace monad::compiler::basic_blocks
     };
 }
 
+/*
+ * Formatter Implementations
+ */
+
 template <>
 struct std::formatter<monad::compiler::basic_blocks::Terminator>
 {
