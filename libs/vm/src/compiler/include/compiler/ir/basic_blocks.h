@@ -5,6 +5,7 @@
 
 #include <limits>
 #include <unordered_map>
+#include <utility>
 
 namespace monad::compiler::basic_blocks
 {
@@ -63,32 +64,27 @@ struct std::formatter<monad::compiler::basic_blocks::Terminator>
         monad::compiler::basic_blocks::Terminator const &t,
         std::format_context &ctx) const
     {
-        std::string_view v;
-        switch (t) {
-        case monad::compiler::basic_blocks::Terminator::JumpDest:
-            v = "JumpDest";
-            break;
-        case monad::compiler::basic_blocks::Terminator::JumpI:
-            v = "JumpI";
-            break;
-        case monad::compiler::basic_blocks::Terminator::Jump:
-            v = "Jump";
-            break;
-        case monad::compiler::basic_blocks::Terminator::Return:
-            v = "Return";
-            break;
-        case monad::compiler::basic_blocks::Terminator::Revert:
-            v = "Revert";
-            break;
-        case monad::compiler::basic_blocks::Terminator::SelfDestruct:
-            v = "SelfDestruct";
-            break;
-        default:
-            assert(t == monad::compiler::basic_blocks::Terminator::Stop);
-            v = "Stop";
-            break;
-        }
+#define CASE(t)                                                                \
+    case monad::compiler::basic_blocks::Terminator::t: {                       \
+        return #t;                                                             \
+    }
+
+        auto v = [&t] {
+            switch (t) {
+                CASE(JumpDest);
+                CASE(JumpI);
+                CASE(Jump);
+                CASE(Return);
+                CASE(Revert);
+                CASE(SelfDestruct);
+                CASE(Stop);
+                default: std::unreachable();
+            }
+        }();
+
         return std::format_to(ctx.out(), "{}", v);
+
+#undef CASE
     }
 };
 
@@ -110,8 +106,7 @@ struct std::formatter<monad::compiler::basic_blocks::Block>
         }
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
-        if (blk.fallthrough_dest !=
-            monad::compiler::INVALID_BLOCK_ID) {
+        if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {
             std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
         }
         return std::format_to(ctx.out(), "\n");
