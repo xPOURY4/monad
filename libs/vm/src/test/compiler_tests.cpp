@@ -81,7 +81,7 @@ void blocks_eq(
     BasicBlocksIR const actual(actual_bc);
 
     EXPECT_EQ(actual.jumpdests, expected_jumpdests);
-    EXPECT_EQ(actual.blocks, expected_blocks);
+    EXPECT_EQ(actual.blocks(), expected_blocks);
 }
 
 using Terminator::Jump;

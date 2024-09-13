@@ -18,7 +18,7 @@ namespace monad::compiler::basic_blocks
 
     block_id BasicBlocksIR::curr_block_id() const
     {
-        return blocks.size() - 1;
+        return blocks_.size() - 1;
     }
 
     void BasicBlocksIR::add_jump_dest(byte_offset offset)
@@ -28,20 +28,24 @@ namespace monad::compiler::basic_blocks
 
     void BasicBlocksIR::add_block()
     {
-        blocks.emplace_back(
-            std::vector<bytecode::Instruction>{},
-            Terminator::Stop);
+        blocks_.emplace_back(
+            std::vector<bytecode::Instruction>{}, Terminator::Stop);
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
     {
-        blocks.back().terminator = t;
+        blocks_.back().terminator = t;
     }
 
     void BasicBlocksIR::add_fallthrough_terminator(Terminator t)
     {
-        blocks.back().terminator = t;
-        blocks.back().fallthrough_dest = curr_block_id() + 1;
+        blocks_.back().terminator = t;
+        blocks_.back().fallthrough_dest = curr_block_id() + 1;
+    }
+
+    std::vector<Block> const& BasicBlocksIR::blocks() const
+    {
+        return blocks_;
     }
 
     BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)
@@ -69,7 +73,7 @@ namespace monad::compiler::basic_blocks
                 assert(st == St::INSIDE_BLOCK);
                 switch (tok.opcode) {
                 case JUMPDEST:
-                    if (blocks.back().instrs.size() >
+                    if (blocks_.back().instrs.size() >
                         0) { // jumpdest terminator
                         add_fallthrough_terminator(Terminator::JumpDest);
                         add_block();
@@ -108,7 +112,7 @@ namespace monad::compiler::basic_blocks
                     break;
 
                 default: // instruction opcode
-                    blocks.back().instrs.push_back(tok);
+                    blocks_.back().instrs.push_back(tok);
                     break;
                 }
             }

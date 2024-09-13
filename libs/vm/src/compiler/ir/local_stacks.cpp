@@ -77,7 +77,7 @@ namespace monad::compiler::local_stacks
         jumpdests = ir.jumpdests;
         blocks = {};
 
-        for (auto const &blk : ir.blocks) {
+        for (auto const &blk : ir.blocks()) {
             blocks.push_back(to_block(std::move(blk)));
         }
     }

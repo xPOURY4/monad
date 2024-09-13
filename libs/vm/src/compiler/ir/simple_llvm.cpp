@@ -185,10 +185,10 @@ namespace monad::compiler
         , return_(llvm::BasicBlock::Create(context(), "return", entry_point))
     {
         assert(
-            instrs.blocks.size() > 0 &&
+            instrs.blocks().size() > 0 &&
             "Cannot compile program with no basic blocks");
 
-        for (auto const &b : instrs.blocks) {
+        for (auto const &b : instrs.blocks()) {
             evm_blocks.emplace_back(compile_block(b), b);
         }
 

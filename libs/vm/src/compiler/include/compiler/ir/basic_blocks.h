@@ -37,9 +37,12 @@ namespace monad::compiler::basic_blocks
     public:
         BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
         std::unordered_map<byte_offset, block_id> jumpdests;
-        std::vector<Block> blocks;
+
+        std::vector<Block> const &blocks() const;
 
     private:
+        std::vector<Block> blocks_;
+
         block_id curr_block_id() const;
         void add_jump_dest(byte_offset offset);
         void add_block();
@@ -78,7 +81,8 @@ struct std::formatter<monad::compiler::basic_blocks::Terminator>
                 CASE(Revert);
                 CASE(SelfDestruct);
                 CASE(Stop);
-                default: std::unreachable();
+            default:
+                std::unreachable();
             }
         }();
 
@@ -128,7 +132,7 @@ struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR>
 
         std::format_to(ctx.out(), "basic_blocks:\n");
         int i = 0;
-        for (auto const &blk : ir.blocks) {
+        for (auto const &blk : ir.blocks()) {
             std::format_to(ctx.out(), "  block {}:\n", i);
             std::format_to(ctx.out(), "{}", blk);
             i++;
