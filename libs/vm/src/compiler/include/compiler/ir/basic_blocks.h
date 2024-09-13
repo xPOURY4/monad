@@ -1,15 +1,13 @@
 #pragma once
 
 #include <compiler/ir/bytecode.h>
+#include <compiler/types.h>
 
 #include <limits>
 #include <unordered_map>
 
-using block_id = std::size_t;
-
 namespace monad::compiler::basic_blocks
 {
-
     enum class Terminator
     {
         JumpDest,
@@ -21,15 +19,14 @@ namespace monad::compiler::basic_blocks
         SelfDestruct
     };
 
-    inline constexpr block_id INVALID_BLOCK_ID =
-        std::numeric_limits<block_id>::max();
-
     struct Block
     {
         std::vector<bytecode::Instruction> instrs;
         Terminator terminator;
-        block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
-                                   // INVALID_BLOCK_ID
+
+        // value for JumpI and JumpDest, otherwise
+        // INVALID_BLOCK_ID
+        block_id fallthrough_dest = INVALID_BLOCK_ID;
     };
 
     bool operator==(Block const &a, Block const &b);
@@ -110,7 +107,7 @@ struct std::formatter<monad::compiler::basic_blocks::Block>
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
         if (blk.fallthrough_dest !=
-            monad::compiler::basic_blocks::INVALID_BLOCK_ID) {
+            monad::compiler::INVALID_BLOCK_ID) {
             std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
         }
         return std::format_to(ctx.out(), "\n");

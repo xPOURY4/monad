@@ -87,7 +87,7 @@ struct std::formatter<monad::compiler::local_stacks::Block>
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
         if (blk.fallthrough_dest !=
-            monad::compiler::basic_blocks::INVALID_BLOCK_ID) {
+            monad::compiler::INVALID_BLOCK_ID) {
             std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
         }
         std::format_to(ctx.out(), "\n    output: [");

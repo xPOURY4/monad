@@ -30,8 +30,7 @@ namespace monad::compiler::basic_blocks
     {
         blocks.emplace_back(
             std::vector<bytecode::Instruction>{},
-            Terminator::Stop,
-            INVALID_BLOCK_ID);
+            Terminator::Stop);
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
