@@ -23,7 +23,7 @@ namespace monad::compiler::basic_blocks
 
     void BasicBlocksIR::add_jump_dest(byte_offset offset)
     {
-        jumpdests.emplace(offset, curr_block_id());
+        jump_dests_.emplace(offset, curr_block_id());
     }
 
     void BasicBlocksIR::add_block()
@@ -46,6 +46,11 @@ namespace monad::compiler::basic_blocks
     std::vector<Block> const& BasicBlocksIR::blocks() const
     {
         return blocks_;
+    }
+    
+    std::unordered_map<byte_offset, block_id> const& BasicBlocksIR::jump_dests() const
+    {
+        return jump_dests_;
     }
 
     BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)

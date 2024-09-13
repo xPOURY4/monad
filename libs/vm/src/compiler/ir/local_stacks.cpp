@@ -74,7 +74,7 @@ namespace monad::compiler::local_stacks
 
     LocalStacksIR::LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir)
     {
-        jumpdests = ir.jumpdests;
+        jumpdests = ir.jump_dests();
         blocks = {};
 
         for (auto const &blk : ir.blocks()) {

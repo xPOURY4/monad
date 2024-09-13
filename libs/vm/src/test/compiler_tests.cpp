@@ -80,7 +80,7 @@ void blocks_eq(
     BytecodeIR const actual_bc(in);
     BasicBlocksIR const actual(actual_bc);
 
-    EXPECT_EQ(actual.jumpdests, expected_jumpdests);
+    EXPECT_EQ(actual.jump_dests(), expected_jumpdests);
     EXPECT_EQ(actual.blocks(), expected_blocks);
 }
 
