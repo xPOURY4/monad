@@ -164,6 +164,13 @@ auto const instrIR1 = BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
 auto const instrIR2 =
     BasicBlocksIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
 
+TEST(BasicBlocksIRTest, Validation)
+{
+    EXPECT_TRUE(instrIR0.is_valid());
+    EXPECT_TRUE(instrIR1.is_valid());
+    EXPECT_TRUE(instrIR2.is_valid());
+}
+
 TEST(BasicBlocksIRTest, Formatter)
 {
     EXPECT_EQ(
