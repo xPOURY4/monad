@@ -3,8 +3,10 @@
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
 
+#include <algorithm>
 #include <cassert>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 
 namespace monad::compiler::basic_blocks
@@ -14,8 +16,6 @@ namespace monad::compiler::basic_blocks
      */
 
     BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)
-        : blocks_{}
-        , jump_dests_{}
     {
         enum class St
         {
