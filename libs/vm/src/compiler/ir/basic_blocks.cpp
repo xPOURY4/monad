@@ -9,53 +9,10 @@
 
 namespace monad::compiler::basic_blocks
 {
-
-    bool operator==(Block const &a, Block const &b)
-    {
-        return std::tie(a.instrs, a.terminator, a.fallthrough_dest) ==
-               std::tie(b.instrs, b.terminator, b.fallthrough_dest);
-    }
-
-    block_id BasicBlocksIR::curr_block_id() const
-    {
-        return blocks_.size() - 1;
-    }
-
-    void BasicBlocksIR::add_jump_dest(byte_offset offset)
-    {
-        jump_dests_.emplace(offset, curr_block_id());
-    }
-
-    void BasicBlocksIR::add_block()
-    {
-        blocks_.emplace_back();
-    }
-
-    void BasicBlocksIR::add_terminator(Terminator t)
-    {
-        blocks_.back().terminator = t;
-    }
-
-    void BasicBlocksIR::add_fallthrough_terminator(Terminator t)
-    {
-        blocks_.back().terminator = t;
-        blocks_.back().fallthrough_dest = curr_block_id() + 1;
-    }
-
-    std::vector<Block> const &BasicBlocksIR::blocks() const
-    {
-        return blocks_;
-    }
-
-    std::unordered_map<byte_offset, block_id> const &
-    BasicBlocksIR::jump_dests() const
-    {
-        return jump_dests_;
-    }
-
     BasicBlocksIR::BasicBlocksIR(bytecode::BytecodeIR const &byte_code)
+        : blocks_{}
+        , jump_dests_{}
     {
-
         enum class St
         {
             INSIDE_BLOCK,
@@ -124,4 +81,46 @@ namespace monad::compiler::basic_blocks
         }
     }
 
+    block_id BasicBlocksIR::curr_block_id() const
+    {
+        return blocks_.size() - 1;
+    }
+
+    void BasicBlocksIR::add_jump_dest(byte_offset offset)
+    {
+        jump_dests_.emplace(offset, curr_block_id());
+    }
+
+    void BasicBlocksIR::add_block()
+    {
+        blocks_.emplace_back();
+    }
+
+    void BasicBlocksIR::add_terminator(Terminator t)
+    {
+        blocks_.back().terminator = t;
+    }
+
+    void BasicBlocksIR::add_fallthrough_terminator(Terminator t)
+    {
+        blocks_.back().terminator = t;
+        blocks_.back().fallthrough_dest = curr_block_id() + 1;
+    }
+
+    std::vector<Block> const &BasicBlocksIR::blocks() const
+    {
+        return blocks_;
+    }
+
+    std::unordered_map<byte_offset, block_id> const &
+    BasicBlocksIR::jump_dests() const
+    {
+        return jump_dests_;
+    }
+
+    bool operator==(Block const &a, Block const &b)
+    {
+        return std::tie(a.instrs, a.terminator, a.fallthrough_dest) ==
+               std::tie(b.instrs, b.terminator, b.fallthrough_dest);
+    }
 }
