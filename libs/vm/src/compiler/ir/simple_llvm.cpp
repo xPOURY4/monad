@@ -200,7 +200,8 @@ namespace monad::compiler
             b.CreateRetVoid();
         }
 
-        jump_table = build_slow_jump_table(*mod, instrs.jump_dests(), evm_blocks);
+        jump_table =
+            build_slow_jump_table(*mod, instrs.jump_dests(), evm_blocks);
 
         auto *host_interface = entry_point->getArg(0);
 

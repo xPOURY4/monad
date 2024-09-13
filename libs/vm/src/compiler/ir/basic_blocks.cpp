@@ -28,8 +28,7 @@ namespace monad::compiler::basic_blocks
 
     void BasicBlocksIR::add_block()
     {
-        blocks_.emplace_back(
-            std::vector<bytecode::Instruction>{}, Terminator::Stop);
+        blocks_.emplace_back();
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
@@ -43,12 +42,13 @@ namespace monad::compiler::basic_blocks
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    std::vector<Block> const& BasicBlocksIR::blocks() const
+    std::vector<Block> const &BasicBlocksIR::blocks() const
     {
         return blocks_;
     }
-    
-    std::unordered_map<byte_offset, block_id> const& BasicBlocksIR::jump_dests() const
+
+    std::unordered_map<byte_offset, block_id> const &
+    BasicBlocksIR::jump_dests() const
     {
         return jump_dests_;
     }

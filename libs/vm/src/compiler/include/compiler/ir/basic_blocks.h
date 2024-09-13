@@ -22,8 +22,8 @@ namespace monad::compiler::basic_blocks
 
     struct Block
     {
-        std::vector<bytecode::Instruction> instrs;
-        Terminator terminator;
+        std::vector<bytecode::Instruction> instrs = {};
+        Terminator terminator = Terminator::Stop;
 
         // value for JumpI and JumpDest, otherwise
         // INVALID_BLOCK_ID
@@ -38,7 +38,7 @@ namespace monad::compiler::basic_blocks
         BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
 
         std::vector<Block> const &blocks() const;
-        std::unordered_map<byte_offset, block_id> const& jump_dests() const;
+        std::unordered_map<byte_offset, block_id> const &jump_dests() const;
 
     private:
         std::vector<Block> blocks_;
