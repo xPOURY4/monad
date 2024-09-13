@@ -10,7 +10,7 @@
 
 namespace monad::compiler::local_stacks
 {
-    Block LocalStacksIR::to_block(monad::compiler::Block const &&in)
+    Block LocalStacksIR::to_block(basic_blocks::Block const &&in)
     {
         Block out = {
             0, {}, std::move(in.instrs), in.terminator, in.fallthrough_dest};
@@ -72,12 +72,12 @@ namespace monad::compiler::local_stacks
         return out;
     }
 
-    LocalStacksIR::LocalStacksIR(BasicBlocksIR const &&ir)
+    LocalStacksIR::LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir)
     {
         jumpdests = ir.jumpdests;
         blocks = {};
 
-        for (monad::compiler::Block const &blk : ir.blocks) {
+        for (auto const &blk : ir.blocks) {
             blocks.push_back(to_block(std::move(blk)));
         }
     }

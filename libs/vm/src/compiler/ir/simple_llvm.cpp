@@ -30,6 +30,7 @@ namespace
 {
     using namespace monad::compiler;
     using namespace monad::compiler::bytecode;
+    using namespace monad::compiler::basic_blocks;
 
     llvm::FunctionType *contract_entrypoint_type()
     {

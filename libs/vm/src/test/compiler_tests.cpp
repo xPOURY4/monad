@@ -15,6 +15,7 @@
 
 using namespace monad::compiler;
 using namespace monad::compiler::bytecode;
+using namespace monad::compiler::basic_blocks;
 using namespace intx;
 
 void tokens_eq(

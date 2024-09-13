@@ -17,14 +17,15 @@ namespace monad::compiler
     class SimpleLLVMIR
     {
     public:
-        SimpleLLVMIR(BasicBlocksIR const &instrs);
+        SimpleLLVMIR(basic_blocks::BasicBlocksIR const &instrs);
 
         compile_result result() &&;
 
     private:
         std::unique_ptr<llvm::Module> mod;
         llvm::Function *entry_point;
-        std::vector<std::pair<llvm::BasicBlock *, Block>> evm_blocks;
+        std::vector<std::pair<llvm::BasicBlock *, basic_blocks::Block>>
+            evm_blocks;
 
         llvm::GlobalVariable *stack;
         llvm::GlobalVariable *stack_pointer;
@@ -43,7 +44,7 @@ namespace monad::compiler
         llvm::Function *build_push_function();
         llvm::Function *build_pop_function();
 
-        llvm::BasicBlock *compile_block(Block const &b) const;
+        llvm::BasicBlock *compile_block(basic_blocks::Block const &b) const;
         void compile_block_terminators();
 
         void compile_instruction(

@@ -7,7 +7,7 @@
 
 using block_id = std::size_t;
 
-namespace monad::compiler
+namespace monad::compiler::basic_blocks
 {
 
     enum class Terminator
@@ -51,38 +51,39 @@ namespace monad::compiler
 }
 
 template <>
-struct std::formatter<monad::compiler::Terminator>
+struct std::formatter<monad::compiler::basic_blocks::Terminator>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
         return ctx.begin();
     }
 
-    auto
-    format(monad::compiler::Terminator const &t, std::format_context &ctx) const
+    auto format(
+        monad::compiler::basic_blocks::Terminator const &t,
+        std::format_context &ctx) const
     {
         std::string_view v;
         switch (t) {
-        case monad::compiler::Terminator::JumpDest:
+        case monad::compiler::basic_blocks::Terminator::JumpDest:
             v = "JumpDest";
             break;
-        case monad::compiler::Terminator::JumpI:
+        case monad::compiler::basic_blocks::Terminator::JumpI:
             v = "JumpI";
             break;
-        case monad::compiler::Terminator::Jump:
+        case monad::compiler::basic_blocks::Terminator::Jump:
             v = "Jump";
             break;
-        case monad::compiler::Terminator::Return:
+        case monad::compiler::basic_blocks::Terminator::Return:
             v = "Return";
             break;
-        case monad::compiler::Terminator::Revert:
+        case monad::compiler::basic_blocks::Terminator::Revert:
             v = "Revert";
             break;
-        case monad::compiler::Terminator::SelfDestruct:
+        case monad::compiler::basic_blocks::Terminator::SelfDestruct:
             v = "SelfDestruct";
             break;
         default:
-            assert(t == monad::compiler::Terminator::Stop);
+            assert(t == monad::compiler::basic_blocks::Terminator::Stop);
             v = "Stop";
             break;
         }
@@ -91,31 +92,7 @@ struct std::formatter<monad::compiler::Terminator>
 };
 
 template <>
-struct std::formatter<monad::compiler::Block>
-{
-    constexpr auto parse(std::format_parse_context &ctx)
-    {
-        return ctx.begin();
-    }
-
-    auto
-    format(monad::compiler::Block const &blk, std::format_context &ctx) const
-    {
-
-        for (auto const &tok : blk.instrs) {
-            std::format_to(ctx.out(), "      {}\n", tok);
-        }
-
-        std::format_to(ctx.out(), "    {}", blk.terminator);
-        if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {
-            std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
-        }
-        return std::format_to(ctx.out(), "\n");
-    }
-};
-
-template <>
-struct std::formatter<monad::compiler::BasicBlocksIR>
+struct std::formatter<monad::compiler::basic_blocks::Block>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -123,7 +100,33 @@ struct std::formatter<monad::compiler::BasicBlocksIR>
     }
 
     auto format(
-        monad::compiler::BasicBlocksIR const &ir,
+        monad::compiler::basic_blocks::Block const &blk,
+        std::format_context &ctx) const
+    {
+
+        for (auto const &tok : blk.instrs) {
+            std::format_to(ctx.out(), "      {}\n", tok);
+        }
+
+        std::format_to(ctx.out(), "    {}", blk.terminator);
+        if (blk.fallthrough_dest !=
+            monad::compiler::basic_blocks::INVALID_BLOCK_ID) {
+            std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
+        }
+        return std::format_to(ctx.out(), "\n");
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::basic_blocks::BasicBlocksIR const &ir,
         std::format_context &ctx) const
     {
 

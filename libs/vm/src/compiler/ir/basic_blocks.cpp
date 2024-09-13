@@ -7,7 +7,7 @@
 #include <tuple>
 #include <vector>
 
-namespace monad::compiler
+namespace monad::compiler::basic_blocks
 {
 
     bool operator==(Block const &a, Block const &b)

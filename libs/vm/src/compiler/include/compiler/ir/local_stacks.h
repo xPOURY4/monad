@@ -24,7 +24,7 @@ namespace monad::compiler::local_stacks
         std::vector<Value> output;
 
         std::vector<bytecode::Instruction> instrs;
-        Terminator terminator;
+        basic_blocks::Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID
     };
@@ -32,12 +32,12 @@ namespace monad::compiler::local_stacks
     class LocalStacksIR
     {
     public:
-        LocalStacksIR(BasicBlocksIR const &&ir);
+        LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
 
     private:
-        Block to_block(monad::compiler::Block const &&block);
+        Block to_block(basic_blocks::Block const &&block);
     };
 
 }
@@ -86,7 +86,8 @@ struct std::formatter<monad::compiler::local_stacks::Block>
         }
 
         std::format_to(ctx.out(), "    {}", blk.terminator);
-        if (blk.fallthrough_dest != monad::compiler::INVALID_BLOCK_ID) {
+        if (blk.fallthrough_dest !=
+            monad::compiler::basic_blocks::INVALID_BLOCK_ID) {
             std::format_to(ctx.out(), " {}", blk.fallthrough_dest);
         }
         std::format_to(ctx.out(), "\n    output: [");

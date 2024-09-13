@@ -34,10 +34,9 @@ namespace monad::compiler
     {
         auto program = std::vector(code, code + code_size);
         auto bytecode = bytecode::BytecodeIR(program);
-        auto blocks = BasicBlocksIR(program);
+        auto blocks = basic_blocks::BasicBlocksIR(program);
         auto llvm = SimpleLLVMIR(blocks);
 
         return std::move(llvm).result();
     }
-
 }
