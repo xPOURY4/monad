@@ -17,10 +17,16 @@ namespace monad::compiler::basic_blocks
      * linearly to the next instruction in the program. Instead, execution may
      * either jump to a new program counter, or terminate entirely by handing
      * control back to the VM host.
+     *
+     * Note that `FallThrough` does not directly correspond to an EVM opcode;
+     * these terminators occur when a block ends with a `JUMPDEST` instruction.
+     * Here, the `JUMPDEST` needs to occur at the beginning of the following
+     * block for gas accounting, but the current block still needs to be
+     * terminated.
      */
     enum class Terminator
     {
-        JumpDest,
+        FallThrough,
         JumpI,
         Jump,
         Return,
@@ -36,12 +42,12 @@ namespace monad::compiler::basic_blocks
      */
     constexpr bool is_fallthrough_terminator(Terminator t)
     {
-        return t == Terminator::JumpDest || t == Terminator::JumpI;
+        return t == Terminator::FallThrough || t == Terminator::JumpI;
     }
 
     /**
      * A basic block is a linear sequence of EVM instructions ending with a
-     * terminator instruction.
+     * single terminator.
      */
     struct Block
     {
@@ -49,19 +55,19 @@ namespace monad::compiler::basic_blocks
          * The linear sequence of instructions that make up this block.
          *
          * It is legal for the body of a block to be empty; every valid block is
-         * terminated by an instruction.
+         * terminated.
          */
         std::vector<bytecode::Instruction> instrs = {};
 
         /**
-         * The terminator instruction that ends this block.
+         * The terminator that ends this block.
          */
         Terminator terminator = Terminator::Stop;
 
         /**
          * The block ID that control should fall through to at the end of this
-         * block, if the terminator of the block is a `JUMPDEST` or `JUMPI`
-         * instruction.
+         * block, if the terminator of the block is a `JUMPI` instruction or an
+         * implicit fallthrough.
          */
         block_id fallthrough_dest = INVALID_BLOCK_ID;
 
@@ -71,7 +77,7 @@ namespace monad::compiler::basic_blocks
          * A well-formed block satisfies the following conditions:
          * - None of the instructions in `instrs` is a terminator.
          * - The `fallthrough_dest` is valid iff the block is terminated by a
-         *   `JUMPI` or `JUMPDEST` instruction.
+         *   `JUMPI` instruction or an implicit fallthrough.
          */
         bool is_valid() const;
     };
@@ -80,7 +86,7 @@ namespace monad::compiler::basic_blocks
 
     /**
      * In this representation, the underlying EVM code has been grouped into
-     * basic blocks by splitting the program at terminator instructions.
+     * basic blocks by splitting the program at terminator points.
      *
      * Blocks are assigned integer identifiers based on the order in which they
      * appear in the original program, and a table of jump destinations is
@@ -179,8 +185,8 @@ struct std::formatter<monad::compiler::basic_blocks::Terminator>
             using enum monad::compiler::basic_blocks::Terminator;
 
             switch (t) {
-            case JumpDest:
-                return "JumpDest";
+            case FallThrough:
+                return "FallThrough";
             case JumpI:
                 return "JumpI";
             case Jump:

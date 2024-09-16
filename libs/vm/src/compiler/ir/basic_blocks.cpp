@@ -35,18 +35,17 @@ namespace monad::compiler::basic_blocks
                     add_block();
                     st = St::INSIDE_BLOCK;
                     add_jump_dest(tok.offset);
+                    blocks_.back().instrs.push_back(tok);
                 }
             }
             else {
                 assert(st == St::INSIDE_BLOCK);
                 switch (tok.opcode) {
                 case JUMPDEST:
-                    if (blocks_.back().instrs.size() >
-                        0) { // jumpdest terminator
-                        add_fallthrough_terminator(Terminator::JumpDest);
-                        add_block();
-                    }
+                    add_fallthrough_terminator(Terminator::FallThrough);
+                    add_block();
                     add_jump_dest(tok.offset);
+                    blocks_.back().instrs.push_back(tok);
                     break;
 
                 case JUMPI:

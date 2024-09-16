@@ -532,9 +532,8 @@ namespace monad::compiler
      */
     constexpr bool is_terminator_opcode(uint8_t const opcode)
     {
-        return opcode == JUMPDEST || opcode == JUMPI || opcode == JUMP ||
-               opcode == RETURN || opcode == STOP || opcode == REVERT ||
-               opcode == SELFDESTRUCT || is_unknown_opcode(opcode);
+        return opcode == JUMPI || opcode == JUMP || opcode == RETURN ||
+               opcode == STOP || opcode == REVERT || opcode == SELFDESTRUCT;
     }
 
     /**

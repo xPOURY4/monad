@@ -323,7 +323,7 @@ namespace monad::compiler
                 break;
             }
 
-            case Terminator::JumpDest:
+            case Terminator::FallThrough:
                 llvm::BranchInst::Create(
                     evm_blocks[original_block.fallthrough_dest].first,
                     llvm_block);
