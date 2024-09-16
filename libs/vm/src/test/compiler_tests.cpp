@@ -6,9 +6,10 @@
 
 #include <gtest/gtest.h>
 
+#include <intx/intx.hpp>
+
 #include <cstdint>
 #include <format>
-#include <intx/intx.hpp>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -79,8 +80,6 @@ void blocks_eq(
 {
     BytecodeIR const actual_bc(in);
     BasicBlocksIR const actual(actual_bc);
-
-    std::cout << std::format("{}\n", actual);
 
     EXPECT_EQ(actual.jump_dests(), expected_jumpdests);
     EXPECT_EQ(actual.blocks(), expected_blocks);
