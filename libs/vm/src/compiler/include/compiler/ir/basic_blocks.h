@@ -26,7 +26,7 @@ namespace monad::compiler::basic_blocks
         Return,
         Stop,
         Revert,
-        SelfDestruct
+        SelfDestruct,
     };
 
     /**
@@ -171,28 +171,30 @@ struct std::formatter<monad::compiler::basic_blocks::Terminator>
         monad::compiler::basic_blocks::Terminator const &t,
         std::format_context &ctx) const
     {
-#define CASE(t)                                                                \
-    case monad::compiler::basic_blocks::Terminator::t: {                       \
-        return #t;                                                             \
-    }
+        auto v = [t] {
+            using enum monad::compiler::basic_blocks::Terminator;
 
-        auto v = [&t] {
             switch (t) {
-                CASE(JumpDest);
-                CASE(JumpI);
-                CASE(Jump);
-                CASE(Return);
-                CASE(Revert);
-                CASE(SelfDestruct);
-                CASE(Stop);
-            default:
-                std::unreachable();
+            case JumpDest:
+                return "JumpDest";
+            case JumpI:
+                return "JumpI";
+            case Jump:
+                return "Jump";
+            case Return:
+                return "Return";
+            case Revert:
+                return "Revert";
+            case SelfDestruct:
+                return "SelfDestruct";
+            case Stop:
+                return "Stop";
             }
+
+            std::unreachable();
         }();
 
         return std::format_to(ctx.out(), "{}", v);
-
-#undef CASE
     }
 };
 
