@@ -102,6 +102,9 @@ namespace monad::compiler::basic_blocks
          */
         std::vector<Block> const &blocks() const;
 
+        /// Size of bytecode
+        uint64_t codesize;
+
         /**
          * Retrieve a block by its identifier.
          */

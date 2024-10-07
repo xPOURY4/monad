@@ -66,6 +66,9 @@ namespace monad::compiler::bytecode
          * The logical EVM instructions lexed from the original binary.
          */
         std::vector<Instruction> instructions;
+
+        /// Size of bytecode
+        uint64_t codesize;
     };
 
 }

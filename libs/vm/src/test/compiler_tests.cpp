@@ -299,7 +299,7 @@ TEST(LocalStacksIR, Formatter)
                  PUSH1,
                  0xa,
                  PC,
-                 PC,
+                 ADDRESS,
                  ADD,
                  PC,
                  DUP1,
@@ -315,7 +315,7 @@ TEST(LocalStacksIR, Formatter)
       (0, PUSH0, 0x0)
       (1, PUSH1, 0xa)
       (3, PC, 0x0)
-      (4, PC, 0x0)
+      (4, ADDRESS, 0x0)
       (5, ADD, 0x0)
       (6, PC, 0x0)
       (7, DUP1, 0x0)
@@ -327,6 +327,85 @@ TEST(LocalStacksIR, Formatter)
       (13, SWAP7, 0x0)
     Stop
     output: [ %p1 0x0 0x6 COMPUTED 0xa COMPUTED %p0 %p0 ]
+
+  jumpdests:
+)");
+
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+                {PUSH1,
+                 0xb,
+                 CODESIZE,
+                 ADD})))),
+        R"(local_stacks:
+  block 0:
+    min_params: 0
+      (0, PUSH1, 0xb)
+      (2, CODESIZE, 0x0)
+      (3, ADD, 0x0)
+    Stop
+    output: [ 0xf ]
+
+  jumpdests:
+)");
+
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+                {PUSH0,
+                 ISZERO})))),
+        R"(local_stacks:
+  block 0:
+    min_params: 0
+      (0, PUSH0, 0x0)
+      (1, ISZERO, 0x0)
+    Stop
+    output: [ 0x1 ]
+
+  jumpdests:
+)");
+
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+                {PUSH1,
+                 0x2,
+                 PUSH1,
+                 0x1,
+                 LT})))),
+        R"(local_stacks:
+  block 0:
+    min_params: 0
+      (0, PUSH1, 0x2)
+      (2, PUSH1, 0x1)
+      (4, LT, 0x0)
+    Stop
+    output: [ 0x1 ]
+
+  jumpdests:
+)");
+
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+                {PUSH1,
+                 0x2,
+                 PUSH1,
+                 0x1,
+                 GT})))),
+        R"(local_stacks:
+  block 0:
+    min_params: 0
+      (0, PUSH1, 0x2)
+      (2, PUSH1, 0x1)
+      (4, GT, 0x0)
+    Stop
+    output: [ 0x0 ]
 
   jumpdests:
 )");

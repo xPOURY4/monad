@@ -15,6 +15,7 @@
 
 namespace
 {
+    using namespace monad::compiler;
     /**
      * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
      * value.
@@ -45,6 +46,7 @@ namespace monad::compiler::bytecode
 
     BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
     {
+        codesize = static_cast<uint64_t>(byte_code.size());
         byte_offset curr_offset = 0;
         while (curr_offset < byte_code.size()) {
             uint8_t const opcode = byte_code[curr_offset];

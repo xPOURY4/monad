@@ -25,6 +25,8 @@ namespace monad::compiler::basic_blocks
 
         St st = St::INSIDE_BLOCK;
 
+        codesize = byte_code.codesize;
+
         add_block();
 
         for (auto const &tok : byte_code.instructions) {

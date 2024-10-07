@@ -3,6 +3,8 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
 
+#include <functional>
+
 namespace monad::compiler::local_stacks
 {
     enum class ValueIs
@@ -35,6 +37,7 @@ namespace monad::compiler::local_stacks
         LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
+        uint64_t codesize;
 
     private:
         Block to_block(basic_blocks::Block const &&block);

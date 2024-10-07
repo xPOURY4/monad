@@ -28,3 +28,13 @@ add_test(
     NAME "Utility Tests"
     COMMAND utils-tests
 )
+
+add_executable(uint256-tests uint256_tests.cpp)
+
+monad_compile_options(uint256-tests)
+target_link_libraries(uint256-tests compiler GTest::gtest_main)
+
+add_test(
+    NAME "UInt256 Tests"
+    COMMAND uint256-tests
+)

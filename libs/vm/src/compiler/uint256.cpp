@@ -1,0 +1,63 @@
+#include <algorithm>
+#include <compiler/uint256.h>
+#include <cstdint>
+#include <limits>
+
+namespace monad::compiler::uint256
+{
+    uint256_t signextend(uint256_t const& byte_index_256, uint256_t const& x)
+    {
+        if (byte_index_256 >= 31) {
+            return x;
+        }
+        uint64_t const byte_index = byte_index_256[0];
+        uint64_t const word_index = byte_index >> 3;
+        uint64_t const word = x[word_index];
+        uint64_t const bit_index = (byte_index & 7) * 8;
+        int64_t const signed_byte = static_cast<int8_t>(word >> bit_index);
+        uint64_t const upper = static_cast<uint64_t>(signed_byte) << bit_index;
+        uint64_t const lower =
+            word & ~(std::numeric_limits<int64_t>::min() >> (63 - bit_index));
+        uint64_t const sign_bits = signed_byte >> 63;
+        uint256_t ret;
+        for (uint64_t j = 0; j < word_index; ++j) {
+            ret[j] = x[j];
+        }
+        ret[word_index] = upper | lower;
+        for (uint64_t j = word_index + 1; j < 4; ++j) {
+            ret[j] = sign_bits;
+        }
+        return ret;
+    }
+
+    uint256_t byte(uint256_t const& byte_index_256, uint256_t const& x)
+    {
+        if (byte_index_256 >= 32) {
+            return 0;
+        }
+        uint64_t const byte_index = 31 - byte_index_256[0];
+        uint64_t const word_index = byte_index >> 3;
+        uint64_t const word = x[word_index];
+        uint64_t const bit_index = (byte_index & 7) * 8;
+        uint64_t const byte = static_cast<uint8_t>(word >> bit_index);
+        uint256_t ret{0};
+        ret[0] = byte;
+        return ret;
+    }
+
+    uint256_t sar(uint256_t const& shift_index_256, uint256_t const& x)
+    {
+        int64_t shift_index = shift_index_256 >= 255 ? 255 : shift_index_256[0];
+        uint64_t const sign_bit =
+            x[3] & static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
+        uint256_t sign_bits{0};
+        ssize_t i = 3;
+        while (shift_index > 0) {
+            uint64_t const shift =
+                std::min(uint64_t{63}, static_cast<uint64_t>(shift_index));
+            sign_bits[i--] = (static_cast<int64_t>(sign_bit) >> shift);
+            shift_index -= 64;
+        }
+        return (x >> shift_index_256) | sign_bits;
+    }
+}
