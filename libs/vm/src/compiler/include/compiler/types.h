@@ -24,7 +24,8 @@ struct std::formatter<monad::compiler::uint256_t>
         return ctx.begin();
     }
 
-    auto format(monad::compiler::uint256_t const &v, std::format_context &ctx) const
+    auto
+    format(monad::compiler::uint256_t const &v, std::format_context &ctx) const
     {
         return std::format_to(ctx.out(), "0x{}", intx::to_string(v, 16));
     }

@@ -334,11 +334,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
-                {PUSH1,
-                 0xb,
-                 CODESIZE,
-                 ADD})))),
+            local_stacks::LocalStacksIR(
+                BasicBlocksIR(BytecodeIR({PUSH1, 0xb, CODESIZE, ADD})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -354,9 +351,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
-                {PUSH0,
-                 ISZERO})))),
+            local_stacks::LocalStacksIR(
+                BasicBlocksIR(BytecodeIR({PUSH0, ISZERO})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -371,12 +367,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
-                {PUSH1,
-                 0x2,
-                 PUSH1,
-                 0x1,
-                 LT})))),
+            local_stacks::LocalStacksIR(
+                BasicBlocksIR(BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, LT})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -392,12 +384,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
-                {PUSH1,
-                 0x2,
-                 PUSH1,
-                 0x1,
-                 GT})))),
+            local_stacks::LocalStacksIR(
+                BasicBlocksIR(BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, GT})))),
         R"(local_stacks:
   block 0:
     min_params: 0

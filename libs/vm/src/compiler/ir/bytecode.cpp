@@ -16,6 +16,7 @@
 namespace
 {
     using namespace monad::compiler;
+
     /**
      * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
      * value.

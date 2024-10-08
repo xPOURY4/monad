@@ -6,7 +6,7 @@
 
 namespace monad::compiler::uint256
 {
-    uint256_t signextend(uint256_t const& byte_index_256, uint256_t const& x)
+    uint256_t signextend(uint256_t const &byte_index_256, uint256_t const &x)
     {
         if (byte_index_256 >= 31) {
             return x;
@@ -19,7 +19,8 @@ namespace monad::compiler::uint256
         int64_t const signed_byte = static_cast<int8_t>(word >> bit_index);
         uint64_t const upper = static_cast<uint64_t>(signed_byte) << bit_index;
         int64_t const signed_lower =
-            signed_word & ~(std::numeric_limits<int64_t>::min() >> (63 - bit_index));
+            signed_word &
+            ~(std::numeric_limits<int64_t>::min() >> (63 - bit_index));
         uint64_t const lower = static_cast<uint64_t>(signed_lower);
         uint64_t const sign_bits = static_cast<uint64_t>(signed_byte >> 63);
         uint256_t ret;
@@ -33,7 +34,7 @@ namespace monad::compiler::uint256
         return ret;
     }
 
-    uint256_t byte(uint256_t const& byte_index_256, uint256_t const& x)
+    uint256_t byte(uint256_t const &byte_index_256, uint256_t const &x)
     {
         if (byte_index_256 >= 32) {
             return 0;
@@ -48,9 +49,11 @@ namespace monad::compiler::uint256
         return ret;
     }
 
-    uint256_t sar(uint256_t const& shift_index_256, uint256_t const& x)
+    uint256_t sar(uint256_t const &shift_index_256, uint256_t const &x)
     {
-        int64_t shift_index = shift_index_256 >= 255 ? 255 : static_cast<int64_t>(shift_index_256[0]);
+        int64_t shift_index = shift_index_256 >= 255
+                                  ? 255
+                                  : static_cast<int64_t>(shift_index_256[0]);
         uint64_t const sign_bit =
             x[3] & static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
         uint256_t sign_bits{0};
@@ -58,7 +61,8 @@ namespace monad::compiler::uint256
         while (shift_index > 0) {
             uint64_t const shift =
                 std::min(uint64_t{63}, static_cast<uint64_t>(shift_index));
-            sign_bits[--i] = static_cast<uint64_t>(static_cast<int64_t>(sign_bit) >> shift);
+            sign_bits[--i] =
+                static_cast<uint64_t>(static_cast<int64_t>(sign_bit) >> shift);
             shift_index -= 64;
         }
         return (x >> shift_index_256) | sign_bits;
