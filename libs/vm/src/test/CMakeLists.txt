@@ -38,3 +38,17 @@ add_test(
     NAME "UInt256 Tests"
     COMMAND uint256-tests
 )
+
+add_executable(strongly-connected-components-tests strongly_connected_components_tests.cpp)
+
+monad_compile_options(strongly-connected-components-tests)
+target_link_libraries(strongly-connected-components-tests compiler GTest::gtest_main)
+target_include_directories(
+    strongly-connected-components-tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
+)
+
+add_test(
+    NAME "Strongly Connected Components Tests"
+    COMMAND strongly-connected-components-tests
+)
