@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compiler/ir/poly_typed.h>
+#include <compiler/transactional_unordered_map.h>
 
 #include <memory>
 #include <variant>

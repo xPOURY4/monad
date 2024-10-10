@@ -52,3 +52,13 @@ add_test(
     NAME "Strongly Connected Components Tests"
     COMMAND strongly-connected-components-tests
 )
+
+add_executable(transactional-unordered-map-tests transactional_unordered_map_tests.cpp)
+
+monad_compile_options(transactional-unordered-map-tests)
+target_link_libraries(transactional-unordered-map-tests compiler GTest::gtest_main)
+
+add_test(
+    NAME "Transactional Unordered Map"
+    COMMAND transactional-unordered-map-tests
+)

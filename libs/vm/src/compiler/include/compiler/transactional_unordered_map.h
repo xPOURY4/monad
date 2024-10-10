@@ -1,0 +1,132 @@
+#pragma once
+
+#include <optional>
+#include <unordered_map>
+#include <vector>
+
+namespace monad::compiler
+{
+    template <
+        typename K, typename V, typename Hash = std::hash<K>,
+        typename KeyEqual = std::equal_to<K>>
+    class TransactionalUnorderedMap
+    {
+        struct Entry
+        {
+            K key;
+            std::optional<V> prev_value;
+        };
+
+        using Map = std::unordered_map<K, V, Hash, KeyEqual>;
+
+        Map current;
+        std::vector<Entry> journal;
+        std::vector<size_t> checkpoints;
+
+    public:
+        using value_type = Map::value_type;
+        using iterator = Map::iterator;
+        using const_iterator = Map::const_iterator;
+
+        TransactionalUnorderedMap(std::initializer_list<value_type> init)
+            : current(init)
+        {
+        }
+
+        V &at(K const &k)
+        {
+            return current.at(k);
+        }
+
+        V const &at(K const &k) const
+        {
+            return current.at(k);
+        }
+
+        iterator find(K const &k)
+        {
+            return current.find(k);
+        }
+
+        const_iterator find(K const &k) const
+        {
+            return current.find(k);
+        }
+
+        iterator begin()
+        {
+            return current.begin();
+        }
+
+        iterator end()
+        {
+            return current.end();
+        }
+
+        const_iterator begin() const
+        {
+            return current.begin();
+        }
+
+        const_iterator end() const
+        {
+            return current.end();
+        }
+
+        bool contains(K const &k) const
+        {
+            return current.contains(k);
+        }
+
+        bool erase(K const &k)
+        {
+            if (checkpoints.size()) {
+                journal.emplace_back(k, std::nullopt);
+            }
+            return current.erase(k) == 1;
+        }
+
+        template <typename M>
+        void put(K const &k, M &&v)
+        {
+            if (checkpoints.size()) {
+                auto it = current.find(k);
+                if (it != current.end()) {
+                    journal.emplace_back(k, std::move(it->second));
+                }
+                else {
+                    journal.emplace_back(k, std::nullopt);
+                }
+            }
+            current.insert_or_assign(k, std::forward<M>(v));
+        }
+
+        void transaction()
+        {
+            checkpoints.push_back(journal.size());
+        }
+
+        void commit()
+        {
+            checkpoints.pop_back();
+        }
+
+        void revert()
+        {
+            size_t last_point = checkpoints.back();
+            checkpoints.pop_back();
+
+            while (journal.size() > last_point) {
+                auto &entry = journal.back();
+                if (entry.prev_value.has_value()) {
+                    current.insert_or_assign(
+                        entry.key, std::move(entry.prev_value.value()));
+                }
+                else {
+                    current.erase(entry.key);
+                }
+                journal.pop_back();
+            }
+        }
+    };
+}
