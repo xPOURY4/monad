@@ -4,6 +4,8 @@ add_library(compiler
     ir/bytecode.cpp
     ir/basic_blocks.cpp
     ir/local_stacks.cpp
+    ir/poly_typed/kind.cpp
+    ir/poly_typed/subst_map.cpp
     ir/poly_typed.cpp
     ir/simple_llvm.cpp
 )

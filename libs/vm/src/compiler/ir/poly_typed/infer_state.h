@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kind.h"
+#include "subst_map.h"
 
 #include <optional>
 #include <unordered_map>

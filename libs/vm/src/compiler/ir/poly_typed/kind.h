@@ -42,18 +42,30 @@ namespace monad::compiler::poly_typed
 
     using ContKind = std::shared_ptr<PreContKind>;
 
+    ContKind cont_kind(std::vector<Kind> kinds, ContTailKind t);
+
+    ContKind cont_kind(std::vector<Kind> kinds, VarName v);
+
+    ContKind cont_kind(std::vector<Kind> kinds);
+
     struct Word
     {
     };
+
+    extern Kind word;
 
     struct Any
     {
     };
 
+    extern Kind any;
+
     struct KindVar
     {
         VarName var;
     };
+
+    Kind kind_var(VarName);
 
     struct LiteralVar
     {
@@ -61,22 +73,26 @@ namespace monad::compiler::poly_typed
         ContKind cont;
     };
 
+    Kind literal_var(VarName, ContKind);
+
     struct WordCont
     {
         ContKind cont;
     };
+
+    Kind word_cont(ContKind);
 
     struct Cont
     {
         ContKind cont;
     };
 
-    struct SubstMap
+    Kind cont(ContKind);
+
+    enum class LiteralType
     {
-        // TODO
-        // Kind variable map
-        // ContKind variable map
-        // Literal variable map
-        // Literal variable links
+        Word,
+        Cont,
+        WordCont
     };
 }
