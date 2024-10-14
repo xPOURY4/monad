@@ -76,3 +76,17 @@ add_test(
     NAME "Subst Map Tests"
     COMMAND subst-map-tests
 )
+
+add_executable(alpha-equal-tests alpha_equal_tests.cpp)
+
+monad_compile_options(alpha-equal-tests)
+target_link_libraries(alpha-equal-tests compiler GTest::gtest_main)
+target_include_directories(
+    alpha-equal-tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
+)
+
+add_test(
+    NAME "Alpha Equal Tests"
+    COMMAND alpha-equal-tests
+)

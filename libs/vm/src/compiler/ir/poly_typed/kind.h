@@ -111,12 +111,16 @@ namespace monad::compiler::poly_typed
 
     void format_cont(ContKind const &cont, std::format_context &ctx);
 
+    bool alpha_equal(Kind, Kind);
+
     bool operator==(Kind, Kind);
 
     inline bool operator!=(Kind k1, Kind k2)
     {
         return !(std::move(k1) == std::move(k2));
     }
+
+    bool alpha_equal(ContKind, ContKind);
 
     bool operator==(ContKind, ContKind);
 
