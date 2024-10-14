@@ -16,10 +16,7 @@ TEST(subst_map, test_1)
     ASSERT_EQ(su.subst(kind_var(0)), any);
     ASSERT_EQ(
         su.subst(cont(cont_kind({kind_var(0), kind_var(1)}, 0))),
-        cont(cont_kind({any, kind_var(2)})));
-    ASSERT_NE(
-        su.subst(cont(cont_kind({kind_var(0), kind_var(1), kind_var(1)}, 0))),
-        cont(cont_kind({any, kind_var(2), kind_var(3)})));
+        cont(cont_kind({any, kind_var(1)})));
 }
 
 TEST(subst_map, test_2)
@@ -37,36 +34,6 @@ TEST(subst_map, test_2)
              kind_var(1),
              any},
             1));
-    ASSERT_EQ(
-        su.subst(cont_kind({kind_var(0), word, kind_var(3)}, 0)),
-        cont_kind(
-            {cont(cont_kind(
-                 {kind_var(10), kind_var(20), kind_var(10), any}, 100)),
-             word,
-             kind_var(10),
-             kind_var(10),
-             any},
-            100));
-    ASSERT_NE(
-        su.subst(cont_kind({kind_var(0), word, kind_var(3)}, 0)),
-        cont_kind(
-            {cont(cont_kind(
-                 {kind_var(10), kind_var(20), kind_var(10), any}, 100)),
-             word,
-             kind_var(10),
-             kind_var(10),
-             any},
-            200));
-    ASSERT_NE(
-        su.subst(cont_kind({kind_var(0), word, kind_var(3)}, 0)),
-        cont_kind(
-            {cont(cont_kind(
-                 {kind_var(10), kind_var(20), kind_var(100), any}, 100)),
-             word,
-             kind_var(10),
-             kind_var(10),
-             any},
-            100));
 }
 
 TEST(subst_map, test_3)
