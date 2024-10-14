@@ -43,6 +43,16 @@ namespace monad::compiler
             return current.at(k);
         }
 
+        V &operator[](K const &k)
+        {
+            return current[k];
+        }
+
+        V const &operator[](K const &k) const
+        {
+            return current[k];
+        }
+
         iterator find(K const &k)
         {
             return current.find(k);
@@ -87,7 +97,7 @@ namespace monad::compiler
         }
 
         template <typename M>
-        void put(K const &k, M &&v)
+        bool put(K const &k, M &&v)
         {
             if (checkpoints.size()) {
                 auto it = current.find(k);
@@ -98,7 +108,7 @@ namespace monad::compiler
                     journal.emplace_back(k, std::nullopt);
                 }
             }
-            current.insert_or_assign(k, std::forward<M>(v));
+            return current.insert_or_assign(k, std::forward<M>(v)).second;
         }
 
         void transaction()

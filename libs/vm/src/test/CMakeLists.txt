@@ -62,3 +62,17 @@ add_test(
     NAME "Transactional Unordered Map"
     COMMAND transactional-unordered-map-tests
 )
+
+add_executable(subst-map-tests subst_map_tests.cpp)
+
+monad_compile_options(subst-map-tests)
+target_link_libraries(subst-map-tests compiler GTest::gtest_main)
+target_include_directories(
+    subst-map-tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
+)
+
+add_test(
+    NAME "Subst Map Tests"
+    COMMAND subst-map-tests
+)

@@ -95,4 +95,67 @@ namespace monad::compiler::poly_typed
         Cont,
         WordCont
     };
+
+    inline bool operator==(LiteralType t1, LiteralType t2)
+    {
+        return static_cast<int>(t1) == static_cast<int>(t2);
+    }
+
+    inline bool operator!=(LiteralType t1, LiteralType t2)
+    {
+        return !(t1 == t2);
+    }
+
+    void
+    format_kind(Kind const &kind, std::format_context &ctx, bool use_parens);
+
+    void format_cont(ContKind const &cont, std::format_context &ctx);
+
+    bool operator==(Kind, Kind);
+
+    inline bool operator!=(Kind k1, Kind k2)
+    {
+        return !(std::move(k1) == std::move(k2));
+    }
+
+    bool operator==(ContKind, ContKind);
+
+    inline bool operator!=(ContKind c1, ContKind c2)
+    {
+        return !(std::move(c1) == std::move(c2));
+    }
 }
+
+template <>
+struct std::formatter<monad::compiler::poly_typed::Kind>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::poly_typed::Kind const &kind,
+        std::format_context &ctx) const
+    {
+        format_kind(kind, ctx, false);
+        return ctx.out();
+    }
+};
+
+template <>
+struct std::formatter<monad::compiler::poly_typed::ContKind>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::poly_typed::ContKind const &kind,
+        std::format_context &ctx) const
+    {
+        format_cont(kind, ctx);
+        return ctx.out();
+    }
+};

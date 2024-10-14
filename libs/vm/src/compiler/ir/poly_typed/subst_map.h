@@ -11,16 +11,19 @@ namespace monad::compiler::poly_typed
     class SubstMap
     {
         TransactionalUnorderedMap<VarName, LiteralType> literal_map;
-        TransactionalUnorderedMap<VarName, std::unordered_set<VarName>> literal_links;
+        TransactionalUnorderedMap<VarName, std::unordered_set<VarName>>
+            literal_links;
         TransactionalUnorderedMap<VarName, ContKind> cont_map;
         TransactionalUnorderedMap<VarName, Kind> kind_map;
 
     public:
+        SubstMap();
+
         void link_literal_vars(VarName, VarName);
 
         void insert_literal_type(VarName, LiteralType);
 
-        void insert_cont_kind(VarName v, ContKind c)
+        void insert_cont(VarName v, ContKind c)
         {
             cont_map.put(v, std::move(c));
         }
@@ -30,10 +33,10 @@ namespace monad::compiler::poly_typed
             kind_map.put(v, std::move(k));
         }
 
-        // Throws TickException
+        // Throws DepthException and TickException
         ContKind subst(ContKind);
 
-        // Throws TickException
+        // Throws DepthException and TickException
         Kind subst(Kind);
 
         ContKind subst_to_var(ContKind);
@@ -47,8 +50,7 @@ namespace monad::compiler::poly_typed
         void revert();
 
     private:
-        ContKind subst2(ContKind, size_t);
-
-        Kind subst2(Kind, size_t);
+        ContKind subst2(ContKind, size_t, size_t &);
+        Kind subst2(Kind, size_t, size_t &);
     };
 }

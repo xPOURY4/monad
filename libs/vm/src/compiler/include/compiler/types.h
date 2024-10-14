@@ -15,8 +15,11 @@ namespace monad::compiler
     inline constexpr block_id INVALID_BLOCK_ID =
         std::numeric_limits<block_id>::max();
 
-    template<class... Ts>
-    struct Cases : Ts... { using Ts::operator()...; };
+    template <class... Ts>
+    struct Cases : Ts...
+    {
+        using Ts::operator()...;
+    };
 }
 
 template <>
