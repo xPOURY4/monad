@@ -91,7 +91,7 @@ namespace monad::compiler
 
         bool erase(K const &k)
         {
-            if (checkpoints.size()) {
+            if (!checkpoints.empty()) {
                 journal.emplace_back(k, std::nullopt);
             }
             return current.erase(k) == 1;
@@ -100,7 +100,7 @@ namespace monad::compiler
         template <typename M>
         bool put(K const &k, M &&v)
         {
-            if (checkpoints.size()) {
+            if (!checkpoints.empty()) {
                 auto it = current.find(k);
                 if (it != current.end()) {
                     journal.emplace_back(k, std::move(it->second));
