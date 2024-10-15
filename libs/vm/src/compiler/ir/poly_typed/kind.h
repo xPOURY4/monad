@@ -42,6 +42,8 @@ namespace monad::compiler::poly_typed
 
     using ContKind = std::shared_ptr<PreContKind>;
 
+    extern ContKind cont_words;
+
     ContKind cont_kind(std::vector<Kind> kinds, ContTailKind t);
 
     ContKind cont_kind(std::vector<Kind> kinds, VarName v);

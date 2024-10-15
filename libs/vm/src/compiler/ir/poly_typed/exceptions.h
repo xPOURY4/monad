@@ -4,15 +4,23 @@ namespace monad::compiler::poly_typed
 
     constexpr size_t max_kind_ticks = 10000;
 
-    struct DepthException
+    struct InferException
     {
     };
 
-    struct TickException
+    struct DepthException : public InferException
     {
     };
 
-    void increment_kind_depth(size_t &depth, size_t x)
+    struct TickException : public InferException
+    {
+    };
+
+    struct UnificationException : public InferException
+    {
+    };
+
+    inline void increment_kind_depth(size_t &depth, size_t x)
     {
         depth += x;
         if (depth > max_kind_depth) {
@@ -20,7 +28,7 @@ namespace monad::compiler::poly_typed
         }
     }
 
-    void increment_kind_ticks(size_t &ticks, size_t x)
+    inline void increment_kind_ticks(size_t &ticks, size_t x)
     {
         ticks += x;
         if (ticks > max_kind_ticks) {

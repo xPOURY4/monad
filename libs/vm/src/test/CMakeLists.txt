@@ -90,3 +90,17 @@ add_test(
     NAME "Alpha Equal Tests"
     COMMAND alpha-equal-tests
 )
+
+add_executable(unify-tests unify_tests.cpp)
+
+monad_compile_options(unify-tests)
+target_link_libraries(unify-tests compiler GTest::gtest_main)
+target_include_directories(
+    unify-tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
+)
+
+add_test(
+    NAME "Unify Tests"
+    COMMAND unify-tests
+)

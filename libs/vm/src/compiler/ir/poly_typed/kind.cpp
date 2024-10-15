@@ -1,5 +1,6 @@
 #include "kind.h"
 #include "compiler/types.h"
+#include <algorithm>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -65,10 +66,8 @@ namespace
 
     bool cont_alpha_eq(PolyVarSubstMap &su, ContKind c1, ContKind c2)
     {
-        if (c1->front.size() != c2->front.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < c1->front.size(); ++i) {
+        size_t const min_size = std::min(c1->front.size(), c2->front.size());
+        for (size_t i = 0; i < min_size; ++i) {
             if (!kind_alpha_eq(su, c1->front[i], c2->front[i])) {
                 return false;
             }
@@ -76,12 +75,12 @@ namespace
         if (c1->tail.index() != c2->tail.index()) {
             return false;
         }
-        if (c1->tail.index() != c2->tail.index()) {
-            return false;
-        }
         return std::visit(
             Cases{
-                [&su, &c2](ContVar const &cv1) {
+                [&su, &c1, &c2](ContVar const &cv1) {
+                    if (c1->front.size() != c2->front.size()) {
+                        return false;
+                    }
                     ContVar const &cv2 = std::get<ContVar>(c2->tail);
                     auto it1 = su.cont_map.find(cv1.var);
                     auto it2 = su.cont_map.find(cv2.var);
@@ -96,7 +95,17 @@ namespace
                     }
                     return it1->second == it2->second;
                 },
-                [](ContWords const &) { return true; }},
+                [&su, &c1, &c2, min_size](ContWords const &) {
+                    auto const &n = c1->front.size() > c2->front.size()
+                                        ? c1->front
+                                        : c2->front;
+                    for (size_t i = min_size; i < n.size(); ++i) {
+                        if (!kind_alpha_eq(su, n[i], word)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }},
             c1->tail);
     }
 }
@@ -126,6 +135,8 @@ namespace monad::compiler::poly_typed
     {
         return std::make_shared<PreKind>(Cont{c});
     }
+
+    ContKind cont_words = cont_kind({});
 
     ContKind cont_kind(std::vector<Kind> kinds, ContTailKind t)
     {
@@ -173,7 +184,7 @@ namespace monad::compiler::poly_typed
                     if (use_parens) {
                         std::format_to(ctx.out(), "(");
                     }
-                    std::format_to(ctx.out(), "L{} ~ ", lv.var);
+                    std::format_to(ctx.out(), "L{} : ", lv.var);
                     format_cont(lv.cont, ctx);
                     if (use_parens) {
                         std::format_to(ctx.out(), ")");
@@ -183,7 +194,7 @@ namespace monad::compiler::poly_typed
                     if (use_parens) {
                         std::format_to(ctx.out(), "(");
                     }
-                    std::format_to(ctx.out(), "Word ~ ");
+                    std::format_to(ctx.out(), "Word : ");
                     format_cont(wc.cont, ctx);
                     if (use_parens) {
                         std::format_to(ctx.out(), ")");

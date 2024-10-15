@@ -19,6 +19,12 @@ namespace monad::compiler::poly_typed
     public:
         SubstMap();
 
+        std::optional<LiteralType> get_literal_type(VarName);
+
+        std::optional<Kind> get_kind(VarName);
+
+        std::optional<ContKind> get_cont(VarName);
+
         void link_literal_vars(VarName, VarName);
 
         void insert_literal_type(VarName, LiteralType);
@@ -33,11 +39,15 @@ namespace monad::compiler::poly_typed
             kind_map.put(v, std::move(k));
         }
 
-        // Throws DepthException and TickException
-        ContKind subst(ContKind);
+        std::optional<ContKind> subst(ContKind);
 
-        // Throws DepthException and TickException
-        Kind subst(Kind);
+        std::optional<Kind> subst(Kind);
+
+        /// Throws DepthException and TickException
+        ContKind subst(ContKind, size_t depth, size_t &ticks);
+
+        /// Throws DepthException and TickException
+        Kind subst(Kind, size_t depth, size_t &ticks);
 
         ContKind subst_to_var(ContKind);
 
@@ -50,7 +60,6 @@ namespace monad::compiler::poly_typed
         void revert();
 
     private:
-        ContKind subst2(ContKind, size_t, size_t &);
-        Kind subst2(Kind, size_t, size_t &);
+        VarName get_min_literal_var_name(VarName);
     };
 }

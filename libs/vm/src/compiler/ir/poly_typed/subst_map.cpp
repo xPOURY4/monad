@@ -3,9 +3,11 @@
 #include "compiler/types.h"
 #include "exceptions.h"
 #include "kind.h"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <exception>
+#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <variant>
@@ -19,6 +21,33 @@ namespace monad::compiler::poly_typed
         , cont_map{}
         , kind_map{}
     {
+    }
+
+    std::optional<LiteralType> SubstMap::get_literal_type(VarName v)
+    {
+        auto it = literal_map.find(v);
+        if (it == literal_map.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    std::optional<Kind> SubstMap::get_kind(VarName v)
+    {
+        auto it = kind_map.find(v);
+        if (it == kind_map.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    std::optional<ContKind> SubstMap::get_cont(VarName v)
+    {
+        auto it = cont_map.find(v);
+        if (it == cont_map.end()) {
+            return std::nullopt;
+        }
+        return it->second;
     }
 
     void SubstMap::link_literal_vars(VarName v1, VarName v2)
@@ -46,7 +75,7 @@ namespace monad::compiler::poly_typed
         }
     }
 
-    ContKind SubstMap::subst2(ContKind cont, size_t depth, size_t &ticks)
+    ContKind SubstMap::subst(ContKind cont, size_t depth, size_t &ticks)
     {
         increment_kind_depth(depth, 1);
         increment_kind_ticks(ticks, cont->front.size());
@@ -66,12 +95,12 @@ namespace monad::compiler::poly_typed
             t = new_c->second->tail;
         }
         for (auto &kind : kinds) {
-            kind = subst2(kind, depth, ticks);
+            kind = subst(kind, depth, ticks);
         }
         return cont_kind(std::move(kinds), t);
     }
 
-    Kind SubstMap::subst2(Kind kind, size_t depth, size_t &ticks)
+    Kind SubstMap::subst(Kind kind, size_t depth, size_t &ticks)
     {
         increment_kind_depth(depth, 1);
 
@@ -95,15 +124,16 @@ namespace monad::compiler::poly_typed
                 [this, depth, &ticks](LiteralVar const &lv) {
                     auto t = literal_map.find(lv.var);
                     if (t == literal_map.end()) {
-                        return literal_var(lv.var, lv.cont);
+                        auto v = get_min_literal_var_name(lv.var);
+                        return literal_var(v, lv.cont);
                     }
                     switch (t->second) {
                     case LiteralType::Cont:
                         increment_kind_ticks(ticks, 1);
-                        return cont(subst2(lv.cont, depth, ticks));
+                        return cont(subst(lv.cont, depth, ticks));
                     case LiteralType::WordCont:
                         increment_kind_ticks(ticks, 1);
-                        return word_cont(subst2(lv.cont, depth, ticks));
+                        return word_cont(subst(lv.cont, depth, ticks));
                     case LiteralType::Word:
                         return word;
                     }
@@ -111,25 +141,35 @@ namespace monad::compiler::poly_typed
                 },
                 [this, depth, &ticks](WordCont const &wc) {
                     increment_kind_ticks(ticks, 1);
-                    return word_cont(subst2(wc.cont, depth, ticks));
+                    return word_cont(subst(wc.cont, depth, ticks));
                 },
                 [this, depth, &ticks](Cont const &c) {
                     increment_kind_ticks(ticks, 1);
-                    return cont(subst2(c.cont, depth, ticks));
+                    return cont(subst(c.cont, depth, ticks));
                 }},
             *kind);
     }
 
-    ContKind SubstMap::subst(ContKind c)
+    std::optional<ContKind> SubstMap::subst(ContKind c)
     {
-        size_t ticks = 0;
-        return subst2(std::move(c), 0, ticks);
+        try {
+            size_t ticks = 0;
+            return subst(std::move(c), 0, ticks);
+        }
+        catch (InferException const &) {
+            return std::nullopt;
+        }
     }
 
-    Kind SubstMap::subst(Kind k)
+    std::optional<Kind> SubstMap::subst(Kind k)
     {
-        size_t ticks = 0;
-        return subst2(std::move(k), 0, ticks);
+        try {
+            size_t ticks = 0;
+            return subst(std::move(k), 0, ticks);
+        }
+        catch (InferException const &) {
+            return std::nullopt;
+        }
     }
 
     ContKind SubstMap::subst_to_var(ContKind cont)
@@ -186,5 +226,24 @@ namespace monad::compiler::poly_typed
         literal_links.revert();
         cont_map.revert();
         kind_map.revert();
+    }
+
+    VarName SubstMap::get_min_literal_var_name(VarName v0)
+    {
+        VarName min_var_name = v0;
+        std::unordered_set<VarName> visited;
+        std::vector<VarName> work_stack{v0};
+        while (!work_stack.empty()) {
+            VarName const v = work_stack.back();
+            work_stack.pop_back();
+            if (!visited.insert(v).second) {
+                continue;
+            }
+            min_var_name = std::min(min_var_name, v);
+            for (auto w : literal_links[v]) {
+                work_stack.push_back(w);
+            }
+        }
+        return min_var_name;
     }
 }

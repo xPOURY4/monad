@@ -42,3 +42,9 @@ TEST(alpha_equal, test_3)
     ASSERT_FALSE(alpha_equal(left, mk(10, 10, 30, 40, 0)));
     ASSERT_FALSE(alpha_equal(left, mk(10, 20, 30, 30, 0)));
 }
+
+TEST(alpha_equal, test_4)
+{
+    ASSERT_TRUE(alpha_equal(cont_kind({word}), cont_kind({})));
+    ASSERT_FALSE(alpha_equal(cont_kind({word}, 0), cont_kind({}, 0)));
+}

@@ -16,7 +16,7 @@ namespace monad::compiler::poly_typed
         std::unordered_map<byte_offset, ContKind> block_types;
     };
 
-    std::optional<block_id>
+    inline std::optional<block_id>
     static_jumpdests(InferState const &state, Value const &value)
     {
         if (value.is != ValueIs::LITERAL) {
@@ -38,7 +38,8 @@ namespace monad::compiler::poly_typed
         return it->second;
     }
 
-    std::vector<block_id> static_successors(InferState const &state, block_id b)
+    inline std::vector<block_id>
+    static_successors(InferState const &state, block_id b)
     {
         auto const &block = state.pre_blocks[b];
         switch (block.terminator) {

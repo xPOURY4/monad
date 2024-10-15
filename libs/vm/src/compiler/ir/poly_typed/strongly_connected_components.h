@@ -30,7 +30,7 @@ namespace monad::compiler::poly_typed
         bool visited;
     };
 
-    void strong_connect(TarjanState &state, block_id block)
+    inline void strong_connect(TarjanState &state, block_id block)
     {
         std::vector<ConnectBlocks> connect_stack{{block, block, false}};
 
@@ -79,7 +79,7 @@ namespace monad::compiler::poly_typed
         }
     }
 
-    std::vector<Component>
+    inline std::vector<Component>
     strongly_connected_components(InferState const &infer_state)
     {
         // Tarjan's algorithm, but without recursive function calls
