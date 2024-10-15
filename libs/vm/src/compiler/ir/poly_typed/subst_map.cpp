@@ -172,36 +172,35 @@ namespace monad::compiler::poly_typed
         }
     }
 
-    ContKind SubstMap::subst_to_var(ContKind cont)
+    std::vector<VarName> SubstMap::subst_to_var(ContKind cont)
     {
-        std::vector<Kind> kinds = cont->front;
-        ContTailKind t = cont->tail;
-        while (std::holds_alternative<ContVar>(t)) {
-            auto new_c = cont_map.find(std::get<ContVar>(t).var);
+        std::vector<VarName> ret;
+        for (;;) {
+            for (auto &k : cont->front) {
+                ret.push_back(subst_to_var(k));
+            }
+            if (!std::holds_alternative<ContVar>(cont->tail)) {
+                break;
+            }
+            auto new_c = cont_map.find(std::get<ContVar>(cont->tail).var);
             if (new_c == cont_map.end()) {
                 break;
             }
-            kinds.insert(
-                kinds.end(),
-                new_c->second->front.begin(),
-                new_c->second->front.end());
-            t = new_c->second->tail;
+            cont = new_c->second;
         }
-        for (auto &kind : kinds) {
-            kind = subst_to_var(kind);
-        }
-        return cont_kind(std::move(kinds), t);
+        return ret;
     }
 
-    Kind SubstMap::subst_to_var(Kind kind)
+    VarName SubstMap::subst_to_var(Kind kind)
     {
-        auto new_k = kind_map.find(std::get<KindVar>(*kind).var);
+        VarName ret = std::get<KindVar>(*kind).var;
+        auto new_k = kind_map.find(ret);
         while (new_k != kind_map.end() &&
                std::holds_alternative<KindVar>(*new_k->second)) {
-            kind = new_k->second;
-            new_k = kind_map.find(std::get<KindVar>(*kind).var);
+            ret = std::get<KindVar>(*new_k->second).var;
+            new_k = kind_map.find(ret);
         }
-        return kind;
+        return ret;
     }
 
     void SubstMap::transaction()

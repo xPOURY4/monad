@@ -49,9 +49,9 @@ namespace monad::compiler::poly_typed
         /// Throws DepthException and TickException
         Kind subst(Kind, size_t depth, size_t &ticks);
 
-        ContKind subst_to_var(ContKind);
+        std::vector<VarName> subst_to_var(ContKind);
 
-        Kind subst_to_var(Kind);
+        VarName subst_to_var(Kind);
 
         void transaction();
 

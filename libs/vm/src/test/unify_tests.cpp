@@ -123,3 +123,40 @@ TEST(unify, test_3)
              cont(cont_kind({}, 4))},
             4)));
 }
+
+TEST(unify_param_var, test_1)
+{
+    SubstMap su{};
+    std::vector<VarName> param_vars{0};
+    ParamVarNameMap param_map{{0, {10, 11}}};
+
+    ASSERT_TRUE(unify(su, kind_var(0), word));
+    ASSERT_TRUE(unify(su, kind_var(10), cont(cont_kind({}, 0))));
+    ASSERT_TRUE(unify(su, kind_var(11), cont(cont_kind({kind_var(1)}, 1))));
+    ASSERT_TRUE(unify_param_var_name_map(su, param_vars, param_map));
+    ASSERT_TRUE(alpha_equal(
+        su.subst(kind_var(0)).value(),
+        word_cont(cont_kind({kind_var(1)}, 1))
+    ));
+
+    param_map = {{0, {12}}};
+    ASSERT_TRUE(unify(su, kind_var(12), word_cont(cont_kind({}))));
+    ASSERT_TRUE(unify_param_var_name_map(su, param_vars, param_map));
+    ASSERT_TRUE(alpha_equal(
+        su.subst(kind_var(0)).value(),
+        word_cont(cont_kind({}))
+    ));
+}
+
+TEST(unify_param_var, test_2)
+{
+    SubstMap su{};
+    std::vector<VarName> param_vars{0, 1};
+    ParamVarNameMap param_map{{0, {10, 11}}, {1, {12}}};
+    ASSERT_TRUE(unify(su, kind_var(10), cont(cont_kind({}, 0))));
+    ASSERT_TRUE(unify(su, kind_var(11), word));
+    ASSERT_TRUE(unify(su, kind_var(12), literal_var(0, cont_kind({}, 1))));
+    ASSERT_TRUE(unify_param_var_name_map(su, param_vars, param_map));
+    ASSERT_TRUE(alpha_equal(su.subst(kind_var(0)).value(), word_cont(cont_kind({}, 0))));
+    ASSERT_TRUE(alpha_equal(su.subst(kind_var(1)).value(), literal_var(0, cont_kind({}, 1))));
+}

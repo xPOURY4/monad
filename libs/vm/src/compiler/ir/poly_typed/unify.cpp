@@ -18,10 +18,10 @@ namespace
     using namespace monad::compiler::poly_typed;
 
     ContKind find_subst_cont2(
-        SubstMap &, VarName, ContKind, size_t depth, size_t &ticks);
+        SubstMap &, VarName, bool is_kind_var, ContKind, size_t depth, size_t &ticks);
 
     Kind find_subst_kind2(
-        SubstMap &su, VarName var, Kind kind, size_t depth, size_t &ticks)
+        SubstMap &su, VarName var, bool is_kind_var, Kind kind, size_t depth, size_t &ticks)
     {
         increment_kind_depth(depth, 1);
         while (std::holds_alternative<KindVar>(*kind)) {
@@ -36,20 +36,20 @@ namespace
             Cases{
                 [](Word const &) { return word; },
                 [](Any const &) { return any; },
-                [var, &kind](KindVar const &kv) {
-                    if (kv.var == var) {
+                [var, is_kind_var, &kind](KindVar const &kv) {
+                    if (is_kind_var && kv.var == var) {
                         throw UnificationException{};
                     }
                     return kind;
                 },
-                [&su, var, depth, &ticks](LiteralVar const &lv) {
+                [&su, var, is_kind_var, depth, &ticks](LiteralVar const &lv) {
                     auto t = su.get_literal_type(lv.var);
                     if (!t.has_value()) {
                         increment_kind_ticks(ticks, 1);
                         su.transaction();
                         try {
                             ContKind const k = find_subst_cont2(
-                                su, var, lv.cont, depth, ticks);
+                                su, var, is_kind_var, lv.cont, depth, ticks);
                             su.commit();
                             return literal_var(lv.var, k);
                         }
@@ -63,31 +63,31 @@ namespace
                     case LiteralType::Cont:
                         increment_kind_ticks(ticks, 1);
                         return cont(
-                            find_subst_cont2(su, var, lv.cont, depth, ticks));
+                            find_subst_cont2(su, var, is_kind_var, lv.cont, depth, ticks));
                     case LiteralType::WordCont:
                         increment_kind_ticks(ticks, 1);
                         return word_cont(
-                            find_subst_cont2(su, var, lv.cont, depth, ticks));
+                            find_subst_cont2(su, var, is_kind_var, lv.cont, depth, ticks));
                     case LiteralType::Word:
                         return word;
                     }
                     std::terminate();
                 },
-                [&su, var, depth, &ticks](WordCont const &wc) {
+                [&su, var, is_kind_var, depth, &ticks](WordCont const &wc) {
                     increment_kind_ticks(ticks, 1);
                     return word_cont(
-                        find_subst_cont2(su, var, wc.cont, depth, ticks));
+                        find_subst_cont2(su, var, is_kind_var, wc.cont, depth, ticks));
                 },
-                [&su, var, depth, &ticks](Cont const &c) {
+                [&su, var, is_kind_var, depth, &ticks](Cont const &c) {
                     increment_kind_ticks(ticks, 1);
                     return cont(
-                        find_subst_cont2(su, var, c.cont, depth, ticks));
+                        find_subst_cont2(su, var, is_kind_var, c.cont, depth, ticks));
                 }},
             *kind);
     }
 
     ContKind find_subst_cont2(
-        SubstMap &su, VarName var, ContKind cont, size_t depth, size_t &ticks)
+        SubstMap &su, VarName var, bool is_kind_var, ContKind cont, size_t depth, size_t &ticks)
     {
         increment_kind_depth(depth, 1);
         increment_kind_ticks(ticks, cont->front.size());
@@ -97,7 +97,7 @@ namespace
             ContVar const cv = std::get<ContVar>(t);
             auto copt = su.get_cont(cv.var);
             if (!copt.has_value()) {
-                if (cv.var == var) {
+                if (!is_kind_var && cv.var == var) {
                     throw UnificationException{};
                 }
                 break;
@@ -110,7 +110,7 @@ namespace
             t = copt.value()->tail;
         }
         for (auto &kind : kinds) {
-            kind = find_subst_kind2(su, var, kind, depth, ticks);
+            kind = find_subst_kind2(su, var, is_kind_var, kind, depth, ticks);
         }
         return cont_kind(std::move(kinds), t);
     }
@@ -130,7 +130,7 @@ namespace
             increment_kind_ticks(ticks, 1);
             kind = new_k.value();
         }
-        return find_subst_kind2(su, var, kind, depth, ticks);
+        return find_subst_kind2(su, var, true, kind, depth, ticks);
     }
 
     std::optional<ContKind> find_subst_cont(
@@ -150,7 +150,7 @@ namespace
             increment_kind_ticks(ticks, 1);
             cont = copt.value();
         }
-        return find_subst_cont2(su, var, cont, depth, ticks);
+        return find_subst_cont2(su, var, false, cont, depth, ticks);
     }
 
     void
@@ -408,6 +408,93 @@ namespace
                 }},
             c1->tail);
     }
+
+    void unify_param_var(SubstMap &su, VarName param_var, VarName new_param_var, size_t &ticks)
+    {
+        Kind param = kind_var(param_var);
+        Kind new_param = kind_var(new_param_var);
+        VarName v = su.subst_to_var(param);
+        VarName new_v = su.subst_to_var(new_param);
+        if (v == new_v) {
+            return;
+        }
+        Kind k = su.subst(param, 0, ticks);
+        Kind new_k = su.subst(new_param, 0, ticks);
+        static_cast<void>(find_subst_kind2(su, v, true, new_k, 0, ticks));
+        static_cast<void>(find_subst_kind2(su, new_v, true, k, 0, ticks));
+        if (std::holds_alternative<KindVar>(*new_k)) {
+            assert(new_v == std::get<KindVar>(*new_k).var);
+            su.insert_kind(new_v, kind_var(v));
+            return;
+        }
+        std::visit(Cases{
+            [&](__attribute__((unused)) KindVar const &kv1) {
+                assert(v == kv1.var);
+                su.insert_kind(v, new_k);
+            },
+            [&](Word const &) {
+                std::visit(Cases{
+                    [&](Cont const &c2) {
+                        su.insert_kind(v, word_cont(c2.cont));
+                    },
+                    [&](WordCont const &) {
+                        su.insert_kind(v, new_k);
+                    },
+                    [&](auto const &) {
+                        unify(su, k, new_k, 0, ticks);
+                    },
+                }, *new_k);
+            },
+            [&](Cont const &c1) {
+                std::visit(Cases{
+                    [&](Word const &) {
+                        su.insert_kind(v, word_cont(c1.cont));
+                    },
+                    [&](WordCont const &wc2) {
+                        unify(su, c1.cont, wc2.cont, 0, ticks);
+                        su.insert_kind(v, word_cont(c1.cont));
+                    },
+                    [&](auto const &) {
+                        unify(su, k, new_k, 0, ticks);
+                    },
+                }, *new_k);
+            },
+            [&](WordCont const &wc1) {
+                std::visit(Cases{
+                    [&](Word const &) {
+                        // nop
+                    },
+                    [&](Cont const &c2) {
+                        unify(su, wc1.cont, c2.cont, 0, ticks);
+                    },
+                    [&](auto const &) {
+                        unify(su, k, new_k, 0, ticks);
+                    },
+                }, *new_k);
+            },
+            [&](auto const &) {
+                unify(su, k, new_k, 0, ticks);
+            },
+        }, *k);
+        su.insert_kind(new_v, kind_var(v));
+    }
+
+    void unify_param_var_name_map(SubstMap &su, std::vector<VarName> const& param_vars,
+            ParamVarNameMap const &param_map, size_t &ticks)
+    {
+        for (uint64_t stack_index = 0; stack_index < param_vars.size(); ++stack_index) {
+            auto param_it = param_map.find(stack_index);
+            if (param_it == param_map.end()) {
+                continue;
+            }
+            std::vector<VarName> const &new_param_vars = param_it->second;
+            assert(!new_param_vars.empty());
+            increment_kind_ticks(ticks, new_param_vars.size());
+            for (VarName n : new_param_vars) {
+                unify_param_var(su, param_vars[stack_index], n, ticks);
+            }
+        }
+    }
 }
 
 namespace monad::compiler::poly_typed
@@ -433,6 +520,21 @@ namespace monad::compiler::poly_typed
         try {
             size_t ticks = 0;
             ::unify(su, c1, c2, 0, ticks);
+            su.commit();
+            return true;
+        }
+        catch (InferException const &) {
+            su.revert();
+            return false;
+        }
+    }
+
+    bool unify_param_var_name_map(SubstMap &su, std::vector<VarName> const& param_vars, ParamVarNameMap const &param_map)
+    {
+        su.transaction();
+        try {
+            size_t ticks = 0;
+            ::unify_param_var_name_map(su, param_vars, param_map, ticks);
             su.commit();
             return true;
         }
