@@ -106,7 +106,7 @@ TEST(poly_typed, strongly_connected_components_3)
     std::vector<local_stacks::Block> const pre_blocks = {
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 2}},
+            .output = {Value{ValueIs::LITERAL, 2}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 1},
@@ -140,7 +140,7 @@ TEST(poly_typed, strongly_connected_components_4)
     std::vector<local_stacks::Block> const pre_blocks = {
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 2}},
+            .output = {Value{ValueIs::LITERAL, 2}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 1},
@@ -152,13 +152,13 @@ TEST(poly_typed, strongly_connected_components_4)
             .fallthrough_dest = 0},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 0}},
+            .output = {Value{ValueIs::LITERAL, 0}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 3},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 2}},
+            .output = {Value{ValueIs::LITERAL, 2}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 4},
@@ -170,7 +170,7 @@ TEST(poly_typed, strongly_connected_components_4)
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
         strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
-    assert_components(components, {{4}, {3, 2, 1, 0}});
+    assert_components(components, {{4}, {1, 3, 2, 0}});
 }
 
 TEST(poly_typed, strongly_connected_components_5)
@@ -180,19 +180,19 @@ TEST(poly_typed, strongly_connected_components_5)
     std::vector<local_stacks::Block> const pre_blocks = {
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 4}},
+            .output = {Value{ValueIs::LITERAL, 4}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 1},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 0}},
+            .output = {Value{ValueIs::LITERAL, 0}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 2},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 1}},
+            .output = {Value{ValueIs::LITERAL, 1}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 3},
@@ -210,7 +210,7 @@ TEST(poly_typed, strongly_connected_components_5)
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
         strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
-    assert_components(components, {{3}, {4, 2, 1, 0}});
+    assert_components(components, {{3}, {2, 1, 4, 0}});
 }
 
 TEST(poly_typed, strongly_connected_components_6)
@@ -220,13 +220,13 @@ TEST(poly_typed, strongly_connected_components_6)
     std::vector<local_stacks::Block> const pre_blocks = {
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 3}},
+            .output = {Value{ValueIs::LITERAL, 3}, Value{ValueIs::LITERAL, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpI,
             .fallthrough_dest = 1},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 0}},
+            .output = {Value{ValueIs::COMPUTED, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpDest,
             .fallthrough_dest = 2},
@@ -238,7 +238,7 @@ TEST(poly_typed, strongly_connected_components_6)
             .fallthrough_dest = 0},
         local_stacks::Block{
             .min_params = 0,
-            .output = {Value{ValueIs::LITERAL, 0}},
+            .output = {Value{ValueIs::COMPUTED, 0}},
             .instrs = {},
             .terminator = basic_blocks::Terminator::JumpDest,
             .fallthrough_dest = 4},
@@ -256,5 +256,77 @@ TEST(poly_typed, strongly_connected_components_6)
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
         strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
-    assert_components(components, {{2, 1}, {5, 4, 3}, {0}});
+    assert_components(components, {{5, 4, 3}, {2, 1}, {0}});
+}
+
+TEST(poly_typed, strongly_connected_components_7)
+{
+    std::unordered_map<byte_offset, block_id> const jumpdests = {
+        {0, 0}, {1, 1}, {2, 2}, {3, 3}};
+    std::vector<local_stacks::Block> const pre_blocks = {
+        local_stacks::Block{
+            .min_params = 0,
+            .output =
+                {Value{ValueIs::LITERAL, 2},
+                 Value{ValueIs::COMPUTED, 0},
+                 Value{ValueIs::LITERAL, 3}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::JumpI,
+            .fallthrough_dest = 1},
+        local_stacks::Block{
+            .min_params = 0,
+            .output =
+                {Value{ValueIs::COMPUTED, 0},
+                 Value{ValueIs::COMPUTED, 0},
+                 Value{ValueIs::LITERAL, 0},
+                 Value{ValueIs::COMPUTED, 0}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::Jump,
+            .fallthrough_dest = 0},
+        local_stacks::Block{
+            .min_params = 0,
+            .output = {Value{ValueIs::LITERAL, 0}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::Jump,
+            .fallthrough_dest = 0},
+        local_stacks::Block{
+            .min_params = 0,
+            .output = {Value{ValueIs::LITERAL, 0}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::Jump,
+            .fallthrough_dest = 0}};
+    std::vector<Component> const components =
+        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+    assert_components(components, {{1, 2, 3, 0}});
+}
+
+TEST(poly_typed, strongly_connected_components_8)
+{
+    std::unordered_map<byte_offset, block_id> const jumpdests = {
+        {0, 0}, {1, 1}};
+    std::vector<local_stacks::Block> const pre_blocks = {
+        local_stacks::Block{
+            .min_params = 0,
+            .output =
+                {Value{ValueIs::LITERAL, 3},
+                 Value{ValueIs::COMPUTED, 0},
+                 Value{ValueIs::LITERAL, 2}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::JumpI,
+            .fallthrough_dest = 1},
+        local_stacks::Block{
+            .min_params = 0,
+            .output = {Value{ValueIs::LITERAL, 0}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::Jump,
+            .fallthrough_dest = 0},
+        local_stacks::Block{
+            .min_params = 0,
+            .output = {Value{ValueIs::LITERAL, 0}},
+            .instrs = {},
+            .terminator = basic_blocks::Terminator::Jump,
+            .fallthrough_dest = 0}};
+    std::vector<Component> const components =
+        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+    assert_components(components, {{1, 0}, {2}});
 }
