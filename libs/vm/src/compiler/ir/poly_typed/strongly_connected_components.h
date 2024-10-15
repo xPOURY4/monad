@@ -32,6 +32,11 @@ namespace monad::compiler::poly_typed
 
     void strong_connect(TarjanState &state, block_id block);
 
+    /// Find all the sets of strongly connected components. The LITERAL values
+    /// in the LocalStacksIr basic block output defines which basic blocks are
+    /// strongly connected. If the output stack of basic block A has the address
+    /// of basic block B as a LITERAL in the output stack, then there is an edge
+    /// from A to B.
     std::vector<Component>
     strongly_connected_components(InferState const &infer_state);
 }
