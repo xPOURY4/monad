@@ -1,7 +1,7 @@
-#include "poly_typed/exceptions.h"
-#include "poly_typed/kind.h"
-#include "poly_typed/subst_map.h"
-#include "poly_typed/unify.h"
+#include "compiler/ir/poly_typed/exceptions.h"
+#include "compiler/ir/poly_typed/kind.h"
+#include "compiler/ir/poly_typed/subst_map.h"
+#include "compiler/ir/poly_typed/unify.h"
 
 #include <gtest/gtest.h>
 #include <vector>

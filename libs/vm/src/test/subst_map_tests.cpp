@@ -1,5 +1,5 @@
-#include "poly_typed/kind.h"
-#include "poly_typed/subst_map.h"
+#include "compiler/ir/poly_typed/kind.h"
+#include "compiler/ir/poly_typed/subst_map.h"
 
 #include <gtest/gtest.h>
 #include <vector>

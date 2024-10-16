@@ -1,4 +1,4 @@
-#include "poly_typed/kind.h"
+#include "compiler/ir/poly_typed/kind.h"
 
 #include <gtest/gtest.h>
 #include <vector>

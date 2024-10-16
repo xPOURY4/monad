@@ -1,9 +1,9 @@
-#include "unify.h"
+#include "compiler/ir/poly_typed/unify.h"
 
+#include "compiler/ir/poly_typed/exceptions.h"
+#include "compiler/ir/poly_typed/kind.h"
+#include "compiler/ir/poly_typed/subst_map.h"
 #include "compiler/types.h"
-#include "exceptions.h"
-#include "kind.h"
-#include "subst_map.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>

@@ -1,4 +1,4 @@
-#include "infer_state.h"
+#include "compiler/ir/poly_typed/infer_state.h"
 #include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/poly_typed.h"
 #include "compiler/types.h"

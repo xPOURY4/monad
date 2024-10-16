@@ -1,4 +1,4 @@
-#include "kind.h"
+#include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
 #include <algorithm>
 #include <cstddef>

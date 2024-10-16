@@ -1,11 +1,11 @@
-#include "infer.h"
+#include "compiler/ir/poly_typed/infer.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed.h"
+#include "compiler/ir/poly_typed/exceptions.h"
+#include "compiler/ir/poly_typed/infer_state.h"
+#include "compiler/ir/poly_typed/kind.h"
+#include "compiler/ir/poly_typed/strongly_connected_components.h"
 #include "compiler/types.h"
-#include "exceptions.h"
-#include "infer_state.h"
-#include "kind.h"
-#include "strongly_connected_components.h"
 #include <cassert>
 #include <exception>
 #include <unordered_map>

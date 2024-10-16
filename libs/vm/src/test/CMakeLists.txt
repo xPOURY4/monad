@@ -43,11 +43,6 @@ add_executable(strongly-connected-components-tests strongly_connected_components
 
 monad_compile_options(strongly-connected-components-tests)
 target_link_libraries(strongly-connected-components-tests compiler GTest::gtest_main)
-target_include_directories(
-    strongly-connected-components-tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
-)
-
 add_test(
     NAME "Strongly Connected Components Tests"
     COMMAND strongly-connected-components-tests
@@ -67,11 +62,6 @@ add_executable(subst-map-tests subst_map_tests.cpp)
 
 monad_compile_options(subst-map-tests)
 target_link_libraries(subst-map-tests compiler GTest::gtest_main)
-target_include_directories(
-    subst-map-tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
-)
-
 add_test(
     NAME "Subst Map Tests"
     COMMAND subst-map-tests
@@ -81,11 +71,6 @@ add_executable(alpha-equal-tests alpha_equal_tests.cpp)
 
 monad_compile_options(alpha-equal-tests)
 target_link_libraries(alpha-equal-tests compiler GTest::gtest_main)
-target_include_directories(
-    alpha-equal-tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
-)
-
 add_test(
     NAME "Alpha Equal Tests"
     COMMAND alpha-equal-tests
@@ -95,11 +80,6 @@ add_executable(unify-tests unify_tests.cpp)
 
 monad_compile_options(unify-tests)
 target_link_libraries(unify-tests compiler GTest::gtest_main)
-target_include_directories(
-    unify-tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/compiler/ir
-)
-
 add_test(
     NAME "Unify Tests"
     COMMAND unify-tests

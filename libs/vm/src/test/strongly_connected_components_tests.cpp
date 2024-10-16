@@ -1,11 +1,11 @@
 #include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed.h"
+#include "compiler/ir/poly_typed/infer_state.h"
+#include "compiler/ir/poly_typed/strongly_connected_components.h"
 #include "compiler/types.h"
-#include "poly_typed/infer_state.h"
 #include <cstddef>
 #include <iostream>
-#include <poly_typed/strongly_connected_components.h>
 
 #include <gtest/gtest.h>
 #include <unordered_map>

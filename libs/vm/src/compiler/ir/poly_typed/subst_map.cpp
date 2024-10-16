@@ -1,8 +1,8 @@
-#include "subst_map.h"
+#include "compiler/ir/poly_typed/subst_map.h"
 
+#include "compiler/ir/poly_typed/exceptions.h"
+#include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
-#include "exceptions.h"
-#include "kind.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
