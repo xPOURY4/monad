@@ -14,12 +14,6 @@ namespace
     using namespace monad::compiler;
     using namespace monad::compiler::poly_typed;
 
-    struct PolyVarSubstMap
-    {
-        std::unordered_map<VarName, VarName> kind_map;
-        std::unordered_map<VarName, VarName> cont_map;
-    };
-
     bool cont_alpha_eq(PolyVarSubstMap &, ContKind, ContKind);
 
     bool kind_alpha_eq(PolyVarSubstMap &su, Kind k1, Kind k2)

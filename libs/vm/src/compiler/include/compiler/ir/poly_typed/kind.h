@@ -1,11 +1,11 @@
 #pragma once
 
-#include <compiler/ir/poly_typed.h>
 #include <compiler/transactional_unordered_map.h>
 
 #include <memory>
 #include <variant>
 #include <vector>
+#include <format>
 
 namespace monad::compiler::poly_typed
 {
@@ -90,6 +90,12 @@ namespace monad::compiler::poly_typed
     };
 
     Kind cont(ContKind);
+
+    struct PolyVarSubstMap
+    {
+        std::unordered_map<VarName, VarName> kind_map;
+        std::unordered_map<VarName, VarName> cont_map;
+    };
 
     enum class LiteralType
     {

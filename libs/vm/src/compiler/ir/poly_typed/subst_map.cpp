@@ -53,8 +53,14 @@ namespace monad::compiler::poly_typed
     void SubstMap::link_literal_vars(VarName v1, VarName v2)
     {
         assert(!literal_map.contains(v1) && !literal_map.contains(v2));
-        literal_links[v1].insert(v2);
-        literal_links[v2].insert(v1);
+
+        auto links1 = literal_links.find_or_default(v1);
+        links1.insert(v2);
+        literal_links.put(v1, std::move(links1));
+
+        auto links2 = literal_links.find_or_default(v2);
+        links2.insert(v1);
+        literal_links.put(v2, std::move(links2));
     }
 
     void SubstMap::insert_literal_type(VarName v0, LiteralType t)
@@ -69,8 +75,11 @@ namespace monad::compiler::poly_typed
             }
             __attribute__((unused)) bool const ins = literal_map.put(v, t);
             assert(ins || t == LiteralType::Word);
-            for (auto w : literal_links[v]) {
-                work_stack.push_back(w);
+            auto lit = literal_links.find(v);
+            if (lit != literal_links.end()) {
+                for (auto w : lit->second) {
+                    work_stack.push_back(w);
+                }
             }
         }
     }
@@ -172,6 +181,18 @@ namespace monad::compiler::poly_typed
         }
     }
 
+    ContKind SubstMap::subst_or_throw(ContKind c)
+    {
+        size_t ticks = 0;
+        return subst(std::move(c), 0, ticks);
+    }
+
+    Kind SubstMap::subst_or_throw(Kind k)
+    {
+        size_t ticks = 0;
+        return subst(std::move(k), 0, ticks);
+    }
+
     std::vector<VarName> SubstMap::subst_to_var(ContKind cont)
     {
         std::vector<VarName> ret;
@@ -239,8 +260,11 @@ namespace monad::compiler::poly_typed
                 continue;
             }
             min_var_name = std::min(min_var_name, v);
-            for (auto w : literal_links[v]) {
-                work_stack.push_back(w);
+            auto lit = literal_links.find(v);
+            if (lit != literal_links.end()) {
+                for (auto w : lit->second) {
+                    work_stack.push_back(w);
+                }
             }
         }
         return min_var_name;

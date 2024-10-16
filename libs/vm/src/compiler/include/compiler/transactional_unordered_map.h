@@ -34,24 +34,18 @@ namespace monad::compiler
         {
         }
 
-        V &at(K const &k)
-        {
-            return current.at(k);
-        }
-
         V const &at(K const &k) const
         {
             return current.at(k);
         }
 
-        V &operator[](K const &k)
+        V find_or_default(K const &k) const
         {
-            return current[k];
-        }
-
-        V const &operator[](K const &k) const
-        {
-            return current[k];
+            auto it = find(k);
+            if (it == end()) {
+                return V();
+            }
+            return it->second;
         }
 
         iterator find(K const &k)

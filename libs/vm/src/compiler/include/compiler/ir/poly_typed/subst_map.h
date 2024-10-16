@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kind.h"
+#include "block.h"
 
 #include <compiler/transactional_unordered_map.h>
 
@@ -42,6 +42,12 @@ namespace monad::compiler::poly_typed
         std::optional<ContKind> subst(ContKind);
 
         std::optional<Kind> subst(Kind);
+
+        /// Throws DepthException and TickException
+        ContKind subst_or_throw(ContKind);
+
+        /// Throws DepthException and TickException
+        Kind subst_or_throw(Kind);
 
         /// Throws DepthException and TickException
         ContKind subst(ContKind, size_t depth, size_t &ticks);

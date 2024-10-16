@@ -16,11 +16,13 @@ namespace monad::compiler::poly_typed
         std::unordered_map<block_id, ContKind> block_types;
         std::unordered_map<block_id, Terminator> block_terminators;
 
+        std::vector<block_id> static_successors(block_id b) const;
+
         VarName fresh()
         {
             return next_fresh_var_names.back()++;
         }
 
-        std::vector<block_id> static_successors(block_id b) const;
+        ContKind get_type(block_id);
     };
 }

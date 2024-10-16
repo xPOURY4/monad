@@ -53,10 +53,73 @@ namespace
             push_static_jumpdest(dest, state, tail[i]);
         }
     }
+
+    Kind refresh(InferState &state, PolyVarSubstMap &su, Kind cont);
+
+    ContKind refresh(InferState &state, PolyVarSubstMap &su, ContKind cont)
+    {
+        std::vector<Kind> kinds;
+        for (auto &k : cont->front) {
+            kinds.push_back(refresh(state, su, k));
+        }
+        return std::visit(Cases{
+            [&state, &su, &kinds](ContVar const &cv) {
+                VarName new_v;
+                auto it = su.cont_map.find(cv.var);
+                if (it != su.cont_map.end()) {
+                    new_v = it->second;
+                } else {
+                    new_v = state.fresh();
+                    su.cont_map.insert_or_assign(cv.var, new_v);
+                }
+                return cont_kind(std::move(kinds), new_v);
+            },
+            [&kinds](ContWords const &) {
+                return cont_kind(std::move(kinds));
+            },
+        }, cont->tail);
+    }
+
+    Kind refresh(InferState &state, PolyVarSubstMap &su, Kind kind)
+    {
+        return std::visit(
+            Cases{
+                [](Word const &) { return word; },
+                [](Any const &) { return any; },
+                [&state, &su](KindVar const &kv) {
+                    VarName new_v;
+                    auto it = su.kind_map.find(kv.var);
+                    if (it != su.kind_map.end()) {
+                        new_v = it->second;
+                    } else {
+                        new_v = state.fresh();
+                        su.kind_map.insert_or_assign(kv.var, new_v);
+                    }
+                    return kind_var(new_v);
+                },
+                [&kind](LiteralVar const &) {
+                    return std::move(kind);
+                },
+                [&state, &su](WordCont const &wc) {
+                    return word_cont(refresh(state, su, wc.cont));
+                },
+                [&state, &su](Cont const &c) {
+                    return cont(refresh(state, su, c.cont));
+                }},
+            *kind);
+    }
 }
 
 namespace monad::compiler::poly_typed
 {
+    ContKind InferState::get_type(block_id bid)
+    {
+        auto it = block_types.find(bid);
+        assert(it != block_types.end());
+        PolyVarSubstMap su;
+        return refresh(*this, su, it->second);
+    }
+
     std::vector<block_id> InferState::static_successors(block_id b) const
     {
         std::vector<block_id> ret;
