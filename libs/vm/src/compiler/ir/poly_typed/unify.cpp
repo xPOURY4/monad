@@ -510,50 +510,23 @@ namespace
 
 namespace monad::compiler::poly_typed
 {
-    bool unify(SubstMap &su, Kind k1, Kind k2)
+    void unify(SubstMap &su, Kind k1, Kind k2)
     {
-        su.transaction();
-        try {
-            size_t ticks = 0;
-            ::unify(su, k1, k2, 0, ticks);
-            su.commit();
-            return true;
-        }
-        catch (InferException const &) {
-            su.revert();
-            return false;
-        }
+        size_t ticks = 0;
+        ::unify(su, k1, k2, 0, ticks);
     }
 
-    bool unify(SubstMap &su, ContKind c1, ContKind c2)
+    void unify(SubstMap &su, ContKind c1, ContKind c2)
     {
-        su.transaction();
-        try {
-            size_t ticks = 0;
-            ::unify(su, c1, c2, 0, ticks);
-            su.commit();
-            return true;
-        }
-        catch (InferException const &) {
-            su.revert();
-            return false;
-        }
+        size_t ticks = 0;
+        ::unify(su, c1, c2, 0, ticks);
     }
 
-    bool unify_param_var_name_map(
+    void unify_param_var_name_map(
         SubstMap &su, std::vector<VarName> const &param_vars,
         ParamVarNameMap const &param_map)
     {
-        su.transaction();
-        try {
-            size_t ticks = 0;
-            ::unify_param_var_name_map(su, param_vars, param_map, ticks);
-            su.commit();
-            return true;
-        }
-        catch (InferException const &) {
-            su.revert();
-            return false;
-        }
+        size_t ticks = 0;
+        ::unify_param_var_name_map(su, param_vars, param_map, ticks);
     }
 }

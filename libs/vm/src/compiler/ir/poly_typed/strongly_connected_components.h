@@ -4,7 +4,7 @@
 
 namespace monad::compiler::poly_typed
 {
-    using Component = std::vector<block_id>;
+    using Component = std::unordered_set<block_id>;
 
     struct TarjanVertexState
     {

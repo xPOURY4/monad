@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <vector>
 
 namespace
@@ -13,15 +14,14 @@ namespace
     using namespace monad::compiler;
     using namespace monad::compiler::poly_typed;
 
-    void push_static_jumpdest(
-        std::vector<block_id> &dest, InferState const &state,
-        Value const &value)
+    std::optional<block_id>
+    get_jumpdest(InferState const &state, Value const &value)
     {
         if (value.is != ValueIs::LITERAL) {
-            return;
+            return std::nullopt;
         }
         if (value.data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
-            return;
+            return std::nullopt;
         }
 
         static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
@@ -30,10 +30,19 @@ namespace
 
         auto it = state.jumpdests.find(offset);
         if (it == state.jumpdests.end()) {
-            return;
+            return std::nullopt;
         }
+        return it->second;
+    }
 
-        dest.push_back(it->second);
+    void push_static_jumpdest(
+        std::vector<block_id> &dest, InferState const &state,
+        Value const &value)
+    {
+        auto d = get_jumpdest(state, value);
+        if (d.has_value()) {
+            dest.push_back(d.value());
+        }
     }
 
     void push_static_jumpdests(
@@ -48,26 +57,32 @@ namespace
 
 namespace monad::compiler::poly_typed
 {
-    std::vector<block_id> static_successors(InferState const &state, block_id b)
+    std::vector<block_id> InferState::static_successors(block_id b) const
     {
         std::vector<block_id> ret;
-        auto const &block = state.pre_blocks[b];
+        auto const &block = pre_blocks[b];
         switch (block.terminator) {
         case basic_blocks::Terminator::JumpDest:
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdests(
-                ret, state, &block.output[0], block.output.size());
+                ret, *this, &block.output[0], block.output.size());
             break;
         case basic_blocks::Terminator::JumpI:
             assert(block.output.size() >= 2);
             ret.push_back(block.fallthrough_dest);
-            push_static_jumpdest(ret, state, block.output[0]);
+            push_static_jumpdest(ret, *this, block.output[0]);
             push_static_jumpdests(
-                ret, state, &block.output[2], block.output.size() - 2);
+                ret, *this, &block.output[2], block.output.size() - 2);
             break;
         case basic_blocks::Terminator::Jump:
+            assert(block.output.size() >= 1);
+            if (!get_jumpdest(*this, block.output[0]).has_value()) {
+                // We do not consider the output values if the jumpdest is not a
+                // literal.
+                break;
+            }
             push_static_jumpdests(
-                ret, state, &block.output[0], block.output.size());
+                ret, *this, &block.output[0], block.output.size());
             break;
         default:
             break;

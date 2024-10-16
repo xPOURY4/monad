@@ -1,3 +1,5 @@
+#include <cstddef>
+
 namespace monad::compiler::poly_typed
 {
     constexpr size_t max_kind_depth = 50;

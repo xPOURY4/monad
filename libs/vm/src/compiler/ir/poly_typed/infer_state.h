@@ -11,11 +11,16 @@ namespace monad::compiler::poly_typed
     {
         std::unordered_map<byte_offset, block_id> const &jumpdests;
         std::vector<local_stacks::Block> const &pre_blocks;
-        VarName next_fresh_var_name;
+        std::vector<VarName> next_fresh_var_names;
         std::vector<SubstMap> subst_maps;
-        std::unordered_map<byte_offset, ContKind> block_types;
-    };
+        std::unordered_map<block_id, ContKind> block_types;
+        std::unordered_map<block_id, Terminator> block_terminators;
 
-    std::vector<block_id>
-    static_successors(InferState const &state, block_id b);
+        VarName fresh()
+        {
+            return next_fresh_var_names.back()++;
+        }
+
+        std::vector<block_id> static_successors(block_id b) const;
+    };
 }

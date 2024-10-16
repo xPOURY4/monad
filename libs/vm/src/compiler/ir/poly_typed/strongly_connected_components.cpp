@@ -27,7 +27,7 @@ namespace monad::compiler::poly_typed
                     do {
                         t = state.stack.back();
                         state.stack.pop_back();
-                        state.components.back().push_back(t);
+                        state.components.back().insert(t);
                         state.vertex_states[t].on_stack = false;
                     }
                     while (b != t);
@@ -42,7 +42,7 @@ namespace monad::compiler::poly_typed
                 ++state.index;
                 state.stack.push_back(b);
 
-                auto succs = static_successors(state.infer_state, b);
+                auto succs = state.infer_state.static_successors(b);
                 for (auto s : succs) {
                     auto &sst = state.vertex_states[s];
                     if (!sst.is_defined) {

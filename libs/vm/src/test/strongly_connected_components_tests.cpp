@@ -23,7 +23,7 @@ namespace
         return InferState{
             .jumpdests = jumpdests,
             .pre_blocks = pre_blocks,
-            .next_fresh_var_name = 0,
+            .next_fresh_var_names = {},
             .subst_maps = {},
             .block_types = {}};
     }
@@ -36,8 +36,11 @@ namespace
             auto const &x1 = x[i];
             auto const &y1 = y[i];
             ASSERT_EQ(x1.size(), y1.size());
-            for (size_t j = 0; j < x1.size(); ++j) {
-                ASSERT_EQ(x1[j], y1[j]);
+            for (block_id const bid : x1) {
+                ASSERT_TRUE(y1.contains(bid));
+            }
+            for (block_id const bid : y1) {
+                ASSERT_TRUE(x1.contains(bid));
             }
         }
     }
@@ -276,7 +279,7 @@ TEST(poly_typed, strongly_connected_components_7)
         local_stacks::Block{
             .min_params = 0,
             .output =
-                {Value{ValueIs::COMPUTED, 0},
+                {Value{ValueIs::LITERAL, 4},
                  Value{ValueIs::COMPUTED, 0},
                  Value{ValueIs::LITERAL, 0},
                  Value{ValueIs::COMPUTED, 0}},
@@ -297,7 +300,7 @@ TEST(poly_typed, strongly_connected_components_7)
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
         strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
-    assert_components(components, {{1, 2, 3, 0}});
+    assert_components(components, {{1}, {2, 3, 0}});
 }
 
 TEST(poly_typed, strongly_connected_components_8)
