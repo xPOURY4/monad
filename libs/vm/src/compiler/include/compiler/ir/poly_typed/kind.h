@@ -2,10 +2,10 @@
 
 #include <compiler/transactional_unordered_map.h>
 
+#include <format>
 #include <memory>
 #include <variant>
 #include <vector>
-#include <format>
 
 namespace monad::compiler::poly_typed
 {

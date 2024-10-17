@@ -1,12 +1,15 @@
 #include "compiler/ir/poly_typed/infer_state.h"
 #include "compiler/ir/basic_blocks.h"
-#include "compiler/ir/poly_typed.h"
+#include "compiler/ir/poly_typed/block.h"
+#include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace
@@ -62,22 +65,25 @@ namespace
         for (auto &k : cont->front) {
             kinds.push_back(refresh(state, su, k));
         }
-        return std::visit(Cases{
-            [&state, &su, &kinds](ContVar const &cv) {
-                VarName new_v;
-                auto it = su.cont_map.find(cv.var);
-                if (it != su.cont_map.end()) {
-                    new_v = it->second;
-                } else {
-                    new_v = state.fresh();
-                    su.cont_map.insert_or_assign(cv.var, new_v);
-                }
-                return cont_kind(std::move(kinds), new_v);
+        return std::visit(
+            Cases{
+                [&state, &su, &kinds](ContVar const &cv) {
+                    VarName new_v;
+                    auto it = su.cont_map.find(cv.var);
+                    if (it != su.cont_map.end()) {
+                        new_v = it->second;
+                    }
+                    else {
+                        new_v = state.fresh();
+                        su.cont_map.insert_or_assign(cv.var, new_v);
+                    }
+                    return cont_kind(std::move(kinds), new_v);
+                },
+                [&kinds](ContWords const &) {
+                    return cont_kind(std::move(kinds));
+                },
             },
-            [&kinds](ContWords const &) {
-                return cont_kind(std::move(kinds));
-            },
-        }, cont->tail);
+            cont->tail);
     }
 
     Kind refresh(InferState &state, PolyVarSubstMap &su, Kind kind)
@@ -91,15 +97,14 @@ namespace
                     auto it = su.kind_map.find(kv.var);
                     if (it != su.kind_map.end()) {
                         new_v = it->second;
-                    } else {
+                    }
+                    else {
                         new_v = state.fresh();
                         su.kind_map.insert_or_assign(kv.var, new_v);
                     }
                     return kind_var(new_v);
                 },
-                [&kind](LiteralVar const &) {
-                    return std::move(kind);
-                },
+                [&kind](LiteralVar const &) { return std::move(kind); },
                 [&state, &su](WordCont const &wc) {
                     return word_cont(refresh(state, su, wc.cont));
                 },

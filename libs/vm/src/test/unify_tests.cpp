@@ -3,6 +3,7 @@
 #include "compiler/ir/poly_typed/subst_map.h"
 #include "compiler/ir/poly_typed/unify.h"
 
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <vector>
 

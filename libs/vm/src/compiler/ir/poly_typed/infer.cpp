@@ -1,16 +1,21 @@
 #include "compiler/ir/poly_typed/infer.h"
+#include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/local_stacks.h"
-#include "compiler/ir/poly_typed.h"
+#include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/exceptions.h"
 #include "compiler/ir/poly_typed/infer_state.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/ir/poly_typed/strongly_connected_components.h"
+#include "compiler/ir/poly_typed/unify.h"
+#include "compiler/opcodes.h"
 #include "compiler/types.h"
-#include <compiler/opcode_cases.h>
 #include <cassert>
+#include <compiler/opcode_cases.h>
+#include <cstddef>
 #include <exception>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace
@@ -18,38 +23,35 @@ namespace
     using namespace monad::compiler;
     using namespace monad::compiler::poly_typed;
 
-    void insert_block_terminator(InferState &state, block_id bid, Terminator &&term)
+    void
+    insert_block_terminator(InferState &state, block_id bid, Terminator &&term)
     {
-        auto new_term = std::visit(Cases{
-            [&state](FallThrough const& t) -> Terminator {
-                return FallThrough{state.subst_maps.back().subst_or_throw(t.fall_through_kind)};
+        auto new_term = std::visit(
+            Cases{
+                [&state](FallThrough const &t) -> Terminator {
+                    return FallThrough{state.subst_maps.back().subst_or_throw(
+                        t.fall_through_kind)};
+                },
+                [&state](JumpI const &t) -> Terminator {
+                    return JumpI{
+                        .fall_through_kind =
+                            state.subst_maps.back().subst_or_throw(
+                                t.fall_through_kind),
+                        .jump_kind = state.subst_maps.back().subst_or_throw(
+                            t.jump_kind)};
+                },
+                [&state](Jump const &t) -> Terminator {
+                    auto jkind =
+                        state.subst_maps.back().subst_or_throw(t.jump_kind);
+                    return Jump{};
+                },
+                [](Return const &t) -> Terminator { return t; },
+                [](Stop const &t) -> Terminator { return t; },
+                [](Revert const &t) -> Terminator { return t; },
+                [](SelfDestruct const &t) -> Terminator { return t; },
+                [](InvalidInstruction const &t) -> Terminator { return t; },
             },
-            [&state](JumpI const& t) -> Terminator {
-                return JumpI{
-                    .fall_through_kind = state.subst_maps.back().subst_or_throw(t.fall_through_kind),
-                    .jump_kind = state.subst_maps.back().subst_or_throw(t.jump_kind)
-                };
-            },
-            [&state](Jump const& t) -> Terminator {
-                auto jkind = state.subst_maps.back().subst_or_throw(t.jump_kind);
-                return Jump{};
-            },
-            [](Return const& t) -> Terminator {
-                return t;
-            },
-            [](Stop const& t) -> Terminator {
-                return t;
-            },
-            [](Revert const& t) -> Terminator {
-                return t;
-            },
-            [](SelfDestruct const& t) -> Terminator {
-                return t;
-            },
-            [](InvalidInstruction const& t) -> Terminator {
-                return t;
-            },
-        }, term);
+            term);
 
         state.block_terminators.insert_or_assign(bid, std::move(new_term));
     }
@@ -57,7 +59,7 @@ namespace
     ContKind initial_block_kind(InferState &state, block_id bid)
     {
         std::vector<Kind> front;
-        size_t n = state.pre_blocks[bid].min_params;
+        size_t const n = state.pre_blocks[bid].min_params;
         for (size_t i = 0; i < n; ++i) {
             front.push_back(kind_var(state.fresh()));
         }
@@ -70,27 +72,27 @@ namespace
         stack.pop_back();
     }
 
-    void infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
+    void
+    infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t ix = get_swap_opcode_index(ins.opcode);
+        size_t const ix = get_swap_opcode_index(ins.opcode);
         assert(stack.size() > ix);
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
-    void infer_instruction_dup(Instruction const &ins,
-            std::vector<Kind> &stack)
+    void infer_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t ix = get_dup_opcode_index(ins.opcode);
+        size_t const ix = get_dup_opcode_index(ins.opcode);
         assert(stack.size() >= ix);
         stack.push_back(stack[stack.size() - ix]);
     }
 
-    void infer_instruction_default(InferState &state, Instruction const &ins,
-            std::vector<Kind> &stack)
+    void infer_instruction_default(
+        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
         auto const info = opcode_info_table[ins.opcode];
         assert(stack.size() >= info.min_stack);
-        std::vector<Kind> front;
+        std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {
             unify(state.subst_maps.back(), stack.back(), word);
             stack.pop_back();
@@ -100,8 +102,8 @@ namespace
         }
     }
 
-    void infer_instruction(InferState &state, Instruction const &ins,
-            std::vector<Kind> &stack)
+    void infer_instruction(
+        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
         switch (ins.opcode) {
         case POP:
@@ -115,8 +117,9 @@ namespace
         }
     }
 
-    void unify_terminator_input(InferState &state, basic_blocks::Terminator term,
-            std::vector<Kind> &stack)
+    void unify_terminator_input(
+        InferState &state, basic_blocks::Terminator term,
+        std::vector<Kind> &stack)
     {
         switch (term) {
         case basic_blocks::Terminator::JumpI:
@@ -141,7 +144,7 @@ namespace
 
     void infer_block_start(InferState &state, block_id bid)
     {
-        ContKind cont = state.block_types.at(bid);
+        ContKind const cont = state.block_types.at(bid);
         std::vector<Kind> stack = cont->front;
         auto const &block = state.pre_blocks[bid];
         for (auto const &ins : block.instrs) {
@@ -150,27 +153,30 @@ namespace
         unify_terminator_input(state, block.terminator, stack);
     }
 
-    Terminator infer_block_end(InferState &state, block_id bid, Component const &component)
+    Terminator
+    infer_block_end(InferState &state, block_id bid, Component const &component)
     {
         // XXX always consider recursive literals as words if used as argument
         // to parameter jump.
         (void)state;
         (void)bid;
         (void)component;
-        auto new_kind = state.subst_maps.back().subst_or_throw(state.block_types.at(bid));
+        auto new_kind =
+            state.subst_maps.back().subst_or_throw(state.block_types.at(bid));
         state.block_types.insert_or_assign(bid, std::move(new_kind));
         std::terminate();
     }
 
-    void infer_recursive_terminator(InferState &state, Component const &component)
+    void
+    infer_recursive_terminator(InferState &state, Component const &component)
     {
-        for (block_id bid : component) {
+        for (block_id const bid : component) {
             infer_block_end(state, bid, component);
         }
-        for (block_id bid : component) {
+        for (block_id const bid : component) {
             infer_block_end(state, bid, component);
         }
-        for (block_id bid : component) {
+        for (block_id const bid : component) {
             auto orig_type = state.block_types.at(bid);
             auto term = infer_block_end(state, bid, component);
             insert_block_terminator(state, bid, std::move(term));
@@ -181,10 +187,11 @@ namespace
         }
     }
 
-    void infer_non_recursive_terminator(InferState &state, Component const &component)
+    void infer_non_recursive_terminator(
+        InferState &state, Component const &component)
     {
         assert(component.size() == 1);
-        block_id bid = *component.begin();
+        block_id const bid = *component.begin();
         auto term = infer_block_end(state, bid, component);
         insert_block_terminator(state, bid, std::move(term));
     }
@@ -200,7 +207,7 @@ namespace
         if (component.size() > 1) {
             return true;
         }
-        for (block_id suc : state.static_successors(*component.begin())) {
+        for (block_id const suc : state.static_successors(*component.begin())) {
             if (component.contains(suc)) {
                 return true;
             }
@@ -222,11 +229,12 @@ namespace
         }
         try {
             for (auto const &bid : component) {
-               infer_block_start(state, bid);
+                infer_block_start(state, bid);
             }
             if (is_recursive_component(state, component)) {
                 infer_recursive_terminator(state, component);
-            } else {
+            }
+            else {
                 infer_non_recursive_terminator(state, component);
             }
         }
@@ -250,8 +258,7 @@ namespace
                 .output = std::move(pre_block.output),
                 .instrs = std::move(pre_block.instrs),
                 .kind = std::move(state.block_types.at(i)),
-                .terminator = std::move(state.block_terminators.at(i))
-            });
+                .terminator = std::move(state.block_terminators.at(i))});
         }
         return blocks;
     }
