@@ -1,8 +1,10 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <string_view>
 
 namespace monad::compiler
@@ -525,5 +527,95 @@ namespace monad::compiler
         return opcode == JUMPDEST || opcode == JUMPI || opcode == JUMP ||
                opcode == RETURN || opcode == STOP || opcode == REVERT ||
                opcode == SELFDESTRUCT;
+    }
+
+    /**
+     * Opcode must be the opcode of some DUPN instruction.
+     * Returns `N`.
+     */
+    constexpr uint8_t get_dup_opcode_index(uint8_t const opcode)
+    {
+        assert(is_dup_opcode(opcode));
+        switch (opcode) {
+        case DUP1:
+            return 1;
+        case DUP2:
+            return 2;
+        case DUP3:
+            return 3;
+        case DUP4:
+            return 4;
+        case DUP5:
+            return 5;
+        case DUP6:
+            return 6;
+        case DUP7:
+            return 7;
+        case DUP8:
+            return 8;
+        case DUP9:
+            return 9;
+        case DUP10:
+            return 10;
+        case DUP11:
+            return 11;
+        case DUP12:
+            return 12;
+        case DUP13:
+            return 13;
+        case DUP14:
+            return 14;
+        case DUP15:
+            return 15;
+        case DUP16:
+            return 16;
+        default:
+            std::terminate();
+        }
+    }
+
+    /**
+     * Opcode must be the opcode of some SWAPN instruction.
+     * Returns `N`.
+     */
+    constexpr uint8_t get_swap_opcode_index(uint8_t const opcode)
+    {
+        assert(is_swap_opcode(opcode));
+        switch (opcode) {
+        case SWAP1:
+            return 1;
+        case SWAP2:
+            return 2;
+        case SWAP3:
+            return 3;
+        case SWAP4:
+            return 4;
+        case SWAP5:
+            return 5;
+        case SWAP6:
+            return 6;
+        case SWAP7:
+            return 7;
+        case SWAP8:
+            return 8;
+        case SWAP9:
+            return 9;
+        case SWAP10:
+            return 10;
+        case SWAP11:
+            return 11;
+        case SWAP12:
+            return 12;
+        case SWAP13:
+            return 13;
+        case SWAP14:
+            return 14;
+        case SWAP15:
+            return 15;
+        case SWAP16:
+            return 16;
+        default:
+            std::terminate();
+        }
     }
 }

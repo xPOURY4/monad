@@ -6,6 +6,7 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/ir/poly_typed/strongly_connected_components.h"
 #include "compiler/types.h"
+#include <compiler/opcode_cases.h>
 #include <cassert>
 #include <exception>
 #include <unordered_map>
@@ -53,11 +54,100 @@ namespace
         state.block_terminators.insert_or_assign(bid, std::move(new_term));
     }
 
+    ContKind initial_block_kind(InferState &state, block_id bid)
+    {
+        std::vector<Kind> front;
+        size_t n = state.pre_blocks[bid].min_params;
+        for (size_t i = 0; i < n; ++i) {
+            front.push_back(kind_var(state.fresh()));
+        }
+        return cont_kind(std::move(front), state.fresh());
+    }
+
+    void infer_instruction_pop(std::vector<Kind> &stack)
+    {
+        assert(!stack.empty());
+        stack.pop_back();
+    }
+
+    void infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
+    {
+        size_t ix = get_swap_opcode_index(ins.opcode);
+        assert(stack.size() > ix);
+        std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
+    }
+
+    void infer_instruction_dup(Instruction const &ins,
+            std::vector<Kind> &stack)
+    {
+        size_t ix = get_dup_opcode_index(ins.opcode);
+        assert(stack.size() >= ix);
+        stack.push_back(stack[stack.size() - ix]);
+    }
+
+    void infer_instruction_default(InferState &state, Instruction const &ins,
+            std::vector<Kind> &stack)
+    {
+        auto const info = opcode_info_table[ins.opcode];
+        assert(stack.size() >= info.min_stack);
+        std::vector<Kind> front;
+        for (size_t i = 0; i < info.min_stack; ++i) {
+            unify(state.subst_maps.back(), stack.back(), word);
+            stack.pop_back();
+        }
+        if (info.increases_stack) {
+            stack.push_back(word);
+        }
+    }
+
+    void infer_instruction(InferState &state, Instruction const &ins,
+            std::vector<Kind> &stack)
+    {
+        switch (ins.opcode) {
+        case POP:
+            return infer_instruction_pop(stack);
+        case ANY_SWAP:
+            return infer_instruction_swap(ins, stack);
+        case ANY_DUP:
+            return infer_instruction_dup(ins, stack);
+        default:
+            return infer_instruction_default(state, ins, stack);
+        }
+    }
+
+    void unify_terminator_input(InferState &state, basic_blocks::Terminator term,
+            std::vector<Kind> &stack)
+    {
+        switch (term) {
+        case basic_blocks::Terminator::JumpI:
+            assert(stack.size() >= 2);
+            unify(state.subst_maps.back(), stack[stack.size() - 2], word);
+            break;
+        case basic_blocks::Terminator::Return:
+            // Fall through
+        case basic_blocks::Terminator::Revert:
+            assert(stack.size() >= 2);
+            unify(state.subst_maps.back(), stack[stack.size() - 1], word);
+            unify(state.subst_maps.back(), stack[stack.size() - 2], word);
+            break;
+        case basic_blocks::Terminator::SelfDestruct:
+            assert(!stack.empty());
+            unify(state.subst_maps.back(), stack.back(), word);
+            break;
+        default:
+            break;
+        }
+    }
+
     void infer_block_start(InferState &state, block_id bid)
     {
-        (void)state;
-        (void)bid;
-        std::terminate();
+        ContKind cont = state.block_types.at(bid);
+        std::vector<Kind> stack = cont->front;
+        auto const &block = state.pre_blocks[bid];
+        for (auto const &ins : block.instrs) {
+            infer_instruction(state, ins, stack);
+        }
+        unify_terminator_input(state, block.terminator, stack);
     }
 
     Terminator infer_block_end(InferState &state, block_id bid, Component const &component)
@@ -82,7 +172,8 @@ namespace
         }
         for (block_id bid : component) {
             auto orig_type = state.block_types.at(bid);
-            infer_block_end(state, bid, component);
+            auto term = infer_block_end(state, bid, component);
+            insert_block_terminator(state, bid, std::move(term));
             auto new_type = state.block_types.at(bid);
             if (!alpha_equal(std::move(orig_type), std::move(new_type))) {
                 throw UnificationException{};
@@ -125,7 +216,7 @@ namespace
         for (auto const &bid : component) {
             __attribute__((unused)) bool const ins =
                 state.block_types
-                    .insert_or_assign(bid, cont_kind({}, state.fresh()))
+                    .insert_or_assign(bid, initial_block_kind(state, bid))
                     .second;
             assert(ins);
         }
