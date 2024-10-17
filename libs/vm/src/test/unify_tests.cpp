@@ -125,6 +125,38 @@ TEST(unify, test_3)
             4)));
 }
 
+TEST(unify, test_4)
+{
+    ContKind k1 = cont_kind({});
+    for (size_t i = 0; i < max_kind_depth / 2 - 1; ++i) {
+        k1 = cont_kind({cont(k1)});
+    }
+    SubstMap su1;
+    unify(su1, k1, cont_kind({}, 0));
+    for (size_t i = 0; i < max_kind_depth / 2 + 2; ++i) {
+        k1 = cont_kind({cont(k1)});
+    }
+    SubstMap su2;
+    EXPECT_THROW(unify(su2, k1, cont_kind({}, 1)), DepthException);
+}
+
+TEST(unify, test_5)
+{
+    std::vector<Kind> front1;
+    for (size_t i = 0; i < max_kind_ticks / 2 - 1; ++i) {
+        front1.push_back(word);
+    }
+    ContKind k1 = cont_kind(front1);
+    SubstMap su1;
+    unify(su1, k1, cont_kind({}, 0));
+    for (size_t i = 0; i < max_kind_ticks / 2 + 2; ++i) {
+        front1.push_back(word);
+    }
+    k1 = cont_kind(front1);
+    SubstMap su2;
+    EXPECT_THROW(unify(su2, k1, cont_kind({}, 1)), TickException);
+}
+
 TEST(unify_param_var, test_1)
 {
     SubstMap su{};
