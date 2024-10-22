@@ -23,8 +23,8 @@ namespace
         return InferState{
             .jumpdests = jumpdests,
             .pre_blocks = pre_blocks,
-            .next_fresh_var_names = {},
-            .subst_maps = {},
+            .next_fresh_var_name = 0,
+            .subst_map = {},
             .block_types = {},
             .block_terminators = {}};
     }

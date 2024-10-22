@@ -11,8 +11,8 @@ namespace monad::compiler::poly_typed
     {
         std::unordered_map<byte_offset, block_id> const &jumpdests;
         std::vector<local_stacks::Block> const &pre_blocks;
-        std::vector<VarName> next_fresh_var_names;
-        std::vector<SubstMap> subst_maps;
+        VarName next_fresh_var_name;
+        SubstMap subst_map;
         std::unordered_map<block_id, ContKind> block_types;
         std::unordered_map<block_id, Terminator> block_terminators;
 
@@ -20,7 +20,7 @@ namespace monad::compiler::poly_typed
 
         VarName fresh()
         {
-            return next_fresh_var_names.back()++;
+            return next_fresh_var_name++;
         }
 
         ContKind get_type(block_id);

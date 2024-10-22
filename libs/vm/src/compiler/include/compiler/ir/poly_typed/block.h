@@ -12,13 +12,15 @@ namespace monad::compiler::poly_typed
 
     struct FallThrough
     {
-        ContKind fall_through_kind;
+        ContKind fallthrough_kind;
+        block_id fallthrough_dest;
     };
 
     struct JumpI
     {
-        ContKind fall_through_kind;
+        ContKind fallthrough_kind;
         ContKind jump_kind;
+        block_id fallthrough_dest;
     };
 
     struct Jump
