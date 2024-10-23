@@ -17,32 +17,11 @@ namespace
     using namespace monad::compiler;
     using namespace monad::compiler::poly_typed;
 
-    std::optional<block_id>
-    get_jumpdest(InferState const &state, Value const &value)
-    {
-        if (value.is != ValueIs::LITERAL) {
-            return std::nullopt;
-        }
-        if (value.data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
-            return std::nullopt;
-        }
-
-        static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
-
-        byte_offset const offset = static_cast<byte_offset>(value.data[0]);
-
-        auto it = state.jumpdests.find(offset);
-        if (it == state.jumpdests.end()) {
-            return std::nullopt;
-        }
-        return it->second;
-    }
-
     void push_static_jumpdest(
         std::vector<block_id> &dest, InferState const &state,
         Value const &value)
     {
-        auto d = get_jumpdest(state, value);
+        auto d = state.get_jumpdest(value);
         if (d.has_value()) {
             dest.push_back(d.value());
         }
@@ -125,6 +104,26 @@ namespace monad::compiler::poly_typed
         return refresh(*this, su, it->second);
     }
 
+    std::optional<block_id> InferState::get_jumpdest(Value const &value) const
+    {
+        if (value.is != ValueIs::LITERAL) {
+            return std::nullopt;
+        }
+        if (value.data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
+            return std::nullopt;
+        }
+
+        static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
+
+        byte_offset const offset = static_cast<byte_offset>(value.data[0]);
+
+        auto it = jumpdests.find(offset);
+        if (it == jumpdests.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
     std::vector<block_id> InferState::static_successors(block_id b) const
     {
         std::vector<block_id> ret;
@@ -144,7 +143,7 @@ namespace monad::compiler::poly_typed
             break;
         case basic_blocks::Terminator::Jump:
             assert(block.output.size() >= 1);
-            if (!get_jumpdest(*this, block.output[0]).has_value()) {
+            if (!get_jumpdest(block.output[0]).has_value()) {
                 // We do not consider the output values if the jumpdest is not a
                 // literal.
                 break;

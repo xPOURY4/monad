@@ -16,6 +16,8 @@ namespace monad::compiler::poly_typed
         std::unordered_map<block_id, ContKind> block_types;
         std::unordered_map<block_id, Terminator> block_terminators;
 
+        std::optional<block_id> get_jumpdest(Value const &) const;
+
         std::vector<block_id> static_successors(block_id b) const;
 
         VarName fresh()

@@ -34,24 +34,21 @@ namespace
             Cases{
                 [&state](FallThrough const &t) -> Terminator {
                     return FallThrough{
-                        state.subst_map.subst_or_throw(t.fallthrough_kind)};
+                        .fallthrough_kind = state.subst_map.subst_or_throw(t.fallthrough_kind),
+                        .fallthrough_dest = t.fallthrough_dest};
                 },
                 [&state](JumpI const &t) -> Terminator {
                     return JumpI{
                         .fallthrough_kind =
                             state.subst_map.subst_or_throw(t.fallthrough_kind),
                         .jump_kind =
-                            state.subst_map.subst_or_throw(t.jump_kind)};
+                            state.subst_map.subst_or_throw(t.jump_kind),
+                        .fallthrough_dest = t.fallthrough_dest};
                 },
                 [&state](Jump const &t) -> Terminator {
-                    auto jkind = state.subst_map.subst_or_throw(t.jump_kind);
-                    return Jump{};
+                    return Jump{state.subst_map.subst_or_throw(t.jump_kind)};
                 },
-                [](Return const &t) -> Terminator { return t; },
-                [](Stop const &t) -> Terminator { return t; },
-                [](Revert const &t) -> Terminator { return t; },
-                [](SelfDestruct const &t) -> Terminator { return t; },
-                [](InvalidInstruction const &t) -> Terminator { return t; },
+                [](auto const &t) -> Terminator { return t; },
             },
             state.block_terminators.at(bid));
 
@@ -121,7 +118,7 @@ namespace
 
     void push_literal_output(
         InferState &state, Component const &component, std::vector<Kind> &front,
-        Kind &&k, uint256_t const &data, uint64_t jumpix, bool is_jump)
+        Kind &&k, uint256_t const &data, uint64_t jumpix)
     {
         assert(alpha_equal(k, word));
         if (data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
@@ -137,7 +134,7 @@ namespace
             return;
         }
         block_id const b = bid_it->second;
-        if (is_jump && jumpix != std::numeric_limits<uint64_t>::max() &&
+        if (jumpix != std::numeric_limits<uint64_t>::max() &&
             component.contains(b)) {
             // Recursive is assumed to be word if it appears as argument to a
             // continuation (parameter).
@@ -166,7 +163,7 @@ namespace
         InferState &state, ParamVarNameMap &param_map,
         Component const &component, size_t offset,
         local_stacks::Block const &block, std::vector<Kind> &&stack,
-        ContTailKind &&tail, uint64_t jumpix, bool is_jump)
+        ContTailKind &&tail, uint64_t jumpix)
     {
         assert(stack.size() == block.output.size());
         assert(stack.size() >= offset);
@@ -180,8 +177,7 @@ namespace
                     front,
                     std::move(stack[i]),
                     block.output[i].data,
-                    jumpix,
-                    is_jump);
+                    jumpix);
                 break;
             case local_stacks::ValueIs::PARAM_ID:
                 push_param_output(
@@ -230,8 +226,7 @@ namespace
                     block,
                     std::move(stack),
                     std::move(tail),
-                    jumpix,
-                    false),
+                    jumpix),
                 .jump_kind = block_output_kind(
                     state,
                     param_map,
@@ -240,8 +235,7 @@ namespace
                     block,
                     std::move(jump_stack),
                     std::move(jump_tail),
-                    jumpix,
-                    true),
+                    jumpix),
                 .fallthrough_dest = block.fallthrough_dest,
             });
         return jumpdest;
@@ -274,8 +268,7 @@ namespace
                     block,
                     std::move(stack),
                     std::move(tail),
-                    jumpix,
-                    true),
+                    jumpix),
             });
         return jumpdest;
     }
@@ -298,8 +291,7 @@ namespace
                     block,
                     std::move(stack),
                     std::move(tail),
-                    jumpix,
-                    false),
+                    jumpix),
                 block.fallthrough_dest});
         return any; // should never be used
     }
@@ -420,41 +412,82 @@ namespace
 
     using ComponentTypeSpec = std::vector<BlockTypeSpec>;
 
-    void infer_block_jump()
+    void infer_block_jump_literal(InferState &state, Value const &dest, ContKind out_kind)
     {
-        // TODO
+        std::optional<block_id> did = state.get_jumpdest(dest);
+        if (!did.has_value()) {
+            // Invalid jump destination. Unify will always succeed.
+            return;
+        }
+        unify(state.subst_map, state.get_type(did.value()), std::move(out_kind));
     }
 
-    void infer_block_fallthrough()
+    void infer_block_jump_param(InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
     {
-        // TODO
+        assert(std::holds_alternative<KindVar>(*bts.jumpdest));
+        Kind dest_kind = state.subst_map.subst_or_throw(bts.jumpdest);
+        if (std::holds_alternative<KindVar>(*dest_kind)) {
+            VarName v = std::get<KindVar>(*dest_kind).var;
+            state.subst_map.insert_kind(v, any);
+            state.subst_map.insert_kind(v,
+                    cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+        }
+        else if (std::holds_alternative<Word>(*dest_kind)) {
+            VarName v = state.subst_map.subst_to_var(bts.jumpdest);
+            state.subst_map.insert_kind(v,
+                    word_cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+        }
+        else {
+            unify(state.subst_map, std::move(dest_kind), cont(std::move(out_kind)));
+        }
+    }
+
+    void infer_block_jump(InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
+    {
+        auto const &block = state.pre_blocks[bts.bid];
+        assert(!block.output.empty());
+        Value const &dest = block.output[0];
+        switch (dest.is) {
+        case local_stacks::ValueIs::LITERAL:
+            return infer_block_jump_literal(state, dest, std::move(out_kind));
+        case local_stacks::ValueIs::PARAM_ID:
+            return infer_block_jump_param(state, bts, std::move(out_kind));
+        case local_stacks::ValueIs::COMPUTED:
+            throw UnificationException{};
+        }
+        std::terminate();
+    }
+
+    void infer_block_fallthrough(InferState &state, block_id dest, ContKind out_kind)
+    {
+        unify(state.subst_map, state.get_type(dest), std::move(out_kind));
     }
 
     void infer_block_end(InferState &state, BlockTypeSpec const &bts)
     {
         auto const &term = state.block_terminators.at(bts.bid);
         if (std::holds_alternative<Jump>(term)) {
-            infer_block_jump();
+            infer_block_jump(state, bts, std::get<Jump>(term).jump_kind);
         }
         else if (std::holds_alternative<JumpI>(term)) {
-            infer_block_jump();
+            auto const &jumpi = std::get<JumpI>(term);
+            infer_block_jump(state, bts, jumpi.jump_kind);
+            infer_block_fallthrough(state, jumpi.fallthrough_dest, jumpi.fallthrough_kind);
         }
-        else if (!std::holds_alternative<FallThrough>(term)) {
+        else if (std::holds_alternative<FallThrough>(term)) {
+            auto const &fall = std::get<FallThrough>(term);
+            infer_block_fallthrough(state, fall.fallthrough_dest, fall.fallthrough_kind);
+        } else {
+            // Exit terminator unification will always succeed.
             return;
         }
+
         auto const &cont = state.block_types.at(bts.bid);
         std::vector<VarName> front_vars;
         for (auto const &k : cont->front) {
             assert(std::holds_alternative<KindVar>(*k));
             front_vars.push_back(std::get<KindVar>(*k).var);
         }
-        if (std::holds_alternative<JumpI>(term)) {
-            infer_block_fallthrough();
-        }
-        else if (std::holds_alternative<FallThrough>(term)) {
-            infer_block_fallthrough();
-        }
-
         unify_param_var_name_map(state.subst_map, front_vars, bts.param_map);
     }
 
