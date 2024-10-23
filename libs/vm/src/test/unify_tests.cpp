@@ -98,8 +98,8 @@ TEST(unify, test_3)
     ASSERT_TRUE(alpha_equal(
         su.subst(c1).value(),
         cont_kind(
-            {cont(cont_kind({cont(cont_kind({})), cont(cont_kind({}, 4))}, 4)),
-             cont(cont_kind({kind_var(0)})),
+            {cont(cont_kind({cont(cont_kind({word})), cont(cont_kind({}, 4))}, 4)),
+             cont(cont_kind({kind_var(0), word})),
              cont(cont_kind({}, 4))},
             4)));
 
@@ -109,8 +109,8 @@ TEST(unify, test_3)
     ASSERT_TRUE(alpha_equal(
         su.subst(c1).value(),
         cont_kind(
-            {cont(cont_kind({cont(cont_kind({})), cont(cont_kind({}, 4))}, 4)),
-             cont(cont_kind({kind_var(0)})),
+            {cont(cont_kind({cont(cont_kind({word})), cont(cont_kind({}, 4))}, 4)),
+             cont(cont_kind({kind_var(0), word})),
              cont(cont_kind({}, 4))},
             4)));
 
@@ -120,8 +120,8 @@ TEST(unify, test_3)
     ASSERT_TRUE(alpha_equal(
         su.subst(c1).value(),
         cont_kind(
-            {cont(cont_kind({cont(cont_kind({})), cont(cont_kind({}, 4))}, 4)),
-             cont(cont_kind({kind_var(0)})),
+            {cont(cont_kind({cont(cont_kind({word})), cont(cont_kind({}, 4))}, 4)),
+             cont(cont_kind({kind_var(0), word})),
              cont(cont_kind({}, 4))},
             4)));
 }
@@ -175,7 +175,7 @@ TEST(unify_param_var, test_1)
     unify(su, kind_var(12), word_cont(cont_kind({})));
     unify_param_var_name_map(su, param_vars, param_map);
     ASSERT_TRUE(
-        alpha_equal(su.subst(kind_var(0)).value(), word_cont(cont_kind({}))));
+        alpha_equal(su.subst(kind_var(0)).value(), word_cont(cont_kind({word}))));
 }
 
 TEST(unify_param_var, test_2)
