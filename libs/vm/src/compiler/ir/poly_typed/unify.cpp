@@ -160,6 +160,27 @@ namespace
     void
     unify(SubstMap &su, ContKind k1, ContKind k2, size_t depth, size_t &ticks);
 
+    void unify_literal_var_to_type(
+        SubstMap &su, LiteralVar const &lv1, LiteralVar const &lv2,
+        LiteralType t2, size_t depth, size_t &ticks)
+    {
+        switch (t2) {
+        case LiteralType::Word:
+            su.insert_literal_type(lv1.var, LiteralType::Word);
+            break;
+        case LiteralType::Cont:
+            su.insert_literal_type(lv1.var, LiteralType::Cont);
+            increment_kind_ticks(ticks, 1);
+            unify(su, lv1.cont, lv2.cont, depth, ticks);
+            break;
+        case LiteralType::WordCont:
+            su.insert_literal_type(lv1.var, LiteralType::WordCont);
+            increment_kind_ticks(ticks, 1);
+            unify(su, lv1.cont, lv2.cont, depth, ticks);
+            break;
+        }
+    }
+
     void unify_literal_vars(
         SubstMap &su, LiteralVar const &lv1, LiteralVar const &lv2,
         size_t depth, size_t &ticks)
@@ -182,30 +203,15 @@ namespace
             return;
         }
         if (!t2.has_value()) {
-            std::swap(t1, t2);
+            return unify_literal_var_to_type(su, lv2, lv1, t1.value(), depth, ticks);
         }
         if (!t1.has_value()) {
-            switch (t2.value()) {
-            case LiteralType::Word:
-                su.insert_literal_type(lv1.var, LiteralType::Word);
-                return;
-            case LiteralType::Cont:
-                su.insert_literal_type(lv1.var, LiteralType::Cont);
-                increment_kind_ticks(ticks, 1);
-                unify(su, lv1.cont, lv2.cont, depth, ticks);
-                return;
-            case LiteralType::WordCont:
-                su.insert_literal_type(lv1.var, LiteralType::WordCont);
-                increment_kind_ticks(ticks, 1);
-                unify(su, lv1.cont, lv2.cont, depth, ticks);
-                return;
-            }
+            return unify_literal_var_to_type(su, lv1, lv2, t2.value(), depth, ticks);
         }
         if (t1.value() != t2.value()) {
             throw UnificationException{};
         }
-        if (t1.value() != LiteralType::Word ||
-            t2.value() != LiteralType::Word) {
+        if (t1.value() != LiteralType::Word) {
             unify(su, lv1.cont, lv2.cont, depth, ticks);
         }
     }

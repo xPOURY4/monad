@@ -119,6 +119,10 @@ namespace monad::compiler::poly_typed
 
     void format_cont(ContKind const &cont, std::format_context &ctx);
 
+    /// Alpha equiality:
+    /// * `a,Word,(a,s -> Exit),s -> Exit` is alpha equal to `b,Word,(b,t -> Exit),t -> Exit`
+    /// * `a,s -> Exit` is alpha equal to `s -> Exit`
+    /// * `Word,Word.. -> Exit` it alpha equal to `Word.. -> Exit`
     bool alpha_equal(Kind, Kind);
 
     bool operator==(Kind, Kind);
@@ -128,6 +132,7 @@ namespace monad::compiler::poly_typed
         return !(std::move(k1) == std::move(k2));
     }
 
+    /// See `alpha_equal(Kind, Kind)`.
     bool alpha_equal(ContKind, ContKind);
 
     bool operator==(ContKind, ContKind);

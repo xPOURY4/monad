@@ -71,9 +71,19 @@ namespace
         }
         return std::visit(
             Cases{
-                [&su, &c1, &c2](ContVar const &cv1) {
-                    if (c1->front.size() != c2->front.size()) {
-                        return false;
+                [&su, &c1, &c2, min_size](ContVar const &cv1) {
+                    auto const &n = c1->front.size() > c2->front.size()
+                                        ? c1->front
+                                        : c2->front;
+                    for (size_t i = min_size; i < n.size(); ++i) {
+                        if (!std::holds_alternative<KindVar>(*n[i])) {
+                            return false;
+                        }
+                        VarName v = std::get<KindVar>(*n[i]).var;
+                        if (su.kind_map.contains(v)) {
+                            return false;
+                        }
+                        su.kind_map.insert_or_assign(v, v);
                     }
                     ContVar const &cv2 = std::get<ContVar>(c2->tail);
                     auto it1 = su.cont_map.find(cv1.var);

@@ -133,7 +133,7 @@ namespace monad::compiler::poly_typed
                 [this, depth, &ticks](LiteralVar const &lv) {
                     auto t = literal_map.find(lv.var);
                     if (t == literal_map.end()) {
-                        auto v = get_min_literal_var_name(lv.var);
+                        auto v = subst_literal_var_name(lv.var);
                         return literal_var(v, lv.cont);
                     }
                     switch (t->second) {
@@ -248,7 +248,7 @@ namespace monad::compiler::poly_typed
         kind_map.revert();
     }
 
-    VarName SubstMap::get_min_literal_var_name(VarName v0)
+    VarName SubstMap::subst_literal_var_name(VarName v0)
     {
         VarName min_var_name = v0;
         std::unordered_set<VarName> visited;

@@ -66,6 +66,6 @@ namespace monad::compiler::poly_typed
         void revert();
 
     private:
-        VarName get_min_literal_var_name(VarName);
+        VarName subst_literal_var_name(VarName);
     };
 }
