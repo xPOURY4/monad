@@ -57,14 +57,20 @@ namespace
         state.block_terminators.insert_or_assign(bid, new_term);
     }
 
-    ContKind initial_block_kind(InferState &state, block_id bid)
+    ContKind initial_block_kind(
+        InferState &state, block_id bid,
+        std::unordered_map<block_id, std::vector<VarName>> &front_vars_map)
     {
         std::vector<Kind> front;
         size_t const n = state.pre_blocks[bid].min_params;
+        auto &front_vars = front_vars_map[bid];
         for (size_t i = 0; i < n; ++i) {
-            front.push_back(kind_var(state.fresh()));
+            VarName const v = state.fresh_kind_var();
+            front_vars.push_back(v);
+            front.push_back(kind_var(v));
         }
-        return cont_kind(std::move(front), state.fresh());
+        auto ret = cont_kind(std::move(front), state.fresh_cont_var());
+        return ret;
     }
 
     void infer_instruction_pop(std::vector<Kind> &stack)
@@ -125,14 +131,18 @@ namespace
         assert(alpha_equal(k, word));
         if (data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
             // Invalid jump
-            front.push_back(cont(cont_kind({}, state.fresh())));
+            front.push_back(literal_var(
+                state.fresh_literal_var(),
+                cont_kind({}, state.fresh_cont_var())));
             return;
         }
         static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
         auto bid_it = state.jumpdests.find(data[0]);
         if (bid_it == state.jumpdests.end()) {
             // Invalid jump
-            front.push_back(cont(cont_kind({}, state.fresh())));
+            front.push_back(literal_var(
+                state.fresh_literal_var(),
+                cont_kind({}, state.fresh_cont_var())));
             return;
         }
         block_id const b = bid_it->second;
@@ -143,7 +153,8 @@ namespace
             front.push_back(std::move(k));
             return;
         }
-        front.push_back(literal_var(state.fresh(), state.get_type(b)));
+        front.push_back(
+            literal_var(state.fresh_literal_var(), state.get_type(b)));
     }
 
     void push_param_output(
@@ -155,7 +166,7 @@ namespace
             front.push_back(std::move(k));
         }
         else {
-            VarName const v = state.fresh();
+            VarName const v = state.fresh_kind_var();
             param_map[data[0]].push_back(v);
             front.push_back(kind_var(v));
         }
@@ -170,15 +181,16 @@ namespace
         assert(stack.size() == block.output.size());
         assert(stack.size() >= offset);
         std::vector<Kind> front;
-        for (size_t i = offset; i < stack.size(); ++i) {
-            switch (block.output[i].is) {
+        for (size_t oix = offset, six = stack.size() - offset; six > 0; ++oix) {
+            --six;
+            switch (block.output[oix].is) {
             case local_stacks::ValueIs::LITERAL:
                 push_literal_output(
                     state,
                     component,
                     front,
-                    std::move(stack[i]),
-                    block.output[i].data,
+                    std::move(stack[six]),
+                    block.output[oix].data,
                     jumpix);
                 break;
             case local_stacks::ValueIs::PARAM_ID:
@@ -186,12 +198,12 @@ namespace
                     state,
                     param_map,
                     front,
-                    std::move(stack[i]),
-                    block.output[i].data,
+                    std::move(stack[six]),
+                    block.output[oix].data,
                     jumpix);
                 break;
             case local_stacks::ValueIs::COMPUTED:
-                front.push_back(std::move(stack[i]));
+                front.push_back(std::move(stack[six]));
                 break;
             }
         }
@@ -391,6 +403,7 @@ namespace
     {
         ContKind const cont = state.block_types.at(bid);
         std::vector<Kind> stack = cont->front;
+        std::reverse(stack.begin(), stack.end());
         auto const &block = state.pre_blocks[bid];
         for (auto const &ins : block.instrs) {
             infer_instruction(state, ins, stack);
@@ -410,6 +423,7 @@ namespace
         block_id bid;
         Kind jumpdest;
         ParamVarNameMap param_map;
+        std::vector<VarName> front_vars;
     };
 
     using ComponentTypeSpec = std::vector<BlockTypeSpec>;
@@ -474,35 +488,69 @@ namespace
         unify(state.subst_map, state.get_type(dest), std::move(out_kind));
     }
 
-    void infer_block_end(InferState &state, BlockTypeSpec const &bts)
+    void unify_out_kind_literal_vars(
+        InferState &state, Component const &component, BlockTypeSpec const &bts,
+        size_t offset, ContKind out_kind)
+    {
+        auto const &block = state.pre_blocks[bts.bid];
+        for (size_t oix = offset; oix < block.output.size(); ++oix) {
+            auto b = state.get_jumpdest(block.output[oix]);
+            if (!b.has_value() || !component.contains(b.value())) {
+                continue;
+            }
+            size_t const fix = oix - offset;
+            Kind const &k = out_kind->front[fix];
+            if (!std::holds_alternative<LiteralVar>(*k)) {
+                continue;
+            }
+            unify(
+                state.subst_map,
+                state.get_type(b.value()),
+                std::get<LiteralVar>(*k).cont);
+        }
+    }
+
+    void infer_block_end(
+        InferState &state, Component const &component, BlockTypeSpec const &bts)
     {
         auto const &term = state.block_terminators.at(bts.bid);
         if (std::holds_alternative<Jump>(term)) {
+            auto const &jump = std::get<Jump>(term);
+            unify_out_kind_literal_vars(
+                state, component, bts, 1, jump.jump_kind);
             infer_block_jump(state, bts, std::get<Jump>(term).jump_kind);
         }
         else if (std::holds_alternative<JumpI>(term)) {
             auto const &jumpi = std::get<JumpI>(term);
+            unify_out_kind_literal_vars(
+                state, component, bts, 2, jumpi.jump_kind);
             infer_block_jump(state, bts, jumpi.jump_kind);
+            unify_out_kind_literal_vars(
+                state, component, bts, 2, jumpi.fallthrough_kind);
             infer_block_fallthrough(
                 state, jumpi.fallthrough_dest, jumpi.fallthrough_kind);
         }
         else if (std::holds_alternative<FallThrough>(term)) {
             auto const &fall = std::get<FallThrough>(term);
+            unify_out_kind_literal_vars(
+                state, component, bts, 2, fall.fallthrough_kind);
             infer_block_fallthrough(
                 state, fall.fallthrough_dest, fall.fallthrough_kind);
         }
         else {
             // Exit terminator unification will always succeed.
+            state.block_types.insert_or_assign(
+                bts.bid,
+                state.subst_map.subst_or_throw(state.block_types.at(bts.bid)));
             return;
         }
 
-        auto const &cont = state.block_types.at(bts.bid);
-        std::vector<VarName> front_vars;
-        for (auto const &k : cont->front) {
-            assert(std::holds_alternative<KindVar>(*k));
-            front_vars.push_back(std::get<KindVar>(*k).var);
-        }
-        unify_param_var_name_map(state.subst_map, front_vars, bts.param_map);
+        unify_param_var_name_map(
+            state.subst_map, bts.front_vars, bts.param_map);
+
+        state.block_types.insert_or_assign(
+            bts.bid,
+            state.subst_map.subst_or_throw(state.block_types.at(bts.bid)));
     }
 
     void sort_component_type_spec(
@@ -551,39 +599,35 @@ namespace
             });
     }
 
-    void
-    infer_recursive_component(InferState &state, ComponentTypeSpec const &cts)
+    void infer_recursive_component(
+        InferState &state, Component const &component,
+        ComponentTypeSpec const &cts)
     {
         assert(!cts.empty());
         for (auto const &bts : cts) {
-            infer_block_end(state, bts);
+            infer_block_end(state, component, bts);
         }
         for (auto const &bts : cts) {
-            infer_block_end(state, bts);
+            infer_block_end(state, component, bts);
         }
         for (auto const &bts : cts) {
-            auto orig_type =
-                state.subst_map.subst_or_throw(state.block_types.at(bts.bid));
-            infer_block_end(state, bts);
-            auto new_type =
-                state.subst_map.subst_or_throw(state.block_types.at(bts.bid));
+            auto orig_type = state.block_types.at(bts.bid);
+            infer_block_end(state, component, bts);
+            auto new_type = state.block_types.at(bts.bid);
             if (!alpha_equal(std::move(orig_type), std::move(new_type))) {
                 throw UnificationException{};
             }
-            state.block_types.insert_or_assign(bts.bid, std::move(new_type));
             subst_terminator(state, bts.bid);
         }
     }
 
     void infer_non_recursive_component(
-        InferState &state, ComponentTypeSpec const &cts)
+        InferState &state, Component const &component,
+        ComponentTypeSpec const &cts)
     {
         assert(cts.size() == 1);
-        infer_block_end(state, cts[0]);
+        infer_block_end(state, component, cts[0]);
         block_id const bid = cts[0].bid;
-        auto new_kind =
-            state.subst_map.subst_or_throw(state.block_types.at(bid));
-        state.block_types.insert_or_assign(bid, std::move(new_kind));
         subst_terminator(state, bid);
     }
 
@@ -626,12 +670,13 @@ namespace
     void infer_component(InferState &state, Component const &component)
     {
         assert(!component.empty());
-        state.subst_map = {};
-        state.next_fresh_var_name = 0;
-        for (auto const &bid : component) {
+        std::unordered_map<block_id, std::vector<VarName>> front_vars_map;
+        state.reset();
+        for (auto const bid : component) {
             __attribute__((unused)) bool const ins =
                 state.block_types
-                    .insert_or_assign(bid, initial_block_kind(state, bid))
+                    .insert_or_assign(
+                        bid, initial_block_kind(state, bid, front_vars_map))
                     .second;
             assert(ins);
         }
@@ -642,14 +687,19 @@ namespace
                 Kind jumpdest =
                     infer_block_start(state, component, param_map, bid);
                 component_type_spec.emplace_back(
-                    bid, std::move(jumpdest), std::move(param_map));
+                    bid,
+                    std::move(jumpdest),
+                    std::move(param_map),
+                    std::move(front_vars_map.at(bid)));
             }
             if (is_recursive_component(state, component)) {
                 sort_component_type_spec(state, component, component_type_spec);
-                infer_recursive_component(state, component_type_spec);
+                infer_recursive_component(
+                    state, component, component_type_spec);
             }
             else {
-                infer_non_recursive_component(state, component_type_spec);
+                infer_non_recursive_component(
+                    state, component, component_type_spec);
             }
         }
         catch (InferException const &) {
@@ -674,6 +724,24 @@ namespace
         }
         return blocks;
     }
+
+    void subst_block(SubstMap &su, Block &block)
+    {
+        block.kind = su.subst_or_throw(block.kind);
+        if (std::holds_alternative<JumpI>(block.terminator)) {
+            JumpI &jumpi = std::get<JumpI>(block.terminator);
+            jumpi.jump_kind = su.subst_or_throw(jumpi.jump_kind);
+            jumpi.fallthrough_kind = su.subst_or_throw(jumpi.fallthrough_kind);
+        }
+        else if (std::holds_alternative<Jump>(block.terminator)) {
+            Jump &jump = std::get<Jump>(block.terminator);
+            jump.jump_kind = su.subst_or_throw(jump.jump_kind);
+        }
+        else if (std::holds_alternative<FallThrough>(block.terminator)) {
+            FallThrough &fall = std::get<FallThrough>(block.terminator);
+            fall.fallthrough_kind = su.subst_or_throw(fall.fallthrough_kind);
+        }
+    }
 }
 
 namespace monad::compiler::poly_typed
@@ -682,15 +750,15 @@ namespace monad::compiler::poly_typed
         std::unordered_map<byte_offset, block_id> const &jumpdests,
         std::vector<local_stacks::Block> const &pre_blocks)
     {
-        InferState state{
-            .jumpdests = jumpdests,
-            .pre_blocks = pre_blocks,
-            .next_fresh_var_name = 0,
-            .subst_map = {},
-            .block_types = {},
-            .block_terminators = {},
-        };
+        InferState state{jumpdests, pre_blocks};
         auto const components = strongly_connected_components(state);
-        return infer_components(state, components);
+        std::vector<Block> blocks = infer_components(state, components);
+        state.reset();
+        for (auto &b : blocks) {
+            // Need to substitute one last time to eliminate all the literal
+            // vars that are assigned a literal type.
+            subst_block(state.subst_map, b);
+        }
+        return blocks;
     }
 }

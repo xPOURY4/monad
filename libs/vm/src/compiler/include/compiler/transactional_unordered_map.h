@@ -29,6 +29,11 @@ namespace monad::compiler
         using iterator = Map::iterator;
         using const_iterator = Map::const_iterator;
 
+        TransactionalUnorderedMap()
+            : current{}
+        {
+        }
+
         TransactionalUnorderedMap(std::initializer_list<value_type> init)
             : current(init)
         {

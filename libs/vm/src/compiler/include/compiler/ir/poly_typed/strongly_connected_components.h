@@ -8,6 +8,7 @@ namespace monad::compiler::poly_typed
 
     struct TarjanVertexState
     {
+        std::vector<block_id> successors;
         size_t index;
         size_t lowlink;
         bool on_stack;
@@ -27,7 +28,7 @@ namespace monad::compiler::poly_typed
     {
         block_id block;
         block_id parent;
-        bool visited;
+        size_t successors_visited;
     };
 
     void strong_connect(TarjanState &state, block_id block);

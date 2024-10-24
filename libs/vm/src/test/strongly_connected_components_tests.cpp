@@ -16,19 +16,6 @@ using namespace monad::compiler::poly_typed;
 
 namespace
 {
-    InferState make_infer_state(
-        std::unordered_map<byte_offset, block_id> const &jumpdests,
-        std::vector<local_stacks::Block> const &pre_blocks)
-    {
-        return InferState{
-            .jumpdests = jumpdests,
-            .pre_blocks = pre_blocks,
-            .next_fresh_var_name = 0,
-            .subst_map = {},
-            .block_types = {},
-            .block_terminators = {}};
-    }
-
     void assert_components(
         std::vector<Component> const &x, std::vector<Component> const &y)
     {
@@ -71,7 +58,7 @@ TEST(poly_typed, strongly_connected_components_1)
         .terminator = basic_blocks::Terminator::Stop,
         .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{0}});
 }
 
@@ -99,7 +86,7 @@ TEST(poly_typed, strongly_connected_components_2)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{2, 1}, {0}});
 }
 
@@ -133,7 +120,7 @@ TEST(poly_typed, strongly_connected_components_3)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{3, 2}, {1, 0}});
 }
 
@@ -173,7 +160,7 @@ TEST(poly_typed, strongly_connected_components_4)
             .terminator = basic_blocks::Terminator::Stop,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{4}, {1, 3, 2, 0}});
 }
 
@@ -213,7 +200,7 @@ TEST(poly_typed, strongly_connected_components_5)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{3}, {2, 1, 4, 0}});
 }
 
@@ -259,8 +246,8 @@ TEST(poly_typed, strongly_connected_components_6)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
-    assert_components(components, {{5, 4, 3}, {2, 1}, {0}});
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
+    assert_components(components, {{2, 1}, {5, 4, 3}, {0}});
 }
 
 TEST(poly_typed, strongly_connected_components_7)
@@ -300,7 +287,7 @@ TEST(poly_typed, strongly_connected_components_7)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{1}, {2, 3, 0}});
 }
 
@@ -331,6 +318,6 @@ TEST(poly_typed, strongly_connected_components_8)
             .terminator = basic_blocks::Terminator::Jump,
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
-        strongly_connected_components(make_infer_state(jumpdests, pre_blocks));
+        strongly_connected_components(InferState(jumpdests, pre_blocks));
     assert_components(components, {{1, 0}, {2}});
 }

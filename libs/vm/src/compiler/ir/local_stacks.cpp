@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <exception>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -239,24 +240,41 @@ namespace monad::compiler::local_stacks
             0, {}, std::move(in.instrs), in.terminator, in.fallthrough_dest};
         std::deque<Value> stack;
 
+        auto grow_stack_to_min_size = [&](size_t min_size) {
+            while (stack.size() < min_size) {
+                stack.emplace_back(ValueIs::PARAM_ID, out.min_params);
+                out.min_params++;
+            }
+        };
+
         for (auto const &tok : out.instrs) {
             auto const opcode = tok.opcode;
 
             auto const info = opcode_info_table[opcode];
-            // grow input stack as necessary to ensure enough values for the
-            // given opcode
-            while (stack.size() < info.min_stack) {
-                stack.emplace_back(ValueIs::PARAM_ID, out.min_params);
-                out.min_params++;
-            }
+
+            grow_stack_to_min_size(info.min_stack);
 
             eval_instruction(tok, stack, codesize);
         }
 
-        for (auto const &val : stack) {
-            out.output.push_back(val);
+        switch (out.terminator) {
+        case basic_blocks::Terminator::JumpDest:
+        case basic_blocks::Terminator::Jump:
+        case basic_blocks::Terminator::SelfDestruct:
+            grow_stack_to_min_size(1);
+            break;
+        case basic_blocks::Terminator::JumpI:
+        case basic_blocks::Terminator::Return:
+        case basic_blocks::Terminator::Revert:
+            grow_stack_to_min_size(2);
+            break;
+        case basic_blocks::Terminator::Stop:
+            break;
+        default:
+            std::terminate(); // unreachable
         }
 
+        out.output.insert(out.output.end(), stack.begin(), stack.end());
         return out;
     }
 

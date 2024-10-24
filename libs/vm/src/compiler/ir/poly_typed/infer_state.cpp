@@ -1,5 +1,6 @@
 #include "compiler/ir/poly_typed/infer_state.h"
 #include "compiler/ir/basic_blocks.h"
+#include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -53,7 +55,7 @@ namespace
                         new_v = it->second;
                     }
                     else {
-                        new_v = state.fresh();
+                        new_v = state.fresh_cont_var();
                         su.cont_map.insert_or_assign(cv.var, new_v);
                     }
                     return cont_kind(std::move(kinds), new_v);
@@ -78,7 +80,7 @@ namespace
                         new_v = it->second;
                     }
                     else {
-                        new_v = state.fresh();
+                        new_v = state.fresh_kind_var();
                         su.kind_map.insert_or_assign(kv.var, new_v);
                     }
                     return kind_var(new_v);
@@ -96,6 +98,24 @@ namespace
 
 namespace monad::compiler::poly_typed
 {
+    InferState::InferState(
+        std::unordered_map<byte_offset, block_id> const &j,
+        std::vector<local_stacks::Block> const &b)
+        : jumpdests{j}
+        , pre_blocks{b}
+        , next_cont_var_name{}
+        , next_kind_var_name{}
+        , next_literal_var_name{}
+    {
+    }
+
+    void InferState::reset()
+    {
+        subst_map.reset();
+        next_cont_var_name = 0;
+        next_kind_var_name = 0;
+    }
+
     ContKind InferState::get_type(block_id bid)
     {
         auto it = block_types.find(bid);

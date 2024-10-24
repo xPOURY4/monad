@@ -161,6 +161,21 @@ TEST(unify, test_5)
     EXPECT_THROW(unify(su2, k1, cont_kind({}, 1)), TickException);
 }
 
+TEST(unify, test_6)
+{
+    SubstMap su;
+    ContKind const c1 = cont_kind({word}, 0);
+    ContKind const c2 = cont_kind({kind_var(0)}, 1);
+    unify(
+        su,
+        cont_kind({literal_var(1, c1)}, 2),
+        cont_kind({literal_var(2, c2)}, 3));
+    unify(su, literal_var(1, c1), cont(cont_kind({word, word}, 4)));
+    ASSERT_TRUE(alpha_equal(
+        su.subst(literal_var(2, c2)).value(),
+        cont(cont_kind({word, word}, 0))));
+}
+
 TEST(unify_param_var, test_1)
 {
     SubstMap su{};

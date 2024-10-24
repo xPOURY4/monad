@@ -520,14 +520,30 @@ namespace monad::compiler::poly_typed
 {
     void unify(SubstMap &su, Kind k1, Kind k2)
     {
-        size_t ticks = 0;
-        ::unify(su, k1, k2, 0, ticks);
+        try {
+            su.transaction();
+            size_t ticks = 0;
+            ::unify(su, k1, k2, 0, ticks);
+            su.commit();
+        }
+        catch (InferException const &) {
+            su.revert();
+            throw;
+        }
     }
 
     void unify(SubstMap &su, ContKind c1, ContKind c2)
     {
-        size_t ticks = 0;
-        ::unify(su, c1, c2, 0, ticks);
+        try {
+            su.transaction();
+            size_t ticks = 0;
+            ::unify(su, c1, c2, 0, ticks);
+            su.commit();
+        }
+        catch (InferException const &) {
+            su.revert();
+            throw;
+        }
     }
 
     void unify_param_var_name_map(

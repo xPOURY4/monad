@@ -15,12 +15,10 @@
 
 namespace monad::compiler::poly_typed
 {
-    SubstMap::SubstMap()
-        : literal_map{}
-        , literal_links{}
-        , cont_map{}
-        , kind_map{}
+    void SubstMap::reset()
     {
+        cont_map = {};
+        kind_map = {};
     }
 
     std::optional<LiteralType> SubstMap::get_literal_type(VarName v)

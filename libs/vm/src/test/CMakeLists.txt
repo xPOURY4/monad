@@ -84,3 +84,12 @@ add_test(
     NAME "Unify Tests"
     COMMAND unify-tests
 )
+
+add_executable(infer-tests infer_tests.cpp)
+
+monad_compile_options(infer-tests)
+target_link_libraries(infer-tests compiler GTest::gtest_main)
+add_test(
+    NAME "Infer Tests"
+    COMMAND infer-tests
+)

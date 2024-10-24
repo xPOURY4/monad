@@ -2,6 +2,7 @@
 #include "compiler/ir/poly_typed/infer_state.h"
 #include "compiler/types.h"
 #include <algorithm>
+#include <cassert>
 #include <utility>
 #include <vector>
 
@@ -9,15 +10,23 @@ namespace monad::compiler::poly_typed
 {
     void strong_connect(TarjanState &state, block_id block)
     {
-        std::vector<ConnectBlocks> connect_stack{{block, block, false}};
+        std::vector<ConnectBlocks> connect_stack{
+            {.block = block, .parent = block, .successors_visited = 0}};
+
+        state.stack.push_back(block);
+        auto &block_st = state.vertex_states[block];
+        block_st.index = state.index;
+        block_st.lowlink = state.index;
+        block_st.on_stack = true;
+        block_st.is_defined = true;
+        ++state.index;
 
         while (!connect_stack.empty()) {
-            auto b = connect_stack.back().block;
+            auto &b = connect_stack.back();
+            auto &bst = state.vertex_states[b.block];
 
-            auto &bst = state.vertex_states[b];
-
-            if (connect_stack.back().visited) {
-                auto &pst = state.vertex_states[connect_stack.back().parent];
+            if (b.successors_visited == bst.successors.size()) {
+                auto &pst = state.vertex_states[b.parent];
 
                 connect_stack.pop_back();
 
@@ -30,27 +39,30 @@ namespace monad::compiler::poly_typed
                         state.components.back().insert(t);
                         state.vertex_states[t].on_stack = false;
                     }
-                    while (b != t);
+                    while (b.block != t);
                 }
 
                 pst.lowlink = std::min(pst.lowlink, bst.lowlink);
             }
             else {
-                connect_stack.back().visited = true;
-
-                state.vertex_states[b] = {state.index, state.index, true, true};
-                ++state.index;
-                state.stack.push_back(b);
-
-                auto succs = state.infer_state.static_successors(b);
-                for (auto s : succs) {
-                    auto &sst = state.vertex_states[s];
-                    if (!sst.is_defined) {
-                        connect_stack.push_back({s, b, false});
-                    }
-                    else if (sst.on_stack) {
-                        bst.lowlink = std::min(bst.lowlink, sst.index);
-                    }
+                assert(b.successors_visited < bst.successors.size());
+                block_id const s = bst.successors[b.successors_visited];
+                ++b.successors_visited;
+                auto &sst = state.vertex_states[s];
+                if (!sst.is_defined) {
+                    connect_stack.push_back(
+                        {.block = s,
+                         .parent = b.block,
+                         .successors_visited = 0});
+                    state.stack.push_back(s);
+                    sst.index = state.index;
+                    sst.lowlink = state.index;
+                    sst.on_stack = true;
+                    sst.is_defined = true;
+                    ++state.index;
+                }
+                else if (sst.on_stack) {
+                    bst.lowlink = std::min(bst.lowlink, sst.index);
                 }
             }
         }
@@ -64,10 +76,13 @@ namespace monad::compiler::poly_typed
             .infer_state = infer_state,
             .index = 0,
             .stack = {},
-            .vertex_states = std::vector<TarjanVertexState>(
-                infer_state.pre_blocks.size(), {0, 0, false, false}),
+            .vertex_states = {},
             .components = {}};
-        for (block_id b = 0; b < state.vertex_states.size(); ++b) {
+        for (block_id b = 0; b < infer_state.pre_blocks.size(); ++b) {
+            state.vertex_states.emplace_back(
+                state.infer_state.static_successors(b), 0, 0, false, false);
+        }
+        for (block_id b = 0; b < infer_state.pre_blocks.size(); ++b) {
             if (!state.vertex_states[b].is_defined) {
                 strong_connect(state, b);
             }

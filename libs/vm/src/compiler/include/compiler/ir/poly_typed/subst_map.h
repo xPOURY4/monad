@@ -17,7 +17,7 @@ namespace monad::compiler::poly_typed
         TransactionalUnorderedMap<VarName, Kind> kind_map;
 
     public:
-        SubstMap();
+        void reset();
 
         std::optional<LiteralType> get_literal_type(VarName);
 
