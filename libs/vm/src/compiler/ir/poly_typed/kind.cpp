@@ -1,6 +1,5 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
-#include <algorithm>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -14,9 +13,11 @@ namespace
     using namespace monad::compiler;
     using namespace monad::compiler::poly_typed;
 
-    bool cont_alpha_eq(PolyVarSubstMap &, ContKind, PolyVarSubstMap &, ContKind);
+    bool
+    cont_alpha_eq(PolyVarSubstMap &, ContKind, PolyVarSubstMap &, ContKind);
 
-    bool kind_alpha_eq(PolyVarSubstMap &su1, Kind k1, PolyVarSubstMap &su2, Kind k2)
+    bool
+    kind_alpha_eq(PolyVarSubstMap &su1, Kind k1, PolyVarSubstMap &su2, Kind k2)
     {
         if (k1->index() != k2->index()) {
             return false;
@@ -29,13 +30,15 @@ namespace
                     KindVar const &kv2 = std::get<KindVar>(*k2);
                     auto it1 = su1.kind_map.find(kv1.var);
                     auto it2 = su2.kind_map.find(kv2.var);
-                    if (it1 == su1.kind_map.end() && it2 == su2.kind_map.end()) {
+                    if (it1 == su1.kind_map.end() &&
+                        it2 == su2.kind_map.end()) {
                         su1.kind_map.insert_or_assign(kv1.var, kv2.var);
                         su2.kind_map.insert_or_assign(kv2.var, kv2.var);
                         return true;
                     }
                     else if (
-                        it1 == su1.kind_map.end() || it2 == su2.kind_map.end()) {
+                        it1 == su1.kind_map.end() ||
+                        it2 == su2.kind_map.end()) {
                         return false;
                     }
                     return it1->second == it2->second;
@@ -58,7 +61,8 @@ namespace
             *k1);
     }
 
-    bool cont_alpha_eq(PolyVarSubstMap &su1, ContKind c1, PolyVarSubstMap &su2, ContKind c2)
+    bool cont_alpha_eq(
+        PolyVarSubstMap &su1, ContKind c1, PolyVarSubstMap &su2, ContKind c2)
     {
         if (c1->front.size() != c2->front.size()) {
             return false;
@@ -77,13 +81,15 @@ namespace
                     ContVar const &cv2 = std::get<ContVar>(c2->tail);
                     auto it1 = su1.cont_map.find(cv1.var);
                     auto it2 = su2.cont_map.find(cv2.var);
-                    if (it1 == su1.cont_map.end() && it2 == su2.cont_map.end()) {
+                    if (it1 == su1.cont_map.end() &&
+                        it2 == su2.cont_map.end()) {
                         su1.cont_map.insert_or_assign(cv1.var, cv2.var);
                         su2.cont_map.insert_or_assign(cv2.var, cv2.var);
                         return true;
                     }
                     else if (
-                        it1 == su1.cont_map.end() || it2 == su2.cont_map.end()) {
+                        it1 == su1.cont_map.end() ||
+                        it2 == su2.cont_map.end()) {
                         return false;
                     }
                     return it1->second == it2->second;

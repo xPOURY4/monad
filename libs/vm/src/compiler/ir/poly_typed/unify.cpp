@@ -203,10 +203,12 @@ namespace
             return;
         }
         if (!t2.has_value()) {
-            return unify_literal_var_to_type(su, lv2, lv1, t1.value(), depth, ticks);
+            return unify_literal_var_to_type(
+                su, lv2, lv1, t1.value(), depth, ticks);
         }
         if (!t1.has_value()) {
-            return unify_literal_var_to_type(su, lv1, lv2, t2.value(), depth, ticks);
+            return unify_literal_var_to_type(
+                su, lv1, lv2, t2.value(), depth, ticks);
         }
         if (t1.value() != t2.value()) {
             throw UnificationException{};

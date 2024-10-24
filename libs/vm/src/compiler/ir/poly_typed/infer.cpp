@@ -17,6 +17,7 @@
 #include <exception>
 #include <limits>
 #include <list>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -34,7 +35,8 @@ namespace
             Cases{
                 [&state](FallThrough const &t) -> Terminator {
                     return FallThrough{
-                        .fallthrough_kind = state.subst_map.subst_or_throw(t.fallthrough_kind),
+                        .fallthrough_kind =
+                            state.subst_map.subst_or_throw(t.fallthrough_kind),
                         .fallthrough_dest = t.fallthrough_dest};
                 },
                 [&state](JumpI const &t) -> Terminator {
@@ -412,37 +414,45 @@ namespace
 
     using ComponentTypeSpec = std::vector<BlockTypeSpec>;
 
-    void infer_block_jump_literal(InferState &state, Value const &dest, ContKind out_kind)
+    void infer_block_jump_literal(
+        InferState &state, Value const &dest, ContKind out_kind)
     {
         std::optional<block_id> did = state.get_jumpdest(dest);
         if (!did.has_value()) {
             // Invalid jump destination. Unify will always succeed.
             return;
         }
-        unify(state.subst_map, state.get_type(did.value()), std::move(out_kind));
+        unify(
+            state.subst_map, state.get_type(did.value()), std::move(out_kind));
     }
 
-    void infer_block_jump_param(InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
+    void infer_block_jump_param(
+        InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
     {
         assert(std::holds_alternative<KindVar>(*bts.jumpdest));
         Kind dest_kind = state.subst_map.subst_or_throw(bts.jumpdest);
         if (std::holds_alternative<KindVar>(*dest_kind)) {
-            VarName v = std::get<KindVar>(*dest_kind).var;
+            VarName const v = std::get<KindVar>(*dest_kind).var;
             state.subst_map.insert_kind(v, any);
-            state.subst_map.insert_kind(v,
-                    cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+            state.subst_map.insert_kind(
+                v, cont(state.subst_map.subst_or_throw(std::move(out_kind))));
         }
         else if (std::holds_alternative<Word>(*dest_kind)) {
-            VarName v = state.subst_map.subst_to_var(bts.jumpdest);
-            state.subst_map.insert_kind(v,
-                    word_cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+            VarName const v = state.subst_map.subst_to_var(bts.jumpdest);
+            state.subst_map.insert_kind(
+                v,
+                word_cont(state.subst_map.subst_or_throw(std::move(out_kind))));
         }
         else {
-            unify(state.subst_map, std::move(dest_kind), cont(std::move(out_kind)));
+            unify(
+                state.subst_map,
+                std::move(dest_kind),
+                cont(std::move(out_kind)));
         }
     }
 
-    void infer_block_jump(InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
+    void infer_block_jump(
+        InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
     {
         auto const &block = state.pre_blocks[bts.bid];
         assert(!block.output.empty());
@@ -458,7 +468,8 @@ namespace
         std::terminate();
     }
 
-    void infer_block_fallthrough(InferState &state, block_id dest, ContKind out_kind)
+    void
+    infer_block_fallthrough(InferState &state, block_id dest, ContKind out_kind)
     {
         unify(state.subst_map, state.get_type(dest), std::move(out_kind));
     }
@@ -472,12 +483,15 @@ namespace
         else if (std::holds_alternative<JumpI>(term)) {
             auto const &jumpi = std::get<JumpI>(term);
             infer_block_jump(state, bts, jumpi.jump_kind);
-            infer_block_fallthrough(state, jumpi.fallthrough_dest, jumpi.fallthrough_kind);
+            infer_block_fallthrough(
+                state, jumpi.fallthrough_dest, jumpi.fallthrough_kind);
         }
         else if (std::holds_alternative<FallThrough>(term)) {
             auto const &fall = std::get<FallThrough>(term);
-            infer_block_fallthrough(state, fall.fallthrough_dest, fall.fallthrough_kind);
-        } else {
+            infer_block_fallthrough(
+                state, fall.fallthrough_dest, fall.fallthrough_kind);
+        }
+        else {
             // Exit terminator unification will always succeed.
             return;
         }

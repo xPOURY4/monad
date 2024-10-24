@@ -45,18 +45,25 @@ TEST(alpha_equal, test_3)
 
 TEST(alpha_equal, test_4)
 {
-    ASSERT_TRUE(alpha_equal(cont_kind({kind_var(0), kind_var(1)}, 0),
-                cont_kind({kind_var(1), kind_var(0)}, 0)));
-    ASSERT_TRUE(alpha_equal(cont_kind({kind_var(0), kind_var(1)}, 0),
-                cont_kind({kind_var(1), kind_var(0)}, 1)));
-    ASSERT_TRUE(alpha_equal(cont_kind({kind_var(0), kind_var(1)}, 0),
-                cont_kind({kind_var(0), kind_var(1)}, 0)));
-    ASSERT_TRUE(alpha_equal(cont_kind({kind_var(0), kind_var(1)}, 0),
-                cont_kind({kind_var(0), kind_var(1)}, 1)));
-    ASSERT_FALSE(alpha_equal(cont_kind({kind_var(0), kind_var(0)}, 0),
-                cont_kind({kind_var(1), kind_var(0)}, 0)));
-    ASSERT_FALSE(alpha_equal(cont_kind({kind_var(0), kind_var(0)}, 0),
-                cont_kind({kind_var(1), kind_var(0)}, 1)));
-    ASSERT_FALSE(alpha_equal(cont_kind({kind_var(0), kind_var(0)}, 1),
-                cont_kind({kind_var(1), kind_var(0)}, 1)));
+    ASSERT_TRUE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(1)}, 0),
+        cont_kind({kind_var(1), kind_var(0)}, 0)));
+    ASSERT_TRUE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(1)}, 0),
+        cont_kind({kind_var(1), kind_var(0)}, 1)));
+    ASSERT_TRUE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(1)}, 0),
+        cont_kind({kind_var(0), kind_var(1)}, 0)));
+    ASSERT_TRUE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(1)}, 0),
+        cont_kind({kind_var(0), kind_var(1)}, 1)));
+    ASSERT_FALSE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(0)}, 0),
+        cont_kind({kind_var(1), kind_var(0)}, 0)));
+    ASSERT_FALSE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(0)}, 0),
+        cont_kind({kind_var(1), kind_var(0)}, 1)));
+    ASSERT_FALSE(alpha_equal(
+        cont_kind({kind_var(0), kind_var(0)}, 1),
+        cont_kind({kind_var(1), kind_var(0)}, 1)));
 }
