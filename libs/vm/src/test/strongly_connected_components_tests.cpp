@@ -25,7 +25,8 @@ namespace
             .pre_blocks = pre_blocks,
             .next_fresh_var_names = {},
             .subst_maps = {},
-            .block_types = {}};
+            .block_types = {},
+            .block_terminators = {}};
     }
 
     void assert_components(
