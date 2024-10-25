@@ -163,11 +163,6 @@ namespace monad::compiler::poly_typed
             break;
         case basic_blocks::Terminator::Jump:
             assert(block.output.size() >= 1);
-            if (!get_jumpdest(block.output[0]).has_value()) {
-                // We do not consider the output values if the jumpdest is not a
-                // literal.
-                break;
-            }
             push_static_jumpdests(
                 ret, *this, &block.output[0], block.output.size());
             break;

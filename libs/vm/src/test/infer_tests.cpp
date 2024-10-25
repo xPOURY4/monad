@@ -368,3 +368,15 @@ TEST(infer, test_fib)
         blocks[4].kind,
         cont_kind({kind_var(0), cont(cont_kind({word}, 0))}, 0)));
 }
+
+TEST(infer, crash_1)
+{
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
+            {JUMPDEST, ADDRESS, JUMPDEST, PUSH0, ADDRESS, JUMP})));
+    std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
+    ASSERT_EQ(blocks.size(), 2);
+    ASSERT_TRUE(alpha_equal(blocks[1].kind, cont_words));
+    ASSERT_TRUE(alpha_equal(
+        std::get<Jump>(blocks[1].terminator).jump_kind, cont_words));
+}

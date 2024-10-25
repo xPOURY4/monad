@@ -288,7 +288,7 @@ TEST(poly_typed, strongly_connected_components_7)
             .fallthrough_dest = 0}};
     std::vector<Component> const components =
         strongly_connected_components(InferState(jumpdests, pre_blocks));
-    assert_components(components, {{1}, {2, 3, 0}});
+    assert_components(components, {{1, 2, 3, 0}});
 }
 
 TEST(poly_typed, strongly_connected_components_8)

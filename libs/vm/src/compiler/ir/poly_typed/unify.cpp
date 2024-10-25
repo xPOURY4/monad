@@ -550,7 +550,15 @@ namespace monad::compiler::poly_typed
         SubstMap &su, std::vector<VarName> const &param_vars,
         ParamVarNameMap const &param_map)
     {
-        size_t ticks = 0;
-        ::unify_param_var_name_map(su, param_vars, param_map, ticks);
+        try {
+            su.transaction();
+            size_t ticks = 0;
+            ::unify_param_var_name_map(su, param_vars, param_map, ticks);
+            su.commit();
+        }
+        catch (InferException const &) {
+            su.revert();
+            throw;
+        }
     }
 }
