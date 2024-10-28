@@ -9,7 +9,7 @@ if [ ! -f "$SCRIPT_DIR/../third_party/AFLplusplus/afl-fuzz" ]; then
 fi
 
 if [ ! -f "$SCRIPT_DIR/../src/test/fuzz/build" ]; then
-    cmake -S . -B "$SCRIPT_DIR/../src/test/fuzz/build" -DCMAKE_C_COMPILER="$SCRIPT_DIR/../third_party/AFLplusplus/afl-clang-lto" -DCMAKE_CXX_COMPILER="$SCRIPT_DIR/../third_party/AFLplusplus/afl-clang-lto++"
+    cmake -S . -B "$SCRIPT_DIR/../src/test/fuzz/build" -DCMAKE_C_COMPILER="$SCRIPT_DIR/../third_party/AFLplusplus/afl-clang-lto" -DCMAKE_CXX_COMPILER="$SCRIPT_DIR/../third_party/AFLplusplus/afl-clang-lto++" -DFUZZ_TESTING=ON
 fi
 
 cmake --build "$SCRIPT_DIR/../src/test/fuzz/build"

@@ -20,6 +20,11 @@ add_subdirectory(src/compiler)
 add_subdirectory(src/monad-evmc)
 add_subdirectory(src/runtime)
 add_subdirectory(src/test)
-add_subdirectory(src/test/fuzz/inference)
 add_subdirectory(src/utils)
 add_subdirectory(src/vm)
+
+option(FUZZ_TESTING "Build fuzzing binaries" OFF)
+
+if(FUZZ_TESTING)
+    add_subdirectory(src/test/fuzz/inference)
+endif()
