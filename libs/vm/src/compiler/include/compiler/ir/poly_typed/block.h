@@ -54,6 +54,7 @@ namespace monad::compiler::poly_typed
 
     struct Block
     {
+        size_t min_params;
         std::vector<Value> output;
         std::vector<basic_blocks::Instruction> instrs;
         ContKind kind;

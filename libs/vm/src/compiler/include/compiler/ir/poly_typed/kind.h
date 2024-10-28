@@ -129,6 +129,13 @@ namespace monad::compiler::poly_typed
         return !(std::move(k1) == std::move(k2));
     }
 
+    bool operator<=(Kind k1, Kind k2);
+
+    inline bool operator>(Kind k1, Kind k2)
+    {
+        return !(k2 <= k1);
+    }
+
     /// Equiality up to renaming of variables.
     bool alpha_equal(ContKind, ContKind);
 
@@ -137,6 +144,13 @@ namespace monad::compiler::poly_typed
     inline bool operator!=(ContKind c1, ContKind c2)
     {
         return !(std::move(c1) == std::move(c2));
+    }
+
+    bool operator<=(ContKind c1, ContKind c2);
+
+    inline bool operator>(ContKind c1, ContKind c2)
+    {
+        return !(c2 <= c1);
     }
 }
 

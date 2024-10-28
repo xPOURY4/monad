@@ -177,7 +177,7 @@ namespace
         for (size_t oix = offset, six = stack.size() - offset; six > 0; ++oix) {
             --six;
             switch (block.output[oix].is) {
-            case local_stacks::ValueIs::LITERAL:
+            case ValueIs::LITERAL:
                 push_literal_output(
                     state,
                     component,
@@ -186,7 +186,7 @@ namespace
                     block.output[oix],
                     jumpix);
                 break;
-            case local_stacks::ValueIs::PARAM_ID:
+            case ValueIs::PARAM_ID:
                 push_param_output(
                     state,
                     param_map,
@@ -195,7 +195,7 @@ namespace
                     block.output[oix].param,
                     jumpix);
                 break;
-            case local_stacks::ValueIs::COMPUTED:
+            case ValueIs::COMPUTED:
                 front.push_back(std::move(stack[six]));
                 break;
             }
@@ -431,16 +431,40 @@ namespace
         assert(std::holds_alternative<KindVar>(*bts.jumpdest));
         Kind dest_kind = state.subst_map.subst_or_throw(bts.jumpdest);
         if (std::holds_alternative<KindVar>(*dest_kind)) {
-            VarName const v = std::get<KindVar>(*dest_kind).var;
-            state.subst_map.insert_kind(v, any);
-            state.subst_map.insert_kind(
-                v, cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+            ContKind out_kind2 = state.subst_map.subst_or_throw(std::move(out_kind));
+            state.subst_map.transaction();
+            try {
+                unify(state.subst_map, dest_kind, cont(out_kind2));
+                state.subst_map.commit();
+            }
+            catch (UnificationException const &) {
+                state.subst_map.revert();
+                VarName const v = std::get<KindVar>(*dest_kind).var;
+                std::vector<Kind> front = out_kind2->front;
+                for (size_t i = 0; i < front.size(); ++i) {
+                    if (!std::holds_alternative<KindVar>(*front[i])) {
+                        continue;
+                    }
+                    if (std::get<KindVar>(*front[i]).var != v) {
+                        continue;
+                    }
+                    front[i] = any;
+                }
+                unify(state.subst_map, std::move(dest_kind),
+                        cont(cont_kind(std::move(front), out_kind2->tail)));
+            }
         }
         else if (std::holds_alternative<Word>(*dest_kind)) {
             VarName const v = state.subst_map.subst_to_var(bts.jumpdest);
             state.subst_map.insert_kind(
                 v,
                 word_cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+        }
+        else if (std::holds_alternative<WordCont>(*dest_kind)) {
+            unify(
+                state.subst_map,
+                std::get<WordCont>(*dest_kind).cont,
+                std::move(out_kind));
         }
         else {
             unify(
@@ -457,11 +481,11 @@ namespace
         assert(!block.output.empty());
         Value const &dest = block.output[0];
         switch (dest.is) {
-        case local_stacks::ValueIs::LITERAL:
+        case ValueIs::LITERAL:
             return infer_block_jump_literal(state, dest, std::move(out_kind));
-        case local_stacks::ValueIs::PARAM_ID:
+        case ValueIs::PARAM_ID:
             return infer_block_jump_param(state, bts, std::move(out_kind));
-        case local_stacks::ValueIs::COMPUTED:
+        case ValueIs::COMPUTED:
             throw UnificationException{};
         }
         std::terminate();
@@ -592,6 +616,7 @@ namespace
         for (auto const &bts : cts) {
             infer_block_end(state, component, bts);
         }
+        // Infer types one more time:
         for (auto const &bts : cts) {
             infer_block_end(state, component, bts);
         }
@@ -702,6 +727,7 @@ namespace
         for (block_id i = 0; i < state.pre_blocks.size(); ++i) {
             auto const &pre_block = state.pre_blocks[i];
             blocks.push_back(Block{
+                .min_params = pre_block.min_params,
                 .output = std::move(pre_block.output),
                 .instrs = std::move(pre_block.instrs),
                 .kind = std::move(state.block_types.at(i)),
@@ -740,8 +766,7 @@ namespace monad::compiler::poly_typed
         std::vector<Block> blocks = infer_components(state, components);
         state.reset();
         for (auto &b : blocks) {
-            // Need to substitute one last time to eliminate all the literal
-            // vars that are assigned a literal type.
+            // Substitute one last time to eliminate all the literal vars that are assigned a literal type.
             subst_block(state.subst_map, b);
         }
         return blocks;

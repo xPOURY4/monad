@@ -97,6 +97,97 @@ namespace
                 [](ContWords const &) { return true; }},
             c1->tail);
     }
+
+    struct SpecializeSubstMap
+    {
+        std::unordered_map<VarName, Kind> kind_map;
+        std::unordered_map<VarName, ContKind> cont_map;
+    };
+
+    bool can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific);
+
+    bool can_specialize(SpecializeSubstMap &su, Kind generic, Kind specific)
+    {
+        while (std::holds_alternative<KindVar>(*generic)) {
+            auto new_k = su.kind_map.find(std::get<KindVar>(*generic).var);
+            if (new_k == su.kind_map.end()) {
+                break;
+            }
+            generic = new_k->second;
+        }
+        return std::visit(
+            Cases{
+                [&](Word const &) {
+                    return specific == word;
+                },
+                [&](Any const &) {
+                    return specific == any;
+                },
+                [&](KindVar const &kv) {
+                    su.kind_map.insert_or_assign(kv.var, std::move(specific));
+                    return true;
+                },
+                [&](LiteralVar const &lv) {
+                    if (!std::holds_alternative<LiteralVar>(*specific)) {
+                        return false;
+                    }
+                    return can_specialize(su, lv.cont,
+                            std::get<LiteralVar>(*specific).cont);
+                },
+                [&](WordCont const &wc) {
+                    if (!std::holds_alternative<WordCont>(*specific)) {
+                        return false;
+                    }
+                    return can_specialize(su, wc.cont,
+                            std::get<WordCont>(*specific).cont);
+                },
+                [&](Cont const &c) {
+                    if (!std::holds_alternative<Cont>(*specific)) {
+                        return false;
+                    }
+                    return can_specialize(su, c.cont,
+                            std::get<Cont>(*specific).cont);
+                }},
+            *generic);
+    }
+
+    bool can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific)
+    {
+        size_t arg_count = 0;
+        for (;;) {
+            if (generic->front.size() + arg_count > specific->front.size()) {
+                return false;
+            }
+            for (size_t i = 0; i < generic->front.size(); ++i) {
+                can_specialize(su, generic->front[i], specific->front[arg_count++]);
+            }
+            if (std::holds_alternative<ContWords>(generic->tail)) {
+                if (!std::holds_alternative<ContWords>(specific->tail)) {
+                    return false;
+                }
+                for (; arg_count < specific->front.size(); ++arg_count) {
+                    if (specific->front[arg_count] != word) {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                VarName v = std::get<ContVar>(generic->tail).var;
+                auto it = su.cont_map.find(v);
+                if (it != su.cont_map.end()) {
+                    generic = it->second;
+                    continue;
+                }
+                std::vector<Kind> front;
+                for (; arg_count < specific->front.size(); ++arg_count) {
+                    front.push_back(specific->front[arg_count]);
+                }
+                su.cont_map.insert_or_assign(v,
+                        cont_kind(std::move(front), specific->tail));
+                return true;
+            }
+        }
+    }
 }
 
 namespace monad::compiler::poly_typed
@@ -267,5 +358,17 @@ namespace monad::compiler::poly_typed
                 },
                 [](ContWords const &) { return true; }},
             c1->tail);
+    }
+
+    bool operator<=(Kind k1, Kind k2)
+    {
+        SpecializeSubstMap su;
+        return can_specialize(su, k1, k2);
+    }
+
+    bool operator<=(ContKind c1, ContKind c2)
+    {
+        SpecializeSubstMap su;
+        return can_specialize(su, c1, c2);
     }
 }
