@@ -4,3 +4,6 @@
 [submodule "intx"]
 	path = third_party/intx
 	url = git@github.com:chfast/intx.git
+[submodule "third_party/AFLplusplus"]
+	path = third_party/AFLplusplus
+	url = https://github.com/AFLplusplus/AFLplusplus.git
