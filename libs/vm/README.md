@@ -119,3 +119,16 @@ The documentation is then accessible from `http://localhost:8000` locally.
 [evmc]: https://github.com/ethereum/evmc
 [jit]: https://github.com/monad-crypto/monad-jit
 [hunter]: https://github.com/ethereum/evmc/pull/169
+
+## Linting & Formatting
+
+To run the linter, call:
+```console
+scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
+```
+
+To apply the formatter, use:
+```console
+find src/compiler/ -iname '*.h' -o -iname '*.cpp' | xargs clang-format-18 -i
+find src/test -iname '*.h' -o -iname '*.cpp' | xargs clang-format-18 -i
+```
