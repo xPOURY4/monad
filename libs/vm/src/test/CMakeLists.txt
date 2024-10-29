@@ -56,13 +56,13 @@ add_test(
     COMMAND subst-map-tests
 )
 
-add_executable(alpha-equal-tests alpha_equal_tests.cpp)
+add_executable(kind-tests kind_tests.cpp)
 
-monad_compile_options(alpha-equal-tests)
-target_link_libraries(alpha-equal-tests monad-compiler GTest::gtest_main)
+monad_compile_options(kind-tests)
+target_link_libraries(kind-tests compiler GTest::gtest_main)
 add_test(
-    NAME "Alpha Equal Tests"
-    COMMAND alpha-equal-tests
+    NAME "Kind Tests"
+    COMMAND kind-tests
 )
 
 add_executable(unify-tests unify_tests.cpp)

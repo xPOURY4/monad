@@ -119,7 +119,7 @@ namespace monad::compiler::poly_typed
 
     void format_cont(ContKind const &cont, std::format_context &ctx);
 
-    /// Equiality up to renaming of variables.
+    /// Equality up to renaming of variables.
     bool alpha_equal(Kind, Kind);
 
     bool operator==(Kind, Kind);
@@ -129,14 +129,10 @@ namespace monad::compiler::poly_typed
         return !(std::move(k1) == std::move(k2));
     }
 
-    bool operator<=(Kind k1, Kind k2);
+    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
+    bool can_specialize(Kind generic, Kind specific);
 
-    inline bool operator>(Kind k1, Kind k2)
-    {
-        return !(k2 <= k1);
-    }
-
-    /// Equiality up to renaming of variables.
+    /// Equality up to renaming of variables.
     bool alpha_equal(ContKind, ContKind);
 
     bool operator==(ContKind, ContKind);
@@ -146,12 +142,8 @@ namespace monad::compiler::poly_typed
         return !(std::move(c1) == std::move(c2));
     }
 
-    bool operator<=(ContKind c1, ContKind c2);
-
-    inline bool operator>(ContKind c1, ContKind c2)
-    {
-        return !(c2 <= c1);
-    }
+    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
+    bool can_specialize(ContKind generic, ContKind specific);
 }
 
 template <>

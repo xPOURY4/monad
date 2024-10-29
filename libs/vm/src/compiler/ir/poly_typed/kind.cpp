@@ -108,12 +108,11 @@ namespace
 
     bool can_specialize(SpecializeSubstMap &su, Kind generic, Kind specific)
     {
-        while (std::holds_alternative<KindVar>(*generic)) {
+        if (std::holds_alternative<KindVar>(*generic)) {
             auto new_k = su.kind_map.find(std::get<KindVar>(*generic).var);
-            if (new_k == su.kind_map.end()) {
-                break;
+            if (new_k != su.kind_map.end()) {
+                return new_k->second == specific;
             }
-            generic = new_k->second;
         }
         return std::visit(
             Cases{
@@ -153,39 +152,97 @@ namespace
 
     bool can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific)
     {
-        size_t arg_count = 0;
-        for (;;) {
-            if (generic->front.size() + arg_count > specific->front.size()) {
+        size_t min_size = std::min(generic->front.size(), specific->front.size());
+        for (size_t i = 0; i < min_size; ++i) {
+            if (!can_specialize(su, generic->front[i], specific->front[i])) {
                 return false;
             }
-            for (size_t i = 0; i < generic->front.size(); ++i) {
-                can_specialize(su, generic->front[i], specific->front[arg_count++]);
+        }
+        if (std::holds_alternative<ContWords>(generic->tail)) {
+            if (!std::holds_alternative<ContWords>(specific->tail)) {
+                return false;
             }
-            if (std::holds_alternative<ContWords>(generic->tail)) {
-                if (!std::holds_alternative<ContWords>(specific->tail)) {
+            for (size_t i = min_size; i < generic->front.size(); ++i) {
+                if (generic->front[i] != word) {
                     return false;
                 }
-                for (; arg_count < specific->front.size(); ++arg_count) {
-                    if (specific->front[arg_count] != word) {
+            }
+            for (size_t i = min_size; i < specific->front.size(); ++i) {
+                if (specific->front[i] != word) {
+                    return false;
+                }
+            }
+            return true;
+        } else if (std::holds_alternative<ContWords>(specific->tail)) {
+            for (size_t i = min_size; i < generic->front.size(); ++i) {
+                if (generic->front[i] != word) {
+                    return false;
+                }
+            }
+            VarName v = std::get<ContVar>(generic->tail).var;
+            auto it = su.cont_map.find(v);
+            if (it != su.cont_map.end()) {
+                ContKind c = it->second;
+                if (!std::holds_alternative<ContWords>(c->tail)) {
+                    return false;
+                }
+                size_t n = std::min(specific->front.size() - min_size, c->front.size());
+                for (size_t i = 0; i < n; ++i) {
+                    if (specific->front[min_size + i] != c->front[i]) {
                         return false;
                     }
                 }
-                return true;
-            } else {
-                VarName v = std::get<ContVar>(generic->tail).var;
-                auto it = su.cont_map.find(v);
-                if (it != su.cont_map.end()) {
-                    generic = it->second;
-                    continue;
+                for (size_t i = n; i < c->front.size(); ++i) {
+                    if (c->front[i] != word) {
+                        return false;
+                    }
                 }
+                for (size_t i = min_size + n; i < specific->front.size(); ++i) {
+                    if (specific->front[i] != word) {
+                        return false;
+                    }
+                }
+            } else {
                 std::vector<Kind> front;
-                for (; arg_count < specific->front.size(); ++arg_count) {
-                    front.push_back(specific->front[arg_count]);
+                for (size_t i = min_size; i < specific->front.size(); ++i) {
+                    front.push_back(specific->front[i]);
+                }
+                su.cont_map.insert_or_assign(v, cont_kind(std::move(front)));
+            }
+            return true;
+        } else {
+            if (generic->front.size() > specific->front.size()) {
+                return false;
+            }
+            assert(min_size == generic->front.size());
+            VarName v = std::get<ContVar>(generic->tail).var;
+            auto it = su.cont_map.find(v);
+            if (it != su.cont_map.end()) {
+                ContKind c = it->second;
+                if (c->front.size() != specific->front.size() - min_size) {
+                    return false;
+                }
+                for (size_t i = 0; i < c->front.size(); ++i) {
+                    if (specific->front[min_size + i] != c->front[i]) {
+                        return false;
+                    }
+                }
+                if (std::holds_alternative<ContWords>(c->tail)) {
+                    return false;
+                }
+                if (std::get<ContVar>(c->tail).var !=
+                        std::get<ContVar>(specific->tail).var) {
+                    return false;
+                }
+            } else {
+                std::vector<Kind> front;
+                for (size_t i = min_size; i < specific->front.size(); ++i) {
+                    front.push_back(specific->front[i]);
                 }
                 su.cont_map.insert_or_assign(v,
                         cont_kind(std::move(front), specific->tail));
-                return true;
             }
+            return true;
         }
     }
 }
@@ -360,15 +417,15 @@ namespace monad::compiler::poly_typed
             c1->tail);
     }
 
-    bool operator<=(Kind k1, Kind k2)
+    bool can_specialize(Kind generic, Kind specific)
     {
         SpecializeSubstMap su;
-        return can_specialize(su, k1, k2);
+        return ::can_specialize(su, generic, specific);
     }
 
-    bool operator<=(ContKind c1, ContKind c2)
+    bool can_specialize(ContKind generic, ContKind specific)
     {
         SpecializeSubstMap su;
-        return can_specialize(su, c1, c2);
+        return ::can_specialize(su, generic, specific);
     }
 }
