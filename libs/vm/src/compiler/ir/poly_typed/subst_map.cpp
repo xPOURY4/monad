@@ -132,7 +132,7 @@ namespace monad::compiler::poly_typed
                     auto t = literal_map.find(lv.var);
                     if (t == literal_map.end()) {
                         auto v = subst_literal_var_name(lv.var);
-                        return literal_var(v, lv.cont);
+                        return literal_var(v, subst(lv.cont, depth, ticks));
                     }
                     switch (t->second) {
                     case LiteralType::Cont:

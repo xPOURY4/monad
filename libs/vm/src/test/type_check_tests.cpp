@@ -548,3 +548,48 @@ TEST(type_check, error_1)
             {DUP3, DUP4, JUMPI}))));
     ASSERT_TRUE(ir.type_check());
 }
+
+TEST(type_check, error_2)
+{
+    auto ir1 = bytecode::BytecodeIR(
+            {
+            POP,
+            CALLER,
+            CALLER,
+            PUSH14, 0x61, 0x6b, 0x61, 0x6b, 0x65, 0x5f, 0x73, 0x68, 0x61, 0x72, 0x65, 0x64, 0x5f, 0x74,
+            PUSH2, 0x01, 0x01,
+            ADD,
+            PUSH6, 0x5b, 0x5b, 0x5b, 0x5b, 0x5b, 0x5b,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            PUSH0,
+            PUSH20, 0x33, 0x86, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x68, 0x91, 0x91, 0x11,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            JUMPDEST,
+            PUSH0,
+            PUSH20, 0x33, 0x86, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x96, 0x5b, 0x5b, 0xaa, 0x5b, 0xb5,
+            MULMOD,
+            MULMOD,
+            MULMOD,
+            MULMOD,
+            JUMPDEST,
+            JUMPDEST,
+            PUSH1, 0x5b,
+            JUMPDEST,
+            DUP5
+            });
+
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(std::move(ir1))));
+
+    ASSERT_TRUE(ir.type_check());
+}

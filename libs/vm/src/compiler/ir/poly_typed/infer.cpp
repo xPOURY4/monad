@@ -528,7 +528,7 @@ namespace
         else if (std::holds_alternative<FallThrough>(term)) {
             auto const &fall = std::get<FallThrough>(term);
             unify_out_kind_literal_vars(
-                state, component, bts, 2, fall.fallthrough_kind);
+                state, component, bts, 0, fall.fallthrough_kind);
             infer_block_fallthrough(
                 state, fall.fallthrough_dest, fall.fallthrough_kind);
         }
