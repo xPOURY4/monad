@@ -1,8 +1,18 @@
 #include "compiler/ir/poly_typed.h"
 #include "compiler/ir/local_stacks.h"
+#include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"
+#include "compiler/ir/poly_typed/kind.h"
 #include "compiler/opcode_cases.h"
+#include "compiler/opcodes.h"
+#include "compiler/types.h"
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <limits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace
 {
@@ -18,7 +28,7 @@ namespace
         if (literal > uint256_t{std::numeric_limits<byte_offset>::max()}) {
             return cont_kind({}, 0);
         }
-        byte_offset off{literal[0]};
+        byte_offset const off{literal[0]};
         auto jd = ir.jumpdests.find(off);
         if (jd == ir.jumpdests.end()) {
             return cont_kind({}, 0);
@@ -30,7 +40,7 @@ namespace
     Kind get_param_kind(Block const &block, uint256_t const &param_id)
     {
         assert(param_id <= uint256_t{std::numeric_limits<size_t>::max()});
-        size_t ix{param_id[0]};
+        size_t const ix{param_id[0]};
         if (ix >= block.kind->front.size()) {
             throw TypeError{};
         }
@@ -49,49 +59,54 @@ namespace
         throw TypeError{};
     }
 
-    void check_dest(PolyTypedIR const &ir, Block const &block,
-            Value const &dest, ContKind kind)
+    void check_dest(
+        PolyTypedIR const &ir, Block const &block, Value const &dest,
+        ContKind kind)
     {
         if (dest.is == ValueIs::LITERAL) {
             if (!can_specialize(get_literal_cont(ir, dest.data), kind)) {
                 throw TypeError{};
             }
-        } else if (dest.is == ValueIs::PARAM_ID) {
+        }
+        else if (dest.is == ValueIs::PARAM_ID) {
             if (!weak_equal(get_param_cont(block, dest.data), kind)) {
                 throw TypeError{};
             }
-        } else {
+        }
+        else {
             throw TypeError{};
         }
     }
 
-    void check_output_value(PolyTypedIR const &ir, Block const &block,
-            Value const &x, Kind k)
+    void check_output_value(
+        PolyTypedIR const &ir, Block const &block, Value const &x, Kind k)
     {
         if (x.is == ValueIs::LITERAL) {
-            std::visit(Cases{
-                [&](LiteralVar const &lv) {
-                    if (!can_specialize(get_literal_cont(ir, x.data), lv.cont)) {
-                        throw TypeError{};
-                    }
-                },
-                [&](Cont const &c) {
-                    if (!can_specialize(get_literal_cont(ir, x.data), c.cont)) {
-                        throw TypeError{};
-                    }
-                },
-                [&](WordCont const &wc) {
-                    if (!can_specialize(get_literal_cont(ir, x.data), wc.cont)) {
-                        throw TypeError{};
-                    }
-                },
-                [&](Word const &) {
-                    // nop
-                },
-                [&](auto const &) {
-                    throw TypeError{};
-                }
-            }, *k);
+            std::visit(
+                Cases{
+                    [&](LiteralVar const &lv) {
+                        if (!can_specialize(
+                                get_literal_cont(ir, x.data), lv.cont)) {
+                            throw TypeError{};
+                        }
+                    },
+                    [&](Cont const &c) {
+                        if (!can_specialize(
+                                get_literal_cont(ir, x.data), c.cont)) {
+                            throw TypeError{};
+                        }
+                    },
+                    [&](WordCont const &wc) {
+                        if (!can_specialize(
+                                get_literal_cont(ir, x.data), wc.cont)) {
+                            throw TypeError{};
+                        }
+                    },
+                    [&](Word const &) {
+                        // nop
+                    },
+                    [&](auto const &) { throw TypeError{}; }},
+                *k);
         }
         else if (x.is == ValueIs::PARAM_ID) {
             if (std::holds_alternative<Any>(*k)) {
@@ -99,17 +114,19 @@ namespace
             }
             auto p = get_param_kind(block, x.data);
             if (std::holds_alternative<WordCont>(*p) &&
-                    !std::holds_alternative<WordCont>(*k)) {
+                !std::holds_alternative<WordCont>(*k)) {
                 if (std::holds_alternative<Word>(*k)) {
                     return;
                 }
                 if (!std::holds_alternative<Cont>(*k)) {
                     throw TypeError{};
                 }
-                if (!weak_equal(std::get<WordCont>(*p).cont, std::get<Cont>(*k).cont)) {
+                if (!weak_equal(
+                        std::get<WordCont>(*p).cont, std::get<Cont>(*k).cont)) {
                     throw TypeError{};
                 }
-            } else {
+            }
+            else {
                 if (!weak_equal(p, k)) {
                     throw TypeError{};
                 }
@@ -123,17 +140,17 @@ namespace
         }
     }
 
-    void check_output_stack(Block const &block, size_t output_offset,
-            ContKind out_kind, std::vector<Kind> const &output_stack)
+    void check_output_stack(
+        Block const &block, size_t output_offset, ContKind out_kind,
+        std::vector<Kind> const &output_stack)
     {
         assert(block.output.size() >= output_offset);
         assert(output_stack.size() >= block.output.size());
-        size_t min_size = std::min(
-                output_stack.size() - output_offset,
-                out_kind->front.size());
+        size_t const min_size = std::min(
+            output_stack.size() - output_offset, out_kind->front.size());
         for (size_t i = 0; i < min_size; ++i) {
             if (output_offset + i < block.output.size() &&
-                    block.output[output_offset + i].is == ValueIs::LITERAL) {
+                block.output[output_offset + i].is == ValueIs::LITERAL) {
                 if (!weak_equal(output_stack[output_offset + i], word)) {
                     throw TypeError{};
                 }
@@ -146,15 +163,19 @@ namespace
                 }
                 if (std::holds_alternative<WordCont>(*k1)) {
                     if (std::holds_alternative<Cont>(*k2)) {
-                        if (!weak_equal(std::get<WordCont>(*k1).cont, std::get<Cont>(*k2).cont)) {
+                        if (!weak_equal(
+                                std::get<WordCont>(*k1).cont,
+                                std::get<Cont>(*k2).cont)) {
                             throw TypeError{};
                         }
-                    } else if (!std::holds_alternative<Word>(*k2)) {
+                    }
+                    else if (!std::holds_alternative<Word>(*k2)) {
                         if (!weak_equal(k1, k2)) {
                             throw TypeError{};
                         }
                     }
-                } else {
+                }
+                else {
                     if (!weak_equal(k1, k2)) {
                         throw TypeError{};
                     }
@@ -169,7 +190,8 @@ namespace
                 throw TypeError{};
             }
         }
-        for (size_t i = min_size + output_offset; i < output_stack.size(); ++i) {
+        for (size_t i = min_size + output_offset; i < output_stack.size();
+             ++i) {
             if (!weak_equal(output_stack[i], word)) {
                 throw TypeError{};
             }
@@ -181,13 +203,13 @@ namespace
         }
     }
 
-    void check_output(PolyTypedIR const &ir, Block const &block,
-            size_t output_offset, ContKind out_kind,
-            std::vector<Kind> const &output_stack)
+    void check_output(
+        PolyTypedIR const &ir, Block const &block, size_t output_offset,
+        ContKind out_kind, std::vector<Kind> const &output_stack)
     {
         check_output_stack(block, output_offset, out_kind, output_stack);
         assert(block.output.size() >= output_offset);
-        size_t arg_count = block.output.size() - output_offset;
+        size_t const arg_count = block.output.size() - output_offset;
         std::vector<Kind> out_front = out_kind->front;
         if (out_front.size() < arg_count) {
             if (!std::holds_alternative<ContWords>(block.kind->tail)) {
@@ -195,23 +217,25 @@ namespace
             }
             do {
                 out_front.push_back(word);
-            } while (out_front.size() < arg_count);
+            }
+            while (out_front.size() < arg_count);
         }
 
         for (size_t i = 0; i < arg_count; ++i) {
-            check_output_value(ir, block,
-                    block.output[output_offset + i], out_front[i]);
+            check_output_value(
+                ir, block, block.output[output_offset + i], out_front[i]);
         }
 
-        size_t n_left = out_front.size() - arg_count;
+        size_t const n_left = out_front.size() - arg_count;
         if (block.kind->front.size() != n_left + block.min_params &&
-                !std::holds_alternative<ContWords>(block.kind->tail)) {
+            !std::holds_alternative<ContWords>(block.kind->tail)) {
             throw TypeError{};
         }
         std::vector<Kind> new_tail_front;
         for (size_t i = 0; i < n_left; ++i) {
             if (block.min_params + i < block.kind->front.size()) {
-                new_tail_front.push_back(block.kind->front[block.min_params + i]);
+                new_tail_front.push_back(
+                    block.kind->front[block.min_params + i]);
             }
             else {
                 new_tail_front.push_back(word);
@@ -221,7 +245,8 @@ namespace
         for (size_t i = arg_count; i < out_front.size(); ++i) {
             new_out_front.push_back(out_front[i]);
         }
-        if (!weak_equal(cont_kind(std::move(new_tail_front), block.kind->tail),
+        if (!weak_equal(
+                cont_kind(std::move(new_tail_front), block.kind->tail),
                 cont_kind(std::move(new_out_front), out_kind->tail))) {
             throw TypeError{};
         }
@@ -232,27 +257,30 @@ namespace
         if (std::holds_alternative<ContWords>(block.kind->tail)) {
             throw TypeError{};
         }
-        std::visit(Cases{
-            [](Jump const &t) {
-                if (std::holds_alternative<ContWords>(t.jump_kind->tail)) {
-                    throw TypeError{};
-                }
-            },
-            [](JumpI const &t) {
-                if (std::holds_alternative<ContWords>(t.jump_kind->tail) ||
-                        std::holds_alternative<ContWords>(t.fallthrough_kind->tail)) {
-                    throw TypeError{};
-                }
-            },
-            [](FallThrough const &t) {
-                if (std::holds_alternative<ContWords>(t.fallthrough_kind->tail)) {
-                    throw TypeError{};
-                }
-            },
-            [](auto const &) {
-                // nop
-            }
-        }, block.terminator);
+        std::visit(
+            Cases{
+                [](Jump const &t) {
+                    if (std::holds_alternative<ContWords>(t.jump_kind->tail)) {
+                        throw TypeError{};
+                    }
+                },
+                [](JumpI const &t) {
+                    if (std::holds_alternative<ContWords>(t.jump_kind->tail) ||
+                        std::holds_alternative<ContWords>(
+                            t.fallthrough_kind->tail)) {
+                        throw TypeError{};
+                    }
+                },
+                [](FallThrough const &t) {
+                    if (std::holds_alternative<ContWords>(
+                            t.fallthrough_kind->tail)) {
+                        throw TypeError{};
+                    }
+                },
+                [](auto const &) {
+                    // nop
+                }},
+            block.terminator);
     }
 
     void check_block_word_typed(Block const &block)
@@ -260,26 +288,26 @@ namespace
         if (!weak_equal(block.kind, cont_words)) {
             throw TypeError{};
         }
-        std::visit(Cases{
-            [](Jump const &t) {
-                if (!weak_equal(t.jump_kind, cont_words)) {
-                    throw TypeError{};
-                }
-            },
-            [](JumpI const &t) {
-                if (!weak_equal(t.jump_kind, cont_words) || !weak_equal(t.fallthrough_kind, cont_words)) {
-                    throw TypeError{};
-                }
-            },
-            [](FallThrough const &t) {
-                if (!weak_equal(t.fallthrough_kind, cont_words)) {
-                    throw TypeError{};
-                }
-            },
-            [](auto const &) {
-                throw TypeError{};
-            }
-        }, block.terminator);
+        std::visit(
+            Cases{
+                [](Jump const &t) {
+                    if (!weak_equal(t.jump_kind, cont_words)) {
+                        throw TypeError{};
+                    }
+                },
+                [](JumpI const &t) {
+                    if (!weak_equal(t.jump_kind, cont_words) ||
+                        !weak_equal(t.fallthrough_kind, cont_words)) {
+                        throw TypeError{};
+                    }
+                },
+                [](FallThrough const &t) {
+                    if (!weak_equal(t.fallthrough_kind, cont_words)) {
+                        throw TypeError{};
+                    }
+                },
+                [](auto const &) { throw TypeError{}; }},
+            block.terminator);
     }
 
     void check_instruction_pop(std::vector<Kind> &stack)
@@ -309,8 +337,8 @@ namespace
         stack.push_back(stack[stack.size() - ix]);
     }
 
-    void check_instruction_default(
-        Instruction const &ins, std::vector<Kind> &stack)
+    void
+    check_instruction_default(Instruction const &ins, std::vector<Kind> &stack)
     {
         auto const info = opcode_info_table[ins.opcode];
         if (stack.size() < info.min_stack) {
@@ -319,7 +347,7 @@ namespace
         std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {
             if (!std::holds_alternative<Word>(*stack.back()) &&
-                    !std::holds_alternative<WordCont>(*stack.back())) {
+                !std::holds_alternative<WordCont>(*stack.back())) {
                 throw TypeError{};
             }
             stack.pop_back();
@@ -343,7 +371,8 @@ namespace
         }
     }
 
-    std::vector<Kind> check_instructions(Block const &block) {
+    std::vector<Kind> check_instructions(Block const &block)
+    {
         std::vector<Kind> stack = block.kind->front;
         if (std::holds_alternative<ContWords>(block.kind->tail)) {
             while (stack.size() < block.min_params) {
@@ -360,29 +389,37 @@ namespace
 
     void check_block_exact(PolyTypedIR const &ir, Block const &block)
     {
-        std::vector<Kind> output_stack = check_instructions(block);
+        std::vector<Kind> const output_stack = check_instructions(block);
         if (std::holds_alternative<Jump>(block.terminator)) {
             assert(!block.output.empty());
-            auto &jump = std::get<Jump>(block.terminator);
+            auto const &jump = std::get<Jump>(block.terminator);
             check_dest(ir, block, block.output[0], jump.jump_kind);
             check_output(ir, block, 1, jump.jump_kind, output_stack);
-        } else if (std::holds_alternative<JumpI>(block.terminator)) {
+        }
+        else if (std::holds_alternative<JumpI>(block.terminator)) {
             assert(block.output.size() >= 2);
-            auto &jumpi = std::get<JumpI>(block.terminator);
+            auto const &jumpi = std::get<JumpI>(block.terminator);
             check_dest(ir, block, block.output[0], jumpi.jump_kind);
             check_output(ir, block, 2, jumpi.jump_kind, output_stack);
-            if (!can_specialize(ir.blocks[jumpi.fallthrough_dest].kind, jumpi.fallthrough_kind)) {
+            if (!can_specialize(
+                    ir.blocks[jumpi.fallthrough_dest].kind,
+                    jumpi.fallthrough_kind)) {
                 throw TypeError{};
             }
             check_output(ir, block, 2, jumpi.fallthrough_kind, output_stack);
-        } else if (std::holds_alternative<FallThrough>(block.terminator)) {
-            auto &fall = std::get<FallThrough>(block.terminator);
-            if (!can_specialize(ir.blocks[fall.fallthrough_dest].kind, fall.fallthrough_kind)) {
+        }
+        else if (std::holds_alternative<FallThrough>(block.terminator)) {
+            auto const &fall = std::get<FallThrough>(block.terminator);
+            if (!can_specialize(
+                    ir.blocks[fall.fallthrough_dest].kind,
+                    fall.fallthrough_kind)) {
                 throw TypeError{};
             }
             check_output(ir, block, 0, fall.fallthrough_kind, output_stack);
-        } else {
-            // It should not be possible to have Word.. tail with "exit" terminator:
+        }
+        else {
+            // It should not be possible to have Word.. tail with "exit"
+            // terminator:
             check_block_not_word_typed(block);
         }
     }

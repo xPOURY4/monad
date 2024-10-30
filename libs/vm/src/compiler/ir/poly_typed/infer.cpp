@@ -440,15 +440,15 @@ namespace
                 state.subst_map.revert();
                 VarName const v = std::get<KindVar>(*dest_kind).var;
                 std::vector<Kind> front = (*out_kind)->front;
-                for (size_t i = 0; i < front.size(); ++i) {
-                    Kind k = state.subst_map.subst_or_throw(front[i]);
+                for (auto &fk : front) {
+                    Kind const k = state.subst_map.subst_or_throw(fk);
                     if (!std::holds_alternative<KindVar>(*k)) {
                         continue;
                     }
                     if (std::get<KindVar>(*k).var != v) {
                         continue;
                     }
-                    front[i] = any;
+                    fk = any;
                 }
                 *out_kind = cont_kind(std::move(front), (*out_kind)->tail);
                 unify(state.subst_map, std::move(dest_kind), cont(*out_kind));
@@ -457,8 +457,7 @@ namespace
         else if (std::holds_alternative<Word>(*dest_kind)) {
             VarName const v = state.subst_map.subst_to_var(bts.jumpdest);
             state.subst_map.insert_kind(
-                v,
-                word_cont(state.subst_map.subst_or_throw(*out_kind)));
+                v, word_cont(state.subst_map.subst_or_throw(*out_kind)));
         }
         else if (std::holds_alternative<WordCont>(*dest_kind)) {
             unify(
@@ -467,10 +466,7 @@ namespace
                 *out_kind);
         }
         else {
-            unify(
-                state.subst_map,
-                std::move(dest_kind),
-                cont(*out_kind));
+            unify(state.subst_map, std::move(dest_kind), cont(*out_kind));
         }
     }
 
@@ -766,7 +762,8 @@ namespace monad::compiler::poly_typed
         std::vector<Block> blocks = infer_components(state, components);
         state.reset();
         for (auto &b : blocks) {
-            // Substitute one last time to eliminate all the literal vars that are assigned a literal type.
+            // Substitute one last time to eliminate all the literal vars that
+            // are assigned a literal type.
             subst_block(state.subst_map, b);
         }
         return blocks;

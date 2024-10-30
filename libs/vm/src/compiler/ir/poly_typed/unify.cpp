@@ -436,7 +436,8 @@ namespace
         Kind k = su.subst(param, 0, ticks);
         Kind new_k = su.subst(new_param, 0, ticks);
 
-        // Check that `v` and `new_v` does not appear in `new_k` and `k`, respectively:
+        // Check that `v` and `new_v` does not appear in `new_k` and `k`,
+        // respectively:
         static_cast<void>(find_subst_kind2(su, v, true, new_k, 0, ticks));
         static_cast<void>(find_subst_kind2(su, new_v, true, k, 0, ticks));
 

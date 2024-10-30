@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <gtest/gtest.h>
+#include <variant>
 #include <vector>
 
 using namespace monad::compiler;

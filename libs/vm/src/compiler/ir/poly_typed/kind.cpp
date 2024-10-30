@@ -1,5 +1,7 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -104,7 +106,8 @@ namespace
         std::unordered_map<VarName, ContKind> cont_map;
     };
 
-    bool can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific);
+    bool
+    can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific);
 
     bool can_specialize(SpecializeSubstMap &su, Kind generic, Kind specific)
     {
@@ -130,29 +133,31 @@ namespace
                     if (!std::holds_alternative<LiteralVar>(*specific)) {
                         return false;
                     }
-                    return can_specialize(su, lv.cont,
-                            std::get<LiteralVar>(*specific).cont);
+                    return can_specialize(
+                        su, lv.cont, std::get<LiteralVar>(*specific).cont);
                 },
                 [&](WordCont const &wc) {
                     if (!std::holds_alternative<WordCont>(*specific)) {
                         return false;
                     }
-                    return can_specialize(su, wc.cont,
-                            std::get<WordCont>(*specific).cont);
+                    return can_specialize(
+                        su, wc.cont, std::get<WordCont>(*specific).cont);
                 },
                 [&](Cont const &c) {
                     if (!std::holds_alternative<Cont>(*specific)) {
                         return false;
                     }
-                    return can_specialize(su, c.cont,
-                            std::get<Cont>(*specific).cont);
+                    return can_specialize(
+                        su, c.cont, std::get<Cont>(*specific).cont);
                 }},
             *generic);
     }
 
-    bool can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific)
+    bool
+    can_specialize(SpecializeSubstMap &su, ContKind generic, ContKind specific)
     {
-        size_t min_size = std::min(generic->front.size(), specific->front.size());
+        size_t const min_size =
+            std::min(generic->front.size(), specific->front.size());
         for (size_t i = 0; i < min_size; ++i) {
             if (!can_specialize(su, generic->front[i], specific->front[i])) {
                 return false;
@@ -173,22 +178,25 @@ namespace
                 }
             }
             return true;
-        } else if (std::holds_alternative<ContWords>(specific->tail)) {
+        }
+        else if (std::holds_alternative<ContWords>(specific->tail)) {
             for (size_t i = min_size; i < generic->front.size(); ++i) {
                 if (!std::holds_alternative<Word>(*generic->front[i])) {
                     return false;
                 }
             }
-            VarName v = std::get<ContVar>(generic->tail).var;
+            VarName const v = std::get<ContVar>(generic->tail).var;
             auto it = su.cont_map.find(v);
             if (it != su.cont_map.end()) {
-                ContKind c = it->second;
+                ContKind const c = it->second;
                 if (!std::holds_alternative<ContWords>(c->tail)) {
                     return false;
                 }
-                size_t n = std::min(specific->front.size() - min_size, c->front.size());
+                size_t const n = std::min(
+                    specific->front.size() - min_size, c->front.size());
                 for (size_t i = 0; i < n; ++i) {
-                    if (!weak_equal(specific->front[min_size + i], c->front[i])) {
+                    if (!weak_equal(
+                            specific->front[min_size + i], c->front[i])) {
                         return false;
                     }
                 }
@@ -202,7 +210,8 @@ namespace
                         return false;
                     }
                 }
-            } else {
+            }
+            else {
                 std::vector<Kind> front;
                 for (size_t i = min_size; i < specific->front.size(); ++i) {
                     front.push_back(specific->front[i]);
@@ -210,20 +219,22 @@ namespace
                 su.cont_map.insert_or_assign(v, cont_kind(std::move(front)));
             }
             return true;
-        } else {
+        }
+        else {
             if (generic->front.size() > specific->front.size()) {
                 return false;
             }
             assert(min_size == generic->front.size());
-            VarName v = std::get<ContVar>(generic->tail).var;
+            VarName const v = std::get<ContVar>(generic->tail).var;
             auto it = su.cont_map.find(v);
             if (it != su.cont_map.end()) {
-                ContKind c = it->second;
+                ContKind const c = it->second;
                 if (c->front.size() != specific->front.size() - min_size) {
                     return false;
                 }
                 for (size_t i = 0; i < c->front.size(); ++i) {
-                    if (!weak_equal(specific->front[min_size + i], c->front[i])) {
+                    if (!weak_equal(
+                            specific->front[min_size + i], c->front[i])) {
                         return false;
                     }
                 }
@@ -231,16 +242,17 @@ namespace
                     return false;
                 }
                 if (std::get<ContVar>(c->tail).var !=
-                        std::get<ContVar>(specific->tail).var) {
+                    std::get<ContVar>(specific->tail).var) {
                     return false;
                 }
-            } else {
+            }
+            else {
                 std::vector<Kind> front;
                 for (size_t i = min_size; i < specific->front.size(); ++i) {
                     front.push_back(specific->front[i]);
                 }
-                su.cont_map.insert_or_assign(v,
-                        cont_kind(std::move(front), specific->tail));
+                su.cont_map.insert_or_assign(
+                    v, cont_kind(std::move(front), specific->tail));
             }
             return true;
         }
@@ -399,11 +411,11 @@ namespace monad::compiler::poly_typed
         if (c1->tail.index() != c2->tail.index()) {
             return false;
         }
-        if (c1->front.size() != c2->front.size()
-                && std::holds_alternative<ContVar>(c1->tail)) {
+        if (c1->front.size() != c2->front.size() &&
+            std::holds_alternative<ContVar>(c1->tail)) {
             return false;
         }
-        size_t min_size = std::min(c1->front.size(), c2->front.size());
+        size_t const min_size = std::min(c1->front.size(), c2->front.size());
         for (size_t i = 0; i < min_size; ++i) {
             if (!weak_equal(c1->front[i], c2->front[i])) {
                 return false;

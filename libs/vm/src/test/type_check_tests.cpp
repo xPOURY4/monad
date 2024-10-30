@@ -2,9 +2,12 @@
 #include "compiler/ir/bytecode.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed.h"
+#include "compiler/ir/poly_typed/kind.h"
 #include "compiler/opcodes.h"
 
 #include <gtest/gtest.h>
+#include <variant>
+#include <vector>
 
 using namespace monad::compiler;
 using namespace monad::compiler::poly_typed;
@@ -14,7 +17,7 @@ TEST(type_check, test_1)
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({ADD}))));
 
-    std::vector<Kind> front = ir.blocks[0].kind->front;
+    std::vector<Kind> const front = ir.blocks[0].kind->front;
 
     ir.blocks[0].kind->front.at(1) = kind_var(0);
     ASSERT_FALSE(ir.type_check());
@@ -32,12 +35,10 @@ TEST(type_check, test_1)
 TEST(type_check, test_2)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    JUMP
-                }))));
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({JUMP}))));
 
-    std::vector<Kind> front = ir.blocks[0].kind->front;
-    ContKind jump = std::get<Jump>(ir.blocks[0].terminator).jump_kind;
+    std::vector<Kind> const front = ir.blocks[0].kind->front;
+    ContKind const jump = std::get<Jump>(ir.blocks[0].terminator).jump_kind;
 
     ir.blocks[0].kind->front.at(0) = word;
     ASSERT_FALSE(ir.type_check());
@@ -61,40 +62,42 @@ TEST(type_check, test_2)
 
 TEST(type_check, test_3)
 {
-    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    // Word,Word,Word,s -> Exit
-                    PUSH1,
-                    12,
-                    DUP1,
-                    SWAP2,
-                    ADD,
-                    PUSH1,
-                    9,
-                    JUMPI,
-                    // (s -> Exit),s -> Exit
-                    JUMP,
-                    JUMPDEST, // a,Word,Word,s -> Exit
-                    POP,
-                    RETURN,
-                    JUMPDEST, // Word,Word,s -> Exit
-                    RETURN
-                }))));
-    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind, cont_kind({word,word,word}, 0)));
+    auto ir =
+        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+            bytecode::BytecodeIR({// Word,Word,Word,s -> Exit
+                                  PUSH1,
+                                  12,
+                                  DUP1,
+                                  SWAP2,
+                                  ADD,
+                                  PUSH1,
+                                  9,
+                                  JUMPI,
+                                  // (s -> Exit),s -> Exit
+                                  JUMP,
+                                  JUMPDEST, // a,Word,Word,s -> Exit
+                                  POP,
+                                  RETURN,
+                                  JUMPDEST, // Word,Word,s -> Exit
+                                  RETURN}))));
+    ASSERT_TRUE(
+        alpha_equal(ir.blocks[0].kind, cont_kind({word, word, word}, 0)));
     ASSERT_TRUE(alpha_equal(
-                std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
-                cont_kind({cont(cont_kind({word,word}, 0)), word, word}, 0)));
-    ASSERT_TRUE(alpha_equal(ir.blocks[1].kind, cont_kind({cont(cont_kind({}, 0))}, 0)));
-    ASSERT_TRUE(alpha_equal(ir.blocks[2].kind, cont_kind({kind_var(0),word,word}, 0)));
-    ASSERT_TRUE(alpha_equal(ir.blocks[3].kind, cont_kind({word,word}, 0)));
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
+        cont_kind({cont(cont_kind({word, word}, 0)), word, word}, 0)));
+    ASSERT_TRUE(
+        alpha_equal(ir.blocks[1].kind, cont_kind({cont(cont_kind({}, 0))}, 0)));
+    ASSERT_TRUE(alpha_equal(
+        ir.blocks[2].kind, cont_kind({kind_var(0), word, word}, 0)));
+    ASSERT_TRUE(alpha_equal(ir.blocks[3].kind, cont_kind({word, word}, 0)));
 
     ContTailKind tail0 = ir.blocks[0].kind->tail;
-    std::vector<Kind> front0 = ir.blocks[0].kind->front;
+    std::vector<Kind> const front0 = ir.blocks[0].kind->front;
     ContTailKind fallthrough_tail0 =
         std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->tail;
-    std::vector<Kind> fallthrough_front0 =
+    std::vector<Kind> const fallthrough_front0 =
         std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front;
-    Kind jump_literal_var0 =
+    Kind const jump_literal_var0 =
         std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front.at(0);
 
     ASSERT_TRUE(std::holds_alternative<LiteralVar>(*jump_literal_var0));
@@ -108,14 +111,14 @@ TEST(type_check, test_3)
     ir.blocks[0].kind->tail = tail0;
     ASSERT_TRUE(ir.type_check()); // sanity check
                                   //
-    ir.blocks[0].kind->front = {word,word};
+    ir.blocks[0].kind->front = {word, word};
     ASSERT_FALSE(ir.type_check());
 
     ir.blocks[0].kind->front = front0;
     ASSERT_TRUE(ir.type_check()); // sanity check
 
-    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front =
-        {word, word, word};
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front = {
+        word, word, word};
     ASSERT_FALSE(ir.type_check());
 
     std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front =
@@ -131,8 +134,10 @@ TEST(type_check, test_3)
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front.at(0) =
-        literal_var(std::get<LiteralVar>(*jump_literal_var0).var,
-                cont_kind({word}, std::get<LiteralVar>(*jump_literal_var0).cont->tail));
+        literal_var(
+            std::get<LiteralVar>(*jump_literal_var0).var,
+            cont_kind(
+                {word}, std::get<LiteralVar>(*jump_literal_var0).cont->tail));
     ASSERT_FALSE(ir.type_check());
 
     std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front.at(0) =
@@ -143,20 +148,25 @@ TEST(type_check, test_3)
 TEST(type_check, test_4)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    // Word,(s -> Exit),((s -> Exit),s -> Exit),s -> Exit
-                    PUSH1,
-                    12,
-                    ADD,
-                    SWAP1,
-                    SWAP2,
-                    JUMPI,
-                    // (s -> Exit),s -> Exit
-                    JUMP
-                }))));
-    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind,
-                cont_kind({word,cont(cont_kind({}, 0)),cont(cont_kind({cont(cont_kind({}, 0))}, 0))}, 0)));
-    ASSERT_TRUE(alpha_equal(ir.blocks[1].kind, cont_kind({cont(cont_kind({}, 0))}, 0)));
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
+            {// Word,(s -> Exit),((s -> Exit),s -> Exit),s -> Exit
+             PUSH1,
+             12,
+             ADD,
+             SWAP1,
+             SWAP2,
+             JUMPI,
+             // (s -> Exit),s -> Exit
+             JUMP}))));
+    ASSERT_TRUE(alpha_equal(
+        ir.blocks[0].kind,
+        cont_kind(
+            {word,
+             cont(cont_kind({}, 0)),
+             cont(cont_kind({cont(cont_kind({}, 0))}, 0))},
+            0)));
+    ASSERT_TRUE(
+        alpha_equal(ir.blocks[1].kind, cont_kind({cont(cont_kind({}, 0))}, 0)));
 
     ContTailKind tail0 = ir.blocks[0].kind->tail;
 
@@ -166,7 +176,10 @@ TEST(type_check, test_4)
     ir.blocks[0].kind->tail = tail0;
     ASSERT_TRUE(ir.type_check()); // sanity check
 
-    VarName v = std::get<ContVar>(std::get<Cont>(*ir.blocks[0].kind->front[2]).cont->tail).var;
+    VarName const v =
+        std::get<ContVar>(
+            std::get<Cont>(*ir.blocks[0].kind->front[2]).cont->tail)
+            .var;
     ir.blocks[0].kind->front[2] =
         cont(cont_kind({cont(cont_kind({}, v + 1))}, v));
     ASSERT_FALSE(ir.type_check());
@@ -183,26 +196,24 @@ TEST(type_check, test_4)
         cont(cont_kind({cont(cont_kind({word}, v + 1))}, v));
     ASSERT_FALSE(ir.type_check());
 
-    ir.blocks[0].kind->front[2] =
-        cont(cont_kind({cont(cont_kind({}, v))}, v));
+    ir.blocks[0].kind->front[2] = cont(cont_kind({cont(cont_kind({}, v))}, v));
     ASSERT_TRUE(ir.type_check()); // sanity check
 
-    VarName w = std::get<ContVar>(std::get<Cont>(*ir.blocks[0].kind->front[1]).cont->tail).var;
+    VarName const w =
+        std::get<ContVar>(
+            std::get<Cont>(*ir.blocks[0].kind->front[1]).cont->tail)
+            .var;
 
-    ir.blocks[0].kind->front[1] =
-        cont(cont_kind({}, w + 1));
+    ir.blocks[0].kind->front[1] = cont(cont_kind({}, w + 1));
     ASSERT_FALSE(ir.type_check());
 
-    ir.blocks[0].kind->front[1] =
-        cont(cont_kind({word}, w + 1));
+    ir.blocks[0].kind->front[1] = cont(cont_kind({word}, w + 1));
     ASSERT_FALSE(ir.type_check());
 
-    ir.blocks[0].kind->front[1] =
-        cont(cont_kind({word}, w));
+    ir.blocks[0].kind->front[1] = cont(cont_kind({word}, w));
     ASSERT_FALSE(ir.type_check());
 
-    ir.blocks[0].kind->front[1] =
-        cont(cont_kind({}, w));
+    ir.blocks[0].kind->front[1] = cont(cont_kind({}, w));
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front[0] = cont(cont_kind({}, w));
@@ -219,31 +230,42 @@ TEST(type_check, test_5)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    // (Word : (Word : Word,s -> Exit),(Word : Word,s -> Exit),s -> Exit),(Word : Word,s -> Exit),s -> Exit
-                    DUP2, // a1,a0,a1,s1 -> Exit
-                    SWAP1, // a0,a1,a1,s1 -> Exit
-                    DUP2, // a1,a0,a1,a1,s1 -> Exit
-                    DUP2, // a0,a1,a0,a1,a1,s1 -> Exit
-                    ADD, // Word,a0,a1,a1,s1 -> Exit
-                    SWAP1, // a0,Word,a1,a1,s1 -> Exit
-                    JUMPI, // a1,a1,s1 -> Exit
-                    // Word,(Word,s -> Exit),s -> Exit
-                    PUSH1,
-                    1, // Word,Word,(Word,s -> Exit),s -> Exit
-                    ADD, // Word,(Word,s -> Exit),s -> Exit
-                    SWAP1, // (Word,s -> Exit),Word,s -> Exit
-                    JUMP // Word,s -> Exit
-                }))));
-    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind,
-                cont_kind({word_cont(cont_kind({word_cont(cont_kind({word}, 0)), word_cont(cont_kind({word}, 0))}, 0)), word_cont(cont_kind({word}, 0))}, 0)));
+            // (Word : (Word : Word,s -> Exit),(Word : Word,s -> Exit),s ->
+            // Exit),(Word : Word,s -> Exit),s -> Exit
+            DUP2, // a1,a0,a1,s1 -> Exit
+            SWAP1, // a0,a1,a1,s1 -> Exit
+            DUP2, // a1,a0,a1,a1,s1 -> Exit
+            DUP2, // a0,a1,a0,a1,a1,s1 -> Exit
+            ADD, // Word,a0,a1,a1,s1 -> Exit
+            SWAP1, // a0,Word,a1,a1,s1 -> Exit
+            JUMPI, // a1,a1,s1 -> Exit
+            // Word,(Word,s -> Exit),s -> Exit
+            PUSH1,
+            1, // Word,Word,(Word,s -> Exit),s -> Exit
+            ADD, // Word,(Word,s -> Exit),s -> Exit
+            SWAP1, // (Word,s -> Exit),Word,s -> Exit
+            JUMP // Word,s -> Exit
+        }))));
     ASSERT_TRUE(alpha_equal(
-                std::get<JumpI>(ir.blocks[0].terminator).jump_kind,
-                cont_kind({word_cont(cont_kind({word}, 0)), word_cont(cont_kind({word}, 0))}, 0)));
+        ir.blocks[0].kind,
+        cont_kind(
+            {word_cont(cont_kind(
+                 {word_cont(cont_kind({word}, 0)),
+                  word_cont(cont_kind({word}, 0))},
+                 0)),
+             word_cont(cont_kind({word}, 0))},
+            0)));
     ASSERT_TRUE(alpha_equal(
-                std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
-                cont_kind({word, cont(cont_kind({word}, 0))}, 0)));
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind,
+        cont_kind(
+            {word_cont(cont_kind({word}, 0)), word_cont(cont_kind({word}, 0))},
+            0)));
+    ASSERT_TRUE(alpha_equal(
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
+        cont_kind({word, cont(cont_kind({word}, 0))}, 0)));
 
-    ASSERT_TRUE(alpha_equal(ir.blocks[1].kind, cont_kind({word, cont(cont_kind({word}, 0))}, 0)));
+    ASSERT_TRUE(alpha_equal(
+        ir.blocks[1].kind, cont_kind({word, cont(cont_kind({word}, 0))}, 0)));
 
     std::vector<Kind> front0 = ir.blocks[0].kind->front;
     ContTailKind tail0 = ir.blocks[0].kind->tail;
@@ -323,27 +345,29 @@ TEST(type_check, test_5)
 
 TEST(type_check, test_6)
 {
-    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    // (Any,Any,s -> Exit),Word,s -> Exit
-                    DUP1, // a,a,Word,s -> Exit
-                    SWAP2, // Word,a,a,s -> Exit
-                    DUP2, // a,Word,a,a,s -> Exit
-                    JUMPI, // a,a,s -> Exit
-                    POP,
-                    STOP
-                }))));
-    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind,
-                cont_kind({cont(cont_kind({any, any}, 0)), word}, 0)));
+    auto ir =
+        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+            bytecode::BytecodeIR({// (Any,Any,s -> Exit),Word,s -> Exit
+                                  DUP1, // a,a,Word,s -> Exit
+                                  SWAP2, // Word,a,a,s -> Exit
+                                  DUP2, // a,Word,a,a,s -> Exit
+                                  JUMPI, // a,a,s -> Exit
+                                  POP,
+                                  STOP}))));
     ASSERT_TRUE(alpha_equal(
-                std::get<JumpI>(ir.blocks[0].terminator).jump_kind,
-                cont_kind({any, any}, 0)));
+        ir.blocks[0].kind,
+        cont_kind({cont(cont_kind({any, any}, 0)), word}, 0)));
     ASSERT_TRUE(alpha_equal(
-                std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
-                cont_kind({cont(cont_kind({any, any}, 0)), cont(cont_kind({any, any}, 0))}, 0)));
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind,
+        cont_kind({any, any}, 0)));
+    ASSERT_TRUE(alpha_equal(
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
+        cont_kind(
+            {cont(cont_kind({any, any}, 0)), cont(cont_kind({any, any}, 0))},
+            0)));
 
-    std::vector<Kind> front0 = ir.blocks[0].kind->front;
-    std::vector<Kind> fallthrough_front0 =
+    std::vector<Kind> const front0 = ir.blocks[0].kind->front;
+    std::vector<Kind> const fallthrough_front0 =
         std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front;
     std::vector<Kind> jump_front0 =
         std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front;
@@ -399,24 +423,17 @@ TEST(type_check, test_6)
 TEST(type_check, test_7)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-                    DUP1,
-                    ADD,
-                    JUMPDEST,
-                    DUP1,
-                    PUSH1, 1,
-                    ADD,
-                    JUMP
-                }))));
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
+            {DUP1, ADD, JUMPDEST, DUP1, PUSH1, 1, ADD, JUMP}))));
 
     ASSERT_TRUE(alpha_equal(ir.blocks[0].kind, cont_kind({word})));
     ASSERT_TRUE(alpha_equal(
-                std::get<FallThrough>(ir.blocks[0].terminator).fallthrough_kind,
-                cont_kind({word})));
+        std::get<FallThrough>(ir.blocks[0].terminator).fallthrough_kind,
+        cont_kind({word})));
 
     ASSERT_TRUE(alpha_equal(ir.blocks[1].kind, cont_words));
     ASSERT_TRUE(alpha_equal(
-                std::get<Jump>(ir.blocks[1].terminator).jump_kind, cont_words));
+        std::get<Jump>(ir.blocks[1].terminator).jump_kind, cont_words));
 
     ASSERT_TRUE(ir.type_check());
 
@@ -478,8 +495,8 @@ TEST(type_check, test_7)
     ir.blocks[1].kind->front = {};
     ASSERT_TRUE(ir.type_check()); // sanity check
 
-    ContTailKind tail0 = ir.blocks[0].kind->tail;
-    ContTailKind tail1 = ir.blocks[1].kind->tail;
+    ContTailKind const tail0 = ir.blocks[0].kind->tail;
+    ContTailKind const tail1 = ir.blocks[1].kind->tail;
 
     ir.blocks[0].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());

@@ -129,8 +129,8 @@ namespace monad::compiler::poly_typed
     /// Equality where Word.. is equal to to Word,Word..
     bool weak_equal(Kind, Kind);
 
-    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
-    /// The function considers Word.. to be equal to Word,Word..
+    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) ==
+    /// specific`. The function considers Word.. to be equal to Word,Word..
     bool can_specialize(Kind generic, Kind specific);
 
     /// Equality up to renaming of variables.
@@ -143,8 +143,8 @@ namespace monad::compiler::poly_typed
     /// Equality where Word.. is equal to to Word,Word..
     bool weak_equal(ContKind, ContKind);
 
-    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
-    /// The function considers Word.. to be equal to Word,Word..
+    /// Whether there exists a `SubstMap su`, such that `su.subst(generic) ==
+    /// specific`. The function considers Word.. to be equal to Word,Word..
     bool can_specialize(ContKind generic, ContKind specific);
 }
 
