@@ -24,6 +24,19 @@ namespace monad::compiler
         std::vector<Entry> journal;
         std::vector<size_t> checkpoints;
 
+        void push_checkpoint(K const &k)
+        {
+            if (!checkpoints.empty()) {
+                auto it = current.find(k);
+                if (it != current.end()) {
+                    journal.emplace_back(k, std::move(it->second));
+                }
+                else {
+                    journal.emplace_back(k, std::nullopt);
+                }
+            }
+        }
+
     public:
         using value_type = Map::value_type;
         using iterator = Map::iterator;
@@ -90,24 +103,14 @@ namespace monad::compiler
 
         bool erase(K const &k)
         {
-            if (!checkpoints.empty()) {
-                journal.emplace_back(k, std::nullopt);
-            }
+            push_checkpoint(k);
             return current.erase(k) == 1;
         }
 
         template <typename M>
         bool put(K const &k, M &&v)
         {
-            if (!checkpoints.empty()) {
-                auto it = current.find(k);
-                if (it != current.end()) {
-                    journal.emplace_back(k, std::move(it->second));
-                }
-                else {
-                    journal.emplace_back(k, std::nullopt);
-                }
-            }
+            push_checkpoint(k);
             return current.insert_or_assign(k, std::forward<M>(v)).second;
         }
 
@@ -124,6 +127,8 @@ namespace monad::compiler
 
         void revert()
         {
+            assert(!checkpoints.empty());
+
             size_t last_point = checkpoints.back();
             checkpoints.pop_back();
 

@@ -64,6 +64,9 @@ TEST(transactional_unordered_map, test_2)
     ASSERT_EQ(map.at("3"), 3);
     ASSERT_EQ(map.at("4"), 4);
 
+    ASSERT_TRUE(map.erase("3"));
+    ASSERT_FALSE(map.contains("3"));
+
     map.revert();
 
     ASSERT_EQ(map.at("0"), 0);
@@ -71,6 +74,11 @@ TEST(transactional_unordered_map, test_2)
     ASSERT_EQ(map.at("2"), 2);
     ASSERT_EQ(map.at("3"), 3);
     ASSERT_EQ(map.find("4"), map.end());
+
+    ASSERT_TRUE(map.erase("0"));
+    ASSERT_TRUE(map.erase("2"));
+    ASSERT_FALSE(map.contains("0"));
+    ASSERT_FALSE(map.contains("2"));
 
     map.revert();
 

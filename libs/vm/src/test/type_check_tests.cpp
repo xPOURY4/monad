@@ -540,3 +540,11 @@ TEST(type_check, test_7)
     ir.blocks[1].kind->tail = tail1;
     ASSERT_TRUE(ir.type_check()); // sanity check
 }
+
+TEST(type_check, error_1)
+{
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
+            {DUP3, DUP4, JUMPI}))));
+    ASSERT_TRUE(ir.type_check());
+}

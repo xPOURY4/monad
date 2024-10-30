@@ -445,12 +445,17 @@ namespace monad::compiler::poly_typed
     {
     }
 
+    void PolyTypedIR::type_check_or_throw()
+    {
+        for (auto const &b : blocks) {
+            check_block(*this, b);
+        }
+    }
+
     bool PolyTypedIR::type_check()
     {
         try {
-            for (auto const &b : blocks) {
-                check_block(*this, b);
-            }
+            type_check_or_throw();
         }
         catch (TypeError const &) {
             return false;

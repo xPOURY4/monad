@@ -8,6 +8,7 @@ namespace monad::compiler::poly_typed
     {
         PolyTypedIR(local_stacks::LocalStacksIR const &&ir);
 
+        void type_check_or_throw();
         bool type_check();
 
         uint64_t codesize;
