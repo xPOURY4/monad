@@ -428,18 +428,18 @@ namespace
         Kind const new_param = kind_var(new_param_var);
         VarName v = su.subst_to_var(param);
         VarName const new_v = su.subst_to_var(new_param);
+
         if (v == new_v) {
             return;
         }
+
         Kind k = su.subst(param, 0, ticks);
         Kind new_k = su.subst(new_param, 0, ticks);
+
+        // Check that `v` and `new_v` does not appear in `new_k` and `k`, respectively:
         static_cast<void>(find_subst_kind2(su, v, true, new_k, 0, ticks));
         static_cast<void>(find_subst_kind2(su, new_v, true, k, 0, ticks));
-        if (std::holds_alternative<KindVar>(*new_k)) {
-            assert(new_v == std::get<KindVar>(*new_k).var);
-            su.insert_kind(new_v, kind_var(v));
-            return;
-        }
+
         std::visit(
             Cases{
                 [&](__attribute__((unused)) KindVar const &kv1) {
@@ -493,7 +493,6 @@ namespace
                 [&](auto const &) { unify(su, k, new_k, 0, ticks); },
             },
             *k);
-        su.insert_kind(new_v, kind_var(v));
     }
 
     void unify_param_var_name_map(

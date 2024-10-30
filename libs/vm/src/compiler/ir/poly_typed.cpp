@@ -127,21 +127,41 @@ namespace
             ContKind out_kind, std::vector<Kind> const &output_stack)
     {
         assert(block.output.size() >= output_offset);
-        assert(block.output.size() - output_offset == output_stack.size());
-        size_t min_size = std::min(output_stack.size(), out_kind->front.size());
+        assert(output_stack.size() >= block.output.size());
+        size_t min_size = std::min(
+                output_stack.size() - output_offset,
+                out_kind->front.size());
         for (size_t i = 0; i < min_size; ++i) {
-            if (block.output[output_offset + i].is == ValueIs::LITERAL) {
-                if (output_stack[i] != word) {
+            if (output_offset + i < block.output.size() &&
+                    block.output[output_offset + i].is == ValueIs::LITERAL) {
+                if (output_stack[output_offset + i] != word) {
                     throw TypeError{};
                 }
             }
             else {
-                if (output_stack[i] != out_kind->front[i]) {
-                    throw TypeError{};
+                auto const &k1 = output_stack[output_offset + i];
+                auto const &k2 = out_kind->front[i];
+                if (std::holds_alternative<Any>(*k2)) {
+                    continue;
+                }
+                if (std::holds_alternative<WordCont>(*k1)) {
+                    if (std::holds_alternative<Cont>(*k2)) {
+                        if (std::get<WordCont>(*k1).cont != std::get<Cont>(*k2).cont) {
+                            throw TypeError{};
+                        }
+                    } else if (!std::holds_alternative<Word>(*k2)) {
+                        if (k1 != k2) {
+                            throw TypeError{};
+                        }
+                    }
+                } else {
+                    if (k1 != k2) {
+                        throw TypeError{};
+                    }
                 }
             }
         }
-        if (output_stack.size() != out_kind->front.size()) {
+        if (output_stack.size() != out_kind->front.size() + output_offset) {
             if (!std::holds_alternative<ContWords>(out_kind->tail)) {
                 throw TypeError{};
             }
@@ -149,7 +169,7 @@ namespace
                 throw TypeError{};
             }
         }
-        for (size_t i = min_size; i < output_stack.size(); ++i) {
+        for (size_t i = min_size + output_offset; i < output_stack.size(); ++i) {
             if (output_stack[i] != word) {
                 throw TypeError{};
             }
@@ -290,7 +310,8 @@ namespace
         assert(stack.size() >= info.min_stack);
         std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {
-            if (stack.back() != word) {
+            if (!std::holds_alternative<Word>(*stack.back()) &&
+                    !std::holds_alternative<WordCont>(*stack.back())) {
                 throw TypeError{};
             }
             stack.pop_back();
@@ -316,9 +337,11 @@ namespace
 
     std::vector<Kind> check_instructions(Block const &block) {
         std::vector<Kind> stack = block.kind->front;
+        std::reverse(stack.begin(), stack.end());
         for (auto const &ins : block.instrs) {
             check_instruction(ins, stack);
         }
+        std::reverse(stack.begin(), stack.end());
         return stack;
     }
 

@@ -426,65 +426,65 @@ namespace
     }
 
     void infer_block_jump_param(
-        InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
+        InferState &state, BlockTypeSpec const &bts, ContKind *out_kind)
     {
         assert(std::holds_alternative<KindVar>(*bts.jumpdest));
         Kind dest_kind = state.subst_map.subst_or_throw(bts.jumpdest);
         if (std::holds_alternative<KindVar>(*dest_kind)) {
-            ContKind out_kind2 = state.subst_map.subst_or_throw(std::move(out_kind));
             state.subst_map.transaction();
             try {
-                unify(state.subst_map, dest_kind, cont(out_kind2));
+                unify(state.subst_map, dest_kind, cont(*out_kind));
                 state.subst_map.commit();
             }
             catch (UnificationException const &) {
                 state.subst_map.revert();
                 VarName const v = std::get<KindVar>(*dest_kind).var;
-                std::vector<Kind> front = out_kind2->front;
+                std::vector<Kind> front = (*out_kind)->front;
                 for (size_t i = 0; i < front.size(); ++i) {
-                    if (!std::holds_alternative<KindVar>(*front[i])) {
+                    Kind k = state.subst_map.subst_or_throw(front[i]);
+                    if (!std::holds_alternative<KindVar>(*k)) {
                         continue;
                     }
-                    if (std::get<KindVar>(*front[i]).var != v) {
+                    if (std::get<KindVar>(*k).var != v) {
                         continue;
                     }
                     front[i] = any;
                 }
-                unify(state.subst_map, std::move(dest_kind),
-                        cont(cont_kind(std::move(front), out_kind2->tail)));
+                *out_kind = cont_kind(std::move(front), (*out_kind)->tail);
+                unify(state.subst_map, std::move(dest_kind), cont(*out_kind));
             }
         }
         else if (std::holds_alternative<Word>(*dest_kind)) {
             VarName const v = state.subst_map.subst_to_var(bts.jumpdest);
             state.subst_map.insert_kind(
                 v,
-                word_cont(state.subst_map.subst_or_throw(std::move(out_kind))));
+                word_cont(state.subst_map.subst_or_throw(*out_kind)));
         }
         else if (std::holds_alternative<WordCont>(*dest_kind)) {
             unify(
                 state.subst_map,
                 std::get<WordCont>(*dest_kind).cont,
-                std::move(out_kind));
+                *out_kind);
         }
         else {
             unify(
                 state.subst_map,
                 std::move(dest_kind),
-                cont(std::move(out_kind)));
+                cont(*out_kind));
         }
     }
 
     void infer_block_jump(
-        InferState &state, BlockTypeSpec const &bts, ContKind out_kind)
+        InferState &state, BlockTypeSpec const &bts, ContKind *out_kind)
     {
         auto const &block = state.pre_blocks[bts.bid];
         assert(!block.output.empty());
         Value const &dest = block.output[0];
         switch (dest.is) {
         case ValueIs::LITERAL:
-            return infer_block_jump_literal(state, dest, std::move(out_kind));
+            return infer_block_jump_literal(state, dest, *out_kind);
         case ValueIs::PARAM_ID:
-            return infer_block_jump_param(state, bts, std::move(out_kind));
+            return infer_block_jump_param(state, bts, out_kind);
         case ValueIs::COMPUTED:
             throw UnificationException{};
         }
@@ -522,18 +522,18 @@ namespace
     void infer_block_end(
         InferState &state, Component const &component, BlockTypeSpec const &bts)
     {
-        auto const &term = state.block_terminators.at(bts.bid);
+        Terminator &term = state.block_terminators.at(bts.bid);
         if (std::holds_alternative<Jump>(term)) {
-            auto const &jump = std::get<Jump>(term);
+            Jump &jump = std::get<Jump>(term);
             unify_out_kind_literal_vars(
                 state, component, bts, 1, jump.jump_kind);
-            infer_block_jump(state, bts, std::get<Jump>(term).jump_kind);
+            infer_block_jump(state, bts, &jump.jump_kind);
         }
         else if (std::holds_alternative<JumpI>(term)) {
-            auto const &jumpi = std::get<JumpI>(term);
+            JumpI &jumpi = std::get<JumpI>(term);
             unify_out_kind_literal_vars(
                 state, component, bts, 2, jumpi.jump_kind);
-            infer_block_jump(state, bts, jumpi.jump_kind);
+            infer_block_jump(state, bts, &jumpi.jump_kind);
             unify_out_kind_literal_vars(
                 state, component, bts, 2, jumpi.fallthrough_kind);
             infer_block_fallthrough(

@@ -82,3 +82,12 @@ add_test(
     NAME "Infer Tests"
     COMMAND infer-tests
 )
+
+add_executable(type-check-tests type_check_tests.cpp)
+
+monad_compile_options(type-check-tests)
+target_link_libraries(type-check-tests compiler GTest::gtest_main)
+add_test(
+    NAME "Type Check Tests"
+    COMMAND type-check-tests
+)
