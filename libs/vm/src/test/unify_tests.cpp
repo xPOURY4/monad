@@ -16,8 +16,8 @@ TEST(unify, test_1)
     Kind const k1 = kind_var(0);
     Kind const k2 = word;
     unify(su, k1, k2);
-    ASSERT_EQ(su.subst(k1).value(), word);
-    ASSERT_EQ(su.subst(k2).value(), word);
+    ASSERT_TRUE(std::holds_alternative<Word>(*su.subst(k1).value()));
+    ASSERT_TRUE(std::holds_alternative<Word>(*su.subst(k2).value()));
 }
 
 TEST(unify, test_2)

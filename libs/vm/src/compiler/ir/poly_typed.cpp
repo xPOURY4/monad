@@ -57,7 +57,7 @@ namespace
                 throw TypeError{};
             }
         } else if (dest.is == ValueIs::PARAM_ID) {
-            if (get_param_cont(block, dest.data) != kind) {
+            if (!weak_equal(get_param_cont(block, dest.data), kind)) {
                 throw TypeError{};
             }
         } else {
@@ -106,18 +106,18 @@ namespace
                 if (!std::holds_alternative<Cont>(*k)) {
                     throw TypeError{};
                 }
-                if (std::get<WordCont>(*p).cont != std::get<Cont>(*k).cont) {
+                if (!weak_equal(std::get<WordCont>(*p).cont, std::get<Cont>(*k).cont)) {
                     throw TypeError{};
                 }
             } else {
-                if (p != k) {
+                if (!weak_equal(p, k)) {
                     throw TypeError{};
                 }
             }
         }
         else {
             assert(x.is == ValueIs::COMPUTED);
-            if (k != word) {
+            if (!weak_equal(k, word)) {
                 throw TypeError{};
             }
         }
@@ -134,7 +134,7 @@ namespace
         for (size_t i = 0; i < min_size; ++i) {
             if (output_offset + i < block.output.size() &&
                     block.output[output_offset + i].is == ValueIs::LITERAL) {
-                if (output_stack[output_offset + i] != word) {
+                if (!weak_equal(output_stack[output_offset + i], word)) {
                     throw TypeError{};
                 }
             }
@@ -146,16 +146,16 @@ namespace
                 }
                 if (std::holds_alternative<WordCont>(*k1)) {
                     if (std::holds_alternative<Cont>(*k2)) {
-                        if (std::get<WordCont>(*k1).cont != std::get<Cont>(*k2).cont) {
+                        if (!weak_equal(std::get<WordCont>(*k1).cont, std::get<Cont>(*k2).cont)) {
                             throw TypeError{};
                         }
                     } else if (!std::holds_alternative<Word>(*k2)) {
-                        if (k1 != k2) {
+                        if (!weak_equal(k1, k2)) {
                             throw TypeError{};
                         }
                     }
                 } else {
-                    if (k1 != k2) {
+                    if (!weak_equal(k1, k2)) {
                         throw TypeError{};
                     }
                 }
@@ -170,12 +170,12 @@ namespace
             }
         }
         for (size_t i = min_size + output_offset; i < output_stack.size(); ++i) {
-            if (output_stack[i] != word) {
+            if (!weak_equal(output_stack[i], word)) {
                 throw TypeError{};
             }
         }
         for (size_t i = min_size; i < out_kind->front.size(); ++i) {
-            if (out_kind->front[i] != word) {
+            if (!weak_equal(out_kind->front[i], word)) {
                 throw TypeError{};
             }
         }
@@ -221,8 +221,8 @@ namespace
         for (size_t i = arg_count; i < out_front.size(); ++i) {
             new_out_front.push_back(out_front[i]);
         }
-        if (cont_kind(std::move(new_tail_front), block.kind->tail) !=
-                cont_kind(std::move(new_out_front), out_kind->tail)) {
+        if (!weak_equal(cont_kind(std::move(new_tail_front), block.kind->tail),
+                cont_kind(std::move(new_out_front), out_kind->tail))) {
             throw TypeError{};
         }
     }
@@ -257,22 +257,22 @@ namespace
 
     void check_block_word_typed(Block const &block)
     {
-        if (block.kind != cont_words) {
+        if (!weak_equal(block.kind, cont_words)) {
             throw TypeError{};
         }
         std::visit(Cases{
             [](Jump const &t) {
-                if (t.jump_kind != cont_words) {
+                if (!weak_equal(t.jump_kind, cont_words)) {
                     throw TypeError{};
                 }
             },
             [](JumpI const &t) {
-                if (t.jump_kind != cont_words || t.fallthrough_kind != cont_words) {
+                if (!weak_equal(t.jump_kind, cont_words) || !weak_equal(t.fallthrough_kind, cont_words)) {
                     throw TypeError{};
                 }
             },
             [](FallThrough const &t) {
-                if (t.fallthrough_kind != cont_words) {
+                if (!weak_equal(t.fallthrough_kind, cont_words)) {
                     throw TypeError{};
                 }
             },
@@ -284,7 +284,9 @@ namespace
 
     void check_instruction_pop(std::vector<Kind> &stack)
     {
-        assert(!stack.empty());
+        if (stack.empty()) {
+            throw TypeError{};
+        }
         stack.pop_back();
     }
 
@@ -292,14 +294,18 @@ namespace
     check_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = get_swap_opcode_index(ins.opcode);
-        assert(stack.size() > ix);
+        if (stack.size() <= ix) {
+            throw TypeError{};
+        }
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
     void check_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = get_dup_opcode_index(ins.opcode);
-        assert(stack.size() >= ix);
+        if (stack.size() < ix) {
+            throw TypeError{};
+        }
         stack.push_back(stack[stack.size() - ix]);
     }
 
@@ -307,7 +313,9 @@ namespace
         Instruction const &ins, std::vector<Kind> &stack)
     {
         auto const info = opcode_info_table[ins.opcode];
-        assert(stack.size() >= info.min_stack);
+        if (stack.size() < info.min_stack) {
+            throw TypeError{};
+        }
         std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {
             if (!std::holds_alternative<Word>(*stack.back()) &&
@@ -337,6 +345,11 @@ namespace
 
     std::vector<Kind> check_instructions(Block const &block) {
         std::vector<Kind> stack = block.kind->front;
+        if (std::holds_alternative<ContWords>(block.kind->tail)) {
+            while (stack.size() < block.min_params) {
+                stack.push_back(word);
+            }
+        }
         std::reverse(stack.begin(), stack.end());
         for (auto const &ins : block.instrs) {
             check_instruction(ins, stack);

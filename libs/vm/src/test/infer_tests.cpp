@@ -227,9 +227,9 @@ TEST(infer, test_sum)
         blocks[0].kind, cont_kind({word, cont(cont_kind({word}, 0))}, 0)));
 
     ASSERT_TRUE(std::holds_alternative<JumpI>(blocks[1].terminator));
-    ASSERT_EQ(
+    ASSERT_TRUE(weak_equal(
         std::get<JumpI>(blocks[1].terminator).fallthrough_kind,
-        std::get<JumpI>(blocks[1].terminator).jump_kind);
+        std::get<JumpI>(blocks[1].terminator).jump_kind));
     ASSERT_TRUE(alpha_equal(
         std::get<JumpI>(blocks[1].terminator).fallthrough_kind,
         cont_kind({word, word, cont(cont_kind({word}, 0))}, 0)));
@@ -320,9 +320,9 @@ TEST(infer, test_fib)
     ASSERT_EQ(blocks.size(), 5);
 
     ASSERT_TRUE(std::holds_alternative<JumpI>(blocks[0].terminator));
-    ASSERT_EQ(
+    ASSERT_TRUE(weak_equal(
         std::get<JumpI>(blocks[0].terminator).jump_kind,
-        std::get<JumpI>(blocks[0].terminator).fallthrough_kind);
+        std::get<JumpI>(blocks[0].terminator).fallthrough_kind));
     ASSERT_TRUE(alpha_equal(
         std::get<JumpI>(blocks[0].terminator).jump_kind,
         cont_kind({word, cont(cont_kind({word}, 0))}, 0)));

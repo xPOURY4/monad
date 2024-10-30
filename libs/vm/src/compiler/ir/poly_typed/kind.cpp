@@ -111,16 +111,16 @@ namespace
         if (std::holds_alternative<KindVar>(*generic)) {
             auto new_k = su.kind_map.find(std::get<KindVar>(*generic).var);
             if (new_k != su.kind_map.end()) {
-                return new_k->second == specific;
+                return weak_equal(new_k->second, specific);
             }
         }
         return std::visit(
             Cases{
                 [&](Word const &) {
-                    return specific == word;
+                    return std::holds_alternative<Word>(*specific);
                 },
                 [&](Any const &) {
-                    return specific == any;
+                    return std::holds_alternative<Any>(*specific);
                 },
                 [&](KindVar const &kv) {
                     su.kind_map.insert_or_assign(kv.var, std::move(specific));
@@ -163,19 +163,19 @@ namespace
                 return false;
             }
             for (size_t i = min_size; i < generic->front.size(); ++i) {
-                if (generic->front[i] != word) {
+                if (!std::holds_alternative<Word>(*generic->front[i])) {
                     return false;
                 }
             }
             for (size_t i = min_size; i < specific->front.size(); ++i) {
-                if (specific->front[i] != word) {
+                if (!std::holds_alternative<Word>(*specific->front[i])) {
                     return false;
                 }
             }
             return true;
         } else if (std::holds_alternative<ContWords>(specific->tail)) {
             for (size_t i = min_size; i < generic->front.size(); ++i) {
-                if (generic->front[i] != word) {
+                if (!std::holds_alternative<Word>(*generic->front[i])) {
                     return false;
                 }
             }
@@ -188,17 +188,17 @@ namespace
                 }
                 size_t n = std::min(specific->front.size() - min_size, c->front.size());
                 for (size_t i = 0; i < n; ++i) {
-                    if (specific->front[min_size + i] != c->front[i]) {
+                    if (!weak_equal(specific->front[min_size + i], c->front[i])) {
                         return false;
                     }
                 }
                 for (size_t i = n; i < c->front.size(); ++i) {
-                    if (c->front[i] != word) {
+                    if (!std::holds_alternative<Word>(*c->front[i])) {
                         return false;
                     }
                 }
                 for (size_t i = min_size + n; i < specific->front.size(); ++i) {
-                    if (specific->front[i] != word) {
+                    if (!std::holds_alternative<Word>(*specific->front[i])) {
                         return false;
                     }
                 }
@@ -223,7 +223,7 @@ namespace
                     return false;
                 }
                 for (size_t i = 0; i < c->front.size(); ++i) {
-                    if (specific->front[min_size + i] != c->front[i]) {
+                    if (!weak_equal(specific->front[min_size + i], c->front[i])) {
                         return false;
                     }
                 }
@@ -363,7 +363,7 @@ namespace monad::compiler::poly_typed
         return cont_alpha_eq(su1, std::move(c1), su2, std::move(c2));
     }
 
-    bool operator==(Kind k1, Kind k2)
+    bool weak_equal(Kind k1, Kind k2)
     {
         if (k1->index() != k2->index()) {
             return false;
@@ -381,31 +381,43 @@ namespace monad::compiler::poly_typed
                     if (lv1.var != lv2.var) {
                         return false;
                     }
-                    return lv1.cont == lv2.cont;
+                    return weak_equal(lv1.cont, lv2.cont);
                 },
                 [&k2](WordCont const &wc1) {
                     WordCont const &wc2 = std::get<WordCont>(*k2);
-                    return wc1.cont == wc2.cont;
+                    return weak_equal(wc1.cont, wc2.cont);
                 },
                 [&k2](Cont const &c1) {
                     Cont const &c2 = std::get<Cont>(*k2);
-                    return c1.cont == c2.cont;
+                    return weak_equal(c1.cont, c2.cont);
                 }},
             *k1);
     }
 
-    bool operator==(ContKind c1, ContKind c2)
+    bool weak_equal(ContKind c1, ContKind c2)
     {
-        if (c1->front.size() != c2->front.size()) {
+        if (c1->tail.index() != c2->tail.index()) {
             return false;
         }
-        for (size_t i = 0; i < c1->front.size(); ++i) {
-            if (c1->front[i] != c2->front[i]) {
+        if (c1->front.size() != c2->front.size()
+                && std::holds_alternative<ContVar>(c1->tail)) {
+            return false;
+        }
+        size_t min_size = std::min(c1->front.size(), c2->front.size());
+        for (size_t i = 0; i < min_size; ++i) {
+            if (!weak_equal(c1->front[i], c2->front[i])) {
                 return false;
             }
         }
-        if (c1->tail.index() != c2->tail.index()) {
-            return false;
+        for (size_t i = min_size; i < c1->front.size(); ++i) {
+            if (!std::holds_alternative<Word>(*c1->front[i])) {
+                return false;
+            }
+        }
+        for (size_t i = min_size; i < c2->front.size(); ++i) {
+            if (!std::holds_alternative<Word>(*c2->front[i])) {
+                return false;
+            }
         }
         return std::visit(
             Cases{

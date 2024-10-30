@@ -6,43 +6,72 @@
 using namespace monad::compiler;
 using namespace monad::compiler::poly_typed;
 
-TEST(kind, equal_test)
+TEST(kind, weak_equal_test)
 {
-    ASSERT_EQ(word, word);
+    ASSERT_TRUE(weak_equal(word, word));
 
-    ASSERT_NE(word, any);
+    ASSERT_FALSE(weak_equal(word, any));
 
-    ASSERT_NE(word, cont(cont_kind({})));
-    ASSERT_NE(cont_kind({}, 0), cont_kind({}));
-    ASSERT_NE(cont_kind({word}), cont_kind({}));
-    ASSERT_NE(cont_kind({}), cont_kind({word}));
-    ASSERT_NE(cont(cont_kind({}, 0)), cont(cont_kind({})));
-    ASSERT_NE(word_cont(cont_kind({}, 0)), word_cont(cont_kind({})));
+    ASSERT_FALSE(weak_equal(word, cont(cont_kind({}))));
+    ASSERT_FALSE(weak_equal(cont_kind({}, 0), cont_kind({})));
+    ASSERT_FALSE(weak_equal(cont(cont_kind({}, 0)), cont(cont_kind({}))));
+    ASSERT_FALSE(weak_equal(word_cont(cont_kind({}, 0)), word_cont(cont_kind({}))));
 
-    ASSERT_EQ(cont_kind({}), cont_kind({}));
-    ASSERT_EQ(cont(cont_kind({})), cont(cont_kind({})));
-    ASSERT_EQ(word_cont(cont_kind({})), word_cont(cont_kind({})));
+    ASSERT_TRUE(weak_equal(cont_kind({word}), cont_kind({})));
+    ASSERT_TRUE(weak_equal(cont_kind({}), cont_kind({word})));
 
-    ASSERT_EQ(cont_kind({}, 0), cont_kind({}, 0));
-    ASSERT_EQ(cont(cont_kind({}, 0)), cont(cont_kind({}, 0)));
-    ASSERT_EQ(word_cont(cont_kind({}, 0)), word_cont(cont_kind({}, 0)));
+    ASSERT_TRUE(weak_equal(cont_kind({}), cont_kind({})));
+    ASSERT_TRUE(weak_equal(cont(cont_kind({})), cont(cont_kind({}))));
+    ASSERT_TRUE(weak_equal(word_cont(cont_kind({})), word_cont(cont_kind({}))));
 
-    ASSERT_NE(cont_kind({}, 0), cont_kind({}, 1));
-    ASSERT_NE(cont(cont_kind({}, 0)), cont(cont_kind({}, 1)));
-    ASSERT_NE(word_cont(cont_kind({}, 0)), word_cont(cont_kind({}, 1)));
+    ASSERT_TRUE(weak_equal(cont_kind({}, 0), cont_kind({}, 0)));
+    ASSERT_TRUE(weak_equal(cont(cont_kind({}, 0)), cont(cont_kind({}, 0))));
+    ASSERT_TRUE(weak_equal(word_cont(cont_kind({}, 0)), word_cont(cont_kind({}, 0))));
 
-    ASSERT_EQ(cont_kind({cont(cont_kind({word, any}, 0)), word}, 1),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1));
-    ASSERT_EQ(cont_kind({cont(cont_kind({word, any}, 0)), word}, 0),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 0));
-    ASSERT_NE(cont_kind({cont(cont_kind({word, any}, 1)), word}, 1),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1));
-    ASSERT_NE(cont_kind({cont(cont_kind({word, any}, 0)), any}, 1),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1));
-    ASSERT_NE(cont_kind({cont(cont_kind({word, word}, 0)), word}, 1),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1));
-    ASSERT_NE(cont_kind({word, word}, 1),
-            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1));
+    ASSERT_FALSE(weak_equal(cont_kind({}, 0), cont_kind({}, 1)));
+    ASSERT_FALSE(weak_equal(cont(cont_kind({}, 0)), cont(cont_kind({}, 1))));
+    ASSERT_FALSE(weak_equal(word_cont(cont_kind({}, 0)), word_cont(cont_kind({}, 1))));
+
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0)), word}, 1),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1)));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0)), word}, 0),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 0)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any}, 1)), word}, 1),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0)), any}, 1),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, word}, 0)), word}, 1),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({word, word}, 1),
+            cont_kind({cont(cont_kind({word, any}, 0)), word}, 1)));
+
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0))})));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0)), word})));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0)), word})));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0)), word, word})));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0)), any})));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0))}),
+            cont_kind({cont(cont_kind({word, any}, 0)), kind_var(100)})));
+
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({word, any})), word}, 1)));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({word, any, word})), word}, 1)));
+    ASSERT_TRUE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({word, any, word, word})), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({word, word, word, word})), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({word})), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any})), word}, 1),
+            cont_kind({cont(cont_kind({})), word}, 1)));
+    ASSERT_FALSE(weak_equal(cont_kind({cont(cont_kind({word, any}, 0)), word}, 1),
+            cont_kind({cont(cont_kind({word, any})), word}, 1)));
 }
 
 TEST(kind, can_specialize_test_basic)

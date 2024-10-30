@@ -120,29 +120,31 @@ namespace monad::compiler::poly_typed
     void format_cont(ContKind const &cont, std::format_context &ctx);
 
     /// Equality up to renaming of variables.
+    /// Does not consider Word.. to be equal to Word,Word..
     bool alpha_equal(Kind, Kind);
 
-    bool operator==(Kind, Kind);
+    bool operator==(Kind, Kind) = delete;
+    bool operator!=(Kind, Kind) = delete;
 
-    inline bool operator!=(Kind k1, Kind k2)
-    {
-        return !(std::move(k1) == std::move(k2));
-    }
+    /// Equality where Word.. is equal to to Word,Word..
+    bool weak_equal(Kind, Kind);
 
     /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
+    /// The function considers Word.. to be equal to Word,Word..
     bool can_specialize(Kind generic, Kind specific);
 
     /// Equality up to renaming of variables.
+    /// Does not consider Word.. to be equal to Word,Word..
     bool alpha_equal(ContKind, ContKind);
 
-    bool operator==(ContKind, ContKind);
+    bool operator==(ContKind, ContKind) = delete;
+    bool operator!=(ContKind, ContKind) = delete;
 
-    inline bool operator!=(ContKind c1, ContKind c2)
-    {
-        return !(std::move(c1) == std::move(c2));
-    }
+    /// Equality where Word.. is equal to to Word,Word..
+    bool weak_equal(ContKind, ContKind);
 
     /// Whether there exists a `SubstMap su`, such that `su.subst(generic) == specific`.
+    /// The function considers Word.. to be equal to Word,Word..
     bool can_specialize(ContKind generic, ContKind specific);
 }
 

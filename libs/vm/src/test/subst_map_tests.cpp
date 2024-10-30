@@ -12,11 +12,11 @@ TEST(subst_map, test_1)
     SubstMap su{};
     su.insert_cont(0, cont_kind({}));
     su.insert_kind(0, any);
-    ASSERT_EQ(su.subst(word), word);
-    ASSERT_EQ(su.subst(kind_var(0)), any);
-    ASSERT_EQ(
-        su.subst(cont(cont_kind({kind_var(0), kind_var(1)}, 0))),
-        cont(cont_kind({any, kind_var(1)})));
+    ASSERT_TRUE(weak_equal(su.subst_or_throw(word), word));
+    ASSERT_TRUE(weak_equal(su.subst_or_throw(kind_var(0)), any));
+    ASSERT_TRUE(weak_equal(
+        su.subst_or_throw(cont(cont_kind({kind_var(0), kind_var(1)}, 0))),
+        cont(cont_kind({any, kind_var(1)}))));
 }
 
 TEST(subst_map, test_2)
@@ -25,15 +25,15 @@ TEST(subst_map, test_2)
     su.insert_cont(0, cont_kind({kind_var(3), any}, 1));
     su.insert_kind(0, cont(cont_kind({kind_var(1), kind_var(2)}, 0)));
     su.insert_kind(3, kind_var(1));
-    ASSERT_EQ(
-        su.subst(cont_kind({kind_var(0), word, kind_var(3)}, 0)),
+    ASSERT_TRUE(weak_equal(
+        su.subst_or_throw(cont_kind({kind_var(0), word, kind_var(3)}, 0)),
         cont_kind(
             {cont(cont_kind({kind_var(1), kind_var(2), kind_var(1), any}, 1)),
              word,
              kind_var(1),
              kind_var(1),
              any},
-            1));
+            1)));
 }
 
 TEST(subst_map, test_3)
@@ -60,13 +60,13 @@ TEST(subst_map, test_3)
             {literal_var(1, literal_kind1), literal_var(2, literal_kind1)},
             0)));
     su.insert_kind(3, literal_var(3, literal_kind1));
-    ASSERT_EQ(
-        su.subst(kind_var(0)),
+    ASSERT_TRUE(weak_equal(
+        su.subst_or_throw(kind_var(0)),
         cont(cont_kind(
             {cont(cont_kind({word})),
              cont(cont_kind({word})),
              cont(cont_kind({word})),
              cont(cont_kind({word})),
              word,
-             literal_var(4, literal_kind4)})));
+             literal_var(4, literal_kind4)}))));
 }

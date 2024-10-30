@@ -14,9 +14,19 @@ TEST(type_check, test_1)
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({ADD}))));
 
-    ASSERT_TRUE(ir.type_check());
+    std::vector<Kind> front = ir.blocks[0].kind->front;
+
     ir.blocks[0].kind->front.at(1) = kind_var(0);
     ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = front;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[0].kind->front.push_back(word);
+    ASSERT_TRUE(ir.type_check()); // Less general type will work here
+
+    ir.blocks[0].kind->front = front;
+    ASSERT_TRUE(ir.type_check()); // sanity check
 }
 
 TEST(type_check, test_2)
@@ -33,13 +43,20 @@ TEST(type_check, test_2)
     ASSERT_FALSE(ir.type_check());
 
     ir.blocks[0].kind->front = front;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
     std::get<Jump>(ir.blocks[0].terminator).jump_kind =
         cont_kind({word}, ir.blocks[0].kind->tail);
     ASSERT_FALSE(ir.type_check());
 
-    ir.blocks[0].kind->front = front;
     std::get<Jump>(ir.blocks[0].terminator).jump_kind = jump;
-    ASSERT_TRUE(ir.type_check());
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[0].kind->front.push_back(word);
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = front;
+    ASSERT_TRUE(ir.type_check()); // sanity check
 }
 
 TEST(type_check, test_3)
@@ -230,6 +247,22 @@ TEST(type_check, test_5)
 
     std::vector<Kind> front0 = ir.blocks[0].kind->front;
     ContTailKind tail0 = ir.blocks[0].kind->tail;
+    std::vector<Kind> jump_front0 =
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front;
+    std::vector<Kind> fallthrough_front0 =
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front;
+
+    ir.blocks[0].kind->tail = ContVar{std::get<ContVar>(tail0).var + 1};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->tail = tail0;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[0].kind->tail = ContWords{};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->tail = tail0;
+    ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front[0] = word;
     ASSERT_FALSE(ir.type_check());
@@ -253,5 +286,240 @@ TEST(type_check, test_5)
     ASSERT_FALSE(ir.type_check());
 
     ir.blocks[0].kind->front[1] = front0[1];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[0] =
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[0];
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[0] =
+        jump_front0[0];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[1] =
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1];
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[1] =
+        jump_front0[1];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[0] =
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[0];
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[0] =
+        fallthrough_front0[0];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1] =
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[1];
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1] =
+        fallthrough_front0[1];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+}
+
+TEST(type_check, test_6)
+{
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
+                    // (Any,Any,s -> Exit),Word,s -> Exit
+                    DUP1, // a,a,Word,s -> Exit
+                    SWAP2, // Word,a,a,s -> Exit
+                    DUP2, // a,Word,a,a,s -> Exit
+                    JUMPI, // a,a,s -> Exit
+                    POP,
+                    STOP
+                }))));
+    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind,
+                cont_kind({cont(cont_kind({any, any}, 0)), word}, 0)));
+    ASSERT_TRUE(alpha_equal(
+                std::get<JumpI>(ir.blocks[0].terminator).jump_kind,
+                cont_kind({any, any}, 0)));
+    ASSERT_TRUE(alpha_equal(
+                std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind,
+                cont_kind({cont(cont_kind({any, any}, 0)), cont(cont_kind({any, any}, 0))}, 0)));
+
+    std::vector<Kind> front0 = ir.blocks[0].kind->front;
+    std::vector<Kind> fallthrough_front0 =
+        std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front;
+    std::vector<Kind> jump_front0 =
+        std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front;
+
+    ir.blocks[0].kind->front[0] =
+        cont(cont_kind({any, any, any}, ir.blocks[0].kind->tail));
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front[0] =
+        cont(cont_kind({any}, ir.blocks[0].kind->tail));
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front[0] =
+        cont(cont_kind({any, kind_var(100)}, ir.blocks[0].kind->tail));
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front[0] =
+        cont(cont_kind({any, any}, ir.blocks[0].kind->tail));
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[0] =
+        ir.blocks[0].kind->front[0];
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).jump_kind->front[0] =
+        jump_front0[0];
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[0] =
+        cont(cont_kind({any}, ir.blocks[0].kind->tail));
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[0] =
+        cont(cont_kind({any, any}, ir.blocks[0].kind->tail));
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1] =
+        cont(cont_kind({kind_var(100), any}, ir.blocks[0].kind->tail));
+    ASSERT_FALSE(ir.type_check());
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1] =
+        cont(cont_kind({any, any}, ir.blocks[0].kind->tail));
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    std::get<JumpI>(ir.blocks[0].terminator).fallthrough_kind->front[1] = any;
+    ASSERT_TRUE(ir.type_check()); // should still type check
+
+    ir.blocks[0].kind->front[0] =
+        word_cont(cont_kind({any, any}, ir.blocks[0].kind->tail));
+    ASSERT_TRUE(ir.type_check()); // should still type check
+}
+
+TEST(type_check, test_7)
+{
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
+                    DUP1,
+                    ADD,
+                    JUMPDEST,
+                    DUP1,
+                    PUSH1, 1,
+                    ADD,
+                    JUMP
+                }))));
+
+    ASSERT_TRUE(alpha_equal(ir.blocks[0].kind, cont_kind({word})));
+    ASSERT_TRUE(alpha_equal(
+                std::get<FallThrough>(ir.blocks[0].terminator).fallthrough_kind,
+                cont_kind({word})));
+
+    ASSERT_TRUE(alpha_equal(ir.blocks[1].kind, cont_words));
+    ASSERT_TRUE(alpha_equal(
+                std::get<Jump>(ir.blocks[1].terminator).jump_kind, cont_words));
+
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[0].kind->front = {};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, word};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, word, word, word};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[1].kind->front = {word};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[1].kind->front = {word, word};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[1].kind->front = {word, word, word, word};
+    ASSERT_TRUE(ir.type_check());
+
+    ir.blocks[0].kind->front = {any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->front = {any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->front = {word, any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->front = {kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->front = {word, kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, any};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word, kind_var(100)};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->front = {word};
+    ir.blocks[1].kind->front = {};
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ContTailKind tail0 = ir.blocks[0].kind->tail;
+    ContTailKind tail1 = ir.blocks[1].kind->tail;
+
+    ir.blocks[0].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->tail = tail0;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[1].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->tail = tail1;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[0].kind->front = {word};
+    ir.blocks[1].kind->front = {word};
+
+    ir.blocks[0].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->tail = tail0;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[1].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->tail = tail1;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[0].kind->front = {word, word};
+    ir.blocks[1].kind->front = {word, word};
+
+    ir.blocks[0].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[0].kind->tail = tail0;
+    ASSERT_TRUE(ir.type_check()); // sanity check
+
+    ir.blocks[1].kind->tail = ContVar{0};
+    ASSERT_FALSE(ir.type_check());
+
+    ir.blocks[1].kind->tail = tail1;
     ASSERT_TRUE(ir.type_check()); // sanity check
 }
