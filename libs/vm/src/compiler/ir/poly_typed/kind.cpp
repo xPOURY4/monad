@@ -168,7 +168,7 @@ namespace
                 return false;
             }
             for (size_t i = min_size; i < generic->front.size(); ++i) {
-                if (!std::holds_alternative<Word>(*generic->front[i])) {
+                if (!can_specialize(generic->front[i], word)) {
                     return false;
                 }
             }
@@ -181,7 +181,7 @@ namespace
         }
         else if (std::holds_alternative<ContWords>(specific->tail)) {
             for (size_t i = min_size; i < generic->front.size(); ++i) {
-                if (!std::holds_alternative<Word>(*generic->front[i])) {
+                if (!can_specialize(generic->front[i], word)) {
                     return false;
                 }
             }
