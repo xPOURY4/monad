@@ -258,7 +258,6 @@ namespace monad::compiler::local_stacks
         }
 
         switch (out.terminator) {
-        case basic_blocks::Terminator::JumpDest:
         case basic_blocks::Terminator::Jump:
         case basic_blocks::Terminator::SelfDestruct:
             grow_stack_to_min_size(1);
@@ -268,6 +267,7 @@ namespace monad::compiler::local_stacks
         case basic_blocks::Terminator::Revert:
             grow_stack_to_min_size(2);
             break;
+        case basic_blocks::Terminator::FallThrough:
         case basic_blocks::Terminator::InvalidInstruction:
         case basic_blocks::Terminator::Stop:
             break;

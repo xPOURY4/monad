@@ -219,7 +219,7 @@ TEST(poly_typed, strongly_connected_components_6)
             .min_params = 0,
             .output = {Value{ValueIs::COMPUTED, 0}},
             .instrs = {},
-            .terminator = basic_blocks::Terminator::JumpDest,
+            .terminator = basic_blocks::Terminator::FallThrough,
             .fallthrough_dest = 2},
         local_stacks::Block{
             .min_params = 0,
@@ -231,7 +231,7 @@ TEST(poly_typed, strongly_connected_components_6)
             .min_params = 0,
             .output = {Value{ValueIs::COMPUTED, 0}},
             .instrs = {},
-            .terminator = basic_blocks::Terminator::JumpDest,
+            .terminator = basic_blocks::Terminator::FallThrough,
             .fallthrough_dest = 4},
         local_stacks::Block{
             .min_params = 0,

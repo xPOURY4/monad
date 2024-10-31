@@ -72,6 +72,12 @@ namespace monad::compiler::basic_blocks
         block_id fallthrough_dest = INVALID_BLOCK_ID;
 
         /**
+         * Does the original bytecode block start with a JUMPDEST opcode
+         * This is needed for gas accounting
+         */
+        byte_offset offset = 0;
+
+        /**
          * Returns true if this block is well-formed.
          *
          * A well-formed block satisfies the following conditions:
@@ -148,7 +154,7 @@ namespace monad::compiler::basic_blocks
         /**
          * During construction, begin building a new block.
          */
-        void add_block();
+        void add_block(byte_offset offset);
 
         /**
          * During construction, set the terminator for the block currently being
@@ -251,7 +257,7 @@ struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR>
         std::format_to(ctx.out(), "basic_blocks:\n");
         int i = 0;
         for (auto const &blk : ir.blocks()) {
-            std::format_to(ctx.out(), "  block {}:\n", i);
+            std::format_to(ctx.out(), "  block {} - 0x{}:\n", i, blk.offset);
             std::format_to(ctx.out(), "{}", blk);
             i++;
         }

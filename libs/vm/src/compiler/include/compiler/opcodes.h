@@ -528,12 +528,13 @@ namespace monad::compiler
     }
 
     /**
-     * Returns `true` if `opcode` is a terminator instruction.
+     * Returns `true` if `opcode` is a control flow altering instruction.
      */
-    constexpr bool is_terminator_opcode(uint8_t const opcode)
+    constexpr bool is_control_flow_opcode(uint8_t const opcode)
     {
-        return opcode == JUMPI || opcode == JUMP || opcode == RETURN ||
-               opcode == STOP || opcode == REVERT || opcode == SELFDESTRUCT;
+        return opcode == JUMPDEST || opcode == JUMPI || opcode == JUMP ||
+               opcode == RETURN || opcode == STOP || opcode == REVERT ||
+               opcode == SELFDESTRUCT || is_unknown_opcode(opcode);
     }
 
     /**

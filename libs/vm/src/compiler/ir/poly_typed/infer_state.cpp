@@ -149,7 +149,7 @@ namespace monad::compiler::poly_typed
         std::vector<block_id> ret;
         auto const &block = pre_blocks[b];
         switch (block.terminator) {
-        case basic_blocks::Terminator::JumpDest:
+        case basic_blocks::Terminator::FallThrough:
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdests(
                 ret, *this, &block.output[0], block.output.size());

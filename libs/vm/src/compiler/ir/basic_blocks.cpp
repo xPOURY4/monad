@@ -27,30 +27,44 @@ namespace monad::compiler::basic_blocks
 
         codesize = byte_code.codesize;
 
-        add_block();
+        add_block(0);
 
-        for (auto const &tok : byte_code.instructions) {
+        auto tok = byte_code.instructions.begin();
+        if (tok != byte_code.instructions.end() && tok->opcode == JUMPDEST) {
+            add_jump_dest(tok->offset);
+            ++tok;
+        }
+
+        for (; tok != byte_code.instructions.end(); ++tok) {
             if (st == St::OUTSIDE_BLOCK) {
-                if (tok.opcode == JUMPDEST) {
-                    add_block();
+                if (tok->opcode == JUMPDEST) {
+                    add_block(tok->offset);
                     st = St::INSIDE_BLOCK;
-                    add_jump_dest(tok.offset);
-                    blocks_.back().instrs.push_back(tok);
+                    add_jump_dest(tok->offset);
                 }
             }
             else {
                 assert(st == St::INSIDE_BLOCK);
-                switch (tok.opcode) {
+                switch (tok->opcode) {
                 case JUMPDEST:
                     add_fallthrough_terminator(Terminator::FallThrough);
-                    add_block();
-                    add_jump_dest(tok.offset);
-                    blocks_.back().instrs.push_back(tok);
+                    add_block(tok->offset);
+                    add_jump_dest(tok->offset);
                     break;
 
                 case JUMPI:
                     add_fallthrough_terminator(Terminator::JumpI);
-                    add_block();
+                    add_block(tok->offset + 1);
+                    // a corner case where we fall through JUMPI
+                    // into a block starting with JUMPDEST, in which case we
+                    // don't want to immediately FallThrough again, but
+                    // instead just advance tok and mark the block as being
+                    // a jumpdest
+                    if (tok + 1 != byte_code.instructions.end() &&
+                        (tok + 1)->opcode == JUMPDEST) {
+                        ++tok;
+                        add_jump_dest(tok->offset);
+                    }
                     break;
 
                 case JUMP:
@@ -78,13 +92,13 @@ namespace monad::compiler::basic_blocks
                     st = St::OUTSIDE_BLOCK;
                     break;
 
-                default: // instruction opcode
-                    if (is_unknown_opcode(tok.opcode)) {
+                default: // invalid or instruction opcode
+                    if (is_unknown_opcode(tok->opcode)) {
                         add_terminator(Terminator::InvalidInstruction);
                         st = St::OUTSIDE_BLOCK;
                     }
                     else {
-                        blocks_.back().instrs.push_back(tok);
+                        blocks_.back().instrs.push_back(*tok);
                     }
                     break;
                 }
@@ -138,9 +152,9 @@ namespace monad::compiler::basic_blocks
         jump_dests_.emplace(offset, curr_block_id());
     }
 
-    void BasicBlocksIR::add_block()
+    void BasicBlocksIR::add_block(byte_offset offset)
     {
-        blocks_.emplace_back();
+        blocks_.emplace_back(Block{.offset = offset});
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
@@ -160,20 +174,20 @@ namespace monad::compiler::basic_blocks
 
     bool Block::is_valid() const
     {
-        auto no_terminators =
+        auto no_control_flow_instructions =
             std::none_of(instrs.begin(), instrs.end(), [](auto const &i) {
-                return is_terminator_opcode(i.opcode);
+                return is_control_flow_opcode(i.opcode);
             });
 
         auto fallthrough_iff = is_fallthrough_terminator(terminator) ==
                                (fallthrough_dest != INVALID_BLOCK_ID);
 
-        return no_terminators && fallthrough_iff;
+        return no_control_flow_instructions && fallthrough_iff;
     }
 
     bool operator==(Block const &a, Block const &b)
     {
-        return std::tie(a.instrs, a.terminator, a.fallthrough_dest) ==
-               std::tie(b.instrs, b.terminator, b.fallthrough_dest);
+        return std::tie(a.instrs, a.terminator, a.fallthrough_dest, a.offset) ==
+               std::tie(b.instrs, b.terminator, b.fallthrough_dest, b.offset);
     }
 }

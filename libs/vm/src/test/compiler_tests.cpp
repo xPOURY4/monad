@@ -119,7 +119,7 @@ TEST(BasicBlocksTest, ToBlocks)
         {0xEE},
         {},
         {
-            {{{0, 0xEE, 0}}, Stop, INVALID_BLOCK_ID},
+            {{}, InvalidInstruction, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -145,10 +145,9 @@ TEST(BasicBlocksTest, ToBlocks)
 
     blocks_eq(
         {JUMPDEST, STOP},
-        {{0, 1}},
+        {{0, 0}},
         {
-            {{}, FallThrough, 1},
-            {{{0, JUMPDEST, 0}}, Stop, INVALID_BLOCK_ID},
+            {{}, Stop, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -167,10 +166,9 @@ TEST(BasicBlocksTest, ToBlocks)
 
     blocks_eq(
         {JUMPDEST, ADD, REVERT},
-        {{0, 1}},
+        {{0, 0}},
         {
-            {{}, FallThrough, 1},
-            {{{0, JUMPDEST, 0}, {1, ADD, 0}}, Revert, INVALID_BLOCK_ID},
+            {{{1, ADD, 0}}, Revert, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -178,35 +176,32 @@ TEST(BasicBlocksTest, ToBlocks)
         {},
         {
             {{}, JumpI, 1},
-            {{}, Stop, INVALID_BLOCK_ID},
+            {{}, Stop, INVALID_BLOCK_ID, 1},
         });
 
     blocks_eq(
         {JUMPDEST, JUMPDEST},
-        {{0, 1}, {1, 2}},
+        {{0, 0}, {1, 1}},
         {
-            {{}, FallThrough, 1},
-            {{{0, JUMPDEST, 0}}, FallThrough, 2},
-            {{{1, JUMPDEST, 0}}, Stop, INVALID_BLOCK_ID},
+            {{}, FallThrough, 1, 0},
+            {{}, Stop, INVALID_BLOCK_ID, 1},
         });
 
     blocks_eq(
         {JUMPDEST, JUMPDEST, JUMPDEST},
-        {{0, 1}, {1, 2}, {2, 3}},
+        {{0, 0}, {1, 1}, {2, 2}},
         {
-            {{}, FallThrough, 1},
-            {{{0, JUMPDEST, 0}}, FallThrough, 2},
-            {{{1, JUMPDEST, 0}}, FallThrough, 3},
-            {{{2, JUMPDEST, 0}}, Stop, INVALID_BLOCK_ID},
+            {{}, FallThrough, 1, 0},
+            {{}, FallThrough, 2, 1},
+            {{}, Stop, INVALID_BLOCK_ID, 2},
         });
 
     blocks_eq(
         {JUMPDEST, ADD, JUMPDEST},
-        {{0, 1}, {2, 2}},
+        {{0, 0}, {2, 1}},
         {
-            {{}, FallThrough, 1},
-            {{{0, JUMPDEST, 0}, {1, ADD, 0}}, FallThrough, 2},
-            {{{2, JUMPDEST, 0}}, Stop, INVALID_BLOCK_ID},
+            {{{1, ADD, 0}}, FallThrough, 1, 0},
+            {{}, Stop, INVALID_BLOCK_ID, 2},
         });
 
     blocks_eq(
@@ -214,7 +209,7 @@ TEST(BasicBlocksTest, ToBlocks)
         {{4, 1}},
         {
             {{{0, ADD, 0}, {1, ADD, 0}}, Jump, INVALID_BLOCK_ID},
-            {{{4, JUMPDEST, 0}}, SelfDestruct, INVALID_BLOCK_ID},
+            {{}, SelfDestruct, INVALID_BLOCK_ID, 4},
         });
 
     blocks_eq(
@@ -222,8 +217,8 @@ TEST(BasicBlocksTest, ToBlocks)
         {{4, 1}, {5, 2}},
         {
             {{{0, ADD, 0}, {1, ADD, 0}}, Jump, INVALID_BLOCK_ID},
-            {{{4, JUMPDEST, 0}}, FallThrough, 2},
-            {{{5, JUMPDEST, 0}}, SelfDestruct, INVALID_BLOCK_ID},
+            {{}, FallThrough, 2, 4},
+            {{}, SelfDestruct, INVALID_BLOCK_ID, 5},
         });
 }
 
@@ -245,12 +240,17 @@ auto const instrIR0 = BasicBlocksIR(BytecodeIR({}));
 auto const instrIR1 = BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
 auto const instrIR2 =
     BasicBlocksIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
+auto const instrIR3 = BasicBlocksIR(
+    BytecodeIR({PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
+                JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
+                STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP}));
 
 TEST(BasicBlocksIRTest, Validation)
 {
     EXPECT_TRUE(instrIR0.is_valid());
     EXPECT_TRUE(instrIR1.is_valid());
     EXPECT_TRUE(instrIR2.is_valid());
+    EXPECT_TRUE(instrIR3.is_valid());
 }
 
 TEST(BasicBlocksIRTest, Formatter)
@@ -258,7 +258,7 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR0),
         R"(basic_blocks:
-  block 0:
+  block 0 - 0x0:
     Stop
 
   jumpdests:
@@ -267,42 +267,61 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR1),
         R"(basic_blocks:
-  block 0:
-    FallThrough 1
-  block 1:
-      (0, JUMPDEST, 0x0)
+  block 0 - 0x0:
       (1, SUB, 0x0)
       (2, SUB, 0x0)
-    FallThrough 2
-  block 2:
-      (3, JUMPDEST, 0x0)
+    FallThrough 1
+  block 1 - 0x3:
     Stop
 
   jumpdests:
-    3:2
-    0:1
+    3:1
+    0:0
 )");
 
     EXPECT_EQ(
         std::format("{}", instrIR2),
         R"(basic_blocks:
-  block 0:
+  block 0 - 0x0:
     FallThrough 1
-  block 1:
-      (0, JUMPDEST, 0x0)
-    FallThrough 2
-  block 2:
-      (1, JUMPDEST, 0x0)
+  block 1 - 0x1:
       (2, SUB, 0x0)
-    FallThrough 3
-  block 3:
-      (3, JUMPDEST, 0x0)
+    FallThrough 2
+  block 2 - 0x3:
     Stop
 
   jumpdests:
-    3:3
-    1:2
-    0:1
+    3:2
+    1:1
+    0:0
+)");
+
+    EXPECT_EQ(
+        std::format("{}", instrIR3),
+        R"(basic_blocks:
+  block 0 - 0x0:
+      (0, PUSH1, 0xff)
+      (2, PUSH1, 0xe)
+      (4, SWAP2, 0x0)
+      (5, PUSH1, 0x11)
+    JumpI 1
+  block 1 - 0x8:
+      (9, PUSH1, 0x1)
+      (11, ADD, 0x0)
+      (12, SWAP1, 0x0)
+    Jump
+  block 2 - 0x14:
+      (15, POP, 0x0)
+    Stop
+  block 3 - 0x17:
+      (18, SWAP1, 0x0)
+      (19, PUSH1, 0x8)
+    Jump
+
+  jumpdests:
+    17:3
+    14:2
+    8:1
 )");
 }
 
@@ -375,25 +394,19 @@ TEST(LocalStacksIR, Formatter)
         std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR1))),
         R"(local_stacks:
   block 0:
-    min_params: 0
-    FallThrough 1
-    output: [ ]
-  block 1:
     min_params: 3
-      (0, JUMPDEST, 0x0)
       (1, SUB, 0x0)
       (2, SUB, 0x0)
-    FallThrough 2
+    FallThrough 1
     output: [ COMPUTED ]
-  block 2:
+  block 1:
     min_params: 0
-      (3, JUMPDEST, 0x0)
     Stop
     output: [ ]
 
   jumpdests:
-    3:2
-    0:1
+    3:1
+    0:0
 )");
 
     EXPECT_EQ(
@@ -404,26 +417,19 @@ TEST(LocalStacksIR, Formatter)
     FallThrough 1
     output: [ ]
   block 1:
-    min_params: 0
-      (0, JUMPDEST, 0x0)
-    FallThrough 2
-    output: [ ]
-  block 2:
     min_params: 2
-      (1, JUMPDEST, 0x0)
       (2, SUB, 0x0)
-    FallThrough 3
+    FallThrough 2
     output: [ COMPUTED ]
-  block 3:
+  block 2:
     min_params: 0
-      (3, JUMPDEST, 0x0)
     Stop
     output: [ ]
 
   jumpdests:
-    3:3
-    1:2
-    0:1
+    3:2
+    1:1
+    0:0
 )");
 
     EXPECT_EQ(

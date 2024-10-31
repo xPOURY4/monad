@@ -357,7 +357,7 @@ namespace
         std::vector<Kind> &&stack, ContTailKind tail)
     {
         switch (term) {
-        case basic_blocks::Terminator::JumpDest:
+        case basic_blocks::Terminator::FallThrough:
             return infer_terminator_fallthrough(
                 state,
                 param_map,
@@ -635,7 +635,7 @@ namespace
             state.block_types.insert_or_assign(bid, cont_words);
             auto const &block = state.pre_blocks[bid];
             switch (block.terminator) {
-            case basic_blocks::Terminator::JumpDest:
+            case basic_blocks::Terminator::FallThrough:
                 state.block_terminators.insert_or_assign(
                     bid, FallThrough{cont_words, block.fallthrough_dest});
                 break;
