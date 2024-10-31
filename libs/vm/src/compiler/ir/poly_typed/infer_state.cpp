@@ -85,7 +85,9 @@ namespace
                     }
                     return kind_var(new_v);
                 },
-                [&kind](LiteralVar const &) { return std::move(kind); },
+                [&state, &su](LiteralVar const &lv) {
+                    return literal_var(lv.var, refresh(state, su, lv.cont));
+                },
                 [&state, &su](WordCont const &wc) {
                     return word_cont(refresh(state, su, wc.cont));
                 },

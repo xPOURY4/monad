@@ -606,6 +606,7 @@ namespace
         for (auto const &bts : cts) {
             infer_block_end(state, component, bts);
         }
+        // Infer types a third time to ensure that we have found a fixpoint.
         for (auto const &bts : cts) {
             auto orig_type = state.block_types.at(bts.bid);
             infer_block_end(state, component, bts);
