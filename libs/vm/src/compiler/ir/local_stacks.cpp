@@ -268,6 +268,7 @@ namespace monad::compiler::local_stacks
         case basic_blocks::Terminator::Revert:
             grow_stack_to_min_size(2);
             break;
+        case basic_blocks::Terminator::InvalidInstruction:
         case basic_blocks::Terminator::Stop:
             break;
         default:

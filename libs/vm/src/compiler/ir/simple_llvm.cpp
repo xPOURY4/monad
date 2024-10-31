@@ -329,6 +329,7 @@ namespace monad::compiler
                     llvm_block);
                 break;
 
+            case Terminator::InvalidInstruction:
             case Terminator::Stop:
                 b.CreateBr(stop);
                 break;

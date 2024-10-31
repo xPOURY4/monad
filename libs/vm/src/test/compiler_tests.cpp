@@ -84,6 +84,7 @@ void blocks_eq(
     EXPECT_EQ(actual.blocks(), expected_blocks);
 }
 
+using Terminator::InvalidInstruction;
 using Terminator::Jump;
 using Terminator::JumpDest;
 using Terminator::JumpI;
@@ -101,13 +102,14 @@ TEST(TerminatorTest, Formatter)
     EXPECT_EQ(std::format("{}", Revert), "Revert");
     EXPECT_EQ(std::format("{}", SelfDestruct), "SelfDestruct");
     EXPECT_EQ(std::format("{}", Stop), "Stop");
+    EXPECT_EQ(std::format("{}", InvalidInstruction), "InvalidInstruction");
 }
 
 TEST(BasicBlocksTest, ToBlocks)
 {
     blocks_eq({}, {}, {{{}, Stop, INVALID_BLOCK_ID}});
     blocks_eq({STOP}, {}, {{{}, Stop, INVALID_BLOCK_ID}});
-    blocks_eq({0xEE}, {}, {{{{0, 0xEE, 0}}, Stop, INVALID_BLOCK_ID}});
+    blocks_eq({0xEE}, {}, {{{}, InvalidInstruction, INVALID_BLOCK_ID}});
     blocks_eq({PUSH1}, {}, {{{{0, PUSH1, 0}}, Stop, INVALID_BLOCK_ID}});
     blocks_eq(
         {PUSH2, 0xf}, {}, {{{{0, PUSH2, 0xf00}}, Stop, INVALID_BLOCK_ID}});

@@ -80,7 +80,13 @@ namespace monad::compiler::basic_blocks
                     break;
 
                 default: // instruction opcode
-                    blocks_.back().instrs.push_back(tok);
+                    if (is_unknown_opcode(tok.opcode)) {
+                        add_terminator(Terminator::InvalidInstruction);
+                        st = St::OUTSIDE_BLOCK;
+                    }
+                    else {
+                        blocks_.back().instrs.push_back(tok);
+                    }
                     break;
                 }
             }

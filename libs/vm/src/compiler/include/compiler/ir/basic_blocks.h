@@ -27,6 +27,7 @@ namespace monad::compiler::basic_blocks
         Stop,
         Revert,
         SelfDestruct,
+        InvalidInstruction,
     };
 
     /**
@@ -192,6 +193,8 @@ struct std::formatter<monad::compiler::basic_blocks::Terminator>
                 return "SelfDestruct";
             case Stop:
                 return "Stop";
+            case InvalidInstruction:
+                return "InvalidInstruction";
             }
 
             std::unreachable();

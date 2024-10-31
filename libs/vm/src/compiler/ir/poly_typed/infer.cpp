@@ -389,11 +389,9 @@ namespace
             return infer_terminator_revert(state, bid, std::move(stack));
         case basic_blocks::Terminator::SelfDestruct:
             return infer_terminator_self_destruct(state, bid, std::move(stack));
-            // TODO
-            // case basic_blocks::Terminator::InvalidInstruction:
-            //     return infer_terminator_invalid_instruction(state, bid);
+        case basic_blocks::Terminator::InvalidInstruction:
+            return infer_terminator_invalid_instruction(state, bid);
         }
-        (void)infer_terminator_invalid_instruction;
         std::terminate();
     }
 
