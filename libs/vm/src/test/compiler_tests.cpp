@@ -16,7 +16,6 @@
 
 using namespace monad::compiler;
 using namespace monad::compiler::bytecode;
-using namespace monad::compiler::basic_blocks;
 using namespace intx;
 
 void tokens_eq(
@@ -76,16 +75,16 @@ TEST(BytecodeTest, Formatter)
 void blocks_eq(
     std::vector<uint8_t> const &in,
     std::unordered_map<byte_offset, block_id> const &expected_jumpdests,
-    std::vector<Block> const &expected_blocks)
+    std::vector<basic_blocks::Block> const &expected_blocks)
 {
     BytecodeIR const actual_bc(in);
-    BasicBlocksIR const actual(actual_bc);
+    basic_blocks::BasicBlocksIR const actual(actual_bc);
 
     EXPECT_EQ(actual.jump_dests(), expected_jumpdests);
     EXPECT_EQ(actual.blocks(), expected_blocks);
 }
 
-using enum Terminator;
+using enum basic_blocks::Terminator;
 
 TEST(TerminatorTest, Formatter)
 {
@@ -99,8 +98,11 @@ TEST(TerminatorTest, Formatter)
     EXPECT_EQ(std::format("{}", InvalidInstruction), "InvalidInstruction");
 }
 
+using enum basic_blocks::InstructionCode;
+
 TEST(BasicBlocksTest, ToBlocks)
 {
+    // using enum basic_blocks::InstructionCode;
     blocks_eq(
         {},
         {},
@@ -126,14 +128,14 @@ TEST(BasicBlocksTest, ToBlocks)
         {PUSH1},
         {},
         {
-            {{{0, PUSH1, 0}}, Stop, INVALID_BLOCK_ID},
+            {{{0, Push, 1, 0}}, Stop, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {PUSH2, 0xf},
         {},
         {
-            {{{0, PUSH2, 0xf00}}, Stop, INVALID_BLOCK_ID},
+            {{{0, Push, 2, 0xf00}}, Stop, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -154,21 +156,21 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, REVERT},
         {},
         {
-            {{{0, ADD, 0}}, Revert, INVALID_BLOCK_ID},
+            {{{0, Add, 0, 0}}, Revert, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {ADD, ADD, RETURN},
         {},
         {
-            {{{0, ADD, 0}, {1, ADD, 0}}, Return, INVALID_BLOCK_ID},
+            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Return, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {JUMPDEST, ADD, REVERT},
         {{0, 0}},
         {
-            {{{1, ADD, 0}}, Revert, INVALID_BLOCK_ID},
+            {{{1, Add, 0, 0}}, Revert, INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -200,7 +202,7 @@ TEST(BasicBlocksTest, ToBlocks)
         {JUMPDEST, ADD, JUMPDEST},
         {{0, 0}, {2, 1}},
         {
-            {{{1, ADD, 0}}, FallThrough, 1, 0},
+            {{{1, Add, 0, 0}}, FallThrough, 1, 0},
             {{}, Stop, INVALID_BLOCK_ID, 2},
         });
 
@@ -208,7 +210,7 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, ADD, JUMP, ADD, JUMPDEST, SELFDESTRUCT},
         {{4, 1}},
         {
-            {{{0, ADD, 0}, {1, ADD, 0}}, Jump, INVALID_BLOCK_ID},
+            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Jump, INVALID_BLOCK_ID},
             {{}, SelfDestruct, INVALID_BLOCK_ID, 4},
         });
 
@@ -216,7 +218,7 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, ADD, JUMP, ADD, JUMPDEST, JUMPDEST, SELFDESTRUCT},
         {{4, 1}, {5, 2}},
         {
-            {{{0, ADD, 0}, {1, ADD, 0}}, Jump, INVALID_BLOCK_ID},
+            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Jump, INVALID_BLOCK_ID},
             {{}, FallThrough, 2, 4},
             {{}, SelfDestruct, INVALID_BLOCK_ID, 5},
         });
@@ -225,22 +227,27 @@ TEST(BasicBlocksTest, ToBlocks)
 TEST(BlockTest, Formatter)
 {
     EXPECT_EQ(
-        std::format("{}", Block{{}, Return, INVALID_BLOCK_ID}), "    Return\n");
+        std::format("{}", basic_blocks::Block{{}, Return, INVALID_BLOCK_ID}),
+        "    Return\n");
     EXPECT_EQ(
         std::format(
             "{}",
-            Block{{{0, ADD, 0}, {1, ADD, 0}}, SelfDestruct, INVALID_BLOCK_ID}),
+            basic_blocks::Block{
+                {{0, Add, 0, 0}, {1, Add, 0, 0}},
+                SelfDestruct,
+                INVALID_BLOCK_ID}),
         "      (0, ADD, 0x0)\n      (1, ADD, 0x0)\n    SelfDestruct\n");
     EXPECT_EQ(
-        std::format("{}", Block{{{1, ADD, 0}}, JumpI, 0}),
+        std::format("{}", basic_blocks::Block{{{1, Add, 0, 0}}, JumpI, 0}),
         "      (1, ADD, 0x0)\n    JumpI 0\n");
 }
 
-auto const instrIR0 = BasicBlocksIR(BytecodeIR({}));
-auto const instrIR1 = BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
-auto const instrIR2 =
-    BasicBlocksIR(BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
-auto const instrIR3 = BasicBlocksIR(
+auto const instrIR0 = basic_blocks::BasicBlocksIR(BytecodeIR({}));
+auto const instrIR1 =
+    basic_blocks::BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
+auto const instrIR2 = basic_blocks::BasicBlocksIR(
+    BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
+auto const instrIR3 = basic_blocks::BasicBlocksIR(
     BytecodeIR({PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
                 JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
                 STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP}));
@@ -435,7 +442,7 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(BasicBlocksIR(BytecodeIR(
+            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(BytecodeIR(
                 {PUSH0,
                  PUSH1,
                  0xa,
@@ -475,8 +482,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(
-                BasicBlocksIR(BytecodeIR({PUSH1, 0xb, CODESIZE, ADD})))),
+            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                BytecodeIR({PUSH1, 0xb, CODESIZE, ADD})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -493,7 +500,7 @@ TEST(LocalStacksIR, Formatter)
         std::format(
             "{}",
             local_stacks::LocalStacksIR(
-                BasicBlocksIR(BytecodeIR({PUSH0, ISZERO})))),
+                basic_blocks::BasicBlocksIR(BytecodeIR({PUSH0, ISZERO})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -508,8 +515,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(
-                BasicBlocksIR(BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, LT})))),
+            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, LT})))),
         R"(local_stacks:
   block 0:
     min_params: 0
@@ -525,8 +532,8 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(
-                BasicBlocksIR(BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, GT})))),
+            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, GT})))),
         R"(local_stacks:
   block 0:
     min_params: 0

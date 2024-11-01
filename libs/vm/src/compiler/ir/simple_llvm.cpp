@@ -1,6 +1,7 @@
 #include <compiler/compiler.h>
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/ir/simple_llvm.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
@@ -350,20 +351,20 @@ namespace monad::compiler
     }
 
     void SimpleLLVMIR::compile_instruction(
-        llvm::IRBuilder<> &b, Instruction const &inst) const
+        llvm::IRBuilder<> &b, basic_blocks::Instruction const &inst) const
     {
         auto *interface = entry_point->getArg(0);
 
-        auto op = inst.opcode;
-        if (op >= PUSH0 && op <= PUSH32) {
-            b.Insert(call_push(inst.data));
+        using enum basic_blocks::InstructionCode;
 
-            auto gas = (op == PUSH0) ? 2u : 3u;
+        switch (inst.code) {
+        case Push: {
+            b.Insert(call_push(inst.operand));
+            auto gas = (inst.index == 0) ? 2u : 3u;
             spend_static_gas(b, gas);
+            break;
         }
-
-        switch (op) {
-        case ADD: {
+        case Add: {
             auto *x = b.Insert(call_pop());
             auto *y = b.Insert(call_pop());
             auto *add = b.CreateAdd(x, y);
@@ -371,10 +372,13 @@ namespace monad::compiler
             spend_static_gas(b, 3);
             break;
         }
-        case SSTORE: {
+        case SStore: {
             auto *key = b.Insert(call_pop());
             auto *val = b.Insert(call_pop());
             call_sstore(b, interface, key, val);
+            break;
+        }
+        default: {
             break;
         }
         }

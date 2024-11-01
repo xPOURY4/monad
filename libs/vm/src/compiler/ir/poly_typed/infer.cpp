@@ -79,25 +79,27 @@ namespace
         stack.pop_back();
     }
 
-    void
-    infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
+    void infer_instruction_swap(
+        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t const ix = get_swap_opcode_index(ins.opcode);
+        size_t const ix = ins.index;
         assert(stack.size() > ix);
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
-    void infer_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
+    void infer_instruction_dup(
+        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t const ix = get_dup_opcode_index(ins.opcode);
+        size_t const ix = ins.index;
         assert(stack.size() >= ix);
         stack.push_back(stack[stack.size() - ix]);
     }
 
     void infer_instruction_default(
-        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
+        InferState &state, basic_blocks::Instruction const &ins,
+        std::vector<Kind> &stack)
     {
-        auto const info = opcode_info_table[ins.opcode];
+        auto &info = ins.info();
         assert(stack.size() >= info.min_stack);
         std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {
@@ -110,14 +112,16 @@ namespace
     }
 
     void infer_instruction(
-        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
+        InferState &state, basic_blocks::Instruction const &ins,
+        std::vector<Kind> &stack)
     {
-        switch (ins.opcode) {
-        case POP:
+        using enum basic_blocks::InstructionCode;
+        switch (ins.code) {
+        case Pop:
             return infer_instruction_pop(stack);
-        case ANY_SWAP:
+        case Swap:
             return infer_instruction_swap(ins, stack);
-        case ANY_DUP:
+        case Dup:
             return infer_instruction_dup(ins, stack);
         default:
             return infer_instruction_default(state, ins, stack);

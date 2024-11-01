@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/types.h>
 
 #include <limits>
@@ -57,7 +58,7 @@ namespace monad::compiler::basic_blocks
          * It is legal for the body of a block to be empty; every valid block is
          * terminated.
          */
-        std::vector<bytecode::Instruction> instrs = {};
+        std::vector<Instruction> instrs = {};
 
         /**
          * The terminator that ends this block.
@@ -89,6 +90,9 @@ namespace monad::compiler::basic_blocks
     };
 
     bool operator==(Block const &a, Block const &b);
+
+    std::optional<Instruction>
+    to_instruction(monad::compiler::bytecode::Instruction const &i);
 
     /**
      * In this representation, the underlying EVM code has been grouped into

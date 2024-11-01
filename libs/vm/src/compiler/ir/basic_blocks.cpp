@@ -1,5 +1,6 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
 
@@ -93,12 +94,12 @@ namespace monad::compiler::basic_blocks
                     break;
 
                 default: // invalid or instruction opcode
-                    if (is_unknown_opcode(tok->opcode)) {
-                        add_terminator(Terminator::InvalidInstruction);
-                        st = St::OUTSIDE_BLOCK;
+                    if (auto instr = to_instruction(*tok)) {
+                        blocks_.back().instrs.push_back(std::move(*instr));
                     }
                     else {
-                        blocks_.back().instrs.push_back(*tok);
+                        add_terminator(Terminator::InvalidInstruction);
+                        st = St::OUTSIDE_BLOCK;
                     }
                     break;
                 }
@@ -174,21 +175,52 @@ namespace monad::compiler::basic_blocks
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
     }
 
+    std::optional<Instruction>
+    to_instruction(monad::compiler::bytecode::Instruction const &i)
+    {
+        if (is_push_opcode(i.opcode)) {
+            return std::optional<Instruction>{
+                {i.offset,
+                 InstructionCode::Push,
+                 static_cast<uint8_t>(i.opcode - PUSH0),
+                 i.data}};
+        }
+        if (is_dup_opcode(i.opcode)) {
+            return std::optional<Instruction>{
+                {i.offset,
+                 InstructionCode::Dup,
+                 static_cast<uint8_t>(i.opcode - DUP1 + 1),
+                 0}};
+        }
+        if (is_swap_opcode(i.opcode)) {
+            return std::optional<Instruction>{
+                {i.offset,
+                 InstructionCode::Swap,
+                 static_cast<uint8_t>(i.opcode - SWAP1 + 1),
+                 0}};
+        }
+        if (is_log_opcode(i.opcode)) {
+            return std::optional<Instruction>{
+                {i.offset,
+                 InstructionCode::Log,
+                 static_cast<uint8_t>(i.opcode - LOG0),
+                 0}};
+        }
+        if (is_control_flow_opcode(i.opcode)) {
+            return std::nullopt;
+        }
+        return std::optional<Instruction>{
+            {i.offset, static_cast<InstructionCode>(i.opcode), 0, 0}};
+    }
+
     /*
      * Block
      */
 
     bool Block::is_valid() const
     {
-        auto no_control_flow_instructions =
-            std::none_of(instrs.begin(), instrs.end(), [](auto const &i) {
-                return is_control_flow_opcode(i.opcode);
-            });
-
-        auto fallthrough_iff = is_fallthrough_terminator(terminator) ==
-                               (fallthrough_dest != INVALID_BLOCK_ID);
-
-        return no_control_flow_instructions && fallthrough_iff;
+        return is_fallthrough_terminator(terminator) ==
+               (fallthrough_dest != INVALID_BLOCK_ID);
     }
 
     bool operator==(Block const &a, Block const &b)

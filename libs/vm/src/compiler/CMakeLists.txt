@@ -3,6 +3,7 @@ add_library(compiler
     uint256.cpp
     ir/bytecode.cpp
     ir/basic_blocks.cpp
+    ir/instruction.cpp
     ir/local_stacks.cpp
     ir/poly_typed/strongly_connected_components.cpp
     ir/poly_typed/infer_state.cpp

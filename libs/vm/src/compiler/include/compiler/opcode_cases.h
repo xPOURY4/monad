@@ -1,7 +1,8 @@
 #pragma once
 
 #define ANY_PUSH                                                               \
-    PUSH0 : case PUSH1:                                                        \
+    PUSH0:                                                                     \
+    case PUSH1:                                                                \
     case PUSH2:                                                                \
     case PUSH3:                                                                \
     case PUSH4:                                                                \
@@ -35,7 +36,8 @@
     case PUSH32
 
 #define ANY_DUP                                                                \
-    DUP1 : case DUP2:                                                          \
+    DUP1:                                                                      \
+    case DUP2:                                                                 \
     case DUP3:                                                                 \
     case DUP4:                                                                 \
     case DUP5:                                                                 \
@@ -52,7 +54,8 @@
     case DUP16
 
 #define ANY_SWAP                                                               \
-    SWAP1 : case SWAP2:                                                        \
+    SWAP1:                                                                     \
+    case SWAP2:                                                                \
     case SWAP3:                                                                \
     case SWAP4:                                                                \
     case SWAP5:                                                                \

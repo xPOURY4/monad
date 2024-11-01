@@ -2,6 +2,7 @@
 
 #include <compiler/compiler.h>
 #include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/instruction.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
@@ -48,7 +49,7 @@ namespace monad::compiler
         void compile_block_terminators();
 
         void compile_instruction(
-            llvm::IRBuilder<> &b, bytecode::Instruction const &inst) const;
+            llvm::IRBuilder<> &b, basic_blocks::Instruction const &inst) const;
 
         void spend_static_gas(llvm::IRBuilder<> &b, uint64_t gas) const;
 

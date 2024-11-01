@@ -55,7 +55,7 @@ namespace monad::compiler::poly_typed
     struct Block
     {
         std::vector<Value> output;
-        std::vector<Instruction> instrs;
+        std::vector<basic_blocks::Instruction> instrs;
         ContKind kind;
         Terminator terminator;
     };

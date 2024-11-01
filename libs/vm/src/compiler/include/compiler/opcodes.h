@@ -520,6 +520,14 @@ namespace monad::compiler
     }
 
     /**
+     * Returns `true` if `opcode` belongs to the `LOGN` family of EVM opcodes.
+     */
+    constexpr bool is_log_opcode(uint8_t const opcode)
+    {
+        return opcode >= LOG0 && opcode <= LOG4;
+    }
+
+    /**
      * Returns `true` if `opcode` is an unknown/invalid EVM opcode.
      */
     constexpr bool is_unknown_opcode(uint8_t const opcode)
