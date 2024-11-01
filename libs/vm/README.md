@@ -28,9 +28,25 @@ $ cmake -S . -B build
 $ cmake --build build
 ```
 
-Currently, the only tests supported by the compiler are the basic VM
-compatibility checks exposed by [EVMC][evmc]. To test the compiler against this
-tool, build [EVMC][evmc] following the project documentation:
+## Testing
+
+### Directory Type Check Test
+
+After building the compiler source code, the `directory-type-check` executable
+can be used on a directory containing bytecode contracts. It will recursively
+traverse the directory and run the type inference algorithm on all the
+contracts. It will additionally run the type checking algorithm to verify the
+correctness of the inferred types. For example
+```consone
+build/src/test/utils/directory-type-check my/contracts-dir
+```
+will print type inference errors to standard error and print contract type
+information to standard out. If it prints to standard error, there is bug
+somewhere.
+
+### EVMC Tests
+
+To run the EVMC tests, build [EVMC][evmc] following the project documentation:
 ```console
 $ ls
 evmc monad-compiler

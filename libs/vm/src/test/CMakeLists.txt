@@ -1,3 +1,5 @@
+add_subdirectory(utils)
+
 add_executable(compiler-tests compiler_tests.cpp)
 
 monad_compile_options(compiler-tests)
