@@ -597,11 +597,12 @@ namespace
         InferState &state, Component const &component,
         ComponentTypeSpec const &cts)
     {
-        // Given a recursive strongly connected component, the algorithm is to repeat inference
-        // until we reach a fixed point. The intuition is that for each inference iteration we
-        // have new type information, which the inference iteration propagates through the basic
-        // blocks. If we cannot reach a fixed point within a reasonable number of iterations, we
-        // give up and throw `UnificationException`.
+        // Given a recursive strongly connected component, the algorithm is to
+        // repeat inference until we reach a fixed point. The intuition is that
+        // for each inference iteration we have new type information, which the
+        // inference iteration propagates through the basic blocks. If we cannot
+        // reach a fixed point within a reasonable number of iterations, we give
+        // up and throw `UnificationException`.
 
         assert(!cts.empty());
 
@@ -612,15 +613,17 @@ namespace
             }
         }
 
-        // Attempt to infer types until we reach a fixed point. It is common that we have already
-        // reached a fixed point with the previous two iterations.
+        // Attempt to infer types until we reach a fixed point. It is common
+        // that we have already reached a fixed point with the previous two
+        // iterations.
         for (size_t i = 0; i < 5; ++i) {
             bool fixpoint_found = true;
             for (auto const &bts : cts) {
                 auto orig_type = state.block_types.at(bts.bid);
                 infer_block_end(state, component, bts);
                 auto new_type = state.block_types.at(bts.bid);
-                fixpoint_found &= alpha_equal(std::move(orig_type), std::move(new_type));
+                fixpoint_found &=
+                    alpha_equal(std::move(orig_type), std::move(new_type));
             }
             if (fixpoint_found) {
                 for (auto const &bts : cts) {
