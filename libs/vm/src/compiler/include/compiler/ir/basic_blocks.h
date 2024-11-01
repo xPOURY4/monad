@@ -146,10 +146,16 @@ namespace monad::compiler::basic_blocks
         block_id curr_block_id() const;
 
         /**
+         * During construction, the byte offset of the block currently being
+         * built.
+         */
+        byte_offset curr_block_offset() const;
+
+        /**
          * During construction, add a new entry to the jump destination table
          * when a `JUMPDEST` instruction is parsed.
          */
-        void add_jump_dest(byte_offset offset);
+        void add_jump_dest();
 
         /**
          * During construction, begin building a new block.

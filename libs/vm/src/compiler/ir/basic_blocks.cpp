@@ -31,7 +31,7 @@ namespace monad::compiler::basic_blocks
 
         auto tok = byte_code.instructions.begin();
         if (tok != byte_code.instructions.end() && tok->opcode == JUMPDEST) {
-            add_jump_dest(tok->offset);
+            add_jump_dest();
             ++tok;
         }
 
@@ -40,7 +40,7 @@ namespace monad::compiler::basic_blocks
                 if (tok->opcode == JUMPDEST) {
                     add_block(tok->offset);
                     st = St::INSIDE_BLOCK;
-                    add_jump_dest(tok->offset);
+                    add_jump_dest();
                 }
             }
             else {
@@ -49,7 +49,7 @@ namespace monad::compiler::basic_blocks
                 case JUMPDEST:
                     add_fallthrough_terminator(Terminator::FallThrough);
                     add_block(tok->offset);
-                    add_jump_dest(tok->offset);
+                    add_jump_dest();
                     break;
 
                 case JUMPI:
@@ -63,7 +63,7 @@ namespace monad::compiler::basic_blocks
                     if (tok + 1 != byte_code.instructions.end() &&
                         (tok + 1)->opcode == JUMPDEST) {
                         ++tok;
-                        add_jump_dest(tok->offset);
+                        add_jump_dest();
                     }
                     break;
 
@@ -147,14 +147,20 @@ namespace monad::compiler::basic_blocks
         return blocks_.size() - 1;
     }
 
-    void BasicBlocksIR::add_jump_dest(byte_offset offset)
+    byte_offset BasicBlocksIR::curr_block_offset() const
     {
-        jump_dests_.emplace(offset, curr_block_id());
+        return blocks_.back().offset;
+    }
+
+    void BasicBlocksIR::add_jump_dest()
+    {
+        assert(blocks_.back().instrs.empty());
+        jump_dests_.emplace(curr_block_offset(), curr_block_id());
     }
 
     void BasicBlocksIR::add_block(byte_offset offset)
     {
-        blocks_.emplace_back(Block{.offset = offset});
+        blocks_.push_back(Block{.offset = offset});
     }
 
     void BasicBlocksIR::add_terminator(Terminator t)
