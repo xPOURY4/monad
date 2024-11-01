@@ -68,8 +68,7 @@ namespace
             front_vars.push_back(v);
             front.push_back(kind_var(v));
         }
-        auto ret = cont_kind(std::move(front), state.fresh_cont_var());
-        return ret;
+        return cont_kind(std::move(front), state.fresh_cont_var());
     }
 
     void infer_instruction_pop(std::vector<Kind> &stack)
@@ -598,24 +597,41 @@ namespace
         InferState &state, Component const &component,
         ComponentTypeSpec const &cts)
     {
+        // Given a recursive strongly connected component, the algorithm is to repeat inference
+        // until we reach a fixed point. The intuition is that for each inference iteration we
+        // have new type information, which the inference iteration propagates through the basic
+        // blocks. If we cannot reach a fixed point within a reasonable number of iterations, we
+        // give up and throw `UnificationException`.
+
         assert(!cts.empty());
-        for (auto const &bts : cts) {
-            infer_block_end(state, component, bts);
-        }
-        // Infer types one more time:
-        for (auto const &bts : cts) {
-            infer_block_end(state, component, bts);
-        }
-        // Infer types a third time to ensure that we have found a fixpoint.
-        for (auto const &bts : cts) {
-            auto orig_type = state.block_types.at(bts.bid);
-            infer_block_end(state, component, bts);
-            auto new_type = state.block_types.at(bts.bid);
-            if (!alpha_equal(std::move(orig_type), std::move(new_type))) {
-                throw UnificationException{};
+
+        // We must infer types at least twice:
+        for (size_t i = 0; i < 2; ++i) {
+            for (auto const &bts : cts) {
+                infer_block_end(state, component, bts);
             }
-            subst_terminator(state, bts.bid);
         }
+
+        // Attempt to infer types until we reach a fixed point. It is common that we have already
+        // reached a fixed point with the previous two iterations.
+        for (size_t i = 0; i < 5; ++i) {
+            bool fixpoint_found = true;
+            for (auto const &bts : cts) {
+                auto orig_type = state.block_types.at(bts.bid);
+                infer_block_end(state, component, bts);
+                auto new_type = state.block_types.at(bts.bid);
+                fixpoint_found &= alpha_equal(std::move(orig_type), std::move(new_type));
+            }
+            if (fixpoint_found) {
+                for (auto const &bts : cts) {
+                    subst_terminator(state, bts.bid);
+                }
+                return;
+            }
+        }
+
+        // We did not find a fixed point.
+        throw UnificationException{};
     }
 
     void infer_non_recursive_component(

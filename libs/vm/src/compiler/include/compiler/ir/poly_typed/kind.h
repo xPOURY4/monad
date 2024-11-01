@@ -126,7 +126,7 @@ namespace monad::compiler::poly_typed
     bool operator==(Kind, Kind) = delete;
     bool operator!=(Kind, Kind) = delete;
 
-    /// Equality where Word.. is equal to to Word,Word..
+    /// Equality where Word.. is equal to Word,Word..
     bool weak_equal(Kind, Kind);
 
     /// Whether there exists a `SubstMap su`, such that `su.subst(generic) ==
@@ -140,7 +140,7 @@ namespace monad::compiler::poly_typed
     bool operator==(ContKind, ContKind) = delete;
     bool operator!=(ContKind, ContKind) = delete;
 
-    /// Equality where Word.. is equal to to Word,Word..
+    /// Equality where Word.. is equal to Word,Word..
     bool weak_equal(ContKind, ContKind);
 
     /// Whether there exists a `SubstMap su`, such that `su.subst(generic) ==
