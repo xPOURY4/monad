@@ -81,6 +81,7 @@ TEST(type_check, test_3)
                                   RETURN,
                                   JUMPDEST, // Word,Word,s -> Exit
                                   RETURN}))));
+
     ASSERT_TRUE(
         alpha_equal(ir.blocks[0].kind, cont_kind({word, word, word}, 0)));
     ASSERT_TRUE(alpha_equal(
@@ -159,6 +160,7 @@ TEST(type_check, test_4)
              JUMPI,
              // (s -> Exit),s -> Exit
              JUMP}))));
+
     ASSERT_TRUE(alpha_equal(
         ir.blocks[0].kind,
         cont_kind(
@@ -247,6 +249,7 @@ TEST(type_check, test_5)
             SWAP1, // (Word,s -> Exit),Word,s -> Exit
             JUMP // Word,s -> Exit
         }))));
+
     ASSERT_TRUE(alpha_equal(
         ir.blocks[0].kind,
         cont_kind(
@@ -355,6 +358,7 @@ TEST(type_check, test_6)
                                   JUMPI, // a,a,s -> Exit
                                   POP,
                                   STOP}))));
+
     ASSERT_TRUE(alpha_equal(
         ir.blocks[0].kind,
         cont_kind({cont(cont_kind({any, any}, 0)), word}, 0)));
@@ -448,13 +452,10 @@ TEST(type_check, test_7)
     ASSERT_TRUE(ir.type_check());
 
     ir.blocks[1].kind->front = {word};
-    ASSERT_TRUE(ir.type_check());
+    ASSERT_FALSE(ir.type_check());
 
     ir.blocks[1].kind->front = {word, word};
-    ASSERT_TRUE(ir.type_check());
-
-    ir.blocks[1].kind->front = {word, word, word, word};
-    ASSERT_TRUE(ir.type_check());
+    ASSERT_FALSE(ir.type_check());
 
     ir.blocks[0].kind->front = {any};
     ASSERT_FALSE(ir.type_check());
@@ -512,7 +513,7 @@ TEST(type_check, test_7)
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front = {word};
-    ir.blocks[1].kind->front = {word};
+    ir.blocks[1].kind->front = {};
 
     ir.blocks[0].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());
@@ -527,7 +528,6 @@ TEST(type_check, test_7)
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front = {word, word};
-    ir.blocks[1].kind->front = {word, word};
 
     ir.blocks[0].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());

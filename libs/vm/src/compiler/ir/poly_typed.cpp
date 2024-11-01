@@ -283,26 +283,34 @@ namespace
             block.terminator);
     }
 
-    void check_block_word_typed(Block const &block)
+    bool is_failed_block_kind(ContKind const &kind)
     {
-        if (!weak_equal(block.kind, cont_words)) {
+        if (!kind->front.empty()) {
+            return false;
+        }
+        return std::holds_alternative<ContWords>(kind->tail);
+    }
+
+    void check_block_has_failed_type(Block const &block)
+    {
+        if (!is_failed_block_kind(block.kind)) {
             throw TypeError{};
         }
         std::visit(
             Cases{
                 [](Jump const &t) {
-                    if (!weak_equal(t.jump_kind, cont_words)) {
+                    if (!is_failed_block_kind(t.jump_kind)) {
                         throw TypeError{};
                     }
                 },
                 [](JumpI const &t) {
-                    if (!weak_equal(t.jump_kind, cont_words) ||
-                        !weak_equal(t.fallthrough_kind, cont_words)) {
+                    if (!is_failed_block_kind(t.jump_kind) ||
+                        !is_failed_block_kind(t.fallthrough_kind)) {
                         throw TypeError{};
                     }
                 },
                 [](FallThrough const &t) {
-                    if (!weak_equal(t.fallthrough_kind, cont_words)) {
+                    if (!is_failed_block_kind(t.fallthrough_kind)) {
                         throw TypeError{};
                     }
                 },
@@ -430,8 +438,7 @@ namespace
             check_block_exact(ir, block);
         }
         catch (TypeError const &) {
-            // TypeError is OK if check_block_word_typed goes through:
-            check_block_word_typed(block);
+            check_block_has_failed_type(block);
         }
     }
 }
