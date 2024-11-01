@@ -36,6 +36,7 @@ namespace monad::compiler::local_stacks
         basic_blocks::Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID
+        byte_offset offset;
     };
 
     class LocalStacksIR
@@ -122,7 +123,7 @@ struct std::formatter<monad::compiler::local_stacks::LocalStacksIR>
         std::format_to(ctx.out(), "local_stacks:\n");
         int i = 0;
         for (auto const &blk : ir.blocks) {
-            std::format_to(ctx.out(), "  block {}:\n", i);
+            std::format_to(ctx.out(), "  block {} - 0x{}:\n", i, blk.offset);
             std::format_to(ctx.out(), "{}", blk);
             i++;
         }

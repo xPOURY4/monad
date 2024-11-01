@@ -357,7 +357,7 @@ TEST(LocalStacksValueTest, Formatter)
 
 TEST(LocalStacksBlock, Formatter)
 {
-    local_stacks::Block blk = {0, {}, {}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk = {0, {}, {}, Stop, INVALID_BLOCK_ID, 0};
 
     EXPECT_EQ(
         std::format("{}", blk),
@@ -366,7 +366,7 @@ TEST(LocalStacksBlock, Formatter)
     output: [ ]
 )");
 
-    local_stacks::Block blk1 = {1, {computed()}, {}, Stop, INVALID_BLOCK_ID};
+    local_stacks::Block blk1 = {1, {computed()}, {}, Stop, INVALID_BLOCK_ID, 0};
 
     EXPECT_EQ(
         std::format("{}", blk1),
@@ -376,7 +376,7 @@ TEST(LocalStacksBlock, Formatter)
 )");
 
     local_stacks::Block blk2 = {
-        2, {computed(), param_id(0), lit(0x42)}, {}, Stop, INVALID_BLOCK_ID};
+        2, {computed(), param_id(0), lit(0x42)}, {}, Stop, INVALID_BLOCK_ID, 0};
     EXPECT_EQ(
         std::format("{}", blk2),
         R"(    min_params: 2
@@ -390,7 +390,7 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR0))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
     Stop
     output: [ ]
@@ -401,13 +401,13 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR1))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 3
       (1, SUB, 0x0)
       (2, SUB, 0x0)
     FallThrough 1
     output: [ COMPUTED ]
-  block 1:
+  block 1 - 0x3:
     min_params: 0
     Stop
     output: [ ]
@@ -420,16 +420,16 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format("{}", local_stacks::LocalStacksIR(std::move(instrIR2))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
     FallThrough 1
     output: [ ]
-  block 1:
+  block 1 - 0x1:
     min_params: 2
       (2, SUB, 0x0)
     FallThrough 2
     output: [ COMPUTED ]
-  block 2:
+  block 2 - 0x3:
     min_params: 0
     Stop
     output: [ ]
@@ -459,7 +459,7 @@ TEST(LocalStacksIR, Formatter)
                  DUP6,
                  SWAP7})))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 2
       (0, PUSH0, 0x0)
       (1, PUSH1, 0xa)
@@ -486,7 +486,7 @@ TEST(LocalStacksIR, Formatter)
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
                 BytecodeIR({PUSH1, 0xb, CODESIZE, ADD})))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
       (0, PUSH1, 0xb)
       (2, CODESIZE, 0x0)
@@ -503,7 +503,7 @@ TEST(LocalStacksIR, Formatter)
             local_stacks::LocalStacksIR(
                 basic_blocks::BasicBlocksIR(BytecodeIR({PUSH0, ISZERO})))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
       (0, PUSH0, 0x0)
       (1, ISZERO, 0x0)
@@ -519,7 +519,7 @@ TEST(LocalStacksIR, Formatter)
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
                 BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, LT})))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
       (0, PUSH1, 0x2)
       (2, PUSH1, 0x1)
@@ -536,7 +536,7 @@ TEST(LocalStacksIR, Formatter)
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
                 BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, GT})))),
         R"(local_stacks:
-  block 0:
+  block 0 - 0x0:
     min_params: 0
       (0, PUSH1, 0x2)
       (2, PUSH1, 0x1)

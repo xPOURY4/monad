@@ -255,7 +255,12 @@ namespace monad::compiler::local_stacks
     Block LocalStacksIR::to_block(basic_blocks::Block const &&in)
     {
         Block out = {
-            0, {}, std::move(in.instrs), in.terminator, in.fallthrough_dest};
+            0,
+            {},
+            std::move(in.instrs),
+            in.terminator,
+            in.fallthrough_dest,
+            in.offset};
         std::deque<Value> stack;
 
         auto grow_stack_to_min_size = [&](size_t min_size) {

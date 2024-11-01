@@ -16,3 +16,16 @@ namespace monad::compiler::poly_typed
         std::vector<Block> blocks;
     };
 }
+
+template <>
+struct std::formatter<monad::compiler::poly_typed::PolyTypedIR>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    std::format_context::iterator format(
+        monad::compiler::poly_typed::PolyTypedIR const &ir,
+        std::format_context &ctx) const;
+};

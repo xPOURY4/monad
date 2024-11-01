@@ -10,16 +10,17 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <utility>
 #include <variant>
 #include <vector>
 
+using namespace monad::compiler;
+using namespace monad::compiler::poly_typed;
+
 namespace
 {
-    using namespace monad::compiler::poly_typed;
-    using namespace monad::compiler;
-
     struct TypeError
     {
     };
@@ -459,4 +460,61 @@ namespace monad::compiler::poly_typed
         }
         return true;
     }
+}
+
+std::format_context::iterator std::formatter<PolyTypedIR>::format(
+    PolyTypedIR const &ir, std::format_context &ctx) const
+{
+    for (auto const &b : ir.blocks) {
+        std::format_to(ctx.out(), "0x{:x}:\n", b.offset);
+        std::format_to(ctx.out(), "    {}\n", b.kind);
+        if (ir.jumpdests.contains(b.offset)) {
+            std::format_to(ctx.out(), "  JUMPDEST\n", b.offset);
+        }
+        for (auto const &ins : b.instrs) {
+            if (ins.code == basic_blocks::InstructionCode::Push) {
+                std::format_to(
+                    ctx.out(), "  {} {}\n", ins.info().name, ins.operand);
+            }
+            else {
+                std::format_to(ctx.out(), "  {}\n", ins.info().name);
+            }
+        }
+        std::format_to(ctx.out(), " =>");
+        for (auto const &v : b.output) {
+            std::format_to(ctx.out(), " {}", v);
+        }
+        std::format_to(ctx.out(), "\n");
+        std::visit<void>(
+            Cases{
+                [&](JumpI const &t) {
+                    std::format_to(ctx.out(), "  JUMPI\n");
+                    std::format_to(ctx.out(), "  : {}\n", t.jump_kind);
+                    std::format_to(ctx.out(), "  : {}\n", t.fallthrough_kind);
+                },
+                [&](Jump const &t) {
+                    std::format_to(ctx.out(), "  JUMP\n");
+                    std::format_to(ctx.out(), "  : {}\n", t.jump_kind);
+                },
+                [&](FallThrough const &t) {
+                    std::format_to(ctx.out(), "  FALLTHROUGH\n");
+                    std::format_to(ctx.out(), "  : {}\n", t.fallthrough_kind);
+                },
+                [&](Return const &) {
+                    std::format_to(ctx.out(), "  RETURN\n");
+                },
+                [&](Revert const &) {
+                    std::format_to(ctx.out(), "  REVERT\n");
+                },
+                [&](SelfDestruct const &) {
+                    std::format_to(ctx.out(), "  SELFDESTRUCT\n");
+                },
+                [&](Stop const &) { std::format_to(ctx.out(), "  STOP\n"); },
+                [&](InvalidInstruction const &) {
+                    std::format_to(ctx.out(), "  INVALIDINSTRUCTION\n");
+                },
+            },
+            b.terminator);
+    }
+    return ctx.out();
 }
