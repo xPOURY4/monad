@@ -7,7 +7,6 @@
 #include <compiler/ir/poly_typed/block.h>
 #include <compiler/ir/poly_typed/infer.h>
 #include <compiler/ir/poly_typed/kind.h>
-#include <compiler/opcodes.h>
 
 #include <cstdint>
 #include <filesystem>

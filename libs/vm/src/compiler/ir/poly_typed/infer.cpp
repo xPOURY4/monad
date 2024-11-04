@@ -1,17 +1,17 @@
-#include "compiler/ir/poly_typed/infer.h"
-#include "compiler/ir/basic_blocks.h"
-#include "compiler/ir/local_stacks.h"
-#include "compiler/ir/poly_typed/block.h"
-#include "compiler/ir/poly_typed/exceptions.h"
-#include "compiler/ir/poly_typed/infer_state.h"
-#include "compiler/ir/poly_typed/kind.h"
-#include "compiler/ir/poly_typed/strongly_connected_components.h"
-#include "compiler/ir/poly_typed/unify.h"
-#include "compiler/opcodes.h"
-#include "compiler/types.h"
+#include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/instruction.h>
+#include <compiler/ir/local_stacks.h>
+#include <compiler/ir/poly_typed/block.h>
+#include <compiler/ir/poly_typed/exceptions.h>
+#include <compiler/ir/poly_typed/infer.h>
+#include <compiler/ir/poly_typed/infer_state.h>
+#include <compiler/ir/poly_typed/kind.h>
+#include <compiler/ir/poly_typed/strongly_connected_components.h>
+#include <compiler/ir/poly_typed/unify.h>
+#include <compiler/types.h>
+
 #include <algorithm>
 #include <cassert>
-#include <compiler/opcode_cases.h>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -99,7 +99,7 @@ namespace
         InferState &state, basic_blocks::Instruction const &ins,
         std::vector<Kind> &stack)
     {
-        auto &info = ins.info();
+        auto const &info = ins.info();
         assert(stack.size() >= info.min_stack);
         std::vector<Kind> const front;
         for (size_t i = 0; i < info.min_stack; ++i) {

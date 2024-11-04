@@ -1,11 +1,10 @@
-#include "compiler/types.h"
-#include "compiler/uint256.h"
 #include "intx/intx.hpp"
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
-#include <compiler/opcode_cases.h>
 #include <compiler/opcodes.h>
+#include <compiler/types.h>
+#include <compiler/uint256.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -249,7 +248,7 @@ namespace monad::compiler::local_stacks
         };
 
         for (auto const &tok : out.instrs) {
-            auto &info = tok.info();
+            auto const &info = tok.info();
 
             grow_stack_to_min_size(info.min_stack);
 

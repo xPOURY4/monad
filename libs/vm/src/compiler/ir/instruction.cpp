@@ -1,7 +1,8 @@
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/opcodes.h>
-#include <compiler/types.h>
+
+#include <cstdint>
+#include <tuple>
 
 namespace monad::compiler::basic_blocks
 {

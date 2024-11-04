@@ -1,9 +1,7 @@
 #include <compiler/compiler.h>
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/simple_llvm.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <llvm/IR/BasicBlock.h>
