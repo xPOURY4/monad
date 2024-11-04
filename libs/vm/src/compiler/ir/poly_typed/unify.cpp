@@ -451,9 +451,11 @@ namespace
                     std::visit(
                         Cases{
                             [&](Cont const &c2) {
-                                su.insert_kind(v, word_cont(c2.cont));
+                                su.insert_kind(param_var, word_cont(c2.cont));
                             },
-                            [&](WordCont const &) { su.insert_kind(v, new_k); },
+                            [&](WordCont const &) {
+                                su.insert_kind(param_var, new_k);
+                            },
                             [&](auto const &) {
                                 unify(su, k, new_k, 0, ticks);
                             },
@@ -464,11 +466,11 @@ namespace
                     std::visit(
                         Cases{
                             [&](Word const &) {
-                                su.insert_kind(v, word_cont(c1.cont));
+                                su.insert_kind(param_var, word_cont(c1.cont));
                             },
                             [&](WordCont const &wc2) {
                                 unify(su, c1.cont, wc2.cont, 0, ticks);
-                                su.insert_kind(v, word_cont(c1.cont));
+                                su.insert_kind(param_var, word_cont(c1.cont));
                             },
                             [&](auto const &) {
                                 unify(su, k, new_k, 0, ticks);

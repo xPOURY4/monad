@@ -745,6 +745,11 @@ namespace
 
     void subst_block(SubstMap &su, Block &block)
     {
+        // Since `su.subst_or_throw` has already been called in
+        // `infer_block_end` and `subst_terminator`, it is an invariant that
+        // `su.subst_or_throw` will not throw in `subst_block`. Some
+        // `LiteralVar`s mey get substituted here, but this does not increase
+        // substitution ticks or depth.
         block.kind = su.subst_or_throw(block.kind);
         if (std::holds_alternative<JumpI>(block.terminator)) {
             JumpI &jumpi = std::get<JumpI>(block.terminator);

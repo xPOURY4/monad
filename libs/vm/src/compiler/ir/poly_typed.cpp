@@ -151,7 +151,8 @@ namespace
         for (size_t i = 0; i < min_size; ++i) {
             if (output_offset + i < block.output.size() &&
                 block.output[output_offset + i].is == ValueIs::LITERAL) {
-                if (!weak_equal(output_stack[output_offset + i], word)) {
+                if (!std::holds_alternative<Word>(
+                        *output_stack[output_offset + i])) {
                     throw TypeError{};
                 }
             }

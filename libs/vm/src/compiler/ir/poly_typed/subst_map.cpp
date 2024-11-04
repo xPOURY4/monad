@@ -131,6 +131,7 @@ namespace monad::compiler::poly_typed
                 [this, depth, &ticks](LiteralVar const &lv) {
                     auto t = literal_map.find(lv.var);
                     if (t == literal_map.end()) {
+                        increment_kind_ticks(ticks, 1);
                         auto v = subst_literal_var_name(lv.var);
                         return literal_var(v, subst(lv.cont, depth, ticks));
                     }
