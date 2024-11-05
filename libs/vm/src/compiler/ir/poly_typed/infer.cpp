@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <limits>
 #include <list>
@@ -130,48 +129,38 @@ namespace
 
     void push_literal_output(
         InferState &state, Component const &component, std::vector<Kind> &front,
-        Kind &&k, uint256_t const &data, uint64_t jumpix)
+        Kind &&k, Value const &value, size_t jumpix)
     {
         assert(alpha_equal(k, word));
-        if (data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
+        auto b = state.get_jumpdest(value);
+        if (!b.has_value()) {
             // Invalid jump
             front.push_back(literal_var(
                 state.fresh_literal_var(),
                 cont_kind({}, state.fresh_cont_var())));
             return;
         }
-        static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
-        auto bid_it = state.jumpdests.find(data[0]);
-        if (bid_it == state.jumpdests.end()) {
-            // Invalid jump
-            front.push_back(literal_var(
-                state.fresh_literal_var(),
-                cont_kind({}, state.fresh_cont_var())));
-            return;
-        }
-        block_id const b = bid_it->second;
-        if (jumpix != std::numeric_limits<uint64_t>::max() &&
-            component.contains(b)) {
+        if (jumpix != std::numeric_limits<size_t>::max() &&
+            component.contains(b.value())) {
             // Recursive is assumed to be word if it appears as argument to a
             // continuation (parameter).
             front.push_back(std::move(k));
             return;
         }
         front.push_back(
-            literal_var(state.fresh_literal_var(), state.get_type(b)));
+            literal_var(state.fresh_literal_var(), state.get_type(b.value())));
     }
 
     void push_param_output(
         InferState &state, ParamVarNameMap &param_map, std::vector<Kind> &front,
-        Kind &&k, uint256_t const &data, uint64_t jumpix)
+        Kind &&k, size_t const &param, size_t jumpix)
     {
-        assert(data <= uint256_t{std::numeric_limits<uint64_t>::max()});
-        if (data[0] == jumpix) {
+        if (param == jumpix) {
             front.push_back(std::move(k));
         }
         else {
             VarName const v = state.fresh_kind_var();
-            param_map[data[0]].push_back(v);
+            param_map[param].push_back(v);
             front.push_back(kind_var(v));
         }
     }
@@ -180,7 +169,7 @@ namespace
         InferState &state, ParamVarNameMap &param_map,
         Component const &component, size_t offset,
         local_stacks::Block const &block, std::vector<Kind> &&stack,
-        ContTailKind &&tail, uint64_t jumpix)
+        ContTailKind &&tail, size_t jumpix)
     {
         assert(stack.size() == block.output.size());
         assert(stack.size() >= offset);
@@ -194,7 +183,7 @@ namespace
                     component,
                     front,
                     std::move(stack[six]),
-                    block.output[oix].data,
+                    block.output[oix],
                     jumpix);
                 break;
             case local_stacks::ValueIs::PARAM_ID:
@@ -203,7 +192,7 @@ namespace
                     param_map,
                     front,
                     std::move(stack[six]),
-                    block.output[oix].data,
+                    block.output[oix].param,
                     jumpix);
                 break;
             case local_stacks::ValueIs::COMPUTED:
@@ -226,12 +215,9 @@ namespace
         auto jump_tail = tail;
         auto const &block = state.pre_blocks[bid];
         assert(block.output.size() >= 2);
-        uint64_t jumpix = std::numeric_limits<uint64_t>::max();
+        size_t jumpix = std::numeric_limits<size_t>::max();
         if (block.output[0].is == local_stacks::ValueIs::PARAM_ID) {
-            assert(
-                block.output[0].data <=
-                uint256_t{std::numeric_limits<uint64_t>::max()});
-            jumpix = block.output[0].data[0];
+            jumpix = block.output[0].param;
         }
         state.block_terminators.insert_or_assign(
             bid,
@@ -268,12 +254,9 @@ namespace
         Kind jumpdest = stack.back();
         auto const &block = state.pre_blocks[bid];
         assert(block.output.size() >= 1);
-        uint64_t jumpix = std::numeric_limits<uint64_t>::max();
+        size_t jumpix = std::numeric_limits<size_t>::max();
         if (block.output[0].is == local_stacks::ValueIs::PARAM_ID) {
-            assert(
-                block.output[0].data <=
-                uint256_t{std::numeric_limits<uint64_t>::max()});
-            jumpix = block.output[0].data[0];
+            jumpix = block.output[0].param;
         }
         state.block_terminators.insert_or_assign(
             bid,
@@ -297,7 +280,7 @@ namespace
         ContTailKind &&tail)
     {
         auto const &block = state.pre_blocks[bid];
-        uint64_t const jumpix = std::numeric_limits<uint64_t>::max();
+        size_t const jumpix = std::numeric_limits<size_t>::max();
         state.block_terminators.insert_or_assign(
             bid,
             FallThrough{

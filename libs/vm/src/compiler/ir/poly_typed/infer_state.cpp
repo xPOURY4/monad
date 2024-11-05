@@ -129,13 +129,14 @@ namespace monad::compiler::poly_typed
         if (value.is != ValueIs::LITERAL) {
             return std::nullopt;
         }
-        if (value.data > uint256_t{std::numeric_limits<byte_offset>::max()}) {
+        if (value.literal >
+            uint256_t{std::numeric_limits<byte_offset>::max()}) {
             return std::nullopt;
         }
 
         static_assert(sizeof(byte_offset) <= sizeof(uint64_t));
 
-        byte_offset const offset = static_cast<byte_offset>(value.data[0]);
+        byte_offset const offset = static_cast<byte_offset>(value.literal[0]);
 
         auto it = jumpdests.find(offset);
         if (it == jumpdests.end()) {

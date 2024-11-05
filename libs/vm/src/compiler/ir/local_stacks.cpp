@@ -6,11 +6,13 @@
 #include <compiler/types.h>
 #include <compiler/uint256.h>
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -27,7 +29,7 @@ namespace
             stack.pop_front();
         }
         if (info.increases_stack) {
-            stack.push_front({ValueIs::COMPUTED, 0});
+            stack.emplace_front(ValueIs::COMPUTED, 0);
         }
     }
 
@@ -42,7 +44,7 @@ namespace
         Value &z = stack[2];
         if (x.is == ValueIs::LITERAL && y.is == ValueIs::LITERAL &&
             z.is == ValueIs::LITERAL) {
-            z.data = f(x.data, y.data, z.data);
+            z.literal = f(x.literal, y.literal, z.literal);
             stack.pop_front();
             stack.pop_front();
         }
@@ -58,7 +60,7 @@ namespace
         Value const &x = stack[0];
         Value &y = stack[1];
         if (x.is == ValueIs::LITERAL && y.is == ValueIs::LITERAL) {
-            y.data = f(x.data, y.data);
+            y.literal = f(x.literal, y.literal);
             stack.pop_front();
         }
         else {
@@ -72,7 +74,7 @@ namespace
     {
         Value &x = stack[0];
         if (x.is == ValueIs::LITERAL) {
-            x.data = f(x.data);
+            x.literal = f(x.literal);
         }
         else {
             eval_instruction_fallback(tok, stack);
@@ -234,6 +236,22 @@ namespace
 
 namespace monad::compiler::local_stacks
 {
+    Value::Value(ValueIs is, uint256_t data)
+        : is(is)
+    {
+        switch (is) {
+        case ValueIs::LITERAL:
+            literal = data;
+            break;
+        case ValueIs::PARAM_ID:
+            static_assert(sizeof(size_t) <= sizeof(uint64_t));
+            assert(data <= uint256_t{std::numeric_limits<size_t>::max()});
+            param = data[0];
+        default:
+            break;
+        }
+    };
+
     Block LocalStacksIR::to_block(basic_blocks::Block const &&in)
     {
         Block out = {

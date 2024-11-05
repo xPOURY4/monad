@@ -17,7 +17,14 @@ namespace monad::compiler::local_stacks
     struct Value
     {
         ValueIs is;
-        uint256_t data; // unused if COMPUTED
+
+        union
+        {
+            uint256_t literal;
+            std::size_t param;
+        }; // unused if COMPUTED
+
+        Value(ValueIs is, uint256_t data);
     };
 
     struct Block
@@ -59,12 +66,11 @@ struct std::formatter<monad::compiler::local_stacks::Value>
     {
         switch (val.is) {
         case monad::compiler::local_stacks::ValueIs::PARAM_ID:
-            return std::format_to(
-                ctx.out(), "%p{}", intx::to_string(val.data, 10));
+            return std::format_to(ctx.out(), "%p{}", val.param);
         case monad::compiler::local_stacks::ValueIs::COMPUTED:
             return std::format_to(ctx.out(), "COMPUTED");
         default:
-            return std::format_to(ctx.out(), "{}", val.data);
+            return std::format_to(ctx.out(), "{}", val.literal);
         }
     }
 };
