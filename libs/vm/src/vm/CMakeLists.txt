@@ -15,7 +15,7 @@ target_link_libraries(monad-compiler-vm
         runtime
     PRIVATE
         utils
-        compiler
+        monad-compiler
 )
 
 target_include_directories(monad-compiler-vm

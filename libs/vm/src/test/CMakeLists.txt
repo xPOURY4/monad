@@ -1,7 +1,7 @@
 add_executable(compiler-tests compiler_tests.cpp)
 
 monad_compile_options(compiler-tests)
-target_link_libraries(compiler-tests compiler GTest::gtest_main)
+target_link_libraries(compiler-tests monad-compiler GTest::gtest_main)
 
 add_test(
     NAME "Compiler Tests"
@@ -32,7 +32,7 @@ add_test(
 add_executable(uint256-tests uint256_tests.cpp)
 
 monad_compile_options(uint256-tests)
-target_link_libraries(uint256-tests compiler GTest::gtest_main)
+target_link_libraries(uint256-tests monad-compiler GTest::gtest_main)
 
 add_test(
     NAME "UInt256 Tests"
@@ -42,7 +42,7 @@ add_test(
 add_executable(strongly-connected-components-tests strongly_connected_components_tests.cpp)
 
 monad_compile_options(strongly-connected-components-tests)
-target_link_libraries(strongly-connected-components-tests compiler GTest::gtest_main)
+target_link_libraries(strongly-connected-components-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Strongly Connected Components Tests"
     COMMAND strongly-connected-components-tests
@@ -51,7 +51,7 @@ add_test(
 add_executable(transactional-unordered-map-tests transactional_unordered_map_tests.cpp)
 
 monad_compile_options(transactional-unordered-map-tests)
-target_link_libraries(transactional-unordered-map-tests compiler GTest::gtest_main)
+target_link_libraries(transactional-unordered-map-tests monad-compiler GTest::gtest_main)
 
 add_test(
     NAME "Transactional Unordered Map"
@@ -61,7 +61,7 @@ add_test(
 add_executable(subst-map-tests subst_map_tests.cpp)
 
 monad_compile_options(subst-map-tests)
-target_link_libraries(subst-map-tests compiler GTest::gtest_main)
+target_link_libraries(subst-map-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Subst Map Tests"
     COMMAND subst-map-tests
@@ -70,7 +70,7 @@ add_test(
 add_executable(alpha-equal-tests alpha_equal_tests.cpp)
 
 monad_compile_options(alpha-equal-tests)
-target_link_libraries(alpha-equal-tests compiler GTest::gtest_main)
+target_link_libraries(alpha-equal-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Alpha Equal Tests"
     COMMAND alpha-equal-tests
@@ -79,7 +79,7 @@ add_test(
 add_executable(unify-tests unify_tests.cpp)
 
 monad_compile_options(unify-tests)
-target_link_libraries(unify-tests compiler GTest::gtest_main)
+target_link_libraries(unify-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Unify Tests"
     COMMAND unify-tests
@@ -88,7 +88,7 @@ add_test(
 add_executable(infer-tests infer_tests.cpp)
 
 monad_compile_options(infer-tests)
-target_link_libraries(infer-tests compiler GTest::gtest_main)
+target_link_libraries(infer-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Infer Tests"
     COMMAND infer-tests

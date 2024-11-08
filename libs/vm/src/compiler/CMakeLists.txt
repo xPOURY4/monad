@@ -1,4 +1,4 @@
-add_library(compiler
+add_library(monad-compiler
     lib.cpp
     uint256.cpp
     ir/bytecode.cpp
@@ -15,18 +15,18 @@ add_library(compiler
     ir/simple_llvm.cpp
 )
 
-monad_compile_options(compiler)
-monad_link_llvm(compiler)
+monad_compile_options(monad-compiler)
+monad_link_llvm(monad-compiler)
 
-set_property(TARGET compiler
+set_property(TARGET monad-compiler
     PROPERTY POSITION_INDEPENDENT_CODE ON
 )
 
-target_include_directories(compiler
+target_include_directories(monad-compiler
     PUBLIC include
 )
 
 target_link_libraries(
-    compiler
+    monad-compiler
     PUBLIC intx::intx
 )
