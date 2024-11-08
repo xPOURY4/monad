@@ -1,4 +1,3 @@
-#include <compiler/compiler.h>
 #include <utils/load_program.h>
 
 #include <CLI/CLI.hpp>

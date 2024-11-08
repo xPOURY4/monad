@@ -1,5 +1,3 @@
-#include <compiler/compiler.h>
-#include <runtime/runtime.h>
 #include <vm/vm.h>
 
 #include <evmc/evmc.h>
@@ -8,8 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <iostream>
-#include <utility>
 
 namespace
 {
