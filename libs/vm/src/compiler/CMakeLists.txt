@@ -30,3 +30,5 @@ target_link_libraries(
     monad-compiler
     PUBLIC intx::intx
 )
+
+add_library(Monad::MonadCompiler ALIAS monad-compiler)
