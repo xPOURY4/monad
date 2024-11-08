@@ -13,8 +13,12 @@ find_package(LLVM REQUIRED CONFIG)
 find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
 
-add_subdirectory(third_party/evmc)
-add_subdirectory(third_party/intx)
+option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
+
+if(MONAD_COMPILER_STANDALONE)
+    add_subdirectory(third_party/evmc)
+    add_subdirectory(third_party/intx)
+endif()
 
 add_subdirectory(src/compiler)
 add_subdirectory(src/monad-evmc)
