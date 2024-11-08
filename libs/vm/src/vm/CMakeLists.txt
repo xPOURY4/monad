@@ -1,12 +1,8 @@
 add_library(monad-compiler-vm SHARED
     vm.cpp
-    execute_jit.cpp
-    bind_runtime.cpp
-    testing.cpp
 )
 
 monad_compile_options(monad-compiler-vm)
-monad_link_llvm(monad-compiler-vm)
 
 target_link_libraries(monad-compiler-vm
     PUBLIC

@@ -8,10 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
 
-include(cmake/LinkLLVM.cmake)
 include(cmake/MonadCompileOptions.cmake)
 
-find_package(LLVM REQUIRED CONFIG)
 find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
 

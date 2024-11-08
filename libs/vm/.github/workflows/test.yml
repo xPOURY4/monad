@@ -61,7 +61,6 @@ jobs:
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
-                    llvm-18-dev         \
                     libcli11-dev        \
                     libgtest-dev
 
@@ -87,8 +86,7 @@ jobs:
                 cmake -S . -B build                                 \
                   -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }} \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
-                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}   \
-                  -DLLVM_DIR=$(llvm-config-18 --cmakedir)
+                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build
 
             - name: Run tests
@@ -152,7 +150,6 @@ jobs:
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
-                    llvm-18-dev         \
                     libcli11-dev        \
                     libgtest-dev
 

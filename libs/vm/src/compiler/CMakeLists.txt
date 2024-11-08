@@ -12,11 +12,9 @@ add_library(monad-compiler
     ir/poly_typed/unify.cpp
     ir/poly_typed/infer.cpp
     ir/poly_typed.cpp
-    ir/simple_llvm.cpp
 )
 
 monad_compile_options(monad-compiler)
-monad_link_llvm(monad-compiler)
 
 set_property(TARGET monad-compiler
     PROPERTY POSITION_INDEPENDENT_CODE ON
