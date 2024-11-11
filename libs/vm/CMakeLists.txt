@@ -18,6 +18,8 @@ if(MONAD_COMPILER_STANDALONE)
     add_subdirectory(third_party/intx)
 endif()
 
+add_subdirectory(third_party/asmjit)
+
 add_subdirectory(src/compiler)
 add_subdirectory(src/monad-evmc)
 add_subdirectory(src/runtime)
