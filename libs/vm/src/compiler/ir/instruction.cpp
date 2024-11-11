@@ -22,6 +22,8 @@ namespace monad::compiler::basic_blocks
             return opcode_info_table[DUP1 + index - 1];
         case InstructionCode::Swap:
             return opcode_info_table[SWAP1 + index - 1];
+        case InstructionCode::Log:
+            return opcode_info_table[LOG0 + index];
         default:
             return opcode_info_table[static_cast<uint8_t>(code)];
         }
