@@ -1,4 +1,7 @@
+#include <runtime/runtime.h>
 #include <vm/vm.h>
+
+#include <compiler/ir/x86.h>
 
 #include <evmc/evmc.h>
 
@@ -10,29 +13,65 @@
 namespace
 {
 
-    void destroy(evmc_vm *) {}
+    void destroy(evmc_vm *vm)
+    {
+        reinterpret_cast<monad::compiler::VM *>(vm)->~VM();
+    }
 
     evmc_result execute(
         evmc_vm *vm, evmc_host_interface const *host,
         evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
         uint8_t const *code, size_t code_size)
     {
-        (void)vm;
-        (void)host;
-        (void)rev;
+        return reinterpret_cast<monad::compiler::VM *>(vm)->execute(
+            host, context, rev, msg, code, code_size);
+    }
+
+    evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
+    {
+        return reinterpret_cast<monad::compiler::VM *>(vm)->get_capabilities();
+    }
+
+}
+
+namespace monad::compiler
+{
+    VM::VM()
+        : evmc_vm{
+              EVMC_ABI_VERSION,
+              "monad-compiler-vm",
+              "0.0.0",
+              ::destroy,
+              ::execute,
+              ::get_capabilities,
+              nullptr}
+    {
+    }
+
+    evmc_result VM::execute(
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+        size_t code_size)
+    {
         (void)msg;
-        (void)context;
-        (void)code;
-        (void)code_size;
+
+        auto holder = asmjit::CodeHolder();
+        holder.init(runtime_.environment(), runtime_.cpuFeatures());
+
+        native::compile(holder, {code, code_size}, rev);
+
+        native::entrypoint_t contract_main;
+        runtime_.add(&contract_main, &holder);
+
+        contract_main();
 
         return {};
     }
 
-    evmc_capabilities_flagset get_capabilities(evmc_vm *)
+    evmc_capabilities_flagset VM::get_capabilities() const
     {
         return EVMC_CAPABILITY_EVM1;
     }
-
 }
 
 /**
@@ -43,12 +82,5 @@ namespace
  */
 extern "C" evmc_vm *evmc_create_monad_compiler_vm()
 {
-    return new evmc_vm{
-        EVMC_ABI_VERSION,
-        "monad-compiler-vm",
-        "0.0.0",
-        ::destroy,
-        ::execute,
-        ::get_capabilities,
-        nullptr};
+    return new monad::compiler::VM();
 }

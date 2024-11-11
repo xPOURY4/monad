@@ -12,6 +12,8 @@ add_library(monad-compiler
     ir/poly_typed/unify.cpp
     ir/poly_typed/infer.cpp
     ir/poly_typed.cpp
+    ir/x86.cpp
+    ir/x86/virtual_stack.cpp
 )
 
 monad_compile_options(monad-compiler)
@@ -27,6 +29,9 @@ target_include_directories(monad-compiler
 target_link_libraries(
     monad-compiler
     PUBLIC intx::intx
+    PUBLIC asmjit::asmjit
+    PUBLIC evmc::evmc
+    PUBLIC runtime
 )
 
 add_library(Monad::MonadCompiler ALIAS monad-compiler)

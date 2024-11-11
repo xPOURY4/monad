@@ -9,6 +9,7 @@ target_link_libraries(monad-compiler-vm
         intx::intx
         evmc::evmc
         runtime
+        asmjit::asmjit
     PRIVATE
         utils
         monad-compiler
