@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compiler/ir/local_stacks.h>
+#include <runtime/runtime.h>
 
 #include <asmjit/x86.h>
 
@@ -10,7 +11,7 @@
 
 namespace monad::compiler::native
 {
-    using entrypoint_t = void (*)();
+    using entrypoint_t = void (*)(runtime::Result *, runtime::Context *);
 
     /**
      * Compile the given contract into an asmjit code buffer.

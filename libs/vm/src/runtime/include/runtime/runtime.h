@@ -2,28 +2,28 @@
 
 #include <evmc/evmc.h>
 
-#ifdef __cplusplus
-extern "C"
+namespace monad::runtime
 {
-#endif
+    enum class StatusCode : uint64_t
+    {
+        success = 0,
+    };
 
-extern int64_t monad_evm_gas_left;
+    struct Result
+    {
+        evmc_bytes32 offset;
+        evmc_bytes32 size;
+        StatusCode status;
+    };
 
-struct monad_runtime_interface
-{
-    struct evmc_result result;
-    struct evmc_host_interface const *host;
-    struct evmc_host_context *context;
-    enum evmc_revision revision;
-    struct evmc_message const *message;
-};
+    static_assert(sizeof(Result) == 72);
+    static_assert(offsetof(Result, offset) == 0);
+    static_assert(offsetof(Result, size) == 32);
+    static_assert(offsetof(Result, status) == 64);
 
-void monad_evm_runtime_sstore(
-    struct monad_runtime_interface *host, uint8_t *key_bytes,
-    uint8_t *val_bytes);
-void monad_evm_runtime_stop(struct monad_runtime_interface *host);
-void monad_evm_runtime_set_gas(int64_t value);
-
-#ifdef __cplusplus
+    struct Context
+    {
+        evmc_host_interface const *host;
+        evmc_host_context *context;
+    };
 }
-#endif

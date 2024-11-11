@@ -63,7 +63,13 @@ namespace monad::compiler
         native::entrypoint_t contract_main;
         runtime_.add(&contract_main, &holder);
 
-        contract_main();
+        auto ret = runtime::Result{};
+        auto ctx = runtime::Context{
+            .host = host,
+            .context = context,
+        };
+
+        contract_main(&ret, &ctx);
 
         return {};
     }
