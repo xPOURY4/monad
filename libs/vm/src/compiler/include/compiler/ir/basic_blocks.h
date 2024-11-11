@@ -47,6 +47,29 @@ namespace monad::compiler::basic_blocks
     }
 
     /**
+     * Return the number of input stack elements consumed by each block
+     * terminator.
+     */
+    constexpr std::size_t terminator_inputs(Terminator t)
+    {
+        using enum Terminator;
+        switch (t) {
+        case JumpI:
+        case Return:
+        case Revert:
+            return 2;
+        case Jump:
+        case SelfDestruct:
+            return 1;
+        case Stop:
+        case FallThrough:
+            return 0;
+        default:
+            std::unreachable();
+        }
+    }
+
+    /**
      * A basic block is a linear sequence of EVM instructions ending with a
      * single terminator.
      */
