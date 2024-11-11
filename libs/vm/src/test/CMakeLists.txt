@@ -59,7 +59,7 @@ add_test(
 add_executable(kind-tests kind_tests.cpp)
 
 monad_compile_options(kind-tests)
-target_link_libraries(kind-tests compiler GTest::gtest_main)
+target_link_libraries(kind-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Kind Tests"
     COMMAND kind-tests
@@ -86,7 +86,7 @@ add_test(
 add_executable(type-check-tests type_check_tests.cpp)
 
 monad_compile_options(type-check-tests)
-target_link_libraries(type-check-tests compiler GTest::gtest_main)
+target_link_libraries(type-check-tests monad-compiler GTest::gtest_main)
 add_test(
     NAME "Type Check Tests"
     COMMAND type-check-tests

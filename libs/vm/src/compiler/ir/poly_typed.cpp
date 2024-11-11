@@ -1,14 +1,15 @@
 #include "compiler/ir/poly_typed.h"
+#include "compiler/ir/instruction.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"
 #include "compiler/ir/poly_typed/kind.h"
-#include "compiler/opcode_cases.h"
 #include "compiler/opcodes.h"
 #include "compiler/types.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <utility>
 #include <variant>
@@ -37,17 +38,15 @@ namespace
         return ir.blocks[jd->second].kind;
     }
 
-    Kind get_param_kind(Block const &block, uint256_t const &param_id)
+    Kind get_param_kind(Block const &block, size_t const param_id)
     {
-        assert(param_id <= uint256_t{std::numeric_limits<size_t>::max()});
-        size_t const ix{param_id[0]};
-        if (ix >= block.kind->front.size()) {
+        if (param_id >= block.kind->front.size()) {
             throw TypeError{};
         }
-        return block.kind->front[ix];
+        return block.kind->front[param_id];
     }
 
-    ContKind get_param_cont(Block const &block, uint256_t const &param_id)
+    ContKind get_param_cont(Block const &block, size_t const param_id)
     {
         auto k = get_param_kind(block, param_id);
         if (std::holds_alternative<Cont>(*k)) {
@@ -64,12 +63,12 @@ namespace
         ContKind kind)
     {
         if (dest.is == ValueIs::LITERAL) {
-            if (!can_specialize(get_literal_cont(ir, dest.data), kind)) {
+            if (!can_specialize(get_literal_cont(ir, dest.literal), kind)) {
                 throw TypeError{};
             }
         }
         else if (dest.is == ValueIs::PARAM_ID) {
-            if (!weak_equal(get_param_cont(block, dest.data), kind)) {
+            if (!weak_equal(get_param_cont(block, dest.param), kind)) {
                 throw TypeError{};
             }
         }
@@ -86,19 +85,19 @@ namespace
                 Cases{
                     [&](LiteralVar const &lv) {
                         if (!can_specialize(
-                                get_literal_cont(ir, x.data), lv.cont)) {
+                                get_literal_cont(ir, x.literal), lv.cont)) {
                             throw TypeError{};
                         }
                     },
                     [&](Cont const &c) {
                         if (!can_specialize(
-                                get_literal_cont(ir, x.data), c.cont)) {
+                                get_literal_cont(ir, x.literal), c.cont)) {
                             throw TypeError{};
                         }
                     },
                     [&](WordCont const &wc) {
                         if (!can_specialize(
-                                get_literal_cont(ir, x.data), wc.cont)) {
+                                get_literal_cont(ir, x.literal), wc.cont)) {
                             throw TypeError{};
                         }
                     },
@@ -112,7 +111,7 @@ namespace
             if (std::holds_alternative<Any>(*k)) {
                 return;
             }
-            auto p = get_param_kind(block, x.data);
+            auto p = get_param_kind(block, x.param);
             if (std::holds_alternative<WordCont>(*p) &&
                 !std::holds_alternative<WordCont>(*k)) {
                 if (std::holds_alternative<Word>(*k)) {
@@ -326,29 +325,20 @@ namespace
         stack.pop_back();
     }
 
-    void
-    check_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
+    void check_instruction_swap(uint8_t ix, std::vector<Kind> &stack)
     {
-        size_t const ix = get_swap_opcode_index(ins.opcode);
-        if (stack.size() <= ix) {
-            throw TypeError{};
-        }
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
-    void check_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
+    void check_instruction_dup(uint8_t ix, std::vector<Kind> &stack)
     {
-        size_t const ix = get_dup_opcode_index(ins.opcode);
-        if (stack.size() < ix) {
-            throw TypeError{};
-        }
         stack.push_back(stack[stack.size() - ix]);
     }
 
     void
     check_instruction_default(Instruction const &ins, std::vector<Kind> &stack)
     {
-        auto const info = opcode_info_table[ins.opcode];
+        auto const &info = ins.info();
         if (stack.size() < info.min_stack) {
             throw TypeError{};
         }
@@ -367,13 +357,13 @@ namespace
 
     void check_instruction(Instruction const &ins, std::vector<Kind> &stack)
     {
-        switch (ins.opcode) {
-        case POP:
+        switch (ins.code) {
+        case basic_blocks::InstructionCode::Pop:
             return check_instruction_pop(stack);
-        case ANY_SWAP:
-            return check_instruction_swap(ins, stack);
-        case ANY_DUP:
-            return check_instruction_dup(ins, stack);
+        case basic_blocks::InstructionCode::Swap:
+            return check_instruction_swap(ins.index, stack);
+        case basic_blocks::InstructionCode::Dup:
+            return check_instruction_dup(ins.index, stack);
         default:
             return check_instruction_default(ins, stack);
         }

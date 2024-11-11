@@ -8,7 +8,7 @@ namespace monad::compiler::poly_typed
 {
     using ValueIs = local_stacks::ValueIs;
     using Value = local_stacks::Value;
-    using Instruction = bytecode::Instruction;
+    using Instruction = basic_blocks::Instruction;
 
     struct FallThrough
     {

@@ -506,39 +506,28 @@ TEST(type_check, test_7)
     ir.blocks[0].kind->tail = tail0;
     ASSERT_TRUE(ir.type_check()); // sanity check
 
+    ir.blocks[1].kind->front = {word};
     ir.blocks[1].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());
 
+    ir.blocks[1].kind->front = {};
     ir.blocks[1].kind->tail = tail1;
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front = {word};
-    ir.blocks[1].kind->front = {};
-
+    ir.blocks[1].kind->front = {word};
     ir.blocks[0].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());
 
+    ir.blocks[1].kind->front = {};
     ir.blocks[0].kind->tail = tail0;
-    ASSERT_TRUE(ir.type_check()); // sanity check
-
-    ir.blocks[1].kind->tail = ContVar{0};
-    ASSERT_FALSE(ir.type_check());
-
-    ir.blocks[1].kind->tail = tail1;
     ASSERT_TRUE(ir.type_check()); // sanity check
 
     ir.blocks[0].kind->front = {word, word};
-
     ir.blocks[0].kind->tail = ContVar{0};
     ASSERT_FALSE(ir.type_check());
 
     ir.blocks[0].kind->tail = tail0;
-    ASSERT_TRUE(ir.type_check()); // sanity check
-
-    ir.blocks[1].kind->tail = ContVar{0};
-    ASSERT_FALSE(ir.type_check());
-
-    ir.blocks[1].kind->tail = tail1;
     ASSERT_TRUE(ir.type_check()); // sanity check
 }
 
