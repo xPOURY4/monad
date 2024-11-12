@@ -37,7 +37,7 @@ can be used on a directory containing bytecode contracts. It will recursively
 traverse the directory and run the type inference algorithm on all the
 contracts. It will additionally run the type checking algorithm to verify the
 correctness of the inferred types. For example
-```consone
+```console
 build/src/test/utils/directory-type-check my/contracts-dir
 ```
 will print type inference errors to standard error and print contract type
