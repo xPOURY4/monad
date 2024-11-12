@@ -63,17 +63,18 @@ namespace monad::compiler::stack
     class Stack
     {
     public:
-        Stack();
-
         /**
-         * Updates the stack's minimum and maximum deltas to reflect the effect
-         of this block's instructions.
+         * Initialise a stack with deltas computed from the given block.
+         *
+         * No actual stack manipulations are performed in the constructor; this
+         * is because the calling code must inspect each instruction to perform
+         * code generation while also updating the stack.
          */
-        void include_block(basic_blocks::Block const &block);
+        Stack(basic_blocks::Block const &);
 
         /**
-         * The number of bytes required to hold function arguments passed on the
-         * X86 stack.
+         * The number of bytes required to hold function arguments passed on
+         * the X86 stack.
          *
          * The value returned will be 32-byte aligned.
          */
@@ -191,7 +192,51 @@ namespace monad::compiler::stack
          */
         std::pair<Operand, std::int64_t> push_spilled_output_slot();
 
+        /**
+         * The relative size of the stack at the *lowest* point during execution
+         * of a block.
+         */
+        std::int64_t min_delta() const;
+
+        /**
+         * The relative size of the stack at the *highest* point during
+         * execution of a block.
+         */
+        std::int64_t max_delta() const;
+
+        /**
+         * The difference between the final and initial stack sizes during
+         * execution of a block.
+         */
+        std::int64_t delta() const;
+
+        /**
+         * The number of elements currently pushed to the stack.
+         */
+        std::size_t size() const;
+
+        /**
+         * Returns false if there are any elements pushed to the stack.
+         */
+        bool empty() const;
+
     private:
+        /**
+         * Initialize an empty stack.
+         *
+         * This method is private as an empty stack is not useful to consume
+         * from an external perspective; a basic block needs to have been
+         * ingested for the offsets and computed values in the stack to be
+         * useful.
+         */
+        Stack();
+
+        /**
+         * Updates the stack's minimum and maximum deltas to reflect the effect
+         of this block's instructions.
+         */
+        void include_block(basic_blocks::Block const &block);
+
         /**
          * Internal helper method to perform resource management when popping an
          * operand from the stack.
@@ -255,6 +300,8 @@ namespace monad::compiler::stack
 
     std::strong_ordering
     operator<=>(AvxRegister const &a, AvxRegister const &b);
+
+    bool operator==(AvxRegister const &a, AvxRegister const &b);
 
     struct Duplicate
     {

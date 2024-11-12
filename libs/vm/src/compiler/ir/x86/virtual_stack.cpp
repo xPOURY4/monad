@@ -16,22 +16,6 @@
 
 namespace monad::compiler::stack
 {
-    namespace
-    {
-        std::int64_t required_extra_depth(basic_blocks::Instruction const &inst)
-        {
-            if (inst.code == basic_blocks::InstructionCode::Swap) {
-                return inst.offset + 1;
-            }
-
-            if (inst.code == basic_blocks::InstructionCode::Dup) {
-                return inst.offset;
-            }
-
-            return 0;
-        }
-    }
-
     Stack::Stack()
         : top_index_{-1}
         , deferred_comparison_index_{std::nullopt}
@@ -43,6 +27,12 @@ namespace monad::compiler::stack
         for (uint8_t i = 0; i < 31; ++i) {
             free_avx_regs_.emplace(i);
         }
+    }
+
+    Stack::Stack(basic_blocks::Block const &block)
+        : Stack()
+    {
+        include_block(block);
     }
 
     void Stack::include_block(basic_blocks::Block const &block)
@@ -58,15 +48,18 @@ namespace monad::compiler::stack
         auto max_call_args = std::size_t{0};
 
         for (auto const &instr : block.instrs) {
-            // If we see a SWAP or DUP instruction, we need to make sure that
-            // the stack is deep enough for them to reach the target word. This
-            // extra depth isn't captured by the input and output properties of
-            // the opcodes, so we need to handle them specially.
-            min_delta_ =
-                std::min(delta_ - required_extra_depth(instr), min_delta_);
-
-            delta_ -= instr.info().num_args;
+            delta_ -= instr.info().min_stack;
             min_delta_ = std::min(delta_, min_delta_);
+
+            // We need to treat SWAP and DUP slightly differently to other
+            // instructions; they require that the minimum delta is adjusted to
+            // ensure a big enough input stack, but because they don't actually
+            // consume these elements, this change shouldn't be reflected in the
+            // net delta.
+            if (instr.code == basic_blocks::InstructionCode::Swap ||
+                instr.code == basic_blocks::InstructionCode::Dup) {
+                delta_ += instr.info().min_stack;
+            }
 
             delta_ += instr.info().increases_stack;
             max_delta_ = std::max(delta_, max_delta_);
@@ -75,7 +68,7 @@ namespace monad::compiler::stack
             // a runtime function (sret pointer, context pointer). Rather than
             // listing precisely which ones use which arguments, just assume
             // that all of them use both.
-            max_call_args = std::max(max_call_args, instr.info().num_args);
+            max_call_args = std::max(max_call_args, instr.info().num_args + 2);
         }
 
         if (max_call_args > 6) {
@@ -438,6 +431,33 @@ namespace monad::compiler::stack
         return spill_stack_index(top_index_);
     }
 
+    std::int64_t Stack::min_delta() const
+    {
+        return min_delta_;
+    }
+
+    std::int64_t Stack::max_delta() const
+    {
+        return max_delta_;
+    }
+
+    std::int64_t Stack::delta() const
+    {
+        return delta_;
+    }
+
+    std::size_t Stack::size() const
+    {
+        auto ret = (top_index_ + 1) - min_delta_;
+        MONAD_COMPILER_ASSERT(ret >= 0);
+        return static_cast<std::size_t>(ret);
+    }
+
+    bool Stack::empty() const
+    {
+        return size() == 0;
+    }
+
     bool operator==(Literal const &a, Literal const &b)
     {
         return a.value == b.value;
@@ -461,5 +481,10 @@ namespace monad::compiler::stack
     std::strong_ordering operator<=>(AvxRegister const &a, AvxRegister const &b)
     {
         return a.reg <=> b.reg;
+    }
+
+    bool operator==(AvxRegister const &a, AvxRegister const &b)
+    {
+        return a.reg == b.reg;
     }
 }

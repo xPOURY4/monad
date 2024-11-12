@@ -93,3 +93,12 @@ add_test(
     NAME "Type Check Tests"
     COMMAND type-check-tests
 )
+
+add_executable(stack-tests stack_tests.cpp)
+
+monad_compile_options(stack-tests)
+target_link_libraries(stack-tests monad-compiler GTest::gtest_main)
+add_test(
+    NAME "Virtual Stack Tests"
+    COMMAND stack-tests
+)
