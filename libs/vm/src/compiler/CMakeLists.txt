@@ -32,6 +32,7 @@ target_link_libraries(
     PUBLIC asmjit::asmjit
     PUBLIC evmc::evmc
     PUBLIC runtime
+    PUBLIC utils
 )
 
 add_library(Monad::MonadCompiler ALIAS monad-compiler)

@@ -3,6 +3,8 @@
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
 
+#include <utils/assert.h>
+
 #include <evmc/evmc.hpp>
 
 #include <algorithm>
@@ -84,7 +86,7 @@ namespace monad::compiler::stack
 
         for (auto i = prev_max_delta; i < max_delta_; ++i) {
             auto [_, inserted] = available_stack_indices_.insert(i);
-            assert(inserted);
+            MONAD_COMPILER_ASSERT(inserted);
         }
     }
 
@@ -104,28 +106,28 @@ namespace monad::compiler::stack
     {
         if (index < 0) {
             auto i = -index - 1;
-            assert(i < static_cast<std::int64_t>(negative_elements_.size()));
-            return negative_elements_[i];
+            auto i = static_cast<std::size_t>(-index - 1);
+            MONAD_COMPILER_ASSERT(i < negative_elements_.size());
         }
         else {
-            assert(
-                index < static_cast<std::int64_t>(positive_elements_.size()));
-            return positive_elements_[index];
-        }
+            MONAD_COMPILER_ASSERT(
+            auto i = static_cast<std::size_t>(index);
+            MONAD_COMPILER_ASSERT(i < positive_elements_.size());
+            return positive_elements_[i];
     }
 
     StackElement &Stack::index(std::int64_t index)
     {
         if (index < 0) {
             auto i = -index - 1;
-            assert(i < static_cast<std::int64_t>(negative_elements_.size()));
-            return negative_elements_[i];
+            auto i = static_cast<std::size_t>(-index - 1);
+            MONAD_COMPILER_ASSERT(i < negative_elements_.size());
         }
         else {
-            assert(
-                index < static_cast<std::int64_t>(positive_elements_.size()));
-            return positive_elements_[index];
-        }
+            MONAD_COMPILER_ASSERT(
+            auto i = static_cast<std::size_t>(index);
+            MONAD_COMPILER_ASSERT(i < positive_elements_.size());
+            return positive_elements_[i];
     }
 
     std::pair<Operand, bool>
@@ -158,14 +160,14 @@ namespace monad::compiler::stack
             Cases{
                 [this](AvxRegister a) {
                     auto removed = avx_reg_stack_indices_.erase(top_index_);
-                    assert(removed == 1);
+                    MONAD_COMPILER_ASSERT(removed == 1);
                     free_avx_regs_.push(a);
                 },
 
                 [this](StackOffset s) {
                     auto [_, inserted] =
                         available_stack_indices_.insert(s.offset);
-                    assert(inserted);
+                    MONAD_COMPILER_ASSERT(inserted);
                 },
 
                 [](auto) {},
@@ -189,7 +191,8 @@ namespace monad::compiler::stack
                 },
 
                 [this](DeferredComparison) {
-                    assert(deferred_comparison_index_.has_value());
+                    MONAD_COMPILER_ASSERT(
+                        deferred_comparison_index_.has_value());
                     deferred_comparison_index_ = std::nullopt;
                 },
             },
@@ -216,12 +219,12 @@ namespace monad::compiler::stack
                     [this](AvxRegister) {
                         auto [_, inserted] =
                             avx_reg_stack_indices_.insert(top_index_);
-                        assert(inserted);
+                        MONAD_COMPILER_ASSERT(inserted);
                     },
 
                     [this](StackOffset s) {
                         auto removed = available_stack_indices_.erase(s.offset);
-                        assert(removed == 1);
+                        MONAD_COMPILER_ASSERT(removed == 1);
                     },
 
                     [](auto) {},
@@ -232,7 +235,8 @@ namespace monad::compiler::stack
         std::visit(
             Cases{
                 [this](DeferredComparison) {
-                    assert(!deferred_comparison_index_.has_value());
+                    MONAD_COMPILER_ASSERT(
+                        !deferred_comparison_index_.has_value());
                     deferred_comparison_index_ = top_index_;
                 },
 
@@ -284,7 +288,7 @@ namespace monad::compiler::stack
         auto swapped_elem = index(swap_index);
 
         if (std::holds_alternative<DeferredComparison>(top_elem)) {
-            assert(
+            MONAD_COMPILER_ASSERT(
                 deferred_comparison_index_.has_value() &&
                 *deferred_comparison_index_ == top_index_);
 
@@ -292,7 +296,7 @@ namespace monad::compiler::stack
         }
 
         if (std::holds_alternative<DeferredComparison>(swapped_elem)) {
-            assert(
+            MONAD_COMPILER_ASSERT(
                 deferred_comparison_index_.has_value() &&
                 *deferred_comparison_index_ == swap_index);
 
@@ -327,7 +331,7 @@ namespace monad::compiler::stack
             return *available_stack_indices_.begin();
         }
 
-        assert(false);
+        MONAD_COMPILER_ASSERT(false);
     }
 
     std::int64_t Stack::get_available_stack_offset(std::int64_t stack_index)
@@ -336,7 +340,8 @@ namespace monad::compiler::stack
         auto removed = available_stack_indices_.erase(spill_offset);
 
         if (removed != 1) {
-            assert(false && "Found a stack offset not available for reuse");
+            MONAD_COMPILER_ASSERT(
+                false && "Found a stack offset not available for reuse");
         }
 
         return spill_offset;
@@ -404,7 +409,7 @@ namespace monad::compiler::stack
                 [this, stack_index](AvxRegister a) {
                     free_avx_regs_.push(a);
                     auto removed = avx_reg_stack_indices_.erase(stack_index);
-                    assert(removed == 1);
+                    MONAD_COMPILER_ASSERT(removed == 1);
                 },
 
                 [](auto) {},
@@ -416,12 +421,12 @@ namespace monad::compiler::stack
 
     std::pair<AvxRegister, std::int64_t> Stack::spill_avx_reg()
     {
-        assert(!avx_reg_stack_indices_.empty());
+        MONAD_COMPILER_ASSERT(!avx_reg_stack_indices_.empty());
         auto stack_index = *avx_reg_stack_indices_.begin();
 
         auto [op, offset] = spill_stack_index(stack_index);
 
-        assert(std::holds_alternative<AvxRegister>(op));
+        MONAD_COMPILER_ASSERT(std::holds_alternative<AvxRegister>(op));
         return {std::get<AvxRegister>(op), offset};
     }
 

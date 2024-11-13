@@ -1,2 +1,5 @@
-add_library(utils INTERFACE)
-target_include_directories(utils INTERFACE include/)
+add_library(utils
+    src/assert.c
+)
+
+target_include_directories(utils PUBLIC include/)
