@@ -1,5 +1,6 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
+#include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
 
@@ -31,13 +32,13 @@ namespace monad::compiler::stack
         }
     }
 
-    Stack::Stack(basic_blocks::Block const &block)
+    Stack::Stack(local_stacks::Block const &block)
         : Stack()
     {
         include_block(block);
     }
 
-    void Stack::include_block(basic_blocks::Block const &block)
+    void Stack::include_block(local_stacks::Block const &block)
     {
         auto prev_min_delta = min_delta_;
         auto prev_max_delta = max_delta_;

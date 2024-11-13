@@ -13,6 +13,7 @@
 
 using namespace monad::compiler;
 using namespace monad::compiler::basic_blocks;
+using namespace monad::compiler::local_stacks;
 using namespace monad::compiler::stack;
 
 using enum InstructionCode;
@@ -79,10 +80,12 @@ template <typename... Ts>
 constexpr auto block(Ts... insts)
 {
     return [=](Terminator t = Terminator::Stop) {
-        return Block{
-            .instrs = {make_inst(insts)...},
-            .terminator = t,
-        };
+        return convert_block(
+            {
+                .instrs = {make_inst(insts)...},
+                .terminator = t,
+            },
+            0);
     };
 }
 

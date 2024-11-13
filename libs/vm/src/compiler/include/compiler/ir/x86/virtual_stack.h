@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/local_stacks.h>
 
 #include <evmc/evmc.hpp>
 
@@ -70,7 +70,7 @@ namespace monad::compiler::stack
          * is because the calling code must inspect each instruction to perform
          * code generation while also updating the stack.
          */
-        Stack(basic_blocks::Block const &);
+        Stack(local_stacks::Block const &);
 
         /**
          * The number of bytes required to hold function arguments passed on
@@ -235,7 +235,7 @@ namespace monad::compiler::stack
          * Updates the stack's minimum and maximum deltas to reflect the effect
          of this block's instructions.
          */
-        void include_block(basic_blocks::Block const &block);
+        void include_block(local_stacks::Block const &block);
 
         /**
          * Internal helper method to perform resource management when popping an
