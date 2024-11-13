@@ -105,29 +105,29 @@ namespace monad::compiler::stack
     StackElement const &Stack::index(std::int64_t index) const
     {
         if (index < 0) {
-            auto i = -index - 1;
             auto i = static_cast<std::size_t>(-index - 1);
             MONAD_COMPILER_ASSERT(i < negative_elements_.size());
+            return negative_elements_[i];
         }
         else {
-            MONAD_COMPILER_ASSERT(
             auto i = static_cast<std::size_t>(index);
             MONAD_COMPILER_ASSERT(i < positive_elements_.size());
             return positive_elements_[i];
+        }
     }
 
     StackElement &Stack::index(std::int64_t index)
     {
         if (index < 0) {
-            auto i = -index - 1;
             auto i = static_cast<std::size_t>(-index - 1);
             MONAD_COMPILER_ASSERT(i < negative_elements_.size());
+            return negative_elements_[i];
         }
         else {
-            MONAD_COMPILER_ASSERT(
             auto i = static_cast<std::size_t>(index);
             MONAD_COMPILER_ASSERT(i < positive_elements_.size());
             return positive_elements_[i];
+        }
     }
 
     std::pair<Operand, bool>
