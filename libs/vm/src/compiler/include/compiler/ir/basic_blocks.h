@@ -63,6 +63,7 @@ namespace monad::compiler::basic_blocks
             return 1;
         case Stop:
         case FallThrough:
+        case InvalidInstruction:
             return 0;
         default:
             std::unreachable();
@@ -141,6 +142,7 @@ namespace monad::compiler::basic_blocks
          * which they appear in this vector.
          */
         std::vector<Block> const &blocks() const;
+        std::vector<Block> &blocks();
 
         /// Size of bytecode
         uint64_t codesize;
@@ -155,6 +157,7 @@ namespace monad::compiler::basic_blocks
          * identifiers.
          */
         std::unordered_map<byte_offset, block_id> const &jump_dests() const;
+        std::unordered_map<byte_offset, block_id> &jump_dests();
 
         /**
          * A program in this representation is valid if:

@@ -42,15 +42,13 @@ namespace monad::compiler::local_stacks
     class LocalStacksIR
     {
     public:
-        LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir);
+        LocalStacksIR(basic_blocks::BasicBlocksIR ir);
         std::unordered_map<byte_offset, block_id> jumpdests;
         std::vector<Block> blocks;
         uint64_t codesize;
-
-    private:
-        Block to_block(basic_blocks::Block const &&block);
     };
 
+    Block convert_block(basic_blocks::Block block, uint64_t codesize);
 }
 
 template <>

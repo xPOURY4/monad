@@ -1,16 +1,17 @@
-#include "intx/intx.hpp"
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
 #include <compiler/uint256.h>
+#include <utils/assert.h>
+
+#include <intx/intx.hpp>
 
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <exception>
 #include <functional>
 #include <limits>
 #include <utility>
@@ -245,22 +246,25 @@ namespace monad::compiler::local_stacks
             break;
         case ValueIs::PARAM_ID:
             static_assert(sizeof(size_t) <= sizeof(uint64_t));
-            assert(data <= uint256_t{std::numeric_limits<size_t>::max()});
+            MONAD_COMPILER_ASSERT(
+                data <= uint256_t{std::numeric_limits<size_t>::max()});
             param = data[0];
         default:
             break;
         }
     };
 
-    Block LocalStacksIR::to_block(basic_blocks::Block const &&in)
+    Block convert_block(basic_blocks::Block in, uint64_t codesize)
     {
-        Block out = {
-            0,
-            {},
-            std::move(in.instrs),
-            in.terminator,
-            in.fallthrough_dest,
-            in.offset};
+        auto out = Block{
+            .min_params = 0,
+            .output = {},
+            .instrs = std::move(in.instrs),
+            .terminator = in.terminator,
+            .fallthrough_dest = in.fallthrough_dest,
+            .offset = in.offset,
+        };
+
         std::deque<Value> stack;
 
         auto grow_stack_to_min_size = [&](size_t min_size) {
@@ -278,36 +282,18 @@ namespace monad::compiler::local_stacks
             eval_instruction(tok, stack, codesize);
         }
 
-        switch (out.terminator) {
-        case basic_blocks::Terminator::Jump:
-        case basic_blocks::Terminator::SelfDestruct:
-            grow_stack_to_min_size(1);
-            break;
-        case basic_blocks::Terminator::JumpI:
-        case basic_blocks::Terminator::Return:
-        case basic_blocks::Terminator::Revert:
-            grow_stack_to_min_size(2);
-            break;
-        case basic_blocks::Terminator::FallThrough:
-        case basic_blocks::Terminator::InvalidInstruction:
-        case basic_blocks::Terminator::Stop:
-            break;
-        default:
-            std::terminate(); // unreachable
-        }
+        grow_stack_to_min_size(basic_blocks::terminator_inputs(out.terminator));
 
         out.output.insert(out.output.end(), stack.begin(), stack.end());
         return out;
     }
 
-    LocalStacksIR::LocalStacksIR(basic_blocks::BasicBlocksIR const &&ir)
+    LocalStacksIR::LocalStacksIR(basic_blocks::BasicBlocksIR ir)
+        : jumpdests(std::move(ir.jump_dests()))
+        , codesize(ir.codesize)
     {
-        codesize = ir.codesize;
-        jumpdests = ir.jump_dests();
-        blocks = {};
-
-        for (auto const &blk : ir.blocks()) {
-            blocks.push_back(to_block(std::move(blk)));
+        for (auto &blk : ir.blocks()) {
+            blocks.push_back(convert_block(std::move(blk), codesize));
         }
     }
 

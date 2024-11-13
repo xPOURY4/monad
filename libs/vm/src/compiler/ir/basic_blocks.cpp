@@ -115,6 +115,11 @@ namespace monad::compiler::basic_blocks
         return blocks_;
     }
 
+    std::vector<Block> &BasicBlocksIR::blocks()
+    {
+        return blocks_;
+    }
+
     Block const &BasicBlocksIR::block(block_id id) const
     {
         return blocks_.at(id);
@@ -122,6 +127,11 @@ namespace monad::compiler::basic_blocks
 
     std::unordered_map<byte_offset, block_id> const &
     BasicBlocksIR::jump_dests() const
+    {
+        return jump_dests_;
+    }
+
+    std::unordered_map<byte_offset, block_id> &BasicBlocksIR::jump_dests()
     {
         return jump_dests_;
     }
