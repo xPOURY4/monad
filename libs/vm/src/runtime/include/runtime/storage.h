@@ -1,5 +1,6 @@
 #pragma once
 
+#include <runtime/transmute.h>
 #include <runtime/types.h>
 
 #include <utils/uint256.h>
