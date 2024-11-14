@@ -1,6 +1,6 @@
 #pragma once
 
-#include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
 
 namespace monad::runtime
 {
@@ -30,9 +30,21 @@ namespace monad::runtime
     static_assert(offsetof(Result, size) == 32);
     static_assert(offsetof(Result, status) == 64);
 
+    struct Environment
+    {
+        std::uint32_t evmc_flags;
+        evmc::address recipient;
+        evmc::address sender;
+    };
+
     struct Context
     {
         evmc_host_interface const *host;
         evmc_host_context *context;
+
+        std::int64_t gas_remaining;
+        std::int64_t gas_refund;
+
+        Environment env;
     };
 }

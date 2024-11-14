@@ -1,4 +1,4 @@
-#include <runtime/runtime.h>
+#include <runtime/types.h>
 #include <vm/vm.h>
 
 #include <compiler/ir/x86.h>
@@ -67,6 +67,14 @@ namespace monad::compiler
         auto ctx = runtime::Context{
             .host = host,
             .context = context,
+            .gas_remaining = msg->gas,
+            .gas_refund = 0,
+            .env =
+                {
+                    .evmc_flags = msg->flags,
+                    .recipient = msg->recipient,
+                    .sender = msg->sender,
+                },
         };
 
         contract_main(&ret, &ctx);
