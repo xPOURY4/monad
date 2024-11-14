@@ -1,10 +1,11 @@
+#include <utils/uint256.h>
+
 #include <algorithm>
-#include <compiler/uint256.h>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 
-namespace monad::compiler::uint256
+namespace monad::compiler
 {
     uint256_t signextend(uint256_t const &byte_index_256, uint256_t const &x)
     {

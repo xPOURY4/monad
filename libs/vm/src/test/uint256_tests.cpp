@@ -1,8 +1,8 @@
-#include <compiler/uint256.h>
+#include <utils/uint256.h>
 
 #include <gtest/gtest.h>
 
-using namespace monad::compiler::uint256;
+using namespace monad::compiler;
 
 TEST(uint256, signextend)
 {

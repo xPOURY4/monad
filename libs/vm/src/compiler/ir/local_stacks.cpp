@@ -3,8 +3,9 @@
 #include <compiler/ir/local_stacks.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
-#include <compiler/uint256.h>
+
 #include <utils/assert.h>
+#include <utils/uint256.h>
 
 #include <intx/intx.hpp>
 
@@ -19,6 +20,7 @@
 
 namespace
 {
+    using namespace monad;
     using namespace monad::compiler;
     using namespace monad::compiler::local_stacks;
 
@@ -153,7 +155,7 @@ namespace
                 tok, stack, [](auto &x, auto &y) { return intx::exp(x, y); });
             break;
         case SignExtend:
-            eval_binary_instruction(tok, stack, uint256::signextend);
+            eval_binary_instruction(tok, stack, signextend);
             break;
         case Lt:
             eval_binary_instruction(
@@ -198,7 +200,7 @@ namespace
             eval_unary_instruction(tok, stack, [](auto &x) { return ~x; });
             break;
         case Byte:
-            eval_binary_instruction(tok, stack, uint256::byte);
+            eval_binary_instruction(tok, stack, byte);
             break;
         case Shl:
             eval_binary_instruction(
@@ -209,7 +211,7 @@ namespace
                 tok, stack, [](auto &x, auto &y) { return y >> x; });
             break;
         case Sar:
-            eval_binary_instruction(tok, stack, uint256::sar);
+            eval_binary_instruction(tok, stack, sar);
             break;
         case CodeSize:
             stack.emplace_front(ValueIs::LITERAL, uint256_t{codesize});
