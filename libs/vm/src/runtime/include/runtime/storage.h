@@ -12,25 +12,93 @@
 
 namespace monad::runtime
 {
+    constexpr std::int64_t COST_ACCESS_COLD = 2100;
+    constexpr std::int64_t COST_ACCESS_WARM = 100;
+
+    consteval std::int64_t load_base_gas(evmc_revision rev)
+    {
+        if (rev < EVMC_TANGERINE_WHISTLE) {
+            return 50;
+        }
+
+        if (rev < EVMC_ISTANBUL) {
+            return 200;
+        }
+
+        if (rev < EVMC_BERLIN) {
+            return 800;
+        }
+
+        return COST_ACCESS_WARM;
+    }
+
     template <evmc_revision Rev>
     void sload(
-        void (*exit_fn)(Error), Context *ctx, utils::uint256_t *result,
-        utils::uint256_t const *key)
+        RuntimeExit exit_fn, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *key_ptr)
     {
-        (void)exit_fn;
-        (void)ctx;
-        (void)result;
-        (void)key;
+        auto key = from_uint256(*key_ptr);
+
+        auto access_status =
+            ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
+
+        auto value =
+            ctx->host->get_storage(ctx->context, &ctx->env.recipient, &key);
+
+        auto gas_cost = load_base_gas(Rev);
+
+        if constexpr (Rev >= EVMC_BERLIN) {
+            if (access_status == EVMC_ACCESS_COLD) {
+                gas_cost += (COST_ACCESS_COLD - COST_ACCESS_WARM);
+            }
+        }
+
+        if (ctx->gas_remaining < gas_cost) {
+            return exit_fn(Error::OutOfGas);
+        }
+
+        ctx->gas_remaining -= gas_cost;
+
+        *result_ptr = from_bytes32(value);
     }
 
     template <evmc_revision Rev>
     void sstore(
-        void (*exit_fn)(Error), Context *ctx, utils::uint256_t const *key,
-        utils::uint256_t const *value)
+        RuntimeExit exit_fn, Context *ctx, utils::uint256_t const *key_ptr,
+        utils::uint256_t const *value_ptr,
+        std::int64_t remaining_block_base_gas)
     {
-        (void)exit_fn;
-        (void)ctx;
-        (void)key;
-        (void)value;
+        if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
+            return exit_fn(Error::StaticModeViolation);
+        }
+
+        if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
+            return exit_fn(Error::OutOfGas);
+        }
+
+        auto key = from_uint256(*key_ptr);
+        auto value = from_uint256(*value_ptr);
+
+        auto access_status =
+            ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
+
+        auto storage_status = ctx->host->set_storage(
+            ctx->context, &ctx->env.recipient, &key, &value);
+
+        auto [gas_used, gas_refund] = store_cost<Rev>(storage_status);
+
+        if constexpr (Rev >= EVMC_BERLIN) {
+            if (access_status == EVMC_ACCESS_COLD) {
+                gas_used += COST_ACCESS_COLD;
+            }
+        }
+
+        ctx->gas_refund += gas_refund;
+
+        if (gas_used > ctx->gas_remaining) {
+            return exit_fn(Error::OutOfGas);
+        }
+
+        ctx->gas_remaining -= gas_used;
     }
 }
