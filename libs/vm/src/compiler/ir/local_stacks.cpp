@@ -20,9 +20,9 @@
 
 namespace
 {
-    using namespace monad;
     using namespace monad::compiler;
     using namespace monad::compiler::local_stacks;
+    using namespace monad::utils;
 
     void eval_instruction_fallback(
         basic_blocks::Instruction const &tok, std::deque<Value> &stack)

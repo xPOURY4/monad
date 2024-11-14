@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace monad::compiler;
+using namespace monad::utils;
 
 TEST(uint256, signextend)
 {
