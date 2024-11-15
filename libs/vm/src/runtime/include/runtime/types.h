@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utils/uint256.h>
+
 #include <evmc/evmc.hpp>
 
 #include <type_traits>
@@ -46,6 +48,8 @@ namespace monad::runtime
 
     struct Context
     {
+        static constexpr std::size_t max_memory_offset_bits = 24;
+
         evmc_host_interface const *host;
         evmc_host_context *context;
 
@@ -53,10 +57,16 @@ namespace monad::runtime
         std::int64_t gas_refund;
 
         Environment env;
-        std::vector<std::uint8_t> data;
+        std::vector<std::uint8_t> memory;
         std::uint64_t memory_cost;
 
-        void expand_memory(std::uint32_t size);
+        void expand_memory(ExitContext *exit_ctx, std::uint32_t size);
+
+        utils::uint256_t mload(ExitContext *exit_ctx, utils::uint256_t offset);
+
+    private:
+        void set_memory_word(std::uint32_t offset, utils::uint256_t word);
+        void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
     };
 
     static_assert(std::is_standard_layout_v<Context>);

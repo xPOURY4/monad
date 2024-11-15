@@ -75,7 +75,7 @@ namespace monad::compiler
                     .recipient = msg->recipient,
                     .sender = msg->sender,
                 },
-            .data = {},
+            .memory = {},
             .memory_cost = 0,
         };
 

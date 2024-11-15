@@ -1,5 +1,6 @@
 add_library(runtime
     exit.cpp
+    memory.cpp
     runtime.cpp)
 
 monad_compile_options(runtime)
