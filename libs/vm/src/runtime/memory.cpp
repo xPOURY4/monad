@@ -74,6 +74,11 @@ namespace monad::runtime
         set_memory_byte(offset, intx::as_bytes(value)[0]);
     }
 
+    utils::uint256_t Context::msize() const
+    {
+        return memory.size();
+    }
+
     void Context::set_memory_word(std::uint32_t offset, utils::uint256_t word)
     {
         MONAD_COMPILER_ASSERT(offset + 31 < memory.size());
