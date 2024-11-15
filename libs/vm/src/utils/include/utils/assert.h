@@ -18,6 +18,12 @@ void __attribute__((noreturn)) monad_compiler_assertion_failed(
     #define MONAD_COMPILER_LIKELY(x) __builtin_expect(!!(x), 1)
 #endif
 
+#ifdef MONAD_UNLIKELY
+    #define MONAD_COMPILER_UNLIKELY(x) MONAD_UNLIKELY(x)
+#else
+    #define MONAD_COMPILER_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#endif
+
 #ifdef MONAD_ASSERT
     #define MONAD_COMPILER_ASSERT(expr) MONAD_ASSERT(expr)
 #else

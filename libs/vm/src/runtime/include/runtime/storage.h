@@ -4,6 +4,7 @@
 #include <runtime/transmute.h>
 #include <runtime/types.h>
 
+#include <utils/assert.h>
 #include <utils/uint256.h>
 
 #include <evmc/evmc.hpp>
@@ -53,11 +54,11 @@ namespace monad::runtime
             }
         }
 
-        if (ctx->gas_remaining < gas_cost) {
+        ctx->gas_remaining -= gas_cost;
+
+        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             return exit_fn(Error::OutOfGas);
         }
-
-        ctx->gas_remaining -= gas_cost;
 
         *result_ptr = from_bytes32(value);
     }
@@ -94,11 +95,10 @@ namespace monad::runtime
         }
 
         ctx->gas_refund += gas_refund;
+        ctx->gas_remaining -= gas_used;
 
-        if (gas_used > ctx->gas_remaining) {
+        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             return exit_fn(Error::OutOfGas);
         }
-
-        ctx->gas_remaining -= gas_used;
     }
 }
