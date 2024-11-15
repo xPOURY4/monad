@@ -42,6 +42,8 @@ namespace monad::runtime
     static_assert(std::is_standard_layout_v<Environment>);
     static_assert(sizeof(Environment) == 44);
 
+    struct ExitContext;
+
     struct Context
     {
         evmc_host_interface const *host;
@@ -53,6 +55,8 @@ namespace monad::runtime
         Environment env;
         std::vector<std::uint8_t> data;
         std::uint64_t memory_cost;
+
+        void expand_memory(std::uint32_t size);
     };
 
     static_assert(std::is_standard_layout_v<Context>);
