@@ -2,6 +2,8 @@
 
 #include <evmc/evmc.hpp>
 
+#include <type_traits>
+
 namespace monad::runtime
 {
     enum class Error : uint64_t
@@ -23,6 +25,7 @@ namespace monad::runtime
         StatusCode status;
     };
 
+    static_assert(std::is_standard_layout_v<Result>);
     static_assert(sizeof(Result) == 72);
     static_assert(offsetof(Result, offset) == 0);
     static_assert(offsetof(Result, size) == 32);
@@ -35,6 +38,9 @@ namespace monad::runtime
         evmc::address sender;
     };
 
+    static_assert(std::is_standard_layout_v<Environment>);
+    static_assert(sizeof(Environment) == 44);
+
     struct Context
     {
         evmc_host_interface const *host;
@@ -46,9 +52,22 @@ namespace monad::runtime
         Environment env;
     };
 
+    static_assert(std::is_standard_layout_v<Context>);
+    static_assert(sizeof(Context) == 80);
+    static_assert(offsetof(Context, host) == 0);
+    static_assert(offsetof(Context, context) == 8);
+    static_assert(offsetof(Context, gas_remaining) == 16);
+    static_assert(offsetof(Context, gas_refund) == 24);
+    static_assert(offsetof(Context, env) == 32);
+
     struct ExitContext
     {
         void *stack_pointer;
         Context *ctx;
     };
+
+    static_assert(std::is_standard_layout_v<ExitContext>);
+    static_assert(sizeof(ExitContext) == 16);
+    static_assert(offsetof(ExitContext, stack_pointer) == 0);
+    static_assert(offsetof(ExitContext, ctx) == 8);
 }
