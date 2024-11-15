@@ -3,6 +3,7 @@
 #include <evmc/evmc.hpp>
 
 #include <type_traits>
+#include <vector>
 
 namespace monad::runtime
 {
@@ -50,10 +51,12 @@ namespace monad::runtime
         std::int64_t gas_refund;
 
         Environment env;
+        std::vector<std::uint8_t> data;
+        std::uint64_t memory_cost;
     };
 
     static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 80);
+    static_assert(sizeof(Context) == 112);
     static_assert(offsetof(Context, host) == 0);
     static_assert(offsetof(Context, context) == 8);
     static_assert(offsetof(Context, gas_remaining) == 16);

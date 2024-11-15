@@ -75,6 +75,8 @@ namespace monad::compiler
                     .recipient = msg->recipient,
                     .sender = msg->sender,
                 },
+            .data = {},
+            .memory_cost = 0,
         };
 
         contract_main(&ret, &ctx);
