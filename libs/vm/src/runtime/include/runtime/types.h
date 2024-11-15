@@ -11,8 +11,6 @@ namespace monad::runtime
         InvalidMemoryAccess,
     };
 
-    using RuntimeExit = void (*)(Error);
-
     enum class StatusCode : uint64_t
     {
         success = 0,
@@ -46,5 +44,11 @@ namespace monad::runtime
         std::int64_t gas_refund;
 
         Environment env;
+    };
+
+    struct ExitContext
+    {
+        void *stack_pointer;
+        Context *ctx;
     };
 }

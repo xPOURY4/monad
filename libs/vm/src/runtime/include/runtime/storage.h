@@ -1,5 +1,6 @@
 #pragma once
 
+#include <runtime/exit.h>
 #include <runtime/storage_costs.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>
@@ -35,7 +36,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sload(
-        RuntimeExit exit_fn, Context *ctx, utils::uint256_t *result_ptr,
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
         auto key = from_uint256(*key_ptr);
@@ -57,7 +58,8 @@ namespace monad::runtime
         ctx->gas_remaining -= gas_cost;
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            return exit_fn(Error::OutOfGas);
+            runtime_exit(
+                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
 
         *result_ptr = from_bytes32(value);
@@ -65,16 +67,20 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sstore(
-        RuntimeExit exit_fn, Context *ctx, utils::uint256_t const *key_ptr,
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t const *key_ptr,
         utils::uint256_t const *value_ptr,
         std::int64_t remaining_block_base_gas)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
-            return exit_fn(Error::StaticModeViolation);
+            runtime_exit(
+                exit_ctx->stack_pointer,
+                exit_ctx->ctx,
+                Error::StaticModeViolation);
         }
 
         if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
-            return exit_fn(Error::OutOfGas);
+            runtime_exit(
+                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
 
         auto key = from_uint256(*key_ptr);
@@ -98,7 +104,8 @@ namespace monad::runtime
         ctx->gas_remaining -= gas_used;
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            return exit_fn(Error::OutOfGas);
+            runtime_exit(
+                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
     }
 }
