@@ -11,12 +11,15 @@ namespace monad::runtime
 {
     namespace
     {
-        constexpr std::optional<std::uint32_t>
-        get_memory_offset(utils::uint256_t offset)
+        std::uint32_t
+        get_memory_offset(ExitContext *exit_ctx, utils::uint256_t offset)
         {
-            auto max_offset = (1 << Context::max_memory_offset_bits) - 1;
-            if (offset > max_offset) {
-                return std::nullopt;
+            constexpr auto max_offset =
+                (1 << Context::max_memory_offset_bits) - 1;
+
+            if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
+                runtime_exit(
+                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
             }
 
             return static_cast<uint32_t>(offset);
@@ -45,17 +48,20 @@ namespace monad::runtime
     utils::uint256_t
     Context::mload(ExitContext *exit_ctx, utils::uint256_t offset_word)
     {
-        auto offset = get_memory_offset(offset_word);
+        auto offset = get_memory_offset(exit_ctx, offset_word);
+        expand_memory(exit_ctx, offset + 32);
 
-        if (MONAD_COMPILER_UNLIKELY(!offset)) {
-            runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
-        }
+        return intx::be::unsafe::load<utils::uint256_t>(memory.data() + offset);
+    }
 
-        expand_memory(exit_ctx, *offset + 32);
+    void Context::mstore(
+        ExitContext *exit_ctx, utils::uint256_t offset_word,
+        utils::uint256_t value)
+    {
+        auto offset = get_memory_offset(exit_ctx, offset_word);
+        expand_memory(exit_ctx, offset + 32);
 
-        return intx::be::unsafe::load<utils::uint256_t>(
-            memory.data() + *offset);
+        set_memory_word(offset, value);
     }
 
     void Context::set_memory_word(std::uint32_t offset, utils::uint256_t word)

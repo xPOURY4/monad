@@ -64,6 +64,10 @@ namespace monad::runtime
 
         utils::uint256_t mload(ExitContext *exit_ctx, utils::uint256_t offset);
 
+        void mstore(
+            ExitContext *exit_ctx, utils::uint256_t offset_word,
+            utils::uint256_t value);
+
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
         void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
