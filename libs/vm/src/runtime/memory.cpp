@@ -9,21 +9,27 @@
 
 namespace monad::runtime
 {
-    namespace
+    std::uint32_t
+    Context::get_memory_offset(ExitContext *exit_ctx, utils::uint256_t offset)
     {
-        std::uint32_t
-        get_memory_offset(ExitContext *exit_ctx, utils::uint256_t offset)
-        {
-            constexpr auto max_offset =
-                (1 << Context::max_memory_offset_bits) - 1;
+        constexpr auto max_offset = (1 << Context::max_memory_offset_bits) - 1;
 
-            if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
-                runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
-            }
-
-            return static_cast<uint32_t>(offset);
+        if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
+            runtime_exit(
+                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
+
+        return static_cast<uint32_t>(offset);
+    }
+
+    std::pair<std::uint32_t, std::uint32_t> Context::get_memory_offset_and_size(
+        ExitContext *ctx, utils::uint256_t offset, utils::uint256_t size)
+    {
+        if (size == 0) {
+            return {0, 0};
+        }
+
+        return {get_memory_offset(ctx, offset), get_memory_offset(ctx, size)};
     }
 
     void Context::expand_memory(ExitContext *exit_ctx, std::uint32_t size)

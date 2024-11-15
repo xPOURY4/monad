@@ -1,5 +1,8 @@
 #pragma once
 
+#include <runtime/arithmetic.h>
+#include <runtime/call.h>
+#include <runtime/constants.h>
 #include <runtime/memory.h>
 #include <runtime/storage.h>
 #include <runtime/transmute.h>

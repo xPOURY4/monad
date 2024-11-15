@@ -4,6 +4,7 @@
 
 #include <evmc/evmc.hpp>
 
+#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -39,10 +40,18 @@ namespace monad::runtime
         std::uint32_t evmc_flags;
         evmc::address recipient;
         evmc::address sender;
+        std::int32_t depth;
+        evmc::bytes32 create2_salt;
+
+        std::span<std::uint8_t const> return_data;
+
+        void set_return_data(
+            std::uint8_t const *output_data, std::uint32_t output_size);
+        void clear_return_data();
     };
 
     static_assert(std::is_standard_layout_v<Environment>);
-    static_assert(sizeof(Environment) == 44);
+    static_assert(sizeof(Environment) == 96);
 
     struct ExitContext;
 
@@ -74,13 +83,20 @@ namespace monad::runtime
 
         utils::uint256_t msize() const;
 
+        static std::uint32_t
+        get_memory_offset(ExitContext *ctx, utils::uint256_t offset);
+
+        static std::pair<std::uint32_t, std::uint32_t>
+        get_memory_offset_and_size(
+            ExitContext *ctx, utils::uint256_t offset, utils::uint256_t size);
+
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
         void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
     };
 
     static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 112);
+    static_assert(sizeof(Context) == 160);
     static_assert(offsetof(Context, host) == 0);
     static_assert(offsetof(Context, context) == 8);
     static_assert(offsetof(Context, gas_remaining) == 16);

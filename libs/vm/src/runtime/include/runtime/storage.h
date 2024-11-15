@@ -1,5 +1,6 @@
 #pragma once
 
+#include <runtime/constants.h>
 #include <runtime/exit.h>
 #include <runtime/storage_costs.h>
 #include <runtime/transmute.h>
@@ -14,32 +15,12 @@
 
 namespace monad::runtime
 {
-    constexpr std::int64_t COST_ACCESS_COLD = 2100;
-    constexpr std::int64_t COST_ACCESS_WARM = 100;
-
-    consteval std::int64_t load_base_gas(evmc_revision rev)
-    {
-        if (rev < EVMC_TANGERINE_WHISTLE) {
-            return 50;
-        }
-
-        if (rev < EVMC_ISTANBUL) {
-            return 200;
-        }
-
-        if (rev < EVMC_BERLIN) {
-            return 800;
-        }
-
-        return COST_ACCESS_WARM;
-    }
-
     template <evmc_revision Rev>
     void sload(
         ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
-        auto key = from_uint256(*key_ptr);
+        auto key = bytes_from_uint256(*key_ptr);
 
         auto access_status =
             ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
@@ -83,8 +64,8 @@ namespace monad::runtime
                 exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
 
-        auto key = from_uint256(*key_ptr);
-        auto value = from_uint256(*value_ptr);
+        auto key = bytes_from_uint256(*key_ptr);
+        auto value = bytes_from_uint256(*value_ptr);
 
         auto access_status =
             ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
