@@ -6,6 +6,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <queue>
 #include <set>
@@ -14,274 +15,13 @@
 
 namespace monad::compiler::stack
 {
-    struct Literal;
-    struct StackOffset;
-    struct AvxRegister;
-
-    using AvxRegisterQueue = std::priority_queue<
-        AvxRegister, std::vector<AvxRegister>, std::greater<AvxRegister>>;
-
-    using Operand = std::variant<Literal, StackOffset, AvxRegister>;
-
-    struct Duplicate;
-    struct DeferredComparison;
-
-    using StackElement = std::variant<Operand, Duplicate, DeferredComparison>;
-
-    /**
-     * A `Stack` manages a virtual representation of the EVM stack, specialized
-     * for the resources available on AVX2 x86 machines.
-     *
-     * This virtual representation can be interpreted by a code-generating
-     * component to emit x86 code for an EVM basic block; no code is generated
-     * by the stack itself when operations are performed. Instead, the wrapping
-     * code is responsible for emitting code that _performs_ the concrete
-     * operations corresponding to the virtual ones.
-     *
-     * Three types of operand can appear on the virtual stack, each of which
-     * represents a 256-bit EVM word being stored in a different concrete
-     * location:
-     * - Literal word values
-     * - 256-bit (%ymmN) AVX registers
-     * - Offsets into stack memory (that when added to a stack pointer, produce
-     *   a pointer that points to a 32-byte EVM word).
-     *
-     * Additionally, the stack maintains additional book-keeping data for
-     * optimisation:
-     * - An internal table of reference-counted duplications such that only a
-     *   single concrete value must be stored, no matter how many times it is
-     *   duplicated.
-     * - When the result of a comparison is placed onto the stack, we defer
-     *   materialising it to an EVM word from the x86 eflags. If the result is
-     *   immediately used for control flow, we can directly refer to the flags
-     *   set by the comparison.
-     *
-     * Stack manipulations over this representation (push, pop, swap, dup) take
-     * care of managing resources (free registers, memory locations)
-     * appropriately.
-     */
-    class Stack
-    {
-    public:
-        /**
-         * Initialise a stack with deltas computed from the given block.
-         *
-         * No actual stack manipulations are performed in the constructor; this
-         * is because the calling code must inspect each instruction to perform
-         * code generation while also updating the stack.
-         */
-        Stack(local_stacks::Block const &);
-
-        /**
-         * The number of bytes required to hold function arguments passed on
-         * the X86 stack.
-         *
-         * The value returned will be 32-byte aligned.
-         */
-        std::size_t stack_argument_byte_size() const;
-
-        /**
-         * Map a logical stack index onto a byte offset relative to `%rsp`.
-         */
-        std::int64_t index_to_sp_offset(std::int64_t index) const;
-
-        /**
-         * Obtain a reference to an item on the stack, correctly
-         * handling negative values to reference input stack elements.
-         */
-        StackElement const &index(std::int64_t index) const;
-
-        /**
-         * Obtain a mutable reference to an item on the stack, correctly
-         * handling negative values to reference input stack elements.
-         */
-        StackElement &index(std::int64_t index);
-
-        /**
-         * Obtain a copy of the `Operand` at the supplied stack index, along
-         * with a flag indicating whether this operand is the sole remaining
-         * duplicate of another operand on the stack.
-         *
-         * Unsafe to call if the stack element at this index may be a deferred
-         * comparison.
-         */
-        std::pair<Operand, bool> index_operand(std::int64_t index) const;
-
-        /**
-         * Obtain a copy of the top item of the stack.
-         */
-        StackElement top() const;
-
-        /**
-         * Pop the top element from the stack.
-         *
-         * This method handles discharging reference counts to duplicated stack
-         * elements, and keeping track of deferred comparisons. It defers
-         * management of stack resources (memory, AVX registers) to
-         * `pop_operand`.
-         */
-        void pop();
-
-        /**
-         * Convenience overload to avoid having to write loops or repetitive
-         * code when calling `pop`.
-         */
-        void pop(std::size_t n);
-
-        /**
-         * Push a new operand onto the top of the stack, updating book-keeping
-         * information.
-         */
-        void push(StackElement elem);
-
-        /**
-         * Push a duplicate of the specified stack element to the top of the
-         * stack.
-         *
-         * Once an operand is duplicated, all references to it are managed
-         * through the table of reference-counted duplicates (i.e. the original
-         * operand is moved into the table, and its previous stack slot is made
-         * into a duplicate).
-         */
-        void dup(std::int64_t stack_index);
-
-        /**
-         * Swap the top element of the stack with the one at the specified
-         * index.
-         */
-        void swap(std::int64_t swap_index);
-
-        /**
-         * Find an available physical stack index that can be used to spill the
-         * virtual stack item at this index, and mark that physical index as
-         * unavailable.
-         */
-        std::int64_t get_available_stack_offset(std::int64_t stack_index);
-
-        /**
-         * Spill whatever is currently on the stack at the specified index into
-         * memory, returning the original operand on the stack, and the
-         * corresponding stack offset it has been spilled to.
-         *
-         * The caller of this function is responsible for interpreting the
-         * return value to actually perform the spill; for a returned pair `(op,
-         * idx)` the caller should emit code to move `op` onto the stack
-         * location `idx`.
-         */
-        std::pair<Operand, std::int64_t>
-        spill_stack_index(std::int64_t stack_index);
-
-        /**
-         * Spill the first stack index containing an AVX register to memory.
-         *
-         * This can be used to free up an AVX register to hold a temporary
-         * value, or to ensure that all AVX registers are preserved when making
-         * a function call.
-
-         * Unsafe to call if the stack does not contain any AVX register items.
-         */
-        std::pair<AvxRegister, std::int64_t> spill_avx_reg();
-
-        /**
-         * Push a fresh X86 stack slot that is known to be unused to the virtual
-         * stack.
-         *
-         * This function is intended to provide a stack slot that can be safely
-         * used as the output from an EVM arithmetic operation or runtime
-         * function. The provided slot is not initialized.
-         */
-        std::pair<Operand, std::int64_t> push_spilled_output_slot();
-
-        /**
-         * The relative size of the stack at the *lowest* point during execution
-         * of a block.
-         */
-        std::int64_t min_delta() const;
-
-        /**
-         * The relative size of the stack at the *highest* point during
-         * execution of a block.
-         */
-        std::int64_t max_delta() const;
-
-        /**
-         * The difference between the final and initial stack sizes during
-         * execution of a block.
-         */
-        std::int64_t delta() const;
-
-        /**
-         * The number of elements currently pushed to the stack.
-         */
-        std::size_t size() const;
-
-        /**
-         * Returns false if there are any elements pushed to the stack.
-         */
-        bool empty() const;
-
-    private:
-        /**
-         * Initialize an empty stack.
-         *
-         * This method is private as an empty stack is not useful to consume
-         * from an external perspective; a basic block needs to have been
-         * ingested for the offsets and computed values in the stack to be
-         * useful.
-         */
-        Stack();
-
-        /**
-         * Updates the stack's minimum and maximum deltas to reflect the effect
-         of this block's instructions.
-         */
-        void include_block(local_stacks::Block const &block);
-
-        /**
-         * Internal helper method to perform resource management when popping an
-         * operand from the stack.
-         *
-         * This method is responsible for maintaining the sets of free stack
-         * offsets and AVX registers, but callers must ensure they handle stack
-         * duplications before calling this method.
-         */
-        void pop_operand(Operand op);
-
-        /**
-         * Identify a stack index that can be used to spill the specified stack
-         * item.
-         *
-         * If there's nothing currently in the physical stack slot corresponding
-         * to that item, it can be spilled to its "proper" location. Otherwise,
-         * if there's a collision, we need to use another available slot to
-         * relocate this item to.
-         */
-        std::int64_t find_spill_offset(std::int64_t stack_index) const;
-
-        /**
-         * Helper method for `find_spill_offset` that handles the cases where an
-         * element is already located in stack memory.
-         */
-        std::optional<std::pair<Operand, std::int64_t>>
-        get_existing_stack_slot(StackElement op);
-
-        std::vector<StackElement> negative_elements_;
-        std::vector<StackElement> positive_elements_;
-        std::int64_t top_index_;
-        std::vector<std::pair<Operand, std::uint64_t>> dups_;
-        std::set<std::int64_t> available_stack_indices_;
-        AvxRegisterQueue free_avx_regs_;
-        std::set<std::int64_t> avx_reg_stack_indices_;
-        std::optional<std::int64_t> deferred_comparison_index_;
-        std::int64_t min_delta_;
-        std::int64_t max_delta_;
-        std::int64_t delta_;
-        std::size_t raw_stack_argument_byte_size_;
-    };
+    constexpr std::uint8_t AvxRegCount = 32;
+    constexpr std::uint8_t GeneralRegCount = 3;
+    constexpr std::uint8_t CalleeSaveGeneralRegId = 0;
 
     struct Literal
     {
-        evmc::bytes32 value;
+        uint256_t value;
     };
 
     bool operator==(Literal const &a, Literal const &b);
@@ -293,22 +33,205 @@ namespace monad::compiler::stack
 
     bool operator==(StackOffset const &a, StackOffset const &b);
 
-    struct AvxRegister
+    struct AvxReg
     {
-        uint8_t reg;
+        std::uint8_t reg;
     };
 
-    std::strong_ordering
-    operator<=>(AvxRegister const &a, AvxRegister const &b);
+    std::strong_ordering operator<=>(AvxReg const &a, AvxReg const &b);
 
-    bool operator==(AvxRegister const &a, AvxRegister const &b);
+    bool operator==(AvxReg const &a, AvxReg const &b);
 
-    struct Duplicate
+    struct GeneralReg
     {
-        std::size_t offset;
+        std::uint8_t reg;
     };
 
-    bool operator==(Duplicate const &a, Duplicate const &b);
+    std::strong_ordering operator<=>(GeneralReg const &a, GeneralReg const &b);
+
+    bool operator==(GeneralReg const &a, GeneralReg const &b);
+
+    class Stack;
+    class StackElem;
+
+    using StackElemRef = std::shared_ptr<StackElem>;
+
+    /**
+     * A stack element. It can store its word value in up to 4 locations at the
+     * same time. The 4 locations are: `StackOffset`, `AvxReg`, `GeneralReg`,
+     * `Literal`. It is important to note that holding a reference to
+     * `StackElem` does not guarantee that the registers in the `StackElem` will
+     * remain part of the `StackElem`. Performing stack oerations can mutate the
+     * `StackElem`. If a register in `StackElem` has not been reserved with
+     * `AvxRegReserv` or `GeneralRegReserv`, the stack operations are allowed to
+     * use the registers in `StackElem` for other purposes. Make sure to reserve
+     * the registers you want to keep in the `StackElem`. See `GeneralRegReserv`
+     * and `AvxRegReserv`.
+     */
+    class StackElem
+    {
+        friend class Stack;
+        friend class AvxRegReserv;
+        friend class GeneralRegReserv;
+
+    public:
+        StackElem(Stack *);
+        StackElem(StackElem const &) = delete;
+        StackElem &operator=(StackElem const &) = delete;
+        ~StackElem();
+
+        std::optional<StackOffset> const &stack_offset() const
+        {
+            return stack_offset_;
+        }
+
+        std::optional<AvxReg> const &avx_reg() const
+        {
+            return avx_reg_;
+        }
+
+        std::optional<GeneralReg> const &general_reg() const
+        {
+            return general_reg_;
+        }
+
+        std::optional<Literal> const &literal() const
+        {
+            return literal_;
+        }
+
+        std::set<std::int64_t> const &stack_indices() const
+        {
+            return stack_indices_;
+        }
+
+    private:
+        std::int64_t preferred_stack_offset() const;
+
+        void insert_literal(Literal);
+        void insert_stack_offset(StackOffset);
+        void insert_avx_reg();
+        void insert_general_reg();
+
+        void free_avx_reg();
+        void free_general_reg();
+
+        void remove_avx_reg();
+        void remove_general_reg();
+
+        void reserve_avx_reg()
+        {
+            ++reserve_avx_reg_count_;
+        }
+
+        void reserve_general_reg()
+        {
+            ++reserve_general_reg_count_;
+        }
+
+        void unreserve_avx_reg()
+        {
+            --reserve_avx_reg_count_;
+        }
+
+        void unreserve_general_reg()
+        {
+            --reserve_general_reg_count_;
+        }
+
+        Stack &stack_;
+        std::set<std::int64_t> stack_indices_;
+        std::uint32_t reserve_avx_reg_count_;
+        std::uint32_t reserve_general_reg_count_;
+        std::optional<StackOffset> stack_offset_;
+        std::optional<AvxReg> avx_reg_;
+        std::optional<GeneralReg> general_reg_;
+        std::optional<Literal> literal_;
+    };
+
+    /**
+     * An AVX register reservation. Can be used to ensure that the optional
+     * AVX register in a `StackElem` will not be deallocated as long as the
+     * `AvxRegReserv` object is alive.
+     */
+    class AvxRegReserv
+    {
+    public:
+        AvxRegReserv(StackElemRef e)
+            : stack_elem_{std::move(e)}
+        {
+            stack_elem_->reserve_avx_reg();
+        }
+
+        AvxRegReserv(AvxRegReserv const &r)
+            : AvxRegReserv{r.stack_elem_}
+        {
+        }
+
+        AvxRegReserv &operator=(AvxRegReserv const &r)
+        {
+            stack_elem_->unreserve_avx_reg();
+            stack_elem_ = r.stack_elem_;
+            stack_elem_->reserve_avx_reg();
+            return *this;
+        }
+
+        ~AvxRegReserv()
+        {
+            stack_elem_->unreserve_avx_reg();
+        }
+
+    private:
+        StackElemRef stack_elem_;
+    };
+
+    /**
+     * A general register reservation. Can be used to ensure that the optional
+     * general register in a `StackElemRef` will not be deallocated as long as
+     * the `GeneralRegReserv` object is alive. Be careful to never reserve more
+     * than three different general purpose registers at the same time. Note
+     * moreover that if three different general purpose registers are reserved
+     * at the same time, it is not possible for the stack to spill or allocate
+     * general registers. If only two or less general purpose registers are
+     * reserved, then the stack will be able to use the remainig general
+     * register.
+     */
+    class GeneralRegReserv
+    {
+    public:
+        GeneralRegReserv(StackElemRef e)
+            : stack_elem_{std::move(e)}
+        {
+            stack_elem_->reserve_general_reg();
+        }
+
+        GeneralRegReserv(GeneralRegReserv const &r)
+            : GeneralRegReserv{r.stack_elem_}
+        {
+        }
+
+        GeneralRegReserv &operator=(GeneralRegReserv const &r)
+        {
+            stack_elem_->unreserve_general_reg();
+            stack_elem_ = r.stack_elem_;
+            stack_elem_->reserve_general_reg();
+            return *this;
+        }
+
+        ~GeneralRegReserv()
+        {
+            stack_elem_->unreserve_general_reg();
+        }
+
+    private:
+        StackElemRef stack_elem_;
+    };
+
+    using AvxRegQueue =
+        std::priority_queue<AvxReg, std::vector<AvxReg>, std::greater<AvxReg>>;
+
+    using GeneralRegQueue = std::priority_queue<
+        GeneralReg, std::vector<GeneralReg>, std::greater<GeneralReg>>;
 
     enum class Comparison
     {
@@ -353,8 +276,240 @@ namespace monad::compiler::stack
 
     struct DeferredComparison
     {
+        std::int64_t stack_index;
         Comparison comparison;
     };
 
-    bool operator==(DeferredComparison const &a, DeferredComparison const &b);
+    /**
+     * A `Stack` manages a virtual representation of the EVM stack, specialized
+     * for the resources available on AVX2 x86 machines.
+     *
+     * This virtual representation can be interpreted by a code-generating
+     * component to emit x86 code for an EVM basic block; no code is generated
+     * by the stack itself when operations are performed. Instead, the wrapping
+     * code is responsible for emitting code that _performs_ the concrete
+     * operations corresponding to the virtual ones.
+     */
+    class Stack
+    {
+        friend class StackElem;
+
+    public:
+        /**
+         * Initialise a stack for the given basic block.
+         *
+         * No actual stack manipulations are performed in the constructor; this
+         * is because the calling code must inspect each instruction to perform
+         * code generation while also updating the stack.
+         */
+        Stack(local_stacks::Block const &);
+
+        /**
+         * Obtain a reference to an item on the stack. Negatige indices
+         * refer stack elements before the basic block's stack frame
+         * and non-negative indices refer to stack elements on the basic
+         * block's stack frame.
+         */
+        StackElemRef get(std::int64_t index);
+
+        /**
+         * Obtain a reference to the top item of the stack.
+         */
+        StackElemRef top();
+
+        /**
+         * Pop the top element from the stack.
+         */
+        StackElemRef pop();
+
+        /**
+         * Push a stack element onto the top of the stack, updating book-keeping
+         * information.
+         */
+        void push(StackElemRef);
+
+        /**
+         * Push a deferred comparison onto the top of the stack, updating
+         * book-keeping information.
+         */
+        void push_deferred_comparison(Comparison);
+
+        /**
+         * Push a literal onto the top of the stack, updating book-keeping
+         * information.
+         */
+        void push_literal(uint256_t const &);
+
+        /**
+         * Push a duplicate of the specified stack element to the top of the
+         * stack.
+         */
+        void dup(std::int64_t stack_index);
+
+        /**
+         * Swap the top element of the stack with the one at the specified
+         * index.
+         */
+        void swap(std::int64_t swap_index);
+
+        /**
+         * Find an available physical stack offset that can be used to spill the
+         * virtual stack item at this index, and mark that physical index as
+         * allocated. Returns a stack element holding the offset.
+         */
+        StackElemRef alloc_stack_offset(std::int64_t stack_index);
+
+        /**
+         * Allocate an AVX register.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the AVX register to stack offset.
+         */
+        std::tuple<StackElemRef, AvxRegReserv, std::optional<StackOffset>>
+        alloc_avx_reg();
+
+        /**
+         * Allocate general register.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the general register to stack offset.
+         */
+        std::tuple<StackElemRef, GeneralRegReserv, std::optional<StackOffset>>
+        alloc_general_reg();
+
+        /**
+         * Find a stack offset for the given stack element. The given
+         * `preferred_offset` will be used as offset if it is available.
+         */
+        void insert_stack_offset(StackElemRef, std::int64_t preferred_offset);
+
+        /**
+         * Find a stack offset for the given stack element.
+         */
+        void insert_stack_offset(StackElemRef);
+
+        /**
+         * Find an AVX register for the given stack element.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the AVX register to stack offset.
+         */
+        std::pair<AvxRegReserv, std::optional<StackOffset>>
+            insert_avx_reg(StackElemRef);
+
+        /**
+         * Find a general register for the given stack element.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the general register to stack offset.
+         */
+        std::pair<GeneralRegReserv, std::optional<StackOffset>>
+            insert_general_reg(StackElemRef);
+
+        /**
+         * Spill all caller save general registers to persistent storage.
+         * Returns `(GeneralReg, StackOffset)` pairs which can be used to
+         * emit the code for moving the registers to physical stack memory.
+         * If spill of both caller save general registers and AVX registers
+         * is needed, then call `spill_all_caller_save_general_regs` first.
+         * This is an optimization in the case where a stack value is both
+         * in caller save general register and AVX register, because
+         * calling `spill_all_avx_regs` afterwards will use faster AVX
+         * instructions for moving to physical stack memory.
+         */
+        std::vector<std::pair<GeneralReg, StackOffset>>
+        spill_all_caller_save_general_regs();
+
+        /**
+         * Spill all AVX registers to persistent storage.
+         * Returns `(AvxReg, StackOffset)` pairs which can be used to emit
+         * the code for moving the registers to physical stack memory.
+         * See the `spill_all_caller_save_general_regs` documentation for
+         * an optimization trick when both caller save general registers
+         * and AVX registers need to be spilled.
+         */
+        std::vector<std::pair<AvxReg, StackOffset>> spill_all_avx_regs();
+
+        /**
+         * The relative size of the stack at the *lowest* point during execution
+         * of a block.
+         */
+        std::int64_t min_delta() const;
+
+        /**
+         * The relative size of the stack at the *highest* point during
+         * execution of a block.
+         */
+        std::int64_t max_delta() const;
+
+        /**
+         * The difference between the final and initial stack sizes during
+         * execution of a block.
+         */
+        std::int64_t delta() const;
+
+        /**
+         * Index of the top elements on the stack. The returned value is only
+         * a valid index if the stack is not empty.
+         */
+        std::int64_t top_index() const;
+
+    private:
+        /**
+         * Initialize an empty stack.
+         *
+         * This method is private as an empty stack is not useful to consume
+         * from an external perspective; a basic block needs to have been
+         * ingested for the offsets and computed values in the stack to be
+         * useful.
+         */
+        Stack();
+
+        /**
+         * Obtain a mutable reference to an item on the stack, correctly
+         * handling negative values to reference input stack elements.
+         */
+        StackElemRef &at(std::int64_t index);
+
+        /**
+         * Identify a stack offset that can be used to spill the specified stack
+         * item.
+         *
+         * If there's nothing currently in the physical stack slot corresponding
+         * to that item, it can be spilled to its "proper" location. Otherwise,
+         * if there's a collision, we need to use another available slot to
+         * relocate this item to.
+         */
+        StackOffset
+        find_available_stack_offset(std::int64_t preferred_offset) const;
+
+        /**
+         * Find an AVX register from the stack and spill it by adding it to
+         * the set `free_avx_regs_`. It is assumed that `free_avx_regs_` is
+         * empty before calling this function.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the AVX register to stack offset.
+         */
+        std::optional<StackOffset> spill_avx_reg();
+
+        /**
+         * Find an general register from the stack and spill it by adding it to
+         * the set `free_general_regs_`. It is assumed that `free_general_regs_`
+         * is empty before calling this function.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the general register to stack offset.
+         */
+        std::optional<StackOffset> spill_general_reg();
+
+        std::int64_t top_index_;
+        std::int64_t min_delta_;
+        std::int64_t max_delta_;
+        std::int64_t delta_;
+        std::set<std::int64_t> available_stack_offsets_;
+        AvxRegQueue free_avx_regs_;
+        GeneralRegQueue free_general_regs_;
+        std::array<StackElem *, AvxRegCount> avx_reg_stack_elems_;
+        std::array<StackElem *, GeneralRegCount> general_reg_stack_elems_;
+        std::optional<DeferredComparison> deferred_comparison_;
+        // Make sure stack element vectors are last, so that the stack
+        // destroctor will destroy them last.
+        std::vector<StackElemRef> negative_elems_;
+        std::vector<StackElemRef> positive_elems_;
+    };
 }
