@@ -64,6 +64,16 @@ namespace monad::runtime
         set_memory_word(offset, value);
     }
 
+    void Context::mstore8(
+        ExitContext *exit_ctx, utils::uint256_t offset_word,
+        utils::uint256_t value)
+    {
+        auto offset = get_memory_offset(exit_ctx, offset_word);
+        expand_memory(exit_ctx, offset + 1);
+
+        set_memory_byte(offset, intx::as_bytes(value)[0]);
+    }
+
     void Context::set_memory_word(std::uint32_t offset, utils::uint256_t word)
     {
         MONAD_COMPILER_ASSERT(offset + 31 < memory.size());

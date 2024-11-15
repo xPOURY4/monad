@@ -68,6 +68,10 @@ namespace monad::runtime
             ExitContext *exit_ctx, utils::uint256_t offset_word,
             utils::uint256_t value);
 
+        void mstore8(
+            ExitContext *exit_ctx, utils::uint256_t offset_word,
+            utils::uint256_t value);
+
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
         void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
