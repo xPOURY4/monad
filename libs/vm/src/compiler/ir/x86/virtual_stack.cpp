@@ -102,7 +102,7 @@ namespace monad::compiler::stack
     {
         MONAD_COMPILER_ASSERT(avx_reg_.has_value());
         stack_.free_avx_regs_.push(avx_reg_.value());
-        auto reg = avx_reg_.value().reg;
+        auto reg = avx_reg_->reg;
         MONAD_COMPILER_ASSERT(stack_.avx_reg_stack_elems_[reg] == this);
         stack_.avx_reg_stack_elems_[reg] = nullptr;
     }
@@ -111,7 +111,7 @@ namespace monad::compiler::stack
     {
         MONAD_COMPILER_ASSERT(general_reg_.has_value());
         stack_.free_general_regs_.push(general_reg_.value());
-        auto reg = general_reg_.value().reg;
+        auto reg = general_reg_->reg;
         MONAD_COMPILER_ASSERT(stack_.general_reg_stack_elems_[reg] != nullptr);
         stack_.general_reg_stack_elems_[reg] = nullptr;
     }
@@ -131,8 +131,8 @@ namespace monad::compiler::stack
     StackElem::~StackElem()
     {
         if (stack_offset_.has_value()) {
-            auto [_, inserted] = stack_.available_stack_offsets_.insert(
-                stack_offset_.value().offset);
+            auto [_, inserted] =
+                stack_.available_stack_offsets_.insert(stack_offset_->offset);
             MONAD_COMPILER_ASSERT(inserted);
         }
         if (avx_reg_.has_value()) {
@@ -151,10 +151,10 @@ namespace monad::compiler::stack
     {
         avx_reg_stack_elems_.fill(nullptr);
         general_reg_stack_elems_.fill(nullptr);
-        for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+        for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
             free_avx_regs_.emplace(i);
         }
-        for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+        for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
             free_general_regs_.emplace(i);
         }
     }
@@ -228,7 +228,7 @@ namespace monad::compiler::stack
         MONAD_COMPILER_ASSERT(rem == 1);
 
         if (deferred_comparison_.has_value() &&
-            top_index_ == deferred_comparison_.value().stack_index) {
+            top_index_ == deferred_comparison_->stack_index) {
             deferred_comparison_ = std::nullopt;
         }
 
@@ -277,31 +277,31 @@ namespace monad::compiler::stack
     {
         MONAD_COMPILER_ASSERT(swap_index < top_index_);
         if (deferred_comparison_.has_value()) {
-            if (deferred_comparison_.value().stack_index == top_index_) {
-                deferred_comparison_.value().stack_index = swap_index;
+            if (deferred_comparison_->stack_index == top_index_) {
+                deferred_comparison_->stack_index = swap_index;
             }
-            else if (deferred_comparison_.value().stack_index == swap_index) {
-                deferred_comparison_.value().stack_index = top_index_;
+            else if (deferred_comparison_->stack_index == swap_index) {
+                deferred_comparison_->stack_index = top_index_;
             }
         }
 
         auto t = top();
-        auto *e = &at(swap_index);
+        auto &e = at(swap_index);
 
         auto rem_t = t->stack_indices_.erase(top_index_);
         MONAD_COMPILER_ASSERT(rem_t == 1);
 
-        auto rem_e = (*e)->stack_indices_.erase(swap_index);
+        auto rem_e = e->stack_indices_.erase(swap_index);
         MONAD_COMPILER_ASSERT(rem_e == 1);
 
         auto ins_t = t->stack_indices_.insert(swap_index);
         MONAD_COMPILER_ASSERT(ins_t.second);
 
-        auto ins_e = (*e)->stack_indices_.insert(top_index_);
+        auto ins_e = e->stack_indices_.insert(top_index_);
         MONAD_COMPILER_ASSERT(ins_e.second);
 
-        at(top_index_) = std::move(*e);
-        *e = std::move(t);
+        at(top_index_) = std::move(e);
+        e = std::move(t);
     }
 
     StackOffset Stack::find_available_stack_offset(std::int64_t preferred) const
@@ -316,7 +316,7 @@ namespace monad::compiler::stack
     std::optional<StackOffset> Stack::spill_avx_reg()
     {
         MONAD_COMPILER_ASSERT(free_avx_regs_.empty());
-        for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+        for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
             auto *e = avx_reg_stack_elems_[i];
             if (e == nullptr || e->reserve_avx_reg_count_ != 0) {
                 continue;
@@ -339,7 +339,7 @@ namespace monad::compiler::stack
         MONAD_COMPILER_ASSERT(free_general_regs_.empty());
         std::uint8_t best_index = 0;
         std::int8_t best_score = -1;
-        for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+        for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
             auto *e = general_reg_stack_elems_[i];
             if (e == nullptr || e->reserve_general_reg_count_ != 0) {
                 continue;
@@ -376,9 +376,9 @@ namespace monad::compiler::stack
     std::vector<std::pair<GeneralReg, StackOffset>>
     Stack::spill_all_caller_save_general_regs()
     {
-        static_assert(CalleeSaveGeneralRegId == 0);
+        static_assert(CALLEE_SAVE_GENERAL_REG_ID == 0);
         std::vector<std::pair<GeneralReg, StackOffset>> ret;
-        for (std::uint8_t i = 1; i < GeneralRegCount; ++i) {
+        for (std::uint8_t i = 1; i < GENERAL_REG_COUNT; ++i) {
             auto *e = general_reg_stack_elems_[i];
             if (e == nullptr) {
                 continue;
@@ -401,7 +401,7 @@ namespace monad::compiler::stack
     std::vector<std::pair<AvxReg, StackOffset>> Stack::spill_all_avx_regs()
     {
         std::vector<std::pair<AvxReg, StackOffset>> ret;
-        for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+        for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
             auto *e = avx_reg_stack_elems_[i];
             if (e == nullptr) {
                 continue;

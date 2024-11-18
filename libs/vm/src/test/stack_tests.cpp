@@ -348,158 +348,157 @@ TEST(VirtualStack, alloc_stack_offset_test_1)
 TEST(VirtualStack, insert_avx_reg_test_1)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR(std::vector<uint8_t>(AvxRegCount + 1, POP))));
+        bytecode::BytecodeIR(std::vector<uint8_t>(AVX_REG_COUNT + 1, POP))));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         stack.insert_avx_reg(stack.get(-i - 1));
     }
-    auto p = stack.insert_avx_reg(stack.get(-AvxRegCount - 1));
+    auto p = stack.insert_avx_reg(stack.get(-AVX_REG_COUNT - 1));
     ASSERT_FALSE(p.second.has_value());
-    std::uint8_t rem_ix = AvxRegCount;
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    std::uint8_t rem_ix = AVX_REG_COUNT;
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         if (!stack.get(-i - 1)->avx_reg().has_value()) {
-            ASSERT_TRUE(rem_ix == AvxRegCount);
+            ASSERT_TRUE(rem_ix == AVX_REG_COUNT);
             rem_ix = i;
         }
     }
-    ASSERT_LT(rem_ix, AvxRegCount);
-    ASSERT_EQ(stack.get(-AvxRegCount - 1)->avx_reg().value().reg, rem_ix);
+    ASSERT_LT(rem_ix, AVX_REG_COUNT);
+    ASSERT_EQ(stack.get(-AVX_REG_COUNT - 1)->avx_reg()->reg, rem_ix);
 }
 
 TEST(VirtualStack, insert_general_reg_test_1)
 {
-    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR(std::vector<uint8_t>(GeneralRegCount + 1, POP))));
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
+            std::vector<uint8_t>(GENERAL_REG_COUNT + 1, POP))));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         stack.insert_general_reg(stack.get(-i - 1));
     }
-    auto p = stack.insert_general_reg(stack.get(-GeneralRegCount - 1));
+    auto p = stack.insert_general_reg(stack.get(-GENERAL_REG_COUNT - 1));
     ASSERT_FALSE(p.second.has_value());
-    std::uint8_t rem_ix = GeneralRegCount;
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    std::uint8_t rem_ix = GENERAL_REG_COUNT;
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         if (!stack.get(-i - 1)->general_reg().has_value()) {
-            ASSERT_TRUE(rem_ix == GeneralRegCount);
+            ASSERT_TRUE(rem_ix == GENERAL_REG_COUNT);
             rem_ix = i;
         }
     }
-    ASSERT_LT(rem_ix, GeneralRegCount);
-    ASSERT_EQ(
-        stack.get(-GeneralRegCount - 1)->general_reg().value().reg, rem_ix);
+    ASSERT_LT(rem_ix, GENERAL_REG_COUNT);
+    ASSERT_EQ(stack.get(-GENERAL_REG_COUNT - 1)->general_reg()->reg, rem_ix);
 }
 
 TEST(VirtualStack, insert_avx_reg_test_2)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i <= AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= AVX_REG_COUNT; ++i) {
         bytecode.push_back(POP);
     }
-    for (std::uint8_t i = 0; i <= AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= AVX_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i <= AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= AVX_REG_COUNT; ++i) {
         stack.pop();
     }
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         auto p = stack.alloc_avx_reg();
-        ASSERT_EQ(std::get<0>(p)->avx_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->avx_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     stack.push_literal(0);
     auto p = stack.insert_avx_reg(stack.get(-1));
     ASSERT_TRUE(p.second.has_value());
-    std::uint8_t rem_ix = AvxRegCount;
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
-        if (!stack.get(-AvxRegCount - 1 + i)->avx_reg().has_value()) {
-            ASSERT_TRUE(rem_ix == AvxRegCount);
+    std::uint8_t rem_ix = AVX_REG_COUNT;
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
+        if (!stack.get(-AVX_REG_COUNT - 1 + i)->avx_reg().has_value()) {
+            ASSERT_TRUE(rem_ix == AVX_REG_COUNT);
             ASSERT_TRUE(
-                stack.get(-AvxRegCount - 1 + i)->stack_offset().has_value());
+                stack.get(-AVX_REG_COUNT - 1 + i)->stack_offset().has_value());
             rem_ix = i;
         }
     }
-    ASSERT_LT(rem_ix, AvxRegCount);
-    ASSERT_EQ(stack.get(-1)->avx_reg().value().reg, rem_ix);
+    ASSERT_LT(rem_ix, AVX_REG_COUNT);
+    ASSERT_EQ(stack.get(-1)->avx_reg()->reg, rem_ix);
 }
 
 TEST(VirtualStack, insert_general_reg_test_2)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i <= GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
         bytecode.push_back(POP);
     }
-    for (std::uint8_t i = 0; i <= GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i <= GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
         stack.pop();
     }
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         auto p = stack.alloc_general_reg();
-        ASSERT_EQ(std::get<0>(p)->general_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->general_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     stack.push_literal(0);
     auto p = stack.insert_general_reg(stack.get(-1));
     ASSERT_TRUE(p.second.has_value());
-    std::uint8_t rem_ix = GeneralRegCount;
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
-        if (!stack.get(-GeneralRegCount - 1 + i)->general_reg().has_value()) {
-            ASSERT_TRUE(rem_ix == GeneralRegCount);
-            ASSERT_TRUE(stack.get(-GeneralRegCount - 1 + i)
+    std::uint8_t rem_ix = GENERAL_REG_COUNT;
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
+        if (!stack.get(-GENERAL_REG_COUNT - 1 + i)->general_reg().has_value()) {
+            ASSERT_TRUE(rem_ix == GENERAL_REG_COUNT);
+            ASSERT_TRUE(stack.get(-GENERAL_REG_COUNT - 1 + i)
                             ->stack_offset()
                             .has_value());
             rem_ix = i;
         }
     }
-    ASSERT_LT(rem_ix, GeneralRegCount);
-    ASSERT_EQ(stack.get(-1)->general_reg().value().reg, rem_ix);
+    ASSERT_LT(rem_ix, GENERAL_REG_COUNT);
+    ASSERT_EQ(stack.get(-1)->general_reg()->reg, rem_ix);
 }
 
 TEST(VirtualStack, insert_avx_reg_test_3)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < AvxRegCount + 3; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT + 3; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
     std::vector<AvxRegReserv> reservs;
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         auto p = stack.alloc_avx_reg();
-        ASSERT_EQ(std::get<0>(p)->avx_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->avx_reg()->reg, i);
         stack.push(std::get<0>(p));
         reservs.push_back(std::get<1>(p));
     }
     {
         stack.push_literal(0);
         reservs.pop_back();
-        auto p = stack.insert_avx_reg(stack.get(AvxRegCount));
-        ASSERT_EQ(
-            stack.get(AvxRegCount)->avx_reg().value().reg, AvxRegCount - 1);
+        auto p = stack.insert_avx_reg(stack.get(AVX_REG_COUNT));
+        ASSERT_EQ(stack.get(AVX_REG_COUNT)->avx_reg()->reg, AVX_REG_COUNT - 1);
         reservs.push_back(p.first);
     }
     {
         stack.push_literal(0);
-        std::swap(reservs[AvxRegCount / 2], reservs.back());
+        std::swap(reservs[AVX_REG_COUNT / 2], reservs.back());
         reservs.pop_back();
-        auto p = stack.insert_avx_reg(stack.get(AvxRegCount + 1));
+        auto p = stack.insert_avx_reg(stack.get(AVX_REG_COUNT + 1));
         ASSERT_EQ(
-            stack.get(AvxRegCount + 1)->avx_reg().value().reg, AvxRegCount / 2);
+            stack.get(AVX_REG_COUNT + 1)->avx_reg()->reg, AVX_REG_COUNT / 2);
         reservs.push_back(p.first);
     }
     {
         stack.push_literal(0);
         std::swap(reservs[0], reservs.back());
         reservs.pop_back();
-        auto p = stack.insert_avx_reg(stack.get(AvxRegCount + 2));
-        ASSERT_EQ(stack.get(AvxRegCount + 2)->avx_reg().value().reg, 0);
+        auto p = stack.insert_avx_reg(stack.get(AVX_REG_COUNT + 2));
+        ASSERT_EQ(stack.get(AVX_REG_COUNT + 2)->avx_reg()->reg, 0);
         reservs.push_back(p.first);
     }
 }
@@ -507,44 +506,44 @@ TEST(VirtualStack, insert_avx_reg_test_3)
 TEST(VirtualStack, insert_general_reg_test_3)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < GeneralRegCount + 3; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT + 3; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
     std::vector<GeneralRegReserv> reservs;
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         auto p = stack.alloc_general_reg();
-        ASSERT_EQ(std::get<0>(p)->general_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->general_reg()->reg, i);
         stack.push(std::get<0>(p));
         reservs.push_back(std::get<1>(p));
     }
     {
         stack.push_literal(0);
         reservs.pop_back();
-        auto p = stack.insert_general_reg(stack.get(GeneralRegCount));
+        auto p = stack.insert_general_reg(stack.get(GENERAL_REG_COUNT));
         ASSERT_EQ(
-            stack.get(GeneralRegCount)->general_reg().value().reg,
-            GeneralRegCount - 1);
+            stack.get(GENERAL_REG_COUNT)->general_reg()->reg,
+            GENERAL_REG_COUNT - 1);
         reservs.push_back(p.first);
     }
     {
         stack.push_literal(0);
-        std::swap(reservs[GeneralRegCount / 2], reservs.back());
+        std::swap(reservs[GENERAL_REG_COUNT / 2], reservs.back());
         reservs.pop_back();
-        auto p = stack.insert_general_reg(stack.get(GeneralRegCount + 1));
+        auto p = stack.insert_general_reg(stack.get(GENERAL_REG_COUNT + 1));
         ASSERT_EQ(
-            stack.get(GeneralRegCount + 1)->general_reg().value().reg,
-            GeneralRegCount / 2);
+            stack.get(GENERAL_REG_COUNT + 1)->general_reg()->reg,
+            GENERAL_REG_COUNT / 2);
         reservs.push_back(p.first);
     }
     {
         stack.push_literal(0);
         std::swap(reservs[0], reservs.back());
         reservs.pop_back();
-        auto p = stack.insert_general_reg(stack.get(GeneralRegCount + 2));
-        ASSERT_EQ(stack.get(GeneralRegCount + 2)->general_reg().value().reg, 0);
+        auto p = stack.insert_general_reg(stack.get(GENERAL_REG_COUNT + 2));
+        ASSERT_EQ(stack.get(GENERAL_REG_COUNT + 2)->general_reg()->reg, 0);
         reservs.push_back(p.first);
     }
 }
@@ -552,20 +551,20 @@ TEST(VirtualStack, insert_general_reg_test_3)
 TEST(VirtualStack, spill_all_avx_regs_test_1)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         auto p = stack.alloc_avx_reg();
-        ASSERT_EQ(std::get<0>(p)->avx_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->avx_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     auto ups = stack.spill_all_avx_regs();
-    ASSERT_EQ(ups.size(), AvxRegCount);
-    for (std::uint8_t i = 0; i < AvxRegCount; ++i) {
+    ASSERT_EQ(ups.size(), AVX_REG_COUNT);
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         ASSERT_EQ(ups[i].first.reg, i);
         ASSERT_EQ(ups[i].second.offset, i);
     }
@@ -574,20 +573,20 @@ TEST(VirtualStack, spill_all_avx_regs_test_1)
 TEST(VirtualStack, spill_all_caller_save_general_regs_test_1)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < GeneralRegCount; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         auto p = stack.alloc_general_reg();
-        ASSERT_EQ(std::get<0>(p)->general_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->general_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     auto ups = stack.spill_all_caller_save_general_regs();
-    ASSERT_EQ(ups.size(), GeneralRegCount - 1);
-    for (std::uint8_t i = 0; i < GeneralRegCount - 1; ++i) {
+    ASSERT_EQ(ups.size(), GENERAL_REG_COUNT - 1);
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 1; ++i) {
         ASSERT_EQ(ups[i].first.reg, i + 1);
         ASSERT_EQ(ups[i].second.offset, i + 1);
     }
@@ -596,20 +595,20 @@ TEST(VirtualStack, spill_all_caller_save_general_regs_test_1)
 TEST(VirtualStack, spill_all_avx_regs_test_2)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < AvxRegCount - 1; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT - 1; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < AvxRegCount - 1; ++i) {
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT - 1; ++i) {
         auto p = stack.alloc_avx_reg();
-        ASSERT_EQ(std::get<0>(p)->avx_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->avx_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     auto ups = stack.spill_all_avx_regs();
-    ASSERT_EQ(ups.size(), AvxRegCount - 1);
-    for (std::uint8_t i = 0; i < AvxRegCount - 1; ++i) {
+    ASSERT_EQ(ups.size(), AVX_REG_COUNT - 1);
+    for (std::uint8_t i = 0; i < AVX_REG_COUNT - 1; ++i) {
         ASSERT_EQ(ups[i].first.reg, i);
         ASSERT_EQ(ups[i].second.offset, i);
     }
@@ -618,20 +617,20 @@ TEST(VirtualStack, spill_all_avx_regs_test_2)
 TEST(VirtualStack, spill_all_caller_save_general_regs_test_2)
 {
     std::vector<uint8_t> bytecode;
-    for (std::uint8_t i = 0; i < GeneralRegCount - 1; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 1; ++i) {
         bytecode.push_back(PUSH0);
     }
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(bytecode)));
     Stack stack{ir.blocks[0]};
-    for (std::uint8_t i = 0; i < GeneralRegCount - 1; ++i) {
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 1; ++i) {
         auto p = stack.alloc_general_reg();
-        ASSERT_EQ(std::get<0>(p)->general_reg().value().reg, i);
+        ASSERT_EQ(std::get<0>(p)->general_reg()->reg, i);
         stack.push(std::get<0>(p));
     }
     auto ups = stack.spill_all_caller_save_general_regs();
-    ASSERT_EQ(ups.size(), GeneralRegCount - 2);
-    for (std::uint8_t i = 0; i < GeneralRegCount - 2; ++i) {
+    ASSERT_EQ(ups.size(), GENERAL_REG_COUNT - 2);
+    for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 2; ++i) {
         ASSERT_EQ(ups[i].first.reg, i + 1);
         ASSERT_EQ(ups[i].second.offset, i + 1);
     }

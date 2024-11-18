@@ -15,9 +15,9 @@
 
 namespace monad::compiler::stack
 {
-    constexpr std::uint8_t AvxRegCount = 32;
-    constexpr std::uint8_t GeneralRegCount = 3;
-    constexpr std::uint8_t CalleeSaveGeneralRegId = 0;
+    constexpr std::uint8_t AVX_REG_COUNT = 32;
+    constexpr std::uint8_t GENERAL_REG_COUNT = 3;
+    constexpr std::uint8_t CALLEE_SAVE_GENERAL_REG_ID = 0;
 
     struct Literal
     {
@@ -61,12 +61,12 @@ namespace monad::compiler::stack
      * same time. The 4 locations are: `StackOffset`, `AvxReg`, `GeneralReg`,
      * `Literal`. It is important to note that holding a reference to
      * `StackElem` does not guarantee that the registers in the `StackElem` will
-     * remain part of the `StackElem`. Performing stack oerations can mutate the
-     * `StackElem`. If a register in `StackElem` has not been reserved with
-     * `AvxRegReserv` or `GeneralRegReserv`, the stack operations are allowed to
-     * use the registers in `StackElem` for other purposes. Make sure to reserve
-     * the registers you want to keep in the `StackElem`. See `GeneralRegReserv`
-     * and `AvxRegReserv`.
+     * remain part of the `StackElem`. The `StackElem` is part of the stack, so
+     * mutating the stack can mutate the `StackElem`. If a register in
+     * `StackElem` has not been reserved with `AvxRegReserv` or
+     * `GeneralRegReserv`, the stack is allowed to allocate the registers in for
+     * other purposes. Make sure to reserve the registers you want to keep in
+     * the `StackElem`. See `GeneralRegReserv` and `AvxRegReserv`.
      */
     class StackElem
     {
@@ -305,8 +305,8 @@ namespace monad::compiler::stack
         Stack(local_stacks::Block const &);
 
         /**
-         * Obtain a reference to an item on the stack. Negatige indices
-         * refer stack elements before the basic block's stack frame
+         * Obtain a reference to an item on the stack. Negative indices
+         * refer to stack elements before the basic block's stack frame
          * and non-negative indices refer to stack elements on the basic
          * block's stack frame.
          */
@@ -504,11 +504,17 @@ namespace monad::compiler::stack
         std::set<std::int64_t> available_stack_offsets_;
         AvxRegQueue free_avx_regs_;
         GeneralRegQueue free_general_regs_;
-        std::array<StackElem *, AvxRegCount> avx_reg_stack_elems_;
-        std::array<StackElem *, GeneralRegCount> general_reg_stack_elems_;
+        // The `avx_reg_stack_elems_` contains all the stack elements with AVX
+        // registers. The array is maintained by `StackElem`. Entries are
+        // `nullptr` when there is no stack element holding the corresponding
+        // register.
+        std::array<StackElem *, AVX_REG_COUNT> avx_reg_stack_elems_;
+        // The `general_reg_stack_elems_` is analogous to
+        // `avx_reg_stack_elems_`.
+        std::array<StackElem *, GENERAL_REG_COUNT> general_reg_stack_elems_;
         std::optional<DeferredComparison> deferred_comparison_;
         // Make sure stack element vectors are last, so that the stack
-        // destroctor will destroy them last.
+        // destructor will destroy them last.
         std::vector<StackElemRef> negative_elems_;
         std::vector<StackElemRef> positive_elems_;
     };
