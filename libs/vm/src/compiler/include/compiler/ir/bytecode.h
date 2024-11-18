@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -54,13 +55,18 @@ namespace monad::compiler::bytecode
     {
     public:
         /**
-         * Construct a bytecode program from a vector of raw bytes.
+         * Construct a bytecode program from a span.
          *
          * No validation or analysis is performed beyond grouping immediate
          * values for `PUSH` instructions; invalid input bytes will produce an
          * invalid output program.
          */
-        BytecodeIR(std::vector<uint8_t> const &byte_code);
+        BytecodeIR(std::span<uint8_t const> byte_code);
+
+        /**
+         * Construct a bytecode program from an initializer list.
+         */
+        BytecodeIR(std::initializer_list<uint8_t> byte_code);
 
         /**
          * The logical EVM instructions lexed from the original binary.

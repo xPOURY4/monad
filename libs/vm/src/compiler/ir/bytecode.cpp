@@ -44,8 +44,12 @@ namespace
 
 namespace monad::compiler::bytecode
 {
+    BytecodeIR::BytecodeIR(std::initializer_list<uint8_t> byte_code)
+        : BytecodeIR(std::span<uint8_t const>{byte_code})
+    {
+    }
 
-    BytecodeIR::BytecodeIR(std::vector<uint8_t> const &byte_code)
+    BytecodeIR::BytecodeIR(std::span<uint8_t const> byte_code)
     {
         codesize = static_cast<uint64_t>(byte_code.size());
         byte_offset curr_offset = 0;
