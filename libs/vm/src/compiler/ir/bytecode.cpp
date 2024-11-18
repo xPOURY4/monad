@@ -2,6 +2,7 @@
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
 
+#include <initializer_list>
 #include <intx/intx.hpp>
 
 #include <algorithm>
@@ -10,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <tuple>
 #include <vector>
 
