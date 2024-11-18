@@ -7,7 +7,9 @@
 
 #include <evmc/evmc.hpp>
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 
 namespace monad::runtime
 {

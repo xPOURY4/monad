@@ -72,9 +72,10 @@ namespace monad::compiler
             .env =
                 {
                     .evmc_flags = msg->flags,
+                    .depth = msg->depth,
                     .recipient = msg->recipient,
                     .sender = msg->sender,
-                    .depth = msg->depth,
+                    .value = msg->value,
                     .create2_salt = msg->create2_salt,
                     .return_data = {},
                 },

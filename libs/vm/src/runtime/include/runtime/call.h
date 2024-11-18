@@ -168,4 +168,110 @@ namespace monad::runtime
 
         return (result.status_code == EVMC_SUCCESS) ? 1 : 0;
     }
+
+    template <evmc_revision Rev>
+    void call(
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
+        utils::uint256_t const *value_ptr,
+        utils::uint256_t const *args_offset_ptr,
+        utils::uint256_t const *args_size_ptr,
+        utils::uint256_t const *ret_offset_ptr,
+        utils::uint256_t const *ret_size_ptr,
+        std::int64_t remaining_block_base_gas)
+    {
+        *result_ptr = call_impl<Rev>(
+            exit_ctx,
+            ctx,
+            *gas_ptr,
+            *address_ptr,
+            *value_ptr != 0,
+            bytes_from_uint256(*value_ptr),
+            *args_offset_ptr,
+            *args_size_ptr,
+            *ret_offset_ptr,
+            *ret_size_ptr,
+            EVMC_CALL,
+            false,
+            remaining_block_base_gas);
+    }
+
+    template <evmc_revision Rev>
+    void callcode(
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
+        utils::uint256_t const *value_ptr,
+        utils::uint256_t const *args_offset_ptr,
+        utils::uint256_t const *args_size_ptr,
+        utils::uint256_t const *ret_offset_ptr,
+        utils::uint256_t const *ret_size_ptr,
+        std::int64_t remaining_block_base_gas)
+    {
+        *result_ptr = call_impl<Rev>(
+            exit_ctx,
+            ctx,
+            *gas_ptr,
+            *address_ptr,
+            *value_ptr != 0,
+            bytes_from_uint256(*value_ptr),
+            *args_offset_ptr,
+            *args_size_ptr,
+            *ret_offset_ptr,
+            *ret_size_ptr,
+            EVMC_CALLCODE,
+            false,
+            remaining_block_base_gas);
+    }
+
+    template <evmc_revision Rev>
+    void delegatecall(
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
+        utils::uint256_t const *args_offset_ptr,
+        utils::uint256_t const *args_size_ptr,
+        utils::uint256_t const *ret_offset_ptr,
+        utils::uint256_t const *ret_size_ptr,
+        std::int64_t remaining_block_base_gas)
+    {
+        *result_ptr = call_impl<Rev>(
+            exit_ctx,
+            ctx,
+            *gas_ptr,
+            *address_ptr,
+            false,
+            ctx->env.value,
+            *args_offset_ptr,
+            *args_size_ptr,
+            *ret_offset_ptr,
+            *ret_size_ptr,
+            EVMC_DELEGATECALL,
+            false,
+            remaining_block_base_gas);
+    }
+
+    template <evmc_revision Rev>
+    void staticcall(
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
+        utils::uint256_t const *args_offset_ptr,
+        utils::uint256_t const *args_size_ptr,
+        utils::uint256_t const *ret_offset_ptr,
+        utils::uint256_t const *ret_size_ptr,
+        std::int64_t remaining_block_base_gas)
+    {
+        *result_ptr = call_impl<Rev>(
+            exit_ctx,
+            ctx,
+            *gas_ptr,
+            *address_ptr,
+            false,
+            evmc::bytes32{},
+            *args_offset_ptr,
+            *args_size_ptr,
+            *ret_offset_ptr,
+            *ret_size_ptr,
+            EVMC_CALL,
+            true,
+            remaining_block_base_gas);
+    }
 }

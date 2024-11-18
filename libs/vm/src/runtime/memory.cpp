@@ -6,6 +6,7 @@
 #include <intx/intx.hpp>
 
 #include <cstdint>
+#include <utility>
 
 namespace monad::runtime
 {
