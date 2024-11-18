@@ -120,7 +120,8 @@ namespace monad::runtime
 
         auto message = evmc_message{
             .kind = call_kind,
-            .flags = static_call ? EVMC_STATIC : ctx->env.evmc_flags,
+            .flags = static_call ? static_cast<std::uint32_t>(EVMC_STATIC)
+                                 : ctx->env.evmc_flags,
             .depth = ctx->env.depth + 1,
             .gas = gas,
             .recipient = recipient,
