@@ -11,6 +11,7 @@ add_library(monad-compiler
     ir/poly_typed/infer.cpp
     ir/poly_typed.cpp
     ir/x86.cpp
+    ir/x86/emitter.cpp
     ir/x86/virtual_stack.cpp
 )
 

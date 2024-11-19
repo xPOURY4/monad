@@ -21,7 +21,7 @@ namespace monad::runtime
         ctx->gas_remaining -= call_base_gas(Rev);
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         ctx->env.clear_return_data();
@@ -69,7 +69,7 @@ namespace monad::runtime
                 runtime_exit(
                     exit_ctx->stack_pointer,
                     exit_ctx->ctx,
-                    Error::StaticModeViolation);
+                    StatusCode::StaticModeViolation);
             }
 
             auto empty_account = false;
@@ -87,7 +87,7 @@ namespace monad::runtime
 
         if (MONAD_COMPILER_UNLIKELY(gas_left_here < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         auto i64_max = std::numeric_limits<std::int64_t>::max();
@@ -100,7 +100,9 @@ namespace monad::runtime
         else {
             if (MONAD_COMPILER_UNLIKELY(gas > gas_left_here)) {
                 runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                    exit_ctx->stack_pointer,
+                    exit_ctx->ctx,
+                    StatusCode::OutOfGas);
             }
         }
 
@@ -110,7 +112,9 @@ namespace monad::runtime
 
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
                 runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                    exit_ctx->stack_pointer,
+                    exit_ctx->ctx,
+                    StatusCode::OutOfGas);
             }
         }
 
@@ -146,12 +150,12 @@ namespace monad::runtime
                 result.output_size >
                 std::numeric_limits<std::uint32_t>::max())) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         ctx->env.set_return_data(

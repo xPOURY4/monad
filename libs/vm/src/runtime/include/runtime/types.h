@@ -10,16 +10,15 @@
 
 namespace monad::runtime
 {
-    enum class Error : uint64_t
-    {
-        OutOfGas,
-        StaticModeViolation,
-        InvalidMemoryAccess,
-    };
-
     enum class StatusCode : uint64_t
     {
-        success = 0,
+        Success = 0,
+        Revert,
+        OutOfGas,
+        Overflow,
+        Underflow,
+        StaticModeViolation,
+        InvalidMemoryAccess,
     };
 
     struct Result

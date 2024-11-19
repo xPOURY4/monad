@@ -17,7 +17,7 @@ namespace monad::runtime
 
         if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         return static_cast<uint32_t>(offset);
@@ -45,7 +45,9 @@ namespace monad::runtime
 
             if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
                 runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                    exit_ctx->stack_pointer,
+                    exit_ctx->ctx,
+                    StatusCode::OutOfGas);
             }
 
             memory.resize(memory_size_word * 32);

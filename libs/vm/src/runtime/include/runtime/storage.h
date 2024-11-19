@@ -40,7 +40,7 @@ namespace monad::runtime
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         *result_ptr = uint256_from_bytes32(value);
@@ -56,12 +56,12 @@ namespace monad::runtime
             runtime_exit(
                 exit_ctx->stack_pointer,
                 exit_ctx->ctx,
-                Error::StaticModeViolation);
+                StatusCode::StaticModeViolation);
         }
 
         if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         auto key = bytes_from_uint256(*key_ptr);
@@ -86,7 +86,7 @@ namespace monad::runtime
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
     }
 }

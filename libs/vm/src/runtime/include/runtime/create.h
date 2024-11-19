@@ -31,7 +31,7 @@ namespace monad::runtime
             runtime_exit(
                 exit_ctx->stack_pointer,
                 exit_ctx->ctx,
-                Error::StaticModeViolation);
+                StatusCode::StaticModeViolation);
         }
 
         ctx->env.clear_return_data();
@@ -46,7 +46,9 @@ namespace monad::runtime
         if constexpr (Rev >= EVMC_SHANGHAI) {
             if (MONAD_COMPILER_UNLIKELY(size > 0xC000)) {
                 runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                    exit_ctx->stack_pointer,
+                    exit_ctx->ctx,
+                    StatusCode::OutOfGas);
             }
         }
 
@@ -57,7 +59,7 @@ namespace monad::runtime
         ctx->gas_remaining -= min_words * word_cost;
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->env.depth >= 1024)) {
@@ -70,7 +72,9 @@ namespace monad::runtime
 
             if (MONAD_COMPILER_UNLIKELY(balance < value)) {
                 runtime_exit(
-                    exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                    exit_ctx->stack_pointer,
+                    exit_ctx->ctx,
+                    StatusCode::OutOfGas);
             }
         }
 
@@ -107,12 +111,12 @@ namespace monad::runtime
                 result.output_size >
                 std::numeric_limits<std::uint32_t>::max())) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
             runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
+                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
 
         ctx->env.set_return_data(

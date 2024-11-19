@@ -102,3 +102,12 @@ add_test(
     NAME "Virtual Stack Tests"
     COMMAND stack-tests
 )
+
+add_executable(emitter-tests emitter_tests.cpp)
+
+monad_compile_options(emitter-tests)
+target_link_libraries(emitter-tests monad-compiler GTest::gtest_main)
+add_test(
+    NAME "X86 Emitter Tests"
+    COMMAND emitter-tests
+)

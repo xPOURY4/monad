@@ -1,3 +1,4 @@
+#include "asmjit/x86/x86assembler.h"
 #include <runtime/types.h>
 #include <vm/vm.h>
 
@@ -54,11 +55,15 @@ namespace monad::compiler
         size_t code_size)
     {
         (void)msg;
+        (void)code;
+        (void)code_size;
+        (void)rev;
 
         auto holder = asmjit::CodeHolder();
         holder.init(runtime_.environment(), runtime_.cpuFeatures());
 
-        native::compile(holder, {code, code_size}, rev);
+        asmjit::x86::Assembler a(&holder);
+        a.ret();
 
         native::entrypoint_t contract_main;
         runtime_.add(&contract_main, &holder);
@@ -83,7 +88,7 @@ namespace monad::compiler
             .memory_cost = 0,
         };
 
-        contract_main(&ret, &ctx);
+        contract_main(&ret, &ctx, nullptr);
 
         return {};
     }

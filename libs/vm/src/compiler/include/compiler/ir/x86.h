@@ -7,11 +7,13 @@
 
 #include <evmc/evmc.h>
 
+#include <optional>
 #include <span>
 
 namespace monad::compiler::native
 {
-    using entrypoint_t = void (*)(runtime::Result *, runtime::Context *);
+    using entrypoint_t =
+        void (*)(runtime::Result *, runtime::Context *, uint8_t *);
 
     /**
      * Compile the given contract into an asmjit code buffer.
@@ -20,7 +22,7 @@ namespace monad::compiler::native
      * given buffer, and the lifetime of the compilation result (by adding it to
      * a JIT runtime context).
      */
-    void compile(
-        asmjit::CodeHolder &into, std::span<uint8_t const> contract,
+    std::optional<entrypoint_t> compile(
+        asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
         evmc_revision rev);
 }

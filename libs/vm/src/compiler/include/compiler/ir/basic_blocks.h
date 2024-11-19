@@ -47,6 +47,35 @@ namespace monad::compiler::basic_blocks
     }
 
     /**
+     * Opcode info of a given terminator. Note that info for `FallThrough`
+     * and `InvalidInstruction` is `unknown_opcode_info`.
+     */
+    constexpr OpCodeInfo const &terminator_info(Terminator t)
+    {
+        using enum Terminator;
+        switch (t) {
+        case JumpI:
+            return opcode_info_table[JUMPI];
+        case Return:
+            return opcode_info_table[RETURN];
+        case Revert:
+            return opcode_info_table[REVERT];
+        case Jump:
+            return opcode_info_table[JUMP];
+        case SelfDestruct:
+            return opcode_info_table[SELFDESTRUCT];
+        case Stop:
+            return opcode_info_table[STOP];
+        case FallThrough:
+            return unknown_opcode_info;
+        case InvalidInstruction:
+            return unknown_opcode_info;
+        default:
+            std::unreachable();
+        }
+    }
+
+    /**
      * Return the number of input stack elements consumed by each block
      * terminator.
      */
