@@ -8,7 +8,7 @@
 namespace monad::runtime
 {
     template <typename Int>
-    Int saturating_add(Int x, Int y)
+    constexpr Int saturating_add(Int x, Int y)
         requires(std::is_integral_v<Int> && std::is_unsigned_v<Int>)
     {
         Int sum;

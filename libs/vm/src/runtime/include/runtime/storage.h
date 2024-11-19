@@ -43,7 +43,7 @@ namespace monad::runtime
                 exit_ctx->stack_pointer, exit_ctx->ctx, Error::OutOfGas);
         }
 
-        *result_ptr = from_bytes32(value);
+        *result_ptr = uint256_from_bytes32(value);
     }
 
     template <evmc_revision Rev>

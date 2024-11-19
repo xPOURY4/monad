@@ -31,9 +31,17 @@ namespace monad::runtime
         return ret;
     }
 
-    utils::uint256_t from_bytes32(evmc::bytes32 x)
+    utils::uint256_t uint256_from_bytes32(evmc::bytes32 x)
     {
         return intx::be::unsafe::load<intx::uint256>(x.bytes);
+    }
+
+    utils::uint256_t uint256_from_address(evmc::address addr)
+    {
+        auto buf = std::array<std::uint8_t, 32>{};
+        std::copy(addr.bytes, addr.bytes + 20, buf.begin());
+
+        return intx::be::unsafe::load<intx::uint256>(buf.data());
     }
 
     void Environment::set_return_data(
