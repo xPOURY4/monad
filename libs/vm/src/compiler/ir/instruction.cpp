@@ -1,3 +1,4 @@
+#include <compiler/ir/bytecode_v2.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/opcodes.h>
 
