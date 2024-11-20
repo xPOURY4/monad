@@ -20,7 +20,8 @@ using namespace monad::compiler::bytecode;
 using namespace intx;
 
 void tokens_eq(
-    std::vector<uint8_t> const &in, std::vector<Instruction> const &expected)
+    std::vector<uint8_t> const &in,
+    std::vector<bytecode::Instruction> const &expected)
 {
     EXPECT_EQ(BytecodeIR(in).instructions, expected);
 }
@@ -28,11 +29,12 @@ void tokens_eq(
 TEST(TokenTest, Formatter)
 {
     EXPECT_EQ(
-        std::format("{}", Instruction{4, PUSH1, 0x42}), "(4, PUSH1, 0x42)");
+        std::format("{}", bytecode::Instruction{4, PUSH1, 0x42}),
+        "(4, PUSH1, 0x42)");
     EXPECT_EQ(
         std::format(
             "{}",
-            Instruction{
+            bytecode::Instruction{
                 0,
                 PUSH32,
                 0xab00000000000000000000000000000000000000000000000000000000000000_u256}),

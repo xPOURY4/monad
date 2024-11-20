@@ -337,8 +337,8 @@ namespace
         stack.push_back(stack[stack.size() - ix]);
     }
 
-    void
-    check_instruction_default(Instruction const &ins, std::vector<Kind> &stack)
+    void check_instruction_default(
+        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
     {
         auto const &info = ins.info();
         if (stack.size() < info.min_stack) {
@@ -357,7 +357,8 @@ namespace
         }
     }
 
-    void check_instruction(Instruction const &ins, std::vector<Kind> &stack)
+    void check_instruction(
+        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
     {
         switch (ins.code) {
         case basic_blocks::InstructionCode::Pop:

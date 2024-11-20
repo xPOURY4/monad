@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compiler/ir/bytecode.h>
+#include <compiler/ir/bytecode_v2.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/types.h>
 
@@ -164,6 +165,9 @@ namespace monad::compiler::basic_blocks
          */
         BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
 
+        template <evmc_revision Rev>
+        BasicBlocksIR(Bytecode<Rev> const &byte_code);
+
         /**
          * The basic blocks in the program.
          *
@@ -234,6 +238,13 @@ namespace monad::compiler::basic_blocks
          */
         void add_fallthrough_terminator(Terminator t);
     };
+
+    template <evmc_revision Rev>
+    BasicBlocksIR::BasicBlocksIR(Bytecode<Rev> const &byte_code)
+    {
+        (void)byte_code;
+        MONAD_COMPILER_ASSERT(false);
+    }
 }
 
 /*

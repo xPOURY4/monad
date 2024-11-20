@@ -48,8 +48,8 @@ namespace
 
     template <evmc_revision rev>
     void emit_instr(
-        Emitter &emit, LocalStacksIR const &ir, Instruction const &instr,
-        uint32_t remaining_base_gas)
+        Emitter &emit, LocalStacksIR const &ir,
+        basic_blocks::Instruction const &instr, uint32_t remaining_base_gas)
     {
         (void)ir;
         (void)remaining_base_gas;
