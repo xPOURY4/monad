@@ -94,7 +94,7 @@ jobs:
               run: |
                 ctest                     \
                   --test-dir build        \
-                  --output-on-failure
+                  --verbose
 
             - name: Build EVMC tools
               working-directory: evmc
