@@ -11,6 +11,17 @@ namespace monad::utils
     uint256_t signextend(uint256_t const &byte_index, uint256_t const &x);
     uint256_t byte(uint256_t const &byte_index, uint256_t const &x);
     uint256_t sar(uint256_t const &shift_index, uint256_t const &x);
+
+    /**
+     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
+     * value.
+     *
+     * If there are fewer than `n` bytes remaining in the source data (that is,
+     * `remaining < n`), then treat the input as if it had been padded to the
+     * right with zero bytes.
+     */
+    uint256_t
+    from_bytes(std::size_t n, std::size_t remaining, uint8_t const *src);
 }
 
 template <>

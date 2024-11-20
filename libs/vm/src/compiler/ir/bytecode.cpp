@@ -1,6 +1,7 @@
 #include <compiler/ir/bytecode.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
+#include <utils/uint256.h>
 
 #include <initializer_list>
 #include <intx/intx.hpp>
@@ -14,35 +15,6 @@
 #include <span>
 #include <tuple>
 #include <vector>
-
-namespace
-{
-    using namespace monad::compiler;
-
-    /**
-     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
-     * value.
-     *
-     * If there are fewer than `n` bytes remaining in the source data (that is,
-     * `remaining < n`), then treat the input as if it had been padded to the
-     * right with zero bytes.
-     */
-    uint256_t to_uint256_t(
-        std::size_t const n, std::size_t const remaining, uint8_t const *src)
-    {
-        assert(n <= 32);
-
-        if (n == 0) {
-            return 0;
-        }
-
-        uint8_t dst[32] = {};
-
-        std::memcpy(&dst[32 - n], src, std::min(n, remaining));
-
-        return intx::be::load<uint256_t>(dst);
-    }
-}
 
 namespace monad::compiler::bytecode
 {
@@ -65,7 +37,7 @@ namespace monad::compiler::bytecode
             instructions.emplace_back(
                 opcode_offset,
                 opcode,
-                to_uint256_t(
+                utils::from_bytes(
                     n,
                     byte_code.size() - curr_offset,
                     &byte_code[curr_offset]));

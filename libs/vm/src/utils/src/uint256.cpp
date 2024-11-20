@@ -1,3 +1,4 @@
+#include <utils/assert.h>
 #include <utils/uint256.h>
 
 #include <algorithm>
@@ -68,4 +69,21 @@ namespace monad::utils
         }
         return (x >> shift_index_256) | sign_bits;
     }
+
+    uint256_t
+    from_bytes(std::size_t n, std::size_t remaining, uint8_t const *src)
+    {
+        MONAD_COMPILER_ASSERT(n <= 32);
+
+        if (n == 0) {
+            return 0;
+        }
+
+        uint8_t dst[32] = {};
+
+        std::memcpy(&dst[32 - n], src, std::min(n, remaining));
+
+        return intx::be::load<uint256_t>(dst);
+    }
+
 }

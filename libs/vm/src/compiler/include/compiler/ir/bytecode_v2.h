@@ -4,9 +4,14 @@
 #include <utils/assert.h>
 #include <utils/uint256.h>
 
+#include <evmc/evmc.hpp>
+
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <span>
+#include <tuple>
+#include <vector>
 
 namespace monad::compiler
 {
@@ -38,8 +43,13 @@ namespace monad::compiler
         constexpr bool increases_stack() const noexcept;
         constexpr bool dynamic_gas() const noexcept;
 
+        friend constexpr bool
+        operator==(Instruction const &, Instruction const &) noexcept;
+
     private:
         constexpr Instruction(std::uint32_t pc, std::uint8_t opcode) noexcept;
+
+        constexpr auto as_tuple() const noexcept;
 
         utils::uint256_t immediate_value_;
         std::uint32_t pc_;
@@ -51,6 +61,69 @@ namespace monad::compiler
         bool increases_stack_;
         bool dynamic_gas_;
     };
+
+    template <evmc_revision Rev>
+    class Bytecode
+    {
+    public:
+        static constexpr evmc_revision revision = Rev;
+
+        Bytecode(std::span<std::uint8_t const>);
+        Bytecode(std::initializer_list<std::uint8_t>);
+
+        std::vector<Instruction> const &instructions() const noexcept;
+
+    private:
+        std::vector<Instruction> instructions_;
+        std::size_t code_size_;
+    };
+
+    /*
+     * Bytecode
+     */
+
+    template <evmc_revision Rev>
+    Bytecode<Rev>::Bytecode(std::span<std::uint8_t const> bytes)
+        : instructions_{}
+        , code_size_{bytes.size()}
+    {
+        auto current_offset = std::uint32_t{0};
+
+        while (current_offset < bytes.size()) {
+            auto opcode = bytes[current_offset];
+            auto info = opcode_table<Rev>()[opcode];
+
+            auto imm_size = info.num_args;
+            auto opcode_offset = current_offset;
+
+            current_offset++;
+
+            auto imm_value = utils::from_bytes(
+                imm_size,
+                bytes.size() - current_offset,
+                &bytes[current_offset]);
+
+            instructions_.emplace_back(opcode_offset, opcode, imm_value, info);
+
+            current_offset += imm_size;
+        }
+    }
+
+    template <evmc_revision Rev>
+    Bytecode<Rev>::Bytecode(std::initializer_list<std::uint8_t> bytes)
+        : Bytecode(std::span{bytes})
+    {
+    }
+
+    template <evmc_revision Rev>
+    std::vector<Instruction> const &Bytecode<Rev>::instructions() const noexcept
+    {
+        return instructions_;
+    }
+
+    /*
+     * Instruction
+     */
 
     constexpr Instruction::Instruction(
         std::uint32_t pc, std::uint8_t opcode, OpCodeInfo info) noexcept
@@ -169,5 +242,25 @@ namespace monad::compiler
     constexpr bool Instruction::dynamic_gas() const noexcept
     {
         return dynamic_gas_;
+    }
+
+    constexpr auto Instruction::as_tuple() const noexcept
+    {
+        return std::tie(
+            immediate_value_,
+            pc_,
+            static_gas_cost_,
+            opcode_,
+            stack_args_,
+            index_,
+            is_valid_,
+            increases_stack_,
+            dynamic_gas_);
+    }
+
+    constexpr bool
+    operator==(Instruction const &a, Instruction const &b) noexcept
+    {
+        return a.as_tuple() == b.as_tuple();
     }
 }

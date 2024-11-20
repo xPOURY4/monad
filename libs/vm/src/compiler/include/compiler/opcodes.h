@@ -1,5 +1,7 @@
 #pragma once
 
+#include <evmc/evmc.hpp>
+
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -361,6 +363,13 @@ namespace monad::compiler
     static_assert(
         opcode_info_table.size() == 256,
         "Must have opcode info for exact opcode range [0x00, 0xFF)");
+
+    // TODO: specialize per revision
+    template <evmc_revision Rev>
+    consteval std::array<OpCodeInfo, 256> opcode_table()
+    {
+        return opcode_info_table;
+    }
 
     /**
      * Mnemonic mapping of human-readable opcode names to their underlying byte
