@@ -639,6 +639,6 @@ namespace monad::compiler
             return get_log_opcode_index(opcode);
         }
 
-        assert(false);
+        return 0;
     }
 }

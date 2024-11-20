@@ -62,7 +62,7 @@ namespace monad::compiler
         bool dynamic_gas_;
     };
 
-    template <evmc_revision Rev>
+    template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
     class Bytecode
     {
     public:
@@ -137,7 +137,6 @@ namespace monad::compiler
         , increases_stack_(info.increases_stack)
         , dynamic_gas_(false) // TODO
     {
-        MONAD_COMPILER_ASSERT(!is_push_opcode(opcode));
     }
 
     constexpr Instruction::Instruction(
@@ -153,7 +152,7 @@ namespace monad::compiler
         , increases_stack_(info.increases_stack)
         , dynamic_gas_(false) // TODO
     {
-        MONAD_COMPILER_ASSERT(is_push_opcode(opcode));
+        MONAD_COMPILER_ASSERT(immediate_value == 0 || is_push());
     }
 
     constexpr Instruction::Instruction(
@@ -168,6 +167,7 @@ namespace monad::compiler
         , increases_stack_(false)
         , dynamic_gas_(false)
     {
+        MONAD_COMPILER_ASSERT(!is_push());
     }
 
     constexpr Instruction
