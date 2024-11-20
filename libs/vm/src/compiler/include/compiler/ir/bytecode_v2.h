@@ -136,7 +136,7 @@ namespace monad::compiler
         , index_(get_opcode_index(opcode))
         , is_valid_(true)
         , increases_stack_(info.increases_stack)
-        , dynamic_gas_(false) // TODO
+        , dynamic_gas_(info.dynamic_gas)
     {
     }
 
@@ -151,7 +151,7 @@ namespace monad::compiler
         , index_(get_opcode_index(opcode))
         , is_valid_(true)
         , increases_stack_(info.increases_stack)
-        , dynamic_gas_(false) // TODO
+        , dynamic_gas_(info.dynamic_gas)
     {
         MONAD_COMPILER_ASSERT(immediate_value == 0 || is_push());
     }

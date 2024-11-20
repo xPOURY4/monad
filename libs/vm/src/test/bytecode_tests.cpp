@@ -86,7 +86,7 @@ TEST(Bytecode, Call)
     ASSERT_EQ(inst.stack_args(), 7);
     ASSERT_EQ(inst.opcode(), CALL);
     ASSERT_TRUE(inst.increases_stack());
-    // ASSERT_TRUE(inst.dynamic_gas()); TODO
+    ASSERT_TRUE(inst.dynamic_gas());
 }
 
 TEST(Bytecode, Dup)
@@ -151,7 +151,7 @@ TEST(Bytecode, Log)
     ASSERT_EQ(inst.stack_args(), 4);
     ASSERT_EQ(inst.opcode(), LOG2);
     ASSERT_FALSE(inst.increases_stack());
-    // ASSERT_TRUE(inst.dynamic_gas()); TODO
+    ASSERT_TRUE(inst.dynamic_gas());
     ASSERT_EQ(inst.index(), 2);
 }
 
