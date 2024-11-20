@@ -7,6 +7,7 @@
 #include <evmc/evmc.hpp>
 
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <optional>
 #include <span>
@@ -264,3 +265,59 @@ namespace monad::compiler
         return a.as_tuple() == b.as_tuple();
     }
 }
+
+/*
+ * Formatter Implementations
+ */
+
+template <>
+struct std::formatter<monad::compiler::Instruction>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::Instruction const &inst,
+        std::format_context &ctx) const
+    {
+        if (!inst.is_valid()) {
+            return std::format_to(ctx.out(), "INVALID");
+        }
+
+        // It's ok to use the latest revision here because an instruction that's
+        // too new should already have been flagged as invalid.
+        auto info = monad::compiler::opcode_table<
+            EVMC_LATEST_STABLE_REVISION>()[inst.opcode()];
+
+        if (inst.is_push() && inst.index() > 0) {
+            return std::format_to(
+                ctx.out(), "{} {}", info.name, inst.immediate_value());
+        }
+
+        return std::format_to(ctx.out(), "{}", info.name);
+    }
+};
+
+template <evmc_revision Rev>
+struct std::formatter<monad::compiler::Bytecode<Rev>>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(
+        monad::compiler::Bytecode<Rev> const &ir,
+        std::format_context &ctx) const
+    {
+        auto sep = "";
+        for (auto const &inst : ir.instructions()) {
+            std::format_to(ctx.out(), "{}{}", sep, inst);
+            sep = "\n";
+        }
+
+        return ctx.out();
+    }
+};
