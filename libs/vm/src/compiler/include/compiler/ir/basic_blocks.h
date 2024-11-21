@@ -1,6 +1,5 @@
 #pragma once
 
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/bytecode_v2.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/types.h>
@@ -145,9 +144,6 @@ namespace monad::compiler::basic_blocks
     };
 
     bool operator==(Block const &a, Block const &b);
-
-    std::optional<Instruction>
-    to_instruction(monad::compiler::bytecode::Instruction const &i);
 
     std::optional<Instruction>
     to_instruction(monad::compiler::Instruction const &i);

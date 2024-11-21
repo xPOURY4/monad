@@ -1,7 +1,6 @@
 #pragma once
 
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
 
 #include <functional>
 

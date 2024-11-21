@@ -1,5 +1,4 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/opcodes.h>
@@ -16,64 +15,7 @@
 #include <vector>
 
 using namespace monad::compiler;
-using namespace monad::compiler::bytecode;
 using namespace intx;
-
-void tokens_eq(
-    std::vector<uint8_t> const &in,
-    std::vector<bytecode::Instruction> const &expected)
-{
-    EXPECT_EQ(BytecodeIR(in).instructions, expected);
-}
-
-TEST(TokenTest, Formatter)
-{
-    EXPECT_EQ(
-        std::format("{}", bytecode::Instruction{4, PUSH1, 0x42}),
-        "(4, PUSH1, 0x42)");
-    EXPECT_EQ(
-        std::format(
-            "{}",
-            bytecode::Instruction{
-                0,
-                PUSH32,
-                0xab00000000000000000000000000000000000000000000000000000000000000_u256}),
-        "(0, PUSH32, "
-        "0xab00000000000000000000000000000000000000000000000000000000000000)");
-}
-
-TEST(BytecodeTest, ToTokens)
-{
-    tokens_eq({}, {});
-    tokens_eq({STOP}, {{0, STOP, 0}});
-    tokens_eq({0xee}, {{0, 0xee, 0}});
-    tokens_eq({PUSH0}, {{0, PUSH0, 0}});
-    tokens_eq({PUSH1, 0xff}, {{0, PUSH1, 0xff}});
-    tokens_eq({PUSH2, 0xff, 0xee}, {{0, PUSH2, 0xffee}});
-    tokens_eq({PUSH1, 0xff, PUSH1, 0xee}, {{0, PUSH1, 0xff}, {2, PUSH1, 0xee}});
-    tokens_eq(
-        {STOP, PUSH2, 0xaa, 0xbb, 0xee},
-        {{0, STOP, 0}, {1, PUSH2, 0xaabb}, {4, 0xee, 0}});
-    tokens_eq({PUSH1}, {{0, PUSH1, 0x0}});
-    tokens_eq({PUSH2, 0xff}, {{0, PUSH2, 0xff00}});
-    tokens_eq({PUSH4, 0xaa, 0xbb}, {{0, PUSH4, 0xaabb0000}});
-
-    tokens_eq(
-        {PUSH32, 0xab},
-        {{0,
-          PUSH32,
-          0xab00000000000000000000000000000000000000000000000000000000000000_u256}});
-}
-
-TEST(BytecodeTest, Formatter)
-{
-    EXPECT_EQ(std::format("{}", BytecodeIR({})), "bytecode:\n");
-    EXPECT_EQ(
-        std::format("{}", BytecodeIR({STOP})), "bytecode:\n  (0, STOP, 0x0)\n");
-    EXPECT_EQ(
-        std::format("{}", BytecodeIR({STOP, PUSH1, 0xab})),
-        "bytecode:\n  (0, STOP, 0x0)\n  (1, PUSH1, 0xab)\n");
-}
 
 void blocks_eq(
     std::vector<uint8_t> const &in,

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/bytecode.h>
+#include <compiler/types.h>
 
 namespace monad::compiler::basic_blocks
 {

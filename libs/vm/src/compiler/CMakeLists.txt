@@ -1,5 +1,4 @@
 add_library(monad-compiler
-    ir/bytecode.cpp
     ir/basic_blocks.cpp
     ir/instruction.cpp
     ir/local_stacks.cpp

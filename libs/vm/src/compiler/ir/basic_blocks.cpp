@@ -1,5 +1,4 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
@@ -95,44 +94,6 @@ namespace monad::compiler::basic_blocks
     {
         blocks_.back().terminator = t;
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
-    }
-
-    std::optional<Instruction>
-    to_instruction(monad::compiler::bytecode::Instruction const &i)
-    {
-        if (is_push_opcode(i.opcode)) {
-            return std::optional<Instruction>{
-                {i.offset,
-                 InstructionCode::Push,
-                 static_cast<uint8_t>(i.opcode - PUSH0),
-                 i.data}};
-        }
-        if (is_dup_opcode(i.opcode)) {
-            return std::optional<Instruction>{
-                {i.offset,
-                 InstructionCode::Dup,
-                 static_cast<uint8_t>(i.opcode - DUP1 + 1),
-                 0}};
-        }
-        if (is_swap_opcode(i.opcode)) {
-            return std::optional<Instruction>{
-                {i.offset,
-                 InstructionCode::Swap,
-                 static_cast<uint8_t>(i.opcode - SWAP1 + 1),
-                 0}};
-        }
-        if (is_log_opcode(i.opcode)) {
-            return std::optional<Instruction>{
-                {i.offset,
-                 InstructionCode::Log,
-                 static_cast<uint8_t>(i.opcode - LOG0),
-                 0}};
-        }
-        if (is_control_flow_opcode(i.opcode)) {
-            return std::nullopt;
-        }
-        return std::optional<Instruction>{
-            {i.offset, static_cast<InstructionCode>(i.opcode), 0, 0}};
     }
 
     std::optional<Instruction>
