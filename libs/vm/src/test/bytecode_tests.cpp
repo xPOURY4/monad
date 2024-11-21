@@ -10,22 +10,6 @@
 using namespace intx;
 using namespace monad::compiler;
 
-template <evmc_revision Rev>
-static constexpr Instruction
-inst(std::uint32_t pc, std::uint8_t opcode) noexcept
-{
-    auto info = opcode_table<Rev>()[opcode];
-    return Instruction(pc, opcode, info);
-}
-
-template <evmc_revision Rev>
-static constexpr Instruction inst(
-    std::uint32_t pc, std::uint8_t opcode, monad::utils::uint256_t imm) noexcept
-{
-    auto info = opcode_table<Rev>()[opcode];
-    return Instruction(pc, opcode, imm, info);
-}
-
 TEST(Bytecode, Stop)
 {
     auto bc = Bytecode({STOP});
@@ -302,16 +286,21 @@ TEST(Bytecode, Program)
     auto bc = Bytecode(
         {JUMPDEST, PUSH3, 0xFF, 0xCC, 0xAA, PUSH0, SWAP1, SSTORE, PUSH0, JUMP});
 
+    auto i = [&](std::uint32_t pc, auto &&...args) {
+        return Instruction::lookup<bc.revision>(
+            pc, std::forward<decltype(args)>(args)...);
+    };
+
     auto const &insts = bc.instructions();
     ASSERT_EQ(
         insts,
         std::vector({
-            inst<bc.revision>(0, JUMPDEST),
-            inst<bc.revision>(1, PUSH3, 0xFFCCAA),
-            inst<bc.revision>(5, PUSH0),
-            inst<bc.revision>(6, SWAP1),
-            inst<bc.revision>(7, SSTORE),
-            inst<bc.revision>(8, PUSH0),
-            inst<bc.revision>(9, JUMP),
+            i(0, JUMPDEST),
+            i(1, PUSH3, 0xFFCCAA),
+            i(5, PUSH0),
+            i(6, SWAP1),
+            i(7, SSTORE),
+            i(8, PUSH0),
+            i(9, JUMP),
         }));
 }

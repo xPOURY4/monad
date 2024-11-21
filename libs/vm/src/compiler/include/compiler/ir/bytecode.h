@@ -29,6 +29,15 @@ namespace monad::compiler
         static constexpr Instruction
         invalid(std::uint32_t pc, std::uint8_t opcode) noexcept;
 
+        template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+        static constexpr Instruction
+        lookup(std::uint32_t pc, std::uint8_t opcode) noexcept;
+
+        template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+        static constexpr Instruction lookup(
+            std::uint32_t pc, std::uint8_t opcode,
+            utils::uint256_t immediate_value) noexcept;
+
         constexpr bool is_valid() const noexcept;
         constexpr bool is_dup() const noexcept;
         constexpr bool is_swap() const noexcept;
@@ -183,6 +192,23 @@ namespace monad::compiler
     Instruction::invalid(std::uint32_t pc, std::uint8_t opcode) noexcept
     {
         return Instruction(pc, opcode);
+    }
+
+    template <evmc_revision Rev>
+    constexpr Instruction
+    Instruction::lookup(std::uint32_t pc, std::uint8_t opcode) noexcept
+    {
+        auto info = opcode_table<Rev>()[opcode];
+        return Instruction(pc, opcode, info);
+    }
+
+    template <evmc_revision Rev>
+    constexpr Instruction Instruction::lookup(
+        std::uint32_t pc, std::uint8_t opcode,
+        utils::uint256_t immediate_value) noexcept
+    {
+        auto info = opcode_table<Rev>()[opcode];
+        return Instruction(pc, opcode, immediate_value, info);
     }
 
     constexpr bool Instruction::is_valid() const noexcept
