@@ -12,13 +12,13 @@
 #include <vector>
 
 using namespace monad::compiler;
-using namespace monad::compiler::stack;
+using namespace monad::compiler::native;
 
 namespace
 {
     struct StackElemTestData
     {
-        explicit StackElemTestData(std::set<std::int64_t> stack_indices)
+        explicit StackElemTestData(std::set<std::int32_t> stack_indices)
             : stack_indices{std::move(stack_indices)}
         {
         }
@@ -51,7 +51,7 @@ namespace
         std::optional<AvxReg> avx_reg;
         std::optional<GeneralReg> general_reg;
         std::optional<Literal> literal;
-        std::set<std::int64_t> stack_indices;
+        std::set<std::int32_t> stack_indices;
     };
 
     bool test_stack_element(StackElemRef e, StackElemTestData t)
@@ -130,7 +130,7 @@ TEST(VirtualStack, ctor_test_5)
     ASSERT_EQ(stack.min_delta(), -17);
     ASSERT_EQ(stack.max_delta(), 0);
     ASSERT_EQ(stack.delta(), 0);
-    for (int64_t i = -1; i >= -17; --i) {
+    for (int32_t i = -1; i >= -17; --i) {
         ASSERT_TRUE(test_stack_element(
             stack.get(i), StackElemTestData{{i}}.with_stack_offset({i})));
     }
@@ -158,7 +158,7 @@ TEST(VirtualStack, ctor_test_7)
     ASSERT_EQ(stack.min_delta(), -16);
     ASSERT_EQ(stack.max_delta(), 1);
     ASSERT_EQ(stack.delta(), 1);
-    for (int64_t i = -1; i >= -16; --i) {
+    for (int32_t i = -1; i >= -16; --i) {
         ASSERT_TRUE(test_stack_element(
             stack.get(i), StackElemTestData{{i}}.with_stack_offset({i})));
     }

@@ -16,11 +16,8 @@ namespace monad::compiler::native
         void (*)(runtime::Result *, runtime::Context *, uint8_t *);
 
     /**
-     * Compile the given contract into an asmjit code buffer.
-     *
-     * The caller is responsible for managing the surrounding context of the
-     * given buffer, and the lifetime of the compilation result (by adding it to
-     * a JIT runtime context).
+     * Compile the given contract and add it to JitRuntime. On success
+     * the contract main functions is returned. Returns null on error.
      */
     std::optional<entrypoint_t> compile(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,

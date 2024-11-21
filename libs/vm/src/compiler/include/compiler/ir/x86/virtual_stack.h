@@ -13,7 +13,7 @@
 #include <variant>
 #include <vector>
 
-namespace monad::compiler::stack
+namespace monad::compiler::native
 {
     constexpr std::uint8_t AVX_REG_COUNT = 32;
     constexpr std::uint8_t GENERAL_REG_COUNT = 3;
@@ -28,7 +28,7 @@ namespace monad::compiler::stack
 
     struct StackOffset
     {
-        std::int64_t offset;
+        std::int32_t offset;
     };
 
     bool operator==(StackOffset const &a, StackOffset const &b);
@@ -80,6 +80,8 @@ namespace monad::compiler::stack
         StackElem &operator=(StackElem const &) = delete;
         ~StackElem();
 
+        std::int32_t preferred_stack_offset() const;
+
         std::optional<StackOffset> const &stack_offset() const
         {
             return stack_offset_;
@@ -100,14 +102,17 @@ namespace monad::compiler::stack
             return literal_;
         }
 
-        std::set<std::int64_t> const &stack_indices() const
+        std::set<std::int32_t> const &stack_indices() const
         {
             return stack_indices_;
         }
 
-    private:
-        std::int64_t preferred_stack_offset() const;
+        bool is_on_stack() const
+        {
+            return !stack_indices_.empty();
+        }
 
+    private:
         void insert_literal(Literal);
         void insert_stack_offset(StackOffset);
         void insert_avx_reg();
@@ -115,9 +120,12 @@ namespace monad::compiler::stack
 
         void free_avx_reg();
         void free_general_reg();
+        void free_stack_offset();
 
         void remove_avx_reg();
         void remove_general_reg();
+        void remove_stack_offset();
+        void remove_literal();
 
         void reserve_avx_reg()
         {
@@ -140,7 +148,7 @@ namespace monad::compiler::stack
         }
 
         Stack &stack_;
-        std::set<std::int64_t> stack_indices_;
+        std::set<std::int32_t> stack_indices_;
         std::uint32_t reserve_avx_reg_count_;
         std::uint32_t reserve_general_reg_count_;
         std::optional<StackOffset> stack_offset_;
@@ -227,6 +235,20 @@ namespace monad::compiler::stack
         StackElemRef stack_elem_;
     };
 
+    class RegReserv
+    {
+    public:
+        RegReserv(StackElemRef e)
+            : avx_reserv{e}
+            , general_reserv{std::move(e)}
+        {
+        }
+
+    private:
+        AvxRegReserv avx_reserv;
+        GeneralRegReserv general_reserv;
+    };
+
     using AvxRegQueue =
         std::priority_queue<AvxReg, std::vector<AvxReg>, std::greater<AvxReg>>;
 
@@ -276,7 +298,7 @@ namespace monad::compiler::stack
 
     struct DeferredComparison
     {
-        std::int64_t stack_index;
+        StackElemRef stack_elem;
         Comparison comparison;
     };
 
@@ -310,7 +332,7 @@ namespace monad::compiler::stack
          * and non-negative indices refer to stack elements on the basic
          * block's stack frame.
          */
-        StackElemRef get(std::int64_t index);
+        StackElemRef get(std::int32_t index);
 
         /**
          * Obtain a reference to the top item of the stack.
@@ -344,20 +366,41 @@ namespace monad::compiler::stack
          * Push a duplicate of the specified stack element to the top of the
          * stack.
          */
-        void dup(std::int64_t stack_index);
+        void dup(std::int32_t stack_index);
 
         /**
          * Swap the top element of the stack with the one at the specified
          * index.
          */
-        void swap(std::int64_t swap_index);
+        void swap(std::int32_t swap_index);
+
+        /**
+         * Clear deferred comparison and add insert a stack offset to the
+         * corresponding stack element. Returns the `DeferredComparison`.
+         */
+        DeferredComparison discharge_deferred_comparison();
+
+        /**
+         * Whether there is a deferred comparison on the stack.
+         */
+        bool has_deferred_comparison() const;
+
+        /**
+         * Whether there is a deferred comparison at the given stack index.
+         */
+        bool has_deferred_comparison_at(std::int32_t stack_index) const;
+
+        /**
+         * Build a stack element with the given literal.
+         */
+        StackElemRef alloc_literal(Literal);
 
         /**
          * Find an available physical stack offset that can be used to spill the
          * virtual stack item at this index, and mark that physical index as
          * allocated. Returns a stack element holding the offset.
          */
-        StackElemRef alloc_stack_offset(std::int64_t stack_index);
+        StackElemRef alloc_stack_offset(std::int32_t stack_index);
 
         /**
          * Allocate an AVX register.
@@ -379,12 +422,18 @@ namespace monad::compiler::stack
          * Find a stack offset for the given stack element. The given
          * `preferred_offset` will be used as offset if it is available.
          */
-        void insert_stack_offset(StackElemRef, std::int64_t preferred_offset);
+        void insert_stack_offset(StackElemRef, std::int32_t preferred_offset);
 
         /**
          * Find a stack offset for the given stack element.
          */
         void insert_stack_offset(StackElemRef);
+
+        /**
+         * Remove stack offset from `elem` and return a new stack element
+         * containing the stack offset register.
+         */
+        StackElemRef move_stack_offset(StackElemRef elem);
 
         /**
          * Find an AVX register for the given stack element.
@@ -395,12 +444,60 @@ namespace monad::compiler::stack
             insert_avx_reg(StackElemRef);
 
         /**
+         * Find an AVX register from the stack and spill it by adding it to
+         * the set `free_avx_regs_`. It is assumed that `free_avx_regs_` is
+         * empty before calling this function.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the AVX register to stack offset.
+         */
+        std::optional<StackOffset> spill_avx_reg();
+        std::optional<StackOffset> spill_avx_reg(StackElemRef);
+        std::optional<StackOffset> spill_avx_reg(StackElem *);
+
+        /**
+         * Remove general register from `elem` and return a new stack element
+         * containing the general register.
+         */
+        StackElemRef move_general_reg(StackElemRef elem);
+
+        /**
+         * Remove stack offset location from the given stack element. It is
+         * required and checked that the stack elements holds its value in
+         * stack offset another location and some other location as well.
+         */
+        void spill_stack_offset(StackElemRef);
+
+        /**
+         * Remove literal location from the given stack element. It is
+         * required and checked that the stack elements holds its value in
+         * stack offset another location and some other location as well.
+         */
+        void spill_literal(StackElemRef);
+
+        /**
+         * Find an general register from the stack and spill it by adding it to
+         * the set `free_general_regs_`. It is assumed that `free_general_regs_`
+         * is empty before calling this function.
+         * If the optional StackOffset has a value, then make sure
+         * to emit mov instruction from the general register to stack offset.
+         */
+        std::optional<StackOffset> spill_general_reg();
+        std::optional<StackOffset> spill_general_reg(StackElemRef);
+        std::optional<StackOffset> spill_general_reg(StackElem *);
+
+        /**
          * Find a general register for the given stack element.
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the general register to stack offset.
          */
         std::pair<GeneralRegReserv, std::optional<StackOffset>>
             insert_general_reg(StackElemRef);
+
+        /**
+         * Remove AVX register from `elem` and return a new stack element
+         * containing the AVX register.
+         */
+        StackElemRef move_avx_reg(StackElemRef elem);
 
         /**
          * Spill all caller save general registers to persistent storage.
@@ -430,25 +527,25 @@ namespace monad::compiler::stack
          * The relative size of the stack at the *lowest* point during execution
          * of a block.
          */
-        std::int64_t min_delta() const;
+        std::int32_t min_delta() const;
 
         /**
          * The relative size of the stack at the *highest* point during
          * execution of a block.
          */
-        std::int64_t max_delta() const;
+        std::int32_t max_delta() const;
 
         /**
          * The difference between the final and initial stack sizes during
          * execution of a block.
          */
-        std::int64_t delta() const;
+        std::int32_t delta() const;
 
         /**
          * Index of the top elements on the stack. The returned value is only
          * a valid index if the stack is not empty.
          */
-        std::int64_t top_index() const;
+        std::int32_t top_index() const;
 
     private:
         /**
@@ -465,7 +562,7 @@ namespace monad::compiler::stack
          * Obtain a mutable reference to an item on the stack, correctly
          * handling negative values to reference input stack elements.
          */
-        StackElemRef &at(std::int64_t index);
+        StackElemRef &at(std::int32_t index);
 
         /**
          * Identify a stack offset that can be used to spill the specified stack
@@ -477,31 +574,13 @@ namespace monad::compiler::stack
          * relocate this item to.
          */
         StackOffset
-        find_available_stack_offset(std::int64_t preferred_offset) const;
+        find_available_stack_offset(std::int32_t preferred_offset) const;
 
-        /**
-         * Find an AVX register from the stack and spill it by adding it to
-         * the set `free_avx_regs_`. It is assumed that `free_avx_regs_` is
-         * empty before calling this function.
-         * If the optional StackOffset has a value, then make sure
-         * to emit mov instruction from the AVX register to stack offset.
-         */
-        std::optional<StackOffset> spill_avx_reg();
-
-        /**
-         * Find an general register from the stack and spill it by adding it to
-         * the set `free_general_regs_`. It is assumed that `free_general_regs_`
-         * is empty before calling this function.
-         * If the optional StackOffset has a value, then make sure
-         * to emit mov instruction from the general register to stack offset.
-         */
-        std::optional<StackOffset> spill_general_reg();
-
-        std::int64_t top_index_;
-        std::int64_t min_delta_;
-        std::int64_t max_delta_;
-        std::int64_t delta_;
-        std::set<std::int64_t> available_stack_offsets_;
+        std::int32_t top_index_;
+        std::int32_t min_delta_;
+        std::int32_t max_delta_;
+        std::int32_t delta_;
+        std::set<std::int32_t> available_stack_offsets_;
         AvxRegQueue free_avx_regs_;
         GeneralRegQueue free_general_regs_;
         // The `avx_reg_stack_elems_` contains all the stack elements with AVX
@@ -512,7 +591,7 @@ namespace monad::compiler::stack
         // The `general_reg_stack_elems_` is analogous to
         // `avx_reg_stack_elems_`.
         std::array<StackElem *, GENERAL_REG_COUNT> general_reg_stack_elems_;
-        std::optional<DeferredComparison> deferred_comparison_;
+        DeferredComparison deferred_comparison_;
         // Make sure stack element vectors are last, so that the stack
         // destructor will destroy them last.
         std::vector<StackElemRef> negative_elems_;

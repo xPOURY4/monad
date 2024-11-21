@@ -23,8 +23,8 @@ namespace monad::runtime
 
     struct Result
     {
-        evmc_bytes32 offset;
-        evmc_bytes32 size;
+        uint8_t offset[32];
+        uint8_t size[32];
         StatusCode status;
     };
 

@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace monad::compiler::stack
+namespace monad::compiler::native
 {
     bool operator==(Literal const &a, Literal const &b)
     {
@@ -56,7 +56,7 @@ namespace monad::compiler::stack
     {
     }
 
-    std::int64_t StackElem::preferred_stack_offset() const
+    std::int32_t StackElem::preferred_stack_offset() const
     {
         return stack_indices_.begin() == stack_indices_.end()
                    ? stack_.min_delta_
@@ -116,6 +116,14 @@ namespace monad::compiler::stack
         stack_.general_reg_stack_elems_[reg] = nullptr;
     }
 
+    void StackElem::free_stack_offset()
+    {
+        MONAD_COMPILER_ASSERT(stack_offset_.has_value());
+        auto [_, inserted] =
+            stack_.available_stack_offsets_.insert(stack_offset_->offset);
+        MONAD_COMPILER_ASSERT(inserted);
+    }
+
     void StackElem::remove_avx_reg()
     {
         free_avx_reg();
@@ -128,12 +136,21 @@ namespace monad::compiler::stack
         general_reg_ = std::nullopt;
     }
 
+    void StackElem::remove_stack_offset()
+    {
+        free_stack_offset();
+        stack_offset_ = std::nullopt;
+    }
+
+    void StackElem::remove_literal()
+    {
+        literal_ = std::nullopt;
+    }
+
     StackElem::~StackElem()
     {
         if (stack_offset_.has_value()) {
-            auto [_, inserted] =
-                stack_.available_stack_offsets_.insert(stack_offset_->offset);
-            MONAD_COMPILER_ASSERT(inserted);
+            free_stack_offset();
         }
         if (avx_reg_.has_value()) {
             free_avx_reg();
@@ -163,7 +180,7 @@ namespace monad::compiler::stack
         : Stack()
     {
         for (auto const &instr : block.instrs) {
-            delta_ -= instr.info().min_stack;
+            delta_ -= static_cast<int32_t>(instr.info().min_stack);
             min_delta_ = std::min(delta_, min_delta_);
 
             // We need to treat SWAP and DUP slightly differently to other
@@ -173,14 +190,15 @@ namespace monad::compiler::stack
             // net delta.
             if (instr.code == basic_blocks::InstructionCode::Swap ||
                 instr.code == basic_blocks::InstructionCode::Dup) {
-                delta_ += instr.info().min_stack;
+                delta_ += static_cast<int32_t>(instr.info().min_stack);
             }
 
             delta_ += instr.info().increases_stack;
             max_delta_ = std::max(delta_, max_delta_);
         }
 
-        delta_ -= basic_blocks::terminator_inputs(block.terminator);
+        delta_ -= static_cast<int32_t>(
+            basic_blocks::terminator_inputs(block.terminator));
         min_delta_ = std::min(delta_, min_delta_);
 
         for (auto i = -1; i >= min_delta_; --i) {
@@ -195,13 +213,13 @@ namespace monad::compiler::stack
         }
     }
 
-    StackElemRef Stack::get(std::int64_t index)
+    StackElemRef Stack::get(std::int32_t index)
     {
         MONAD_COMPILER_ASSERT(index <= top_index_);
         return at(index);
     }
 
-    StackElemRef &Stack::at(std::int64_t index)
+    StackElemRef &Stack::at(std::int32_t index)
     {
         if (index < 0) {
             auto i = static_cast<std::size_t>(-index - 1);
@@ -227,9 +245,12 @@ namespace monad::compiler::stack
         auto rem = e->stack_indices_.erase(top_index_);
         MONAD_COMPILER_ASSERT(rem == 1);
 
-        if (deferred_comparison_.has_value() &&
-            top_index_ == deferred_comparison_->stack_index) {
-            deferred_comparison_ = std::nullopt;
+        // If we are removing the last reference to deferred comparison on
+        // the stack, then reset the deferred comparison stack element.
+        if (deferred_comparison_.stack_elem) {
+            if (!deferred_comparison_.stack_elem->is_on_stack()) {
+                deferred_comparison_.stack_elem.reset();
+            }
         }
 
         // Note that it's valid for stack indices to become negative here.
@@ -248,42 +269,32 @@ namespace monad::compiler::stack
 
     void Stack::push_deferred_comparison(Comparison c)
     {
-        MONAD_COMPILER_ASSERT(!deferred_comparison_.has_value());
+        MONAD_COMPILER_ASSERT(deferred_comparison_.stack_elem == nullptr);
         top_index_ += 1;
         auto e = std::make_shared<StackElem>(this);
         e->stack_indices_.insert(top_index_);
-        deferred_comparison_ =
-            DeferredComparison{.stack_index = top_index_, .comparison = c};
+        deferred_comparison_.stack_elem = e;
+        deferred_comparison_.comparison = c;
         at(top_index_) = std::move(e);
     }
 
     void Stack::push_literal(uint256_t const &x)
     {
         top_index_ += 1;
-        auto e = std::make_shared<StackElem>(this);
-        e->insert_literal(Literal{x});
+        auto e = alloc_literal(Literal{x});
         e->stack_indices_.insert(top_index_);
         at(top_index_) = std::move(e);
     }
 
-    void Stack::dup(std::int64_t stack_index)
+    void Stack::dup(std::int32_t stack_index)
     {
-        MONAD_COMPILER_ASSERT(stack_index < top_index_);
-        MONAD_COMPILER_ASSERT(!deferred_comparison_.has_value());
+        MONAD_COMPILER_ASSERT(stack_index <= top_index_);
         push(at(stack_index));
     }
 
-    void Stack::swap(std::int64_t swap_index)
+    void Stack::swap(std::int32_t swap_index)
     {
         MONAD_COMPILER_ASSERT(swap_index < top_index_);
-        if (deferred_comparison_.has_value()) {
-            if (deferred_comparison_->stack_index == top_index_) {
-                deferred_comparison_->stack_index = swap_index;
-            }
-            else if (deferred_comparison_->stack_index == swap_index) {
-                deferred_comparison_->stack_index = top_index_;
-            }
-        }
 
         auto t = top();
         auto &e = at(swap_index);
@@ -304,7 +315,32 @@ namespace monad::compiler::stack
         e = std::move(t);
     }
 
-    StackOffset Stack::find_available_stack_offset(std::int64_t preferred) const
+    DeferredComparison Stack::discharge_deferred_comparison()
+    {
+        MONAD_COMPILER_ASSERT(deferred_comparison_.stack_elem != nullptr);
+        DeferredComparison dc{deferred_comparison_};
+        std::int32_t const preferred = dc.stack_elem->preferred_stack_offset();
+        StackOffset const offset = find_available_stack_offset(preferred);
+        dc.stack_elem->insert_stack_offset(offset);
+        deferred_comparison_.stack_elem.reset();
+        return dc;
+    }
+
+    bool Stack::has_deferred_comparison() const
+    {
+        return deferred_comparison_.stack_elem != nullptr;
+    }
+
+    bool Stack::has_deferred_comparison_at(std::int32_t stack_index) const
+    {
+        if (!deferred_comparison_.stack_elem) {
+            return false;
+        }
+        return deferred_comparison_.stack_elem->stack_indices_.contains(
+            stack_index);
+    }
+
+    StackOffset Stack::find_available_stack_offset(std::int32_t preferred) const
     {
         if (available_stack_offsets_.contains(preferred)) {
             return {preferred};
@@ -321,17 +357,43 @@ namespace monad::compiler::stack
             if (e == nullptr || e->reserve_avx_reg_count_ != 0) {
                 continue;
             }
-            e->remove_avx_reg();
-            if (e->stack_offset_.has_value() || e->general_reg_.has_value() ||
-                e->literal_.has_value()) {
-                return std::nullopt;
-            }
-            std::int64_t const preferred = e->preferred_stack_offset();
-            StackOffset offset = find_available_stack_offset(preferred);
-            e->insert_stack_offset(offset);
-            return offset;
+            return spill_avx_reg(e);
         }
         MONAD_COMPILER_ASSERT(false);
+    }
+
+    std::optional<StackOffset> Stack::spill_avx_reg(StackElemRef e)
+    {
+        return spill_avx_reg(e.get());
+    }
+
+    std::optional<StackOffset> Stack::spill_avx_reg(StackElem *e)
+    {
+        e->remove_avx_reg();
+        if (e->stack_offset_.has_value() || e->general_reg_.has_value() ||
+            e->literal_.has_value()) {
+            return std::nullopt;
+        }
+        std::int32_t const preferred = e->preferred_stack_offset();
+        StackOffset offset = find_available_stack_offset(preferred);
+        e->insert_stack_offset(offset);
+        return offset;
+    }
+
+    void Stack::spill_stack_offset(StackElemRef e)
+    {
+        MONAD_COMPILER_ASSERT(
+            e->avx_reg_.has_value() || e->general_reg_.has_value() ||
+            e->literal_.has_value());
+        e->remove_stack_offset();
+    }
+
+    void Stack::spill_literal(StackElemRef e)
+    {
+        MONAD_COMPILER_ASSERT(
+            e->avx_reg_.has_value() || e->general_reg_.has_value() ||
+            e->stack_offset_.has_value());
+        e->remove_literal();
     }
 
     std::optional<StackOffset> Stack::spill_general_reg()
@@ -362,12 +424,22 @@ namespace monad::compiler::stack
 
         MONAD_COMPILER_ASSERT(best_score >= 0);
 
-        auto *e = general_reg_stack_elems_[best_index];
+        return spill_general_reg(general_reg_stack_elems_[best_index]);
+    }
+
+    std::optional<StackOffset> Stack::spill_general_reg(StackElemRef e)
+    {
+        return spill_general_reg(e.get());
+    }
+
+    std::optional<StackOffset> Stack::spill_general_reg(StackElem *e)
+    {
         e->remove_general_reg();
-        if (best_score != 0) {
+        if (e->stack_offset_.has_value() || e->avx_reg_.has_value() ||
+            e->literal_.has_value()) {
             return std::nullopt;
         }
-        std::int64_t const preferred = e->preferred_stack_offset();
+        std::int32_t const preferred = e->preferred_stack_offset();
         StackOffset offset = find_available_stack_offset(preferred);
         e->insert_stack_offset(offset);
         return offset;
@@ -388,7 +460,7 @@ namespace monad::compiler::stack
             e->remove_general_reg();
             if (!e->stack_offset_.has_value() && !e->avx_reg_.has_value() &&
                 !e->literal_.has_value()) {
-                std::int64_t const preferred = e->preferred_stack_offset();
+                std::int32_t const preferred = e->preferred_stack_offset();
                 StackOffset const offset =
                     find_available_stack_offset(preferred);
                 e->insert_stack_offset(offset);
@@ -411,7 +483,7 @@ namespace monad::compiler::stack
             e->remove_avx_reg();
             if (!e->stack_offset_.has_value() && !e->general_reg_.has_value() &&
                 !e->literal_.has_value()) {
-                std::int64_t const preferred = e->preferred_stack_offset();
+                std::int32_t const preferred = e->preferred_stack_offset();
                 StackOffset const offset =
                     find_available_stack_offset(preferred);
                 e->insert_stack_offset(offset);
@@ -421,21 +493,27 @@ namespace monad::compiler::stack
         return ret;
     }
 
-    void Stack::insert_stack_offset(StackElemRef e, std::int64_t preferred)
+    void Stack::insert_stack_offset(StackElemRef e, std::int32_t preferred)
     {
+        if (e->stack_offset_.has_value()) {
+            return;
+        }
         auto offset = find_available_stack_offset(preferred);
         e->insert_stack_offset(offset);
     }
 
     void Stack::insert_stack_offset(StackElemRef e)
     {
-        std::int64_t const preferred = e->preferred_stack_offset();
+        std::int32_t const preferred = e->preferred_stack_offset();
         return insert_stack_offset(std::move(e), preferred);
     }
 
     std::pair<AvxRegReserv, std::optional<StackOffset>>
     Stack::insert_avx_reg(StackElemRef e)
     {
+        if (e->avx_reg_.has_value()) {
+            return {AvxRegReserv{e}, std::nullopt};
+        }
         std::optional<StackOffset> const spill_offset =
             free_avx_regs_.empty() ? spill_avx_reg() : std::nullopt;
         e->insert_avx_reg();
@@ -445,13 +523,23 @@ namespace monad::compiler::stack
     std::pair<GeneralRegReserv, std::optional<StackOffset>>
     Stack::insert_general_reg(StackElemRef e)
     {
+        if (e->general_reg_.has_value()) {
+            return {GeneralRegReserv{e}, std::nullopt};
+        }
         std::optional<StackOffset> const spill_offset =
             free_general_regs_.empty() ? spill_general_reg() : std::nullopt;
         e->insert_general_reg();
         return {GeneralRegReserv{e}, spill_offset};
     }
 
-    StackElemRef Stack::alloc_stack_offset(std::int64_t preferred)
+    StackElemRef Stack::alloc_literal(Literal lit)
+    {
+        auto e = std::make_shared<StackElem>(this);
+        e->insert_literal(lit);
+        return e;
+    }
+
+    StackElemRef Stack::alloc_stack_offset(std::int32_t preferred)
     {
         auto e = std::make_shared<StackElem>(this);
         insert_stack_offset(e, preferred);
@@ -474,22 +562,50 @@ namespace monad::compiler::stack
         return {std::move(e), reserv, spill};
     }
 
-    std::int64_t Stack::min_delta() const
+    StackElemRef Stack::move_stack_offset(StackElemRef elem)
+    {
+        auto dst = std::make_shared<StackElem>(this);
+        dst->stack_offset_ = elem->stack_offset_;
+        elem->stack_offset_ = std::nullopt;
+        return dst;
+    }
+
+    StackElemRef Stack::move_avx_reg(StackElemRef elem)
+    {
+        auto dst = std::make_shared<StackElem>(this);
+        AvxReg const reg = elem->avx_reg_.value();
+        dst->avx_reg_ = reg;
+        elem->avx_reg_ = std::nullopt;
+        avx_reg_stack_elems_[reg.reg] = dst.get();
+        return dst;
+    }
+
+    StackElemRef Stack::move_general_reg(StackElemRef elem)
+    {
+        auto dst = std::make_shared<StackElem>(this);
+        GeneralReg const reg = elem->general_reg_.value();
+        dst->general_reg_ = reg;
+        elem->general_reg_ = std::nullopt;
+        general_reg_stack_elems_[reg.reg] = dst.get();
+        return dst;
+    }
+
+    std::int32_t Stack::min_delta() const
     {
         return min_delta_;
     }
 
-    std::int64_t Stack::max_delta() const
+    std::int32_t Stack::max_delta() const
     {
         return max_delta_;
     }
 
-    std::int64_t Stack::delta() const
+    std::int32_t Stack::delta() const
     {
         return delta_;
     }
 
-    std::int64_t Stack::top_index() const
+    std::int32_t Stack::top_index() const
     {
         return top_index_;
     }

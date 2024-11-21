@@ -3,6 +3,7 @@
 #include "compiler/ir/bytecode.h"
 #include "compiler/ir/instruction.h"
 #include "compiler/ir/local_stacks.h"
+#include "compiler/ir/x86/virtual_stack.h"
 #include "utils/assert.h"
 #include <cassert>
 #include <compiler/ir/x86.h>
@@ -51,7 +52,6 @@ namespace
         Emitter &emit, LocalStacksIR const &ir, Instruction const &instr,
         uint32_t remaining_base_gas)
     {
-        (void)emit;
         (void)ir;
         (void)remaining_base_gas;
         using enum basic_blocks::InstructionCode;
@@ -252,7 +252,7 @@ namespace
             std::terminate();
             break;
         case Push:
-            std::terminate();
+            emit.push(instr.operand);
             break;
         case Dup:
             std::terminate();
@@ -365,6 +365,8 @@ namespace
     {
         Emitter emit{rt};
         for (Block const &block : ir.blocks) {
+            Stack stack{block};
+            emit.switch_stack(&stack);
             bool const can_enter_block = emit.block_prologue(block);
             if (can_enter_block) {
                 auto analysis = analyze_block(block);
