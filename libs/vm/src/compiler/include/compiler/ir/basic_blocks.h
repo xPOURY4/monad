@@ -4,6 +4,7 @@
 #include <compiler/ir/bytecode_v2.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/types.h>
+#include <utils/assert.h>
 
 #include <limits>
 #include <unordered_map>
@@ -241,9 +242,96 @@ namespace monad::compiler::basic_blocks
 
     template <evmc_revision Rev>
     BasicBlocksIR::BasicBlocksIR(Bytecode<Rev> const &byte_code)
+        : codesize{byte_code.code_size()}
     {
-        (void)byte_code;
-        MONAD_COMPILER_ASSERT(false);
+        enum class St
+        {
+            INSIDE_BLOCK,
+            OUTSIDE_BLOCK
+        };
+
+        St st = St::INSIDE_BLOCK;
+
+        add_block(0);
+
+        auto const &insts = byte_code.instructions();
+
+        auto tok = insts.begin();
+        if (tok != insts.end() && tok->opcode() == JUMPDEST) {
+            add_jump_dest();
+            ++tok;
+        }
+
+        for (; tok != byte_code.instructions.end(); ++tok) {
+            if (st == St::OUTSIDE_BLOCK) {
+                if (tok->opcode() == JUMPDEST) {
+                    add_block(tok->pc());
+                    st = St::INSIDE_BLOCK;
+                    add_jump_dest();
+                }
+            }
+            else {
+                MONAD_COMPILER_ASSERT(st == St::INSIDE_BLOCK);
+                switch (tok->opcode()) {
+                case JUMPDEST:
+                    add_fallthrough_terminator(Terminator::FallThrough);
+                    add_block(tok->pc());
+                    add_jump_dest();
+                    break;
+
+                case JUMPI:
+                    add_fallthrough_terminator(Terminator::JumpI);
+                    add_block(tok->pc() + 1);
+                    // a corner case where we fall through JUMPI
+                    // into a block starting with JUMPDEST, in which case we
+                    // don't want to immediately FallThrough again, but
+                    // instead just advance tok and mark the block as being
+                    // a jumpdest
+                    if (tok + 1 != insts.end() &&
+                        (tok + 1)->opcode() == JUMPDEST) {
+                        ++tok;
+                        add_jump_dest();
+                    }
+                    break;
+
+                case JUMP:
+                    add_terminator(Terminator::Jump);
+                    st = St::OUTSIDE_BLOCK;
+                    break;
+
+                case RETURN:
+                    add_terminator(Terminator::Return);
+                    st = St::OUTSIDE_BLOCK;
+                    break;
+
+                case STOP:
+                    add_terminator(Terminator::Stop);
+                    st = St::OUTSIDE_BLOCK;
+                    break;
+
+                case REVERT:
+                    add_terminator(Terminator::Revert);
+                    st = St::OUTSIDE_BLOCK;
+                    break;
+
+                case SELFDESTRUCT:
+                    add_terminator(Terminator::SelfDestruct);
+                    st = St::OUTSIDE_BLOCK;
+                    break;
+
+                default:
+                    // invalid or instruction opcode
+                    if (auto instr = to_instruction(*tok)) {
+                        blocks_.back().instrs.push_back(std::move(*instr));
+                    }
+                    else {
+                        add_terminator(Terminator::InvalidInstruction);
+                        st = St::OUTSIDE_BLOCK;
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 

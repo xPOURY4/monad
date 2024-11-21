@@ -226,6 +226,34 @@ namespace monad::compiler::basic_blocks
             {i.offset, static_cast<InstructionCode>(i.opcode), 0, 0}};
     }
 
+    std::optional<Instruction>
+    to_instruction(monad::compiler::Instruction const &i)
+    {
+        if (i.is_push()) {
+            return Instruction{
+                i.pc(), InstructionCode::Push, i.index(), i.immediate_value()};
+        }
+
+        if (i.is_dup()) {
+            return Instruction{i.pc(), InstructionCode::Dup, i.index(), 0};
+        }
+
+        if (i.is_swap()) {
+            return Instruction{i.pc(), InstructionCode::Swap, i.index(), 0};
+        }
+
+        if (i.is_log()) {
+            return Instruction{i.pc(), InstructionCode::Log, i.index(), 0};
+        }
+
+        if (i.is_control_flow()) {
+            return std::nullopt;
+        }
+
+        return Instruction{
+            i.pc(), static_cast<InstructionCode>(i.opcode()), 0, 0};
+    }
+
     /*
      * Block
      */
