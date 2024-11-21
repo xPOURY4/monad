@@ -85,22 +85,7 @@ namespace monad::compiler::basic_blocks
      */
     constexpr std::size_t terminator_inputs(Terminator t)
     {
-        using enum Terminator;
-        switch (t) {
-        case JumpI:
-        case Return:
-        case Revert:
-            return 2;
-        case Jump:
-        case SelfDestruct:
-            return 1;
-        case Stop:
-        case FallThrough:
-        case InvalidInstruction:
-            return 0;
-        default:
-            std::unreachable();
-        }
+        return terminator_info(t).min_stack;
     }
 
     /**
