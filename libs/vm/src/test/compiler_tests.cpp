@@ -187,6 +187,8 @@ TEST(BlockTest, Formatter)
         "      (1, ADD, 0x0)\n    JumpI 0\n");
 }
 
+#endif
+
 auto const instrIR0 = basic_blocks::BasicBlocksIR(Bytecode({}));
 auto const instrIR1 =
     basic_blocks::BasicBlocksIR(Bytecode({JUMPDEST, SUB, SUB, JUMPDEST}));
@@ -220,8 +222,8 @@ TEST(BasicBlocksIRTest, Formatter)
         std::format("{}", instrIR1),
         R"(basic_blocks:
   block 0 - 0x0:
-      (1, SUB, 0x0)
-      (2, SUB, 0x0)
+      SUB
+      SUB
     FallThrough 1
   block 1 - 0x3:
     Stop
@@ -237,7 +239,7 @@ TEST(BasicBlocksIRTest, Formatter)
   block 0 - 0x0:
     FallThrough 1
   block 1 - 0x1:
-      (2, SUB, 0x0)
+      SUB
     FallThrough 2
   block 2 - 0x3:
     Stop
@@ -252,22 +254,22 @@ TEST(BasicBlocksIRTest, Formatter)
         std::format("{}", instrIR3),
         R"(basic_blocks:
   block 0 - 0x0:
-      (0, PUSH1, 0xff)
-      (2, PUSH1, 0xe)
-      (4, SWAP2, 0x0)
-      (5, PUSH1, 0x11)
+      PUSH1 0xff
+      PUSH1 0xe
+      SWAP2
+      PUSH1 0x11
     JumpI 1
   block 1 - 0x8:
-      (9, PUSH1, 0x1)
-      (11, ADD, 0x0)
-      (12, SWAP1, 0x0)
+      PUSH1 0x1
+      ADD
+      SWAP1
     Jump
   block 2 - 0x14:
-      (15, POP, 0x0)
+      POP
     Stop
   block 3 - 0x17:
-      (18, SWAP1, 0x0)
-      (19, PUSH1, 0x8)
+      SWAP1
+      PUSH1 0x8
     Jump
 
   jumpdests:
@@ -347,8 +349,8 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 3
-      (1, SUB, 0x0)
-      (2, SUB, 0x0)
+      SUB
+      SUB
     FallThrough 1
     output: [ COMPUTED ]
   block 1 - 0x3:
@@ -370,7 +372,7 @@ TEST(LocalStacksIR, Formatter)
     output: [ ]
   block 1 - 0x1:
     min_params: 2
-      (2, SUB, 0x0)
+      SUB
     FallThrough 2
     output: [ COMPUTED ]
   block 2 - 0x3:
@@ -405,19 +407,19 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 2
-      (0, PUSH0, 0x0)
-      (1, PUSH1, 0xa)
-      (3, PC, 0x0)
-      (4, ADDRESS, 0x0)
-      (5, ADD, 0x0)
-      (6, PC, 0x0)
-      (7, DUP1, 0x0)
-      (8, DUP3, 0x0)
-      (9, SWAP1, 0x0)
-      (10, POP, 0x0)
-      (11, SWAP4, 0x0)
-      (12, DUP6, 0x0)
-      (13, SWAP7, 0x0)
+      PUSH0
+      PUSH1 0xa
+      PC
+      ADDRESS
+      ADD
+      PC
+      DUP1
+      DUP3
+      SWAP1
+      POP
+      SWAP4
+      DUP6
+      SWAP7
     Stop
     output: [ %p1 0x0 0x6 COMPUTED 0xa COMPUTED %p0 %p0 ]
 
@@ -432,9 +434,9 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
-      (0, PUSH1, 0xb)
-      (2, CODESIZE, 0x0)
-      (3, ADD, 0x0)
+      PUSH1 0xb
+      CODESIZE
+      ADD
     Stop
     output: [ 0xf ]
 
@@ -449,8 +451,8 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
-      (0, PUSH0, 0x0)
-      (1, ISZERO, 0x0)
+      PUSH0
+      ISZERO
     Stop
     output: [ 0x1 ]
 
@@ -465,9 +467,9 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
-      (0, PUSH1, 0x2)
-      (2, PUSH1, 0x1)
-      (4, LT, 0x0)
+      PUSH1 0x2
+      PUSH1 0x1
+      LT
     Stop
     output: [ 0x1 ]
 
@@ -482,14 +484,12 @@ TEST(LocalStacksIR, Formatter)
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
-      (0, PUSH1, 0x2)
-      (2, PUSH1, 0x1)
-      (4, GT, 0x0)
+      PUSH1 0x2
+      PUSH1 0x1
+      GT
     Stop
     output: [ 0x0 ]
 
   jumpdests:
 )");
 }
-
-#endif
