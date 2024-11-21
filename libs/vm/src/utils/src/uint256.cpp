@@ -1,9 +1,12 @@
 #include <utils/assert.h>
 #include <utils/uint256.h>
 
+#include <intx/intx.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
 namespace monad::utils

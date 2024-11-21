@@ -7,6 +7,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <vector>
+
 using namespace intx;
 using namespace monad::compiler;
 

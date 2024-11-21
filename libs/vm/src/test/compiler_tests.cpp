@@ -4,9 +4,9 @@
 #include <compiler/opcodes.h>
 #include <compiler/types.h>
 
-#include <gtest/gtest.h>
+#include <evmc/evmc.h>
 
-#include <intx/intx.hpp>
+#include <gtest/gtest.h>
 
 #include <cstdint>
 #include <format>

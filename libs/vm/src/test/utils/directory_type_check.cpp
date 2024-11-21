@@ -3,6 +3,7 @@
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/poly_typed.h>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>

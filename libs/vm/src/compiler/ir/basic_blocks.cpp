@@ -3,11 +3,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
-#include <optional>
 #include <tuple>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace monad::compiler::basic_blocks

@@ -8,6 +8,7 @@
 #include <compiler/ir/poly_typed/kind.h>
 #include <compiler/ir/poly_typed/strongly_connected_components.h>
 #include <compiler/ir/poly_typed/unify.h>
+#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <algorithm>
