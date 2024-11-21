@@ -307,3 +307,79 @@ TEST(Bytecode, Program)
             i(9, JUMP),
         }));
 }
+
+TEST(Bytecode, Push0London)
+{
+    auto bc = Bytecode<EVMC_LONDON>({PUSH0});
+
+    auto const &insts = bc.instructions();
+    ASSERT_EQ(insts.size(), 1);
+
+    auto const &inst = insts[0];
+    ASSERT_FALSE(inst.is_valid());
+
+    ASSERT_FALSE(inst.is_dup());
+    ASSERT_FALSE(inst.is_swap());
+    ASSERT_FALSE(inst.is_push());
+    ASSERT_FALSE(inst.is_log());
+}
+
+TEST(Bytecode, Push0Shanghai)
+{
+    auto bc = Bytecode<EVMC_SHANGHAI>({PUSH0});
+
+    auto const &insts = bc.instructions();
+    ASSERT_EQ(insts.size(), 1);
+
+    auto const &inst = insts[0];
+    ASSERT_TRUE(inst.is_valid());
+
+    ASSERT_FALSE(inst.is_dup());
+    ASSERT_FALSE(inst.is_swap());
+    ASSERT_TRUE(inst.is_push());
+    ASSERT_FALSE(inst.is_log());
+
+    ASSERT_EQ(inst.stack_args(), 0);
+    ASSERT_EQ(inst.opcode(), PUSH0);
+    ASSERT_TRUE(inst.increases_stack());
+    ASSERT_FALSE(inst.dynamic_gas());
+    ASSERT_EQ(inst.index(), 0);
+    ASSERT_EQ(inst.immediate_value(), 0);
+}
+
+TEST(Bytecode, RevertHomestead)
+{
+    auto bc = Bytecode<EVMC_HOMESTEAD>({REVERT});
+
+    auto const &insts = bc.instructions();
+    ASSERT_EQ(insts.size(), 1);
+
+    auto const &inst = insts[0];
+    ASSERT_FALSE(inst.is_valid());
+
+    ASSERT_FALSE(inst.is_dup());
+    ASSERT_FALSE(inst.is_swap());
+    ASSERT_FALSE(inst.is_push());
+    ASSERT_FALSE(inst.is_log());
+}
+
+TEST(Bytecode, RevertLatest)
+{
+    auto bc = Bytecode({REVERT});
+
+    auto const &insts = bc.instructions();
+    ASSERT_EQ(insts.size(), 1);
+
+    auto const &inst = insts[0];
+    ASSERT_TRUE(inst.is_valid());
+
+    ASSERT_FALSE(inst.is_dup());
+    ASSERT_FALSE(inst.is_swap());
+    ASSERT_FALSE(inst.is_push());
+    ASSERT_FALSE(inst.is_log());
+
+    ASSERT_EQ(inst.stack_args(), 2);
+    ASSERT_EQ(inst.opcode(), REVERT);
+    ASSERT_FALSE(inst.increases_stack());
+    ASSERT_TRUE(inst.dynamic_gas());
+}
