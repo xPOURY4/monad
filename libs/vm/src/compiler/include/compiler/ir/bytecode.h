@@ -150,20 +150,6 @@ namespace monad::compiler
      */
 
     constexpr Instruction::Instruction(
-        std::uint32_t pc, std::uint8_t opcode, OpCodeInfo info) noexcept
-        : immediate_value_(0)
-        , pc_(pc)
-        , static_gas_cost_(static_cast<std::uint16_t>(info.min_gas))
-        , opcode_(opcode)
-        , stack_args_(static_cast<std::uint8_t>(info.min_stack))
-        , index_(get_opcode_index(opcode))
-        , is_valid_(true)
-        , increases_stack_(info.increases_stack)
-        , dynamic_gas_(info.dynamic_gas)
-    {
-    }
-
-    constexpr Instruction::Instruction(
         std::uint32_t pc, std::uint8_t opcode, utils::uint256_t immediate_value,
         OpCodeInfo info) noexcept
         : immediate_value_(immediate_value)
@@ -180,17 +166,16 @@ namespace monad::compiler
     }
 
     constexpr Instruction::Instruction(
-        std::uint32_t pc, std::uint8_t opcode) noexcept
-        : immediate_value_(0)
-        , pc_(pc)
-        , static_gas_cost_(0)
-        , opcode_(opcode)
-        , stack_args_(0)
-        , index_(0)
-        , is_valid_(false)
-        , increases_stack_(false)
-        , dynamic_gas_(false)
+        std::uint32_t pc, std::uint8_t opcode, OpCodeInfo info) noexcept
+        : Instruction(pc, opcode, 0, info)
     {
+    }
+
+    constexpr Instruction::Instruction(
+        std::uint32_t pc, std::uint8_t opcode) noexcept
+        : Instruction(pc, opcode, unknown_opcode_info)
+    {
+        is_valid_ = false;
         MONAD_COMPILER_ASSERT(!is_push());
     }
 
