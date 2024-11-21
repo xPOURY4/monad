@@ -24,8 +24,8 @@ namespace
     using namespace monad::compiler::local_stacks;
     using namespace monad::utils;
 
-    void eval_instruction_fallback(
-        ::monad::compiler::Instruction const &tok, std::deque<Value> &stack)
+    void
+    eval_instruction_fallback(Instruction const &tok, std::deque<Value> &stack)
     {
         for (std::size_t i = 0; i < tok.stack_args(); ++i) {
             stack.pop_front();
@@ -37,7 +37,7 @@ namespace
     }
 
     void eval_ternary_instruction(
-        ::monad::compiler::Instruction const &tok, std::deque<Value> &stack,
+        Instruction const &tok, std::deque<Value> &stack,
         std::function<
             uint256_t(uint256_t const &, uint256_t const &, uint256_t const &)>
             f)
@@ -57,7 +57,7 @@ namespace
     }
 
     void eval_binary_instruction(
-        ::monad::compiler::Instruction const &tok, std::deque<Value> &stack,
+        Instruction const &tok, std::deque<Value> &stack,
         std::function<uint256_t(uint256_t const &, uint256_t const &)> f)
     {
         Value const &x = stack[0];
@@ -72,7 +72,7 @@ namespace
     }
 
     void eval_unary_instruction(
-        ::monad::compiler::Instruction const &tok, std::deque<Value> &stack,
+        Instruction const &tok, std::deque<Value> &stack,
         std::function<uint256_t(uint256_t const &)> f)
     {
         Value &x = stack[0];
@@ -85,8 +85,7 @@ namespace
     }
 
     void eval_instruction(
-        ::monad::compiler::Instruction const &tok, std::deque<Value> &stack,
-        uint64_t codesize)
+        Instruction const &tok, std::deque<Value> &stack, uint64_t codesize)
     {
         if (tok.is_push()) {
             stack.emplace_front(ValueIs::LITERAL, tok.immediate_value());

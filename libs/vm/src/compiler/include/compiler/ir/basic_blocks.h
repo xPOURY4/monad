@@ -111,7 +111,7 @@ namespace monad::compiler::basic_blocks
          * It is legal for the body of a block to be empty; every valid block is
          * terminated.
          */
-        std::vector<::monad::compiler::Instruction> instrs = {};
+        std::vector<Instruction> instrs = {};
 
         /**
          * The terminator that ends this block.

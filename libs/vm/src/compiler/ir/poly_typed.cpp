@@ -338,8 +338,8 @@ namespace
         stack.push_back(stack[stack.size() - ix]);
     }
 
-    void check_instruction_default(
-        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
+    void
+    check_instruction_default(Instruction const &ins, std::vector<Kind> &stack)
     {
         if (stack.size() < ins.stack_args()) {
             throw TypeError{};
@@ -357,8 +357,7 @@ namespace
         }
     }
 
-    void check_instruction(
-        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
+    void check_instruction(Instruction const &ins, std::vector<Kind> &stack)
     {
         if (ins.opcode() == POP) {
             return check_instruction_pop(stack);

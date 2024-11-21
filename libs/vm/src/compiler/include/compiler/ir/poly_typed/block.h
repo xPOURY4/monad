@@ -56,7 +56,7 @@ namespace monad::compiler::poly_typed
         byte_offset offset;
         size_t min_params;
         std::vector<Value> output;
-        std::vector<::monad::compiler::Instruction> instrs;
+        std::vector<Instruction> instrs;
         ContKind kind;
         Terminator terminator;
     };

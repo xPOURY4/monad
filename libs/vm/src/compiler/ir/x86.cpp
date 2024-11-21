@@ -46,8 +46,7 @@ namespace
 
     template <evmc_revision rev>
     void emit_instr(
-        Emitter &emit, LocalStacksIR const &ir,
-        ::monad::compiler::Instruction const &instr,
+        Emitter &emit, LocalStacksIR const &ir, Instruction const &instr,
         uint32_t remaining_base_gas)
     {
         (void)ir;

@@ -77,16 +77,15 @@ namespace
         stack.pop_back();
     }
 
-    void infer_instruction_swap(
-        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
+    void
+    infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = ins.index();
         assert(stack.size() > ix);
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
-    void infer_instruction_dup(
-        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
+    void infer_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = ins.index();
         assert(stack.size() >= ix);
@@ -94,8 +93,7 @@ namespace
     }
 
     void infer_instruction_default(
-        InferState &state, ::monad::compiler::Instruction const &ins,
-        std::vector<Kind> &stack)
+        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
         assert(stack.size() >= ins.stack_args());
         std::vector<Kind> const front;
@@ -109,8 +107,7 @@ namespace
     }
 
     void infer_instruction(
-        InferState &state, ::monad::compiler::Instruction const &ins,
-        std::vector<Kind> &stack)
+        InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
         if (ins.opcode() == POP) {
             return infer_instruction_pop(stack);
