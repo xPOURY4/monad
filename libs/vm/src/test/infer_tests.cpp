@@ -17,7 +17,7 @@ using namespace monad::compiler::poly_typed;
 TEST(infer, test_add)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({ADD})));
+        basic_blocks::BasicBlocksIR(Bytecode({ADD})));
 
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
     ASSERT_EQ(blocks.size(), 1);
@@ -27,8 +27,8 @@ TEST(infer, test_add)
 
 TEST(infer, test_param_jump)
 {
-    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR({PUSH1, 1, ADD, SWAP1, JUMP})));
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, ADD, SWAP1, JUMP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
     ASSERT_EQ(blocks.size(), 1);
     ASSERT_TRUE(std::holds_alternative<Jump>(blocks[0].terminator));
@@ -40,19 +40,8 @@ TEST(infer, test_param_jump)
 
 TEST(infer, test_literal_valid_jump)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {PUSH1,
-             8,
-             SWAP1,
-             PUSH1,
-             1,
-             ADD,
-             SWAP1,
-             JUMP,
-             JUMPDEST,
-             POP,
-             POP})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
+        {PUSH1, 8, SWAP1, PUSH1, 1, ADD, SWAP1, JUMP, JUMPDEST, POP, POP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 2);
@@ -70,19 +59,8 @@ TEST(infer, test_literal_valid_jump)
 
 TEST(infer, test_literal_invalid_jump)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {PUSH1,
-             0,
-             SWAP1,
-             PUSH1,
-             1,
-             ADD,
-             SWAP1,
-             JUMP,
-             JUMPDEST,
-             POP,
-             POP})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
+        {PUSH1, 0, SWAP1, PUSH1, 1, ADD, SWAP1, JUMP, JUMPDEST, POP, POP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 2);
@@ -99,8 +77,8 @@ TEST(infer, test_literal_invalid_jump)
 
 TEST(infer, test_computed_jump)
 {
-    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR({PUSH1, 1, ADD, JUMP})));
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, ADD, JUMP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 1);
@@ -113,7 +91,7 @@ TEST(infer, test_computed_jump)
 TEST(infer, test_return)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({POP, RETURN})));
+        basic_blocks::BasicBlocksIR(Bytecode({POP, RETURN})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
     ASSERT_EQ(blocks.size(), 1);
     ASSERT_TRUE(std::holds_alternative<Return>(blocks[0].terminator));
@@ -124,7 +102,7 @@ TEST(infer, test_return)
 TEST(infer, test_param_jumpi)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR({PUSH1, 1, ADD, SWAP1, JUMPI, SELFDESTRUCT})));
+        Bytecode({PUSH1, 1, ADD, SWAP1, JUMPI, SELFDESTRUCT})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 2);
@@ -146,7 +124,7 @@ TEST(infer, test_param_jumpi)
 TEST(infer, test_literal_valid_jumpi)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        bytecode::BytecodeIR({PUSH1, 4, JUMPI, SELFDESTRUCT, JUMPDEST, POP})));
+        Bytecode({PUSH1, 4, JUMPI, SELFDESTRUCT, JUMPDEST, POP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 3);
@@ -168,11 +146,10 @@ TEST(infer, test_literal_valid_jumpi)
 
 TEST(infer, test_literal_var_output)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
-             JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
-             STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
+        {PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
+         JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
+         STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 4);
@@ -191,30 +168,29 @@ TEST(infer, test_sum)
 {
     uint8_t const loop = 1;
     uint8_t const ret = 14;
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {// Word,(Word,s -> Exit),s -> Exit
-             DUP1, // Word,Word,(Word,s -> Exit),s -> Exit
-                   // loop:
-             JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
-             DUP1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-             ISZERO, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-             PUSH1,
-             ret, // ret,Word,Word,Word,(Word,s -> Exit),s -> Exit
-             JUMPI, // Word,Word,(Word,s -> Exit),s -> Exit
-                    //
-             DUP1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-             SWAP2, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-             ADD, // Word,Word,(Word,s -> Exit),s -> Exit
-             SWAP1, // Word,Word,(Word,s -> Exit),s -> Exit
-             PUSH1,
-             loop, // loop,Word,Word,(Word,s -> Exit),s -> Exit
-             JUMP, // Word,Word,(Word,s -> Exit),s -> Exit
-                   // ret:
-             JUMPDEST, // a,b,(b,s -> Exit),s -> Exit
-             POP,
-             SWAP1,
-             JUMP})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        Bytecode({// Word,(Word,s -> Exit),s -> Exit
+                  DUP1, // Word,Word,(Word,s -> Exit),s -> Exit
+                        // loop:
+                  JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
+                  DUP1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+                  ISZERO, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+                  PUSH1,
+                  ret, // ret,Word,Word,Word,(Word,s -> Exit),s -> Exit
+                  JUMPI, // Word,Word,(Word,s -> Exit),s -> Exit
+                         //
+                  DUP1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+                  SWAP2, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+                  ADD, // Word,Word,(Word,s -> Exit),s -> Exit
+                  SWAP1, // Word,Word,(Word,s -> Exit),s -> Exit
+                  PUSH1,
+                  loop, // loop,Word,Word,(Word,s -> Exit),s -> Exit
+                  JUMP, // Word,Word,(Word,s -> Exit),s -> Exit
+                        // ret:
+                  JUMPDEST, // a,b,(b,s -> Exit),s -> Exit
+                  POP,
+                  SWAP1,
+                  JUMP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 4);
@@ -269,52 +245,51 @@ TEST(infer, test_fib)
     uint8_t const fibk = 17;
     uint8_t const addk = 28;
     uint8_t const retk = 32;
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
-            // fib:
-            JUMPDEST, // Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            2, // Word,Word,(Word,s -> Exit),s -> Exit
-            DUP2, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-            LT, // Word,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            retk, // retk,Word,Word,(Word,s -> Exit),s -> Exit
-            JUMPI, // Word,(Word,s -> Exit),s -> Exit
-            //
-            PUSH1,
-            fibk, // fibk,Word,(Word,s -> Exit),s -> Exit
-            DUP2, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            2, // Word,Word,fibk,Word,(Word,s -> Exit),s -> Exit
-            SUB, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            fib, // fib,Word,fibk,Word,(Word,s -> Exit),s -> Exit
-            JUMP, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
-            // fibk:
-            JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
-            SWAP1, // Word,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
-            SUB, // Word,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            addk, // addk,Word,Word,(Word,s -> Exit),s -> Exit
-            SWAP1, // Word,addk,Word,(Word,s -> Exit),s -> Exit
-            PUSH1,
-            fib, // fib,Word,addk,Word,(Word,s -> Exit),s -> Exit
-            JUMP, // Word,addk,Word,(Word,s -> Exit),s -> Exit
-            // addk:
-            JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
-            ADD, // Word,(Word,s -> Exit),s -> Exit
-            SWAP1, // (Word,s -> Exit),Word,s -> Exit
-            JUMP, // Word,s -> Exit
-            // retk:
-            JUMPDEST, // v,(Word,s -> Exit),s -> Exit
-            POP, // (Word,s -> Exit),s -> Exit
-            PUSH1,
-            1, // Word,(Word,s -> Exit),s -> Exit
-            SWAP1, // (Word,s -> Exit),Word,s -> Exit
-            JUMP // Word,s -> Exit
-        })));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode({
+        // fib:
+        JUMPDEST, // Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        2, // Word,Word,(Word,s -> Exit),s -> Exit
+        DUP2, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+        LT, // Word,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        retk, // retk,Word,Word,(Word,s -> Exit),s -> Exit
+        JUMPI, // Word,(Word,s -> Exit),s -> Exit
+        //
+        PUSH1,
+        fibk, // fibk,Word,(Word,s -> Exit),s -> Exit
+        DUP2, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        2, // Word,Word,fibk,Word,(Word,s -> Exit),s -> Exit
+        SUB, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        fib, // fib,Word,fibk,Word,(Word,s -> Exit),s -> Exit
+        JUMP, // Word,fibk,Word,(Word,s -> Exit),s -> Exit
+        // fibk:
+        JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
+        SWAP1, // Word,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        1, // Word,Word,Word,(Word,s -> Exit),s -> Exit
+        SUB, // Word,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        addk, // addk,Word,Word,(Word,s -> Exit),s -> Exit
+        SWAP1, // Word,addk,Word,(Word,s -> Exit),s -> Exit
+        PUSH1,
+        fib, // fib,Word,addk,Word,(Word,s -> Exit),s -> Exit
+        JUMP, // Word,addk,Word,(Word,s -> Exit),s -> Exit
+        // addk:
+        JUMPDEST, // Word,Word,(Word,s -> Exit),s -> Exit
+        ADD, // Word,(Word,s -> Exit),s -> Exit
+        SWAP1, // (Word,s -> Exit),Word,s -> Exit
+        JUMP, // Word,s -> Exit
+        // retk:
+        JUMPDEST, // v,(Word,s -> Exit),s -> Exit
+        POP, // (Word,s -> Exit),s -> Exit
+        PUSH1,
+        1, // Word,(Word,s -> Exit),s -> Exit
+        SWAP1, // (Word,s -> Exit),Word,s -> Exit
+        JUMP // Word,s -> Exit
+    })));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
 
     ASSERT_EQ(blocks.size(), 5);
@@ -371,9 +346,8 @@ TEST(infer, test_fib)
 
 TEST(infer, crash_1)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {JUMPDEST, ADDRESS, JUMPDEST, PUSH0, ADDRESS, JUMP})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        Bytecode({JUMPDEST, ADDRESS, JUMPDEST, PUSH0, ADDRESS, JUMP})));
     std::vector<Block> blocks = infer_types(ir.jumpdests, ir.blocks);
     ASSERT_EQ(blocks.size(), 2);
     ASSERT_TRUE(alpha_equal(blocks[1].kind, cont_words));

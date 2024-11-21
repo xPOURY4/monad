@@ -149,6 +149,9 @@ namespace monad::compiler::basic_blocks
     std::optional<Instruction>
     to_instruction(monad::compiler::bytecode::Instruction const &i);
 
+    std::optional<Instruction>
+    to_instruction(monad::compiler::Instruction const &i);
+
     /**
      * In this representation, the underlying EVM code has been grouped into
      * basic blocks by splitting the program at terminator points.
@@ -262,7 +265,7 @@ namespace monad::compiler::basic_blocks
             ++tok;
         }
 
-        for (; tok != byte_code.instructions.end(); ++tok) {
+        for (; tok != insts.end(); ++tok) {
             if (st == St::OUTSIDE_BLOCK) {
                 if (tok->opcode() == JUMPDEST) {
                     add_block(tok->pc());

@@ -48,7 +48,7 @@ bool read_contract(fs::path const &path, std::vector<uint8_t> &result)
 void type_check_contract(
     fs::path const &path, std::vector<uint8_t> const &contract)
 {
-    bytecode::BytecodeIR const ir1{contract};
+    Bytecode const ir1{contract};
     basic_blocks::BasicBlocksIR const ir2{std::move(ir1)};
     local_stacks::LocalStacksIR const ir3{std::move(ir2)};
 

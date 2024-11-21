@@ -80,7 +80,7 @@ void blocks_eq(
     std::unordered_map<byte_offset, block_id> const &expected_jumpdests,
     std::vector<basic_blocks::Block> const &expected_blocks)
 {
-    BytecodeIR const actual_bc(in);
+    auto actual_bc = Bytecode(in);
     basic_blocks::BasicBlocksIR const actual(actual_bc);
 
     EXPECT_EQ(actual.jump_dests(), expected_jumpdests);
@@ -245,15 +245,15 @@ TEST(BlockTest, Formatter)
         "      (1, ADD, 0x0)\n    JumpI 0\n");
 }
 
-auto const instrIR0 = basic_blocks::BasicBlocksIR(BytecodeIR({}));
+auto const instrIR0 = basic_blocks::BasicBlocksIR(Bytecode({}));
 auto const instrIR1 =
-    basic_blocks::BasicBlocksIR(BytecodeIR({JUMPDEST, SUB, SUB, JUMPDEST}));
-auto const instrIR2 = basic_blocks::BasicBlocksIR(
-    BytecodeIR({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
+    basic_blocks::BasicBlocksIR(Bytecode({JUMPDEST, SUB, SUB, JUMPDEST}));
+auto const instrIR2 =
+    basic_blocks::BasicBlocksIR(Bytecode({JUMPDEST, JUMPDEST, SUB, JUMPDEST}));
 auto const instrIR3 = basic_blocks::BasicBlocksIR(
-    BytecodeIR({PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
-                JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
-                STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP}));
+    Bytecode({PUSH1,    255,      PUSH1, 14,    SWAP2, PUSH1, 17,       JUMPI,
+              JUMPDEST, PUSH1,    1,     ADD,   SWAP1, JUMP,  JUMPDEST, POP,
+              STOP,     JUMPDEST, SWAP1, PUSH1, 8,     JUMP}));
 
 TEST(BasicBlocksIRTest, Validation)
 {
@@ -445,7 +445,7 @@ TEST(LocalStacksIR, Formatter)
     EXPECT_EQ(
         std::format(
             "{}",
-            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(BytecodeIR(
+            local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
                 {PUSH0,
                  PUSH1,
                  0xa,
@@ -486,7 +486,7 @@ TEST(LocalStacksIR, Formatter)
         std::format(
             "{}",
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-                BytecodeIR({PUSH1, 0xb, CODESIZE, ADD})))),
+                Bytecode({PUSH1, 0xb, CODESIZE, ADD})))),
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
@@ -503,7 +503,7 @@ TEST(LocalStacksIR, Formatter)
         std::format(
             "{}",
             local_stacks::LocalStacksIR(
-                basic_blocks::BasicBlocksIR(BytecodeIR({PUSH0, ISZERO})))),
+                basic_blocks::BasicBlocksIR(Bytecode({PUSH0, ISZERO})))),
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
@@ -519,7 +519,7 @@ TEST(LocalStacksIR, Formatter)
         std::format(
             "{}",
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-                BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, LT})))),
+                Bytecode({PUSH1, 0x2, PUSH1, 0x1, LT})))),
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0
@@ -536,7 +536,7 @@ TEST(LocalStacksIR, Formatter)
         std::format(
             "{}",
             local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-                BytecodeIR({PUSH1, 0x2, PUSH1, 0x1, GT})))),
+                Bytecode({PUSH1, 0x2, PUSH1, 0x1, GT})))),
         R"(local_stacks:
   block 0 - 0x0:
     min_params: 0

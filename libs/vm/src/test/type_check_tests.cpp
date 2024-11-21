@@ -16,7 +16,7 @@ using namespace monad::compiler::poly_typed;
 TEST(type_check, test_1)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({ADD}))));
+        basic_blocks::BasicBlocksIR(Bytecode({ADD}))));
 
     std::vector<Kind> const front = ir.blocks[0].kind->front;
 
@@ -36,7 +36,7 @@ TEST(type_check, test_1)
 TEST(type_check, test_2)
 {
     auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({JUMP}))));
+        basic_blocks::BasicBlocksIR(Bytecode({JUMP}))));
 
     std::vector<Kind> const front = ir.blocks[0].kind->front;
     ContKind const jump = std::get<Jump>(ir.blocks[0].terminator).jump_kind;
@@ -63,24 +63,23 @@ TEST(type_check, test_2)
 
 TEST(type_check, test_3)
 {
-    auto ir =
-        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-            bytecode::BytecodeIR({// Word,Word,Word,s -> Exit
-                                  PUSH1,
-                                  12,
-                                  DUP1,
-                                  SWAP2,
-                                  ADD,
-                                  PUSH1,
-                                  9,
-                                  JUMPI,
-                                  // (s -> Exit),s -> Exit
-                                  JUMP,
-                                  JUMPDEST, // a,Word,Word,s -> Exit
-                                  POP,
-                                  RETURN,
-                                  JUMPDEST, // Word,Word,s -> Exit
-                                  RETURN}))));
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(Bytecode({// Word,Word,Word,s -> Exit
+                                              PUSH1,
+                                              12,
+                                              DUP1,
+                                              SWAP2,
+                                              ADD,
+                                              PUSH1,
+                                              9,
+                                              JUMPI,
+                                              // (s -> Exit),s -> Exit
+                                              JUMP,
+                                              JUMPDEST, // a,Word,Word,s -> Exit
+                                              POP,
+                                              RETURN,
+                                              JUMPDEST, // Word,Word,s -> Exit
+                                              RETURN}))));
 
     ASSERT_TRUE(
         alpha_equal(ir.blocks[0].kind, cont_kind({word, word, word}, 0)));
@@ -149,17 +148,17 @@ TEST(type_check, test_3)
 
 TEST(type_check, test_4)
 {
-    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {// Word,(s -> Exit),((s -> Exit),s -> Exit),s -> Exit
-             PUSH1,
-             12,
-             ADD,
-             SWAP1,
-             SWAP2,
-             JUMPI,
-             // (s -> Exit),s -> Exit
-             JUMP}))));
+    auto ir =
+        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+            Bytecode({// Word,(s -> Exit),((s -> Exit),s -> Exit),s -> Exit
+                      PUSH1,
+                      12,
+                      ADD,
+                      SWAP1,
+                      SWAP2,
+                      JUMPI,
+                      // (s -> Exit),s -> Exit
+                      JUMP}))));
 
     ASSERT_TRUE(alpha_equal(
         ir.blocks[0].kind,
@@ -231,8 +230,8 @@ TEST(type_check, test_4)
 
 TEST(type_check, test_5)
 {
-    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR({
+    auto ir = PolyTypedIR(
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode({
             // (Word : (Word : Word,s -> Exit),(Word : Word,s -> Exit),s ->
             // Exit),(Word : Word,s -> Exit),s -> Exit
             DUP2, // a1,a0,a1,s1 -> Exit
@@ -351,13 +350,13 @@ TEST(type_check, test_6)
 {
     auto ir =
         PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-            bytecode::BytecodeIR({// (Any,Any,s -> Exit),Word,s -> Exit
-                                  DUP1, // a,a,Word,s -> Exit
-                                  SWAP2, // Word,a,a,s -> Exit
-                                  DUP2, // a,Word,a,a,s -> Exit
-                                  JUMPI, // a,a,s -> Exit
-                                  POP,
-                                  STOP}))));
+            Bytecode({// (Any,Any,s -> Exit),Word,s -> Exit
+                      DUP1, // a,a,Word,s -> Exit
+                      SWAP2, // Word,a,a,s -> Exit
+                      DUP2, // a,Word,a,a,s -> Exit
+                      JUMPI, // a,a,s -> Exit
+                      POP,
+                      STOP}))));
 
     ASSERT_TRUE(alpha_equal(
         ir.blocks[0].kind,
@@ -427,9 +426,9 @@ TEST(type_check, test_6)
 
 TEST(type_check, test_7)
 {
-    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
-            {DUP1, ADD, JUMPDEST, DUP1, PUSH1, 1, ADD, JUMP}))));
+    auto ir =
+        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+            Bytecode({DUP1, ADD, JUMPDEST, DUP1, PUSH1, 1, ADD, JUMP}))));
 
     ASSERT_TRUE(alpha_equal(ir.blocks[0].kind, cont_kind({word})));
     ASSERT_TRUE(alpha_equal(
@@ -533,15 +532,14 @@ TEST(type_check, test_7)
 
 TEST(type_check, error_1)
 {
-    auto ir =
-        PolyTypedIR(local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-            bytecode::BytecodeIR({DUP3, DUP4, JUMPI}))));
+    auto ir = PolyTypedIR(local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR(Bytecode({DUP3, DUP4, JUMPI}))));
     ASSERT_TRUE(ir.type_check());
 }
 
 TEST(type_check, error_2)
 {
-    auto ir1 = bytecode::BytecodeIR(
+    auto ir1 = Bytecode(
         {POP,      CALLER,   CALLER,   PUSH14,   0x61,     0x6b,     0x61,
          0x6b,     0x65,     0x5f,     0x73,     0x68,     0x61,     0x72,
          0x65,     0x64,     0x5f,     0x74,     PUSH2,    0x01,     0x01,
@@ -565,7 +563,7 @@ TEST(type_check, error_2)
 
 TEST(type_check, error_3)
 {
-    auto ir1 = bytecode::BytecodeIR(
+    auto ir1 = Bytecode(
         {0x80, 0x81, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x7c, 0x30, 0x30,
          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
@@ -578,7 +576,7 @@ TEST(type_check, error_3)
 
 TEST(type_check, error_4)
 {
-    auto ir1 = bytecode::BytecodeIR(
+    auto ir1 = Bytecode(
         {0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
