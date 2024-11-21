@@ -43,7 +43,6 @@ namespace monad::compiler
         constexpr bool is_swap() const noexcept;
         constexpr bool is_push() const noexcept;
         constexpr bool is_log() const noexcept;
-        constexpr bool is_control_flow() const noexcept;
 
         constexpr utils::uint256_t const &immediate_value() const noexcept;
         constexpr std::uint32_t pc() const noexcept;
@@ -241,11 +240,6 @@ namespace monad::compiler
     constexpr bool Instruction::is_log() const noexcept
     {
         return is_valid() && is_log_opcode(opcode_);
-    }
-
-    constexpr bool Instruction::is_control_flow() const noexcept
-    {
-        return is_valid() && is_control_flow_opcode(opcode_);
     }
 
     constexpr utils::uint256_t const &

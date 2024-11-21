@@ -47,27 +47,31 @@ namespace monad::compiler::basic_blocks
     }
 
     /**
-     * Opcode info of a given terminator. Note that info for `FallThrough`
-     * and `InvalidInstruction` is `unknown_opcode_info`.
+     * Opcode info for a given terminator.
+     *
+     * Note that info for `FallThrough` and `InvalidInstruction` is
+     * `unknown_opcode_info`, and that the information here is with respect to
+     * the latest stable EVM revision.
      */
-    constexpr OpCodeInfo const &terminator_info(Terminator t)
+    constexpr OpCodeInfo terminator_info(Terminator t)
     {
+        auto table = opcode_table<EVMC_LATEST_STABLE_REVISION>();
+
         using enum Terminator;
         switch (t) {
         case JumpI:
-            return opcode_info_table[JUMPI];
+            return table[JUMPI];
         case Return:
-            return opcode_info_table[RETURN];
+            return table[RETURN];
         case Revert:
-            return opcode_info_table[REVERT];
+            return table[REVERT];
         case Jump:
-            return opcode_info_table[JUMP];
+            return table[JUMP];
         case SelfDestruct:
-            return opcode_info_table[SELFDESTRUCT];
+            return table[SELFDESTRUCT];
         case Stop:
-            return opcode_info_table[STOP];
+            return table[STOP];
         case FallThrough:
-            return unknown_opcode_info;
         case InvalidInstruction:
             return unknown_opcode_info;
         default:
