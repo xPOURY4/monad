@@ -8,7 +8,6 @@ namespace monad::compiler::poly_typed
 {
     using ValueIs = local_stacks::ValueIs;
     using Value = local_stacks::Value;
-    using Instruction = basic_blocks::Instruction;
 
     struct FallThrough
     {
@@ -57,7 +56,7 @@ namespace monad::compiler::poly_typed
         byte_offset offset;
         size_t min_params;
         std::vector<Value> output;
-        std::vector<basic_blocks::Instruction> instrs;
+        std::vector<::monad::compiler::Instruction> instrs;
         ContKind kind;
         Terminator terminator;
     };

@@ -1,5 +1,4 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
@@ -180,7 +179,7 @@ namespace monad::compiler::native
         : Stack()
     {
         for (auto const &instr : block.instrs) {
-            delta_ -= static_cast<int32_t>(instr.info().min_stack);
+            delta_ -= instr.stack_args();
             min_delta_ = std::min(delta_, min_delta_);
 
             // We need to treat SWAP and DUP slightly differently to other
@@ -188,12 +187,11 @@ namespace monad::compiler::native
             // ensure a big enough input stack, but because they don't actually
             // consume these elements, this change shouldn't be reflected in the
             // net delta.
-            if (instr.code == basic_blocks::InstructionCode::Swap ||
-                instr.code == basic_blocks::InstructionCode::Dup) {
-                delta_ += static_cast<int32_t>(instr.info().min_stack);
+            if (instr.is_swap() || instr.is_dup()) {
+                delta_ += instr.stack_args();
             }
 
-            delta_ += instr.info().increases_stack;
+            delta_ += instr.increases_stack();
             max_delta_ = std::max(delta_, max_delta_);
         }
 

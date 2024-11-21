@@ -1,6 +1,5 @@
 add_library(monad-compiler
     ir/basic_blocks.cpp
-    ir/instruction.cpp
     ir/local_stacks.cpp
     ir/poly_typed/strongly_connected_components.cpp
     ir/poly_typed/infer_state.cpp

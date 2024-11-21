@@ -31,8 +31,7 @@ namespace monad::compiler::local_stacks
         std::size_t min_params;
         std::vector<Value> output;
 
-        std::vector<basic_blocks::Instruction> instrs;
-        std::vector<::monad::compiler::Instruction> new_instrs;
+        std::vector<::monad::compiler::Instruction> instrs;
         basic_blocks::Terminator terminator;
         block_id fallthrough_dest; // value for JumpI and JumpDest, otherwise
                                    // INVALID_BLOCK_ID

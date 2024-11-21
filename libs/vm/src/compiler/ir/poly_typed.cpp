@@ -1,11 +1,12 @@
 #include "compiler/ir/poly_typed.h"
-#include "compiler/ir/instruction.h"
+#include "compiler/ir/bytecode.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/opcodes.h"
 #include "compiler/types.h"
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -338,38 +339,40 @@ namespace
     }
 
     void check_instruction_default(
-        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
+        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
     {
-        auto const &info = ins.info();
-        if (stack.size() < info.min_stack) {
+        if (stack.size() < ins.stack_args()) {
             throw TypeError{};
         }
         std::vector<Kind> const front;
-        for (size_t i = 0; i < info.min_stack; ++i) {
+        for (size_t i = 0; i < ins.stack_args(); ++i) {
             if (!std::holds_alternative<Word>(*stack.back()) &&
                 !std::holds_alternative<WordCont>(*stack.back())) {
                 throw TypeError{};
             }
             stack.pop_back();
         }
-        if (info.increases_stack) {
+        if (ins.increases_stack()) {
             stack.push_back(word);
         }
     }
 
     void check_instruction(
-        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
+        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
     {
-        switch (ins.code) {
-        case basic_blocks::InstructionCode::Pop:
+        if (ins.opcode() == POP) {
             return check_instruction_pop(stack);
-        case basic_blocks::InstructionCode::Swap:
-            return check_instruction_swap(ins.index, stack);
-        case basic_blocks::InstructionCode::Dup:
-            return check_instruction_dup(ins.index, stack);
-        default:
-            return check_instruction_default(ins, stack);
         }
+
+        if (ins.is_swap()) {
+            return check_instruction_swap(ins.index(), stack);
+        }
+
+        if (ins.is_dup()) {
+            return check_instruction_dup(ins.index(), stack);
+        }
+
+        return check_instruction_default(ins, stack);
     }
 
     std::vector<Kind> check_instructions(Block const &block)
@@ -474,13 +477,7 @@ std::format_context::iterator std::formatter<PolyTypedIR>::format(
             std::format_to(ctx.out(), "  JUMPDEST\n", b.offset);
         }
         for (auto const &ins : b.instrs) {
-            if (ins.code == basic_blocks::InstructionCode::Push) {
-                std::format_to(
-                    ctx.out(), "  {} {}\n", ins.info().name, ins.operand);
-            }
-            else {
-                std::format_to(ctx.out(), "  {}\n", ins.info().name);
-            }
+            std::format_to(ctx.out(), "  {}\n", ins);
         }
         std::format_to(ctx.out(), " =>");
         for (auto const &v : b.output) {

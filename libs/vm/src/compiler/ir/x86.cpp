@@ -1,14 +1,16 @@
-#include "asmjit/core/jitruntime.h"
-#include "compiler/ir/basic_blocks.h"
-#include "compiler/ir/instruction.h"
-#include "compiler/ir/local_stacks.h"
-#include "utils/assert.h"
-#include <cassert>
+#include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/bytecode.h>
+#include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/emitter.h>
+#include <compiler/opcodes.h>
+#include <utils/assert.h>
 
 #include <evmc/evmc.h>
 
+#include <asmjit/core/jitruntime.h>
+
+#include <cassert>
 #include <cstdint>
 #include <exception>
 #include <limits>
@@ -19,8 +21,6 @@
 using namespace monad::compiler;
 using namespace monad::compiler::local_stacks;
 using namespace monad::compiler::native;
-
-using monad::compiler::basic_blocks::Instruction;
 
 namespace
 {
@@ -34,9 +34,8 @@ namespace
     {
         BlockAnalysis analysis{.instr_gas = 0, .dynamic_gas = false};
         for (auto const &instr : block.instrs) {
-            auto const &info = instr.info();
-            analysis.instr_gas += info.min_gas;
-            analysis.dynamic_gas |= info.dynamic_gas;
+            analysis.instr_gas += instr.static_gas_cost();
+            analysis.dynamic_gas |= instr.dynamic_gas();
         }
         auto const &info = basic_blocks::terminator_info(block.terminator);
         // This is also correct for fall through and invalid instruction.
@@ -48,235 +47,240 @@ namespace
     template <evmc_revision rev>
     void emit_instr(
         Emitter &emit, LocalStacksIR const &ir,
-        basic_blocks::Instruction const &instr, uint32_t remaining_base_gas)
+        ::monad::compiler::Instruction const &instr,
+        uint32_t remaining_base_gas)
     {
         (void)ir;
         (void)remaining_base_gas;
-        using enum basic_blocks::InstructionCode;
-        switch (instr.code) {
-        case Add:
+
+        if (instr.is_push()) {
+            emit.push(instr.immediate_value());
+        }
+
+        if (instr.is_dup()) {
             std::terminate();
-            break;
-        case Mul:
+        }
+
+        if (instr.is_swap()) {
             std::terminate();
-            break;
-        case Sub:
+        }
+
+        if (instr.is_log()) {
             std::terminate();
-            break;
-        case Div:
+        }
+
+        switch (instr.opcode()) {
+        case ADD:
             std::terminate();
             break;
-        case SDiv:
+        case MUL:
             std::terminate();
             break;
-        case Mod:
+        case SUB:
             std::terminate();
             break;
-        case SMod:
+        case DIV:
             std::terminate();
             break;
-        case AddMod:
+        case SDIV:
             std::terminate();
             break;
-        case MulMod:
+        case MOD:
             std::terminate();
             break;
-        case Exp:
+        case SMOD:
             std::terminate();
             break;
-        case SignExtend:
+        case ADDMOD:
             std::terminate();
             break;
-        case Lt:
+        case MULMOD:
             std::terminate();
             break;
-        case Gt:
+        case EXP:
             std::terminate();
             break;
-        case SLt:
+        case SIGNEXTEND:
             std::terminate();
             break;
-        case SGt:
+        case LT:
             std::terminate();
             break;
-        case Eq:
+        case GT:
             std::terminate();
             break;
-        case IsZero:
+        case SLT:
             std::terminate();
             break;
-        case And:
+        case SGT:
             std::terminate();
             break;
-        case Or:
+        case EQ:
             std::terminate();
             break;
-        case XOr:
+        case ISZERO:
             std::terminate();
             break;
-        case Not:
+        case AND:
             std::terminate();
             break;
-        case Byte:
+        case OR:
             std::terminate();
             break;
-        case Shl:
+        case XOR:
             std::terminate();
             break;
-        case Shr:
+        case NOT:
             std::terminate();
             break;
-        case Sar:
+        case BYTE:
             std::terminate();
             break;
-        case Sha3:
+        case SHL:
             std::terminate();
             break;
-        case Address:
+        case SHR:
             std::terminate();
             break;
-        case Balance:
+        case SAR:
             std::terminate();
             break;
-        case Orign:
+        case SHA3:
             std::terminate();
             break;
-        case Caller:
+        case ADDRESS:
             std::terminate();
             break;
-        case CallValue:
+        case BALANCE:
             std::terminate();
             break;
-        case CallDataLoad:
+        case ORIGIN:
             std::terminate();
             break;
-        case CallDataSize:
+        case CALLER:
             std::terminate();
             break;
-        case CallDataCopy:
+        case CALLVALUE:
             std::terminate();
             break;
-        case CodeSize:
+        case CALLDATALOAD:
             std::terminate();
             break;
-        case CodeCopy:
+        case CALLDATASIZE:
             std::terminate();
             break;
-        case GasPrice:
+        case CALLDATACOPY:
             std::terminate();
             break;
-        case ExtCodeSize:
+        case CODESIZE:
             std::terminate();
             break;
-        case ExtCodeCopy:
+        case CODECOPY:
             std::terminate();
             break;
-        case ReturnDataSize:
+        case GASPRICE:
             std::terminate();
             break;
-        case ReturnDataCopy:
+        case EXTCODESIZE:
             std::terminate();
             break;
-        case ExtCodeHash:
+        case EXTCODECOPY:
             std::terminate();
             break;
-        case BlockHash:
+        case RETURNDATASIZE:
             std::terminate();
             break;
-        case Coinbase:
+        case RETURNDATACOPY:
             std::terminate();
             break;
-        case Timestamp:
+        case EXTCODEHASH:
             std::terminate();
             break;
-        case Number:
+        case BLOCKHASH:
             std::terminate();
             break;
-        case Difficulty:
+        case COINBASE:
             std::terminate();
             break;
-        case GasLimit:
+        case TIMESTAMP:
             std::terminate();
             break;
-        case ChainId:
+        case NUMBER:
             std::terminate();
             break;
-        case SelfBalance:
+        case DIFFICULTY:
             std::terminate();
             break;
-        case BaseFee:
+        case GASLIMIT:
             std::terminate();
             break;
-        case BlobHash:
+        case CHAINID:
             std::terminate();
             break;
-        case BlobBaseFee:
+        case SELFBALANCE:
             std::terminate();
             break;
-        case Pop:
+        case BASEFEE:
             std::terminate();
             break;
-        case MLoad:
+        case BLOBHASH:
             std::terminate();
             break;
-        case MStore:
+        case BLOBBASEFEE:
             std::terminate();
             break;
-        case MStore8:
+        case POP:
             std::terminate();
             break;
-        case SLoad:
+        case MLOAD:
             std::terminate();
             break;
-        case SStore:
+        case MSTORE:
             std::terminate();
             break;
-        case Pc:
+        case MSTORE8:
             std::terminate();
             break;
-        case MSize:
+        case SLOAD:
             std::terminate();
             break;
-        case Gas:
+        case SSTORE:
             std::terminate();
             break;
-        case TLoad:
+        case PC:
             std::terminate();
             break;
-        case TStore:
+        case MSIZE:
             std::terminate();
             break;
-        case MCopy:
+        case GAS:
             std::terminate();
-            break;
-        case Push:
-            emit.push(instr.operand);
             break;
-        case Dup:
+        case TLOAD:
             std::terminate();
             break;
-        case Swap:
+        case TSTORE:
             std::terminate();
             break;
-        case Log:
+        case MCOPY:
             std::terminate();
             break;
-        case Create:
+        case CREATE:
             std::terminate();
             break;
-        case Call:
+        case CALL:
             std::terminate();
             break;
-        case CallCode:
+        case CALLCODE:
             std::terminate();
             break;
-        case DelegateCall:
+        case DELEGATECALL:
             std::terminate();
             break;
-        case Create2:
+        case CREATE2:
             std::terminate();
             break;
-        case StaticCall:
+        case STATICCALL:
             std::terminate();
             break;
         default:
@@ -293,8 +297,9 @@ namespace
             instr_gas <= std::numeric_limits<uint32_t>::max());
         uint32_t remaining_base_gas = static_cast<uint32_t>(instr_gas);
         for (auto const &instr : block.instrs) {
-            assert(remaining_base_gas >= instr.info().min_gas);
-            remaining_base_gas -= static_cast<uint32_t>(instr.info().min_gas);
+            assert(remaining_base_gas >= instr.static_gas_cost());
+            remaining_base_gas -=
+                static_cast<uint32_t>(instr.static_gas_cost());
             emit_instr<rev>(emit, ir, instr, remaining_base_gas);
         }
     }

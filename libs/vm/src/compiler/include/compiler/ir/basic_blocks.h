@@ -1,7 +1,6 @@
 #pragma once
 
 #include <compiler/ir/bytecode.h>
-#include <compiler/ir/instruction.h>
 #include <compiler/types.h>
 #include <utils/assert.h>
 
@@ -112,8 +111,7 @@ namespace monad::compiler::basic_blocks
          * It is legal for the body of a block to be empty; every valid block is
          * terminated.
          */
-        std::vector<Instruction> instrs = {};
-        std::vector<::monad::compiler::Instruction> new_instrs = {};
+        std::vector<::monad::compiler::Instruction> instrs = {};
 
         /**
          * The terminator that ends this block.
@@ -145,9 +143,6 @@ namespace monad::compiler::basic_blocks
     };
 
     bool operator==(Block const &a, Block const &b);
-
-    std::optional<Instruction>
-    to_instruction(monad::compiler::Instruction const &i);
 
     /**
      * In this representation, the underlying EVM code has been grouped into
@@ -319,9 +314,8 @@ namespace monad::compiler::basic_blocks
 
                 default:
                     // invalid or instruction opcode
-                    if (auto instr = to_instruction(*tok)) {
-                        blocks_.back().instrs.push_back(std::move(*instr));
-                        blocks_.back().new_instrs.push_back(*tok);
+                    if (tok->is_valid()) {
+                        blocks_.back().instrs.push_back(*tok);
                     }
                     else {
                         add_terminator(Terminator::InvalidInstruction);

@@ -1,6 +1,4 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <algorithm>
@@ -77,7 +75,6 @@ namespace monad::compiler::basic_blocks
     void BasicBlocksIR::add_jump_dest()
     {
         assert(blocks_.back().instrs.empty());
-        assert(blocks_.back().new_instrs.empty());
         jump_dests_.emplace(curr_block_offset(), curr_block_id());
     }
 
@@ -97,34 +94,6 @@ namespace monad::compiler::basic_blocks
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
     }
 
-    std::optional<Instruction>
-    to_instruction(monad::compiler::Instruction const &i)
-    {
-        if (i.is_push()) {
-            return Instruction{
-                i.pc(), InstructionCode::Push, i.index(), i.immediate_value()};
-        }
-
-        if (i.is_dup()) {
-            return Instruction{i.pc(), InstructionCode::Dup, i.index(), 0};
-        }
-
-        if (i.is_swap()) {
-            return Instruction{i.pc(), InstructionCode::Swap, i.index(), 0};
-        }
-
-        if (i.is_log()) {
-            return Instruction{i.pc(), InstructionCode::Log, i.index(), 0};
-        }
-
-        if (i.is_control_flow()) {
-            return std::nullopt;
-        }
-
-        return Instruction{
-            i.pc(), static_cast<InstructionCode>(i.opcode()), 0, 0};
-    }
-
     /*
      * Block
      */
@@ -137,17 +106,7 @@ namespace monad::compiler::basic_blocks
 
     bool operator==(Block const &a, Block const &b)
     {
-        return std::tie(
-                   a.instrs,
-                   a.new_instrs,
-                   a.terminator,
-                   a.fallthrough_dest,
-                   a.offset) ==
-               std::tie(
-                   b.instrs,
-                   b.new_instrs,
-                   b.terminator,
-                   b.fallthrough_dest,
-                   b.offset);
+        return std::tie(a.instrs, a.terminator, a.fallthrough_dest, a.offset) ==
+               std::tie(b.instrs, b.terminator, b.fallthrough_dest, b.offset);
     }
 }

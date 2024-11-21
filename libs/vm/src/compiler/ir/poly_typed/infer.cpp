@@ -1,5 +1,5 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
+#include <compiler/ir/bytecode.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/poly_typed/block.h>
 #include <compiler/ir/poly_typed/exceptions.h>
@@ -78,52 +78,53 @@ namespace
     }
 
     void infer_instruction_swap(
-        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
+        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t const ix = ins.index;
+        size_t const ix = ins.index();
         assert(stack.size() > ix);
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
     void infer_instruction_dup(
-        basic_blocks::Instruction const &ins, std::vector<Kind> &stack)
+        ::monad::compiler::Instruction const &ins, std::vector<Kind> &stack)
     {
-        size_t const ix = ins.index;
+        size_t const ix = ins.index();
         assert(stack.size() >= ix);
         stack.push_back(stack[stack.size() - ix]);
     }
 
     void infer_instruction_default(
-        InferState &state, basic_blocks::Instruction const &ins,
+        InferState &state, ::monad::compiler::Instruction const &ins,
         std::vector<Kind> &stack)
     {
-        auto const &info = ins.info();
-        assert(stack.size() >= info.min_stack);
+        assert(stack.size() >= ins.stack_args());
         std::vector<Kind> const front;
-        for (size_t i = 0; i < info.min_stack; ++i) {
+        for (size_t i = 0; i < ins.stack_args(); ++i) {
             unify(state.subst_map, stack.back(), word);
             stack.pop_back();
         }
-        if (info.increases_stack) {
+        if (ins.increases_stack()) {
             stack.push_back(word);
         }
     }
 
     void infer_instruction(
-        InferState &state, basic_blocks::Instruction const &ins,
+        InferState &state, ::monad::compiler::Instruction const &ins,
         std::vector<Kind> &stack)
     {
-        using enum basic_blocks::InstructionCode;
-        switch (ins.code) {
-        case Pop:
+        if (ins.opcode() == POP) {
             return infer_instruction_pop(stack);
-        case Swap:
-            return infer_instruction_swap(ins, stack);
-        case Dup:
-            return infer_instruction_dup(ins, stack);
-        default:
-            return infer_instruction_default(state, ins, stack);
         }
+
+        if (ins.is_swap()) {
+            return infer_instruction_swap(ins, stack);
+        }
+
+        if (ins.is_dup()) {
+            return infer_instruction_dup(ins, stack);
+        }
+
+        return infer_instruction_default(state, ins, stack);
     }
 
     void push_literal_output(
