@@ -29,12 +29,12 @@ namespace monad::compiler
          * This value is 0 for all instructions other than the `PUSHN` family,
          * each of which expects N bytes to follow.
          */
-        std::size_t num_args;
+        std::uint8_t num_args;
 
         /**
          * The minimum EVM stack size required to execute this instruction.
          */
-        std::size_t min_stack;
+        std::uint8_t min_stack;
 
         /**
          * Whether the EVM stack size increases after executing this
