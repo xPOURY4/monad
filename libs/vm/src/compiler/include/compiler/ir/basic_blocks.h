@@ -113,6 +113,7 @@ namespace monad::compiler::basic_blocks
          * terminated.
          */
         std::vector<Instruction> instrs = {};
+        std::vector<::monad::compiler::Instruction> new_instrs = {};
 
         /**
          * The terminator that ends this block.
@@ -320,6 +321,7 @@ namespace monad::compiler::basic_blocks
                     // invalid or instruction opcode
                     if (auto instr = to_instruction(*tok)) {
                         blocks_.back().instrs.push_back(std::move(*instr));
+                        blocks_.back().new_instrs.push_back(*tok);
                     }
                     else {
                         add_terminator(Terminator::InvalidInstruction);

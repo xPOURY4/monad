@@ -77,6 +77,7 @@ namespace monad::compiler::basic_blocks
     void BasicBlocksIR::add_jump_dest()
     {
         assert(blocks_.back().instrs.empty());
+        assert(blocks_.back().new_instrs.empty());
         jump_dests_.emplace(curr_block_offset(), curr_block_id());
     }
 
@@ -136,7 +137,17 @@ namespace monad::compiler::basic_blocks
 
     bool operator==(Block const &a, Block const &b)
     {
-        return std::tie(a.instrs, a.terminator, a.fallthrough_dest, a.offset) ==
-               std::tie(b.instrs, b.terminator, b.fallthrough_dest, b.offset);
+        return std::tie(
+                   a.instrs,
+                   a.new_instrs,
+                   a.terminator,
+                   a.fallthrough_dest,
+                   a.offset) ==
+               std::tie(
+                   b.instrs,
+                   b.new_instrs,
+                   b.terminator,
+                   b.fallthrough_dest,
+                   b.offset);
     }
 }

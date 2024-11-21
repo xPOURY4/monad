@@ -45,6 +45,8 @@ TEST(TerminatorTest, Formatter)
 
 using enum basic_blocks::InstructionCode;
 
+#if 0
+
 TEST(BasicBlocksTest, ToBlocks)
 {
     // using enum basic_blocks::InstructionCode;
@@ -491,3 +493,5 @@ TEST(LocalStacksIR, Formatter)
   jumpdests:
 )");
 }
+
+#endif

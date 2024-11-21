@@ -262,6 +262,7 @@ namespace monad::compiler::local_stacks
             .min_params = 0,
             .output = {},
             .instrs = std::move(in.instrs),
+            .new_instrs = std::move(in.new_instrs),
             .terminator = in.terminator,
             .fallthrough_dest = in.fallthrough_dest,
             .offset = in.offset,
