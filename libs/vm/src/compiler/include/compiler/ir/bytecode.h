@@ -110,14 +110,21 @@ namespace monad::compiler
 
             current_offset++;
 
-            auto imm_value = utils::from_bytes(
-                imm_size,
-                bytes.size() - current_offset,
-                &bytes[current_offset]);
+            if (info == unknown_opcode_info) {
+                instructions_.push_back(
+                    Instruction::invalid(opcode_offset, opcode));
+            }
+            else {
+                auto imm_value = utils::from_bytes(
+                    imm_size,
+                    bytes.size() - current_offset,
+                    &bytes[current_offset]);
 
-            instructions_.emplace_back(opcode_offset, opcode, imm_value, info);
+                instructions_.emplace_back(
+                    opcode_offset, opcode, imm_value, info);
 
-            current_offset += imm_size;
+                current_offset += imm_size;
+            }
         }
     }
 

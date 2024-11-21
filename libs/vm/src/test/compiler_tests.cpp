@@ -17,6 +17,12 @@
 using namespace monad::compiler;
 using namespace intx;
 
+template <typename... Args, evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+Instruction i(std::uint32_t pc, Args &&...args)
+{
+    return Instruction::lookup<Rev>(pc, std::forward<Args>(args)...);
+}
+
 void blocks_eq(
     std::vector<uint8_t> const &in,
     std::unordered_map<byte_offset, block_id> const &expected_jumpdests,
@@ -43,11 +49,8 @@ TEST(TerminatorTest, Formatter)
     EXPECT_EQ(std::format("{}", InvalidInstruction), "InvalidInstruction");
 }
 
-#if 0
-
 TEST(BasicBlocksTest, ToBlocks)
 {
-    // using enum basic_blocks::InstructionCode;
     blocks_eq(
         {},
         {},
@@ -73,14 +76,22 @@ TEST(BasicBlocksTest, ToBlocks)
         {PUSH1},
         {},
         {
-            {{{0, Push, 1, 0}}, Stop, INVALID_BLOCK_ID},
+            {{
+                 i(0, PUSH1),
+             },
+             Stop,
+             INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {PUSH2, 0xf},
         {},
         {
-            {{{0, Push, 2, 0xf00}}, Stop, INVALID_BLOCK_ID},
+            {{
+                 i(0, PUSH2, 0xf00),
+             },
+             Stop,
+             INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -101,21 +112,34 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, REVERT},
         {},
         {
-            {{{0, Add, 0, 0}}, Revert, INVALID_BLOCK_ID},
+            {{
+                 i(0, ADD),
+             },
+             Revert,
+             INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {ADD, ADD, RETURN},
         {},
         {
-            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Return, INVALID_BLOCK_ID},
+            {{
+                 i(0, ADD),
+                 i(1, ADD),
+             },
+             Return,
+             INVALID_BLOCK_ID},
         });
 
     blocks_eq(
         {JUMPDEST, ADD, REVERT},
         {{0, 0}},
         {
-            {{{1, Add, 0, 0}}, Revert, INVALID_BLOCK_ID},
+            {{
+                 i(1, ADD),
+             },
+             Revert,
+             INVALID_BLOCK_ID},
         });
 
     blocks_eq(
@@ -147,7 +171,12 @@ TEST(BasicBlocksTest, ToBlocks)
         {JUMPDEST, ADD, JUMPDEST},
         {{0, 0}, {2, 1}},
         {
-            {{{1, Add, 0, 0}}, FallThrough, 1, 0},
+            {{
+                 i(1, ADD),
+             },
+             FallThrough,
+             1,
+             0},
             {{}, Stop, INVALID_BLOCK_ID, 2},
         });
 
@@ -155,7 +184,12 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, ADD, JUMP, ADD, JUMPDEST, SELFDESTRUCT},
         {{4, 1}},
         {
-            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Jump, INVALID_BLOCK_ID},
+            {{
+                 i(0, ADD),
+                 i(1, ADD),
+             },
+             Jump,
+             INVALID_BLOCK_ID},
             {{}, SelfDestruct, INVALID_BLOCK_ID, 4},
         });
 
@@ -163,7 +197,12 @@ TEST(BasicBlocksTest, ToBlocks)
         {ADD, ADD, JUMP, ADD, JUMPDEST, JUMPDEST, SELFDESTRUCT},
         {{4, 1}, {5, 2}},
         {
-            {{{0, Add, 0, 0}, {1, Add, 0, 0}}, Jump, INVALID_BLOCK_ID},
+            {{
+                 i(0, ADD),
+                 i(1, ADD),
+             },
+             Jump,
+             INVALID_BLOCK_ID},
             {{}, FallThrough, 2, 4},
             {{}, SelfDestruct, INVALID_BLOCK_ID, 5},
         });
@@ -174,20 +213,30 @@ TEST(BlockTest, Formatter)
     EXPECT_EQ(
         std::format("{}", basic_blocks::Block{{}, Return, INVALID_BLOCK_ID}),
         "    Return\n");
+
     EXPECT_EQ(
         std::format(
             "{}",
             basic_blocks::Block{
-                {{0, Add, 0, 0}, {1, Add, 0, 0}},
+                {
+                    i(0, ADD),
+                    i(1, ADD),
+                },
                 SelfDestruct,
                 INVALID_BLOCK_ID}),
-        "      (0, ADD, 0x0)\n      (1, ADD, 0x0)\n    SelfDestruct\n");
-    EXPECT_EQ(
-        std::format("{}", basic_blocks::Block{{{1, Add, 0, 0}}, JumpI, 0}),
-        "      (1, ADD, 0x0)\n    JumpI 0\n");
-}
+        "      ADD\n      ADD\n    SelfDestruct\n");
 
-#endif
+    EXPECT_EQ(
+        std::format(
+            "{}",
+            basic_blocks::Block{
+                {
+                    i(1, ADD),
+                },
+                JumpI,
+                0}),
+        "      ADD\n    JumpI 0\n");
+}
 
 auto const instrIR0 = basic_blocks::BasicBlocksIR(Bytecode({}));
 auto const instrIR1 =
