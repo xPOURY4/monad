@@ -167,8 +167,6 @@ namespace monad::compiler::basic_blocks
         /**
          * Construct basic blocks from a bytecode program.
          */
-        BasicBlocksIR(bytecode::BytecodeIR const &byte_code);
-
         template <evmc_revision Rev>
         BasicBlocksIR(Bytecode<Rev> const &byte_code);
 
