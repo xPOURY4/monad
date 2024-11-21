@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/bytecode_v2.h>
+#include <compiler/ir/bytecode.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/types.h>
 #include <utils/assert.h>

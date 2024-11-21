@@ -1,5 +1,7 @@
-#include <compiler/ir/bytecode_v2.h>
-#include <utils/uint256.h>
+#include <compiler/ir/bytecode.h>
+#include <compiler/opcodes.h>
+
+#include <evmc/evmc.h>
 
 #include <intx/intx.hpp>
 
