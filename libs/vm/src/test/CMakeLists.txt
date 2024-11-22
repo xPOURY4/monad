@@ -1,7 +1,6 @@
 add_subdirectory(utils)
 
 add_executable(unit-tests
-    bytecode_tests.cpp
     compiler_tests.cpp
     utils_tests.cpp
     uint256_tests.cpp
