@@ -1,4 +1,5 @@
 #include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
@@ -187,7 +188,8 @@ namespace monad::compiler::native
             // ensure a big enough input stack, but because they don't actually
             // consume these elements, this change shouldn't be reflected in the
             // net delta.
-            if (instr.is_swap() || instr.is_dup()) {
+            if (instr.opcode() == OpCode::Swap ||
+                instr.opcode() == OpCode::Dup) {
                 delta_ += instr.stack_args();
             }
 

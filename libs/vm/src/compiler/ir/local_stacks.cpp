@@ -1,7 +1,6 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <utils/assert.h>
@@ -87,35 +86,22 @@ namespace
     void eval_instruction(
         Instruction const &tok, std::deque<Value> &stack, uint64_t codesize)
     {
-        if (tok.is_push()) {
-            stack.emplace_front(ValueIs::LITERAL, tok.immediate_value());
-            return;
-        }
-
-        if (tok.is_dup()) {
-            stack.push_front(stack[tok.index() - 1]);
-            return;
-        }
-
-        if (tok.is_swap()) {
-            std::swap(stack[0], stack[tok.index()]);
-            return;
-        }
+        using enum OpCode;
 
         switch (tok.opcode()) {
-        case ADD:
+        case Add:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x + y; });
             break;
-        case MUL:
+        case Mul:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x * y; });
             break;
-        case SUB:
+        case Sub:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x - y; });
             break;
-        case DIV:
+        case Div:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
@@ -123,7 +109,7 @@ namespace
                 return x / y;
             });
             break;
-        case SDIV:
+        case SDiv:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
@@ -131,7 +117,7 @@ namespace
                 return intx::sdivrem(x, y).quot;
             });
             break;
-        case MOD:
+        case Mod:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
@@ -139,7 +125,7 @@ namespace
                 return x % y;
             });
             break;
-        case SMOD:
+        case SMod:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
@@ -147,7 +133,7 @@ namespace
                 return intx::sdivrem(x, y).rem;
             });
             break;
-        case ADDMOD:
+        case AddMod:
             eval_ternary_instruction(tok, stack, [](auto &x, auto &y, auto &m) {
                 if (m == uint256_t{0}) {
                     return uint256_t{0};
@@ -155,7 +141,7 @@ namespace
                 return intx::addmod(x, y, m);
             });
             break;
-        case MULMOD:
+        case MulMod:
             eval_ternary_instruction(tok, stack, [](auto &x, auto &y, auto &m) {
                 if (m == uint256_t{0}) {
                     return uint256_t{0};
@@ -163,77 +149,86 @@ namespace
                 return intx::mulmod(x, y, m);
             });
             break;
-        case EXP:
+        case Exp:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return intx::exp(x, y); });
             break;
-        case SIGNEXTEND:
+        case SignExtend:
             eval_binary_instruction(tok, stack, signextend);
             break;
-        case LT:
+        case Lt:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return uint256_t{x < y}; });
             break;
-        case GT:
+        case Gt:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return uint256_t{x > y}; });
             break;
-        case SLT:
+        case SLt:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 return uint256_t{intx::slt(x, y)};
             });
             break;
-        case SGT:
+        case SGt:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
                 return uint256_t{intx::slt(y, x)};
             });
             break;
-        case EQ:
+        case Eq:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return uint256_t{x == y}; });
             break;
-        case ISZERO:
+        case IsZero:
             eval_unary_instruction(tok, stack, [](auto &x) {
                 return uint256_t{x == uint256_t{0}};
             });
             break;
-        case AND:
+        case And:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x & y; });
             break;
-        case OR:
+        case Or:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x | y; });
             break;
-        case XOR:
+        case XOr:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return x ^ y; });
             break;
-        case NOT:
+        case Not:
             eval_unary_instruction(tok, stack, [](auto &x) { return ~x; });
             break;
-        case BYTE:
+        case Byte:
             eval_binary_instruction(tok, stack, byte);
             break;
-        case SHL:
+        case Shl:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return y << x; });
             break;
-        case SHR:
+        case Shr:
             eval_binary_instruction(
                 tok, stack, [](auto &x, auto &y) { return y >> x; });
             break;
-        case SAR:
+        case Sar:
             eval_binary_instruction(tok, stack, sar);
             break;
-        case CODESIZE:
+        case CodeSize:
             stack.emplace_front(ValueIs::LITERAL, uint256_t{codesize});
             break;
-        case POP:
+        case Pop:
             stack.pop_front();
             break;
-        case PC:
+        case Pc:
             stack.emplace_front(ValueIs::LITERAL, tok.pc());
+            break;
+        case Push:
+            stack.emplace_front(ValueIs::LITERAL, tok.immediate_value());
+            break;
+        case Dup:
+            stack.push_front(stack[tok.index() - 1]);
+            break;
+        case Swap:
+            std::swap(stack[0], stack[tok.index()]);
             break;
         default:
             eval_instruction_fallback(tok, stack);

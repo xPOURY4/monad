@@ -8,7 +8,6 @@
 #include <compiler/ir/poly_typed/kind.h>
 #include <compiler/ir/poly_typed/strongly_connected_components.h>
 #include <compiler/ir/poly_typed/unify.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <algorithm>
@@ -110,19 +109,18 @@ namespace
     void infer_instruction(
         InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
-        if (ins.opcode() == POP) {
+        using enum OpCode;
+
+        switch (ins.opcode()) {
+        case Pop:
             return infer_instruction_pop(stack);
-        }
-
-        if (ins.is_swap()) {
+        case Swap:
             return infer_instruction_swap(ins, stack);
-        }
-
-        if (ins.is_dup()) {
+        case Dup:
             return infer_instruction_dup(ins, stack);
+        default:
+            return infer_instruction_default(state, ins, stack);
         }
-
-        return infer_instruction_default(state, ins, stack);
     }
 
     void push_literal_output(

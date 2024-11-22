@@ -658,6 +658,26 @@ namespace monad::compiler
     }
 
     /**
+     * Returns `true` if `opcode` is an invalid opcode at this revision.
+     */
+    template <evmc_revision Rev>
+    constexpr bool is_unknown_opcode(uint8_t const opcode)
+    {
+        return opcode_table<Rev>()[opcode] == unknown_opcode_info;
+    }
+
+    /**
+     * Returns `true` if `opcode` causes non-linear control flow when executed.
+     */
+    template <evmc_revision Rev>
+    constexpr bool is_control_flow_opcode(uint8_t const opcode)
+    {
+        return opcode == STOP || opcode == JUMP || opcode == JUMPI ||
+               opcode == RETURN || opcode == REVERT || opcode == SELFDESTRUCT ||
+               is_unknown_opcode<Rev>(opcode);
+    }
+
+    /**
      * Opcode must be the opcode of some DUPN instruction.
      * Returns `N`.
      */

@@ -4,7 +4,6 @@
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"
 #include "compiler/ir/poly_typed/kind.h"
-#include "compiler/opcodes.h"
 #include "compiler/types.h"
 
 #include <algorithm>
@@ -359,19 +358,18 @@ namespace
 
     void check_instruction(Instruction const &ins, std::vector<Kind> &stack)
     {
-        if (ins.opcode() == POP) {
+        using enum OpCode;
+
+        switch (ins.opcode()) {
+        case Pop:
             return check_instruction_pop(stack);
-        }
-
-        if (ins.is_swap()) {
+        case Swap:
             return check_instruction_swap(ins.index(), stack);
-        }
-
-        if (ins.is_dup()) {
+        case Dup:
             return check_instruction_dup(ins.index(), stack);
+        default:
+            return check_instruction_default(ins, stack);
         }
-
-        return check_instruction_default(ins, stack);
     }
 
     std::vector<Kind> check_instructions(Block const &block)

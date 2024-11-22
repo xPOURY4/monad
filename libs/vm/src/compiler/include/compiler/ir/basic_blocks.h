@@ -38,6 +38,38 @@ namespace monad::compiler::basic_blocks
         InvalidInstruction,
     };
 
+    struct JumpDest
+    {
+        std::uint32_t pc;
+    };
+
+    template <evmc_revision Rev>
+    constexpr Terminator evm_op_to_terminator(std::uint8_t evm_op)
+    {
+        using enum Terminator;
+
+        if (is_unknown_opcode<Rev>(evm_op)) {
+            return InvalidInstruction;
+        }
+
+        switch (evm_op) {
+        case JUMPI:
+            return JumpI;
+        case JUMP:
+            return Jump;
+        case RETURN:
+            return Return;
+        case STOP:
+            return Stop;
+        case REVERT:
+            return Revert;
+        case SELFDESTRUCT:
+            return SelfDestruct;
+        default:
+            MONAD_COMPILER_ASSERT(false);
+        }
+    }
+
     /**
      * Return true if this terminator can implicitly fall through to the next
      * block in sequence.
@@ -185,7 +217,7 @@ namespace monad::compiler::basic_blocks
         bool is_valid() const;
 
     private:
-        static Instruction scan_from(
+        static std::variant<Instruction, Terminator, JumpDest> scan_from(
             std::span<std::uint8_t const> bytes, std::uint32_t &current_offset);
 
         std::vector<Block> blocks_;
@@ -228,23 +260,30 @@ namespace monad::compiler::basic_blocks
     };
 
     template <evmc_revision Rev>
-    Instruction BasicBlocksIR<Rev>::scan_from(
+    std::variant<Instruction, Terminator, JumpDest>
+    BasicBlocksIR<Rev>::scan_from(
         std::span<std::uint8_t const> bytes, std::uint32_t &current_offset)
     {
         auto opcode = bytes[current_offset];
-        auto info = opcode_table<Rev>()[opcode];
-
-        auto imm_size = info.num_args;
         auto opcode_offset = current_offset;
 
+        auto info = opcode_table<Rev>()[opcode];
         current_offset++;
 
-        if (info == unknown_opcode_info) {
-            return Instruction::invalid(opcode_offset, opcode);
+        if (is_control_flow_opcode<Rev>(opcode)) {
+            return evm_op_to_terminator<Rev>(opcode);
         }
 
+        if (opcode == JUMPDEST) {
+            return JumpDest{opcode_offset};
+        }
+
+        MONAD_COMPILER_ASSERT(info != unknown_opcode_info);
+
+        auto imm_size = info.num_args;
         auto imm_value = utils::from_bytes(
             imm_size, bytes.size() - current_offset, &bytes[current_offset]);
+
         current_offset += imm_size;
 
         return Instruction(opcode_offset, opcode, imm_value, info);
@@ -270,84 +309,65 @@ namespace monad::compiler::basic_blocks
         while (current_offset < bytes.size()) {
             auto inst = scan_from(bytes, current_offset);
 
-            if (first && inst.opcode() == JUMPDEST) {
+            if (first && std::holds_alternative<JumpDest>(inst)) {
                 add_jump_dest();
                 first = false;
                 continue;
             }
 
             if (st == St::OUTSIDE_BLOCK) {
-                if (inst.opcode() == JUMPDEST) {
-                    add_block(inst.pc());
+                if (std::holds_alternative<JumpDest>(inst)) {
+                    add_block(std::get<JumpDest>(inst).pc);
                     st = St::INSIDE_BLOCK;
                     add_jump_dest();
                 }
             }
             else {
                 MONAD_COMPILER_ASSERT(st == St::INSIDE_BLOCK);
-                switch (inst.opcode()) {
-                case JUMPDEST:
-                    add_fallthrough_terminator(Terminator::FallThrough);
-                    add_block(inst.pc());
-                    add_jump_dest();
-                    break;
 
-                case JUMPI:
-                    add_fallthrough_terminator(Terminator::JumpI);
-                    add_block(inst.pc() + 1);
-                    // a corner case where we fall through JUMPI
-                    // into a block starting with JUMPDEST, in which case we
-                    // don't want to immediately FallThrough again, but
-                    // instead just advance tok and mark the block as being
-                    // a jumpdest
-                    if (current_offset < bytes.size()) {
-                        auto next_offset = current_offset;
-                        if (scan_from(bytes, next_offset).opcode() ==
-                            JUMPDEST) {
-                            current_offset += 1;
-                            add_jump_dest();
+                auto handle_terminator = [&](Terminator t) {
+                    using enum Terminator;
+                    MONAD_COMPILER_ASSERT(t != FallThrough);
+
+                    if (t == JumpI) {
+                        add_fallthrough_terminator(JumpI);
+                        add_block(current_offset);
+                        // a corner case where we fall through JUMPI
+                        // into a block starting with JUMPDEST, in which
+                        // case we don't want to immediately FallThrough
+                        // again, but instead just advance tok and mark
+                        // the block as being a jumpdest
+                        if (current_offset < bytes.size()) {
+                            auto next_offset = current_offset;
+                            auto next_inst = scan_from(bytes, next_offset);
+                            if (std::holds_alternative<JumpDest>(next_inst)) {
+                                current_offset += 1;
+                                add_jump_dest();
+                            }
                         }
+                        return;
                     }
-                    break;
 
-                case JUMP:
-                    add_terminator(Terminator::Jump);
+                    add_terminator(t);
                     st = St::OUTSIDE_BLOCK;
-                    break;
+                };
 
-                case RETURN:
-                    add_terminator(Terminator::Return);
-                    st = St::OUTSIDE_BLOCK;
-                    break;
+                std::visit(
+                    Cases{
+                        handle_terminator,
 
-                case STOP:
-                    add_terminator(Terminator::Stop);
-                    st = St::OUTSIDE_BLOCK;
-                    break;
+                        [&](Instruction i) {
+                            blocks_.back().instrs.push_back(i);
+                        },
 
-                case REVERT:
-                    add_terminator(Terminator::Revert);
-                    st = St::OUTSIDE_BLOCK;
-                    break;
-
-                case SELFDESTRUCT:
-                    add_terminator(Terminator::SelfDestruct);
-                    st = St::OUTSIDE_BLOCK;
-                    break;
-
-                default:
-                    // invalid or instruction opcode
-                    if (inst.is_valid()) {
-                        blocks_.back().instrs.push_back(inst);
-                    }
-                    else {
-                        add_terminator(Terminator::InvalidInstruction);
-                        st = St::OUTSIDE_BLOCK;
-                    }
-                    break;
-                }
+                        [&](JumpDest jd) {
+                            add_fallthrough_terminator(Terminator::FallThrough);
+                            add_block(jd.pc);
+                            add_jump_dest();
+                        },
+                    },
+                    inst);
             }
-
             first = false;
         }
     }

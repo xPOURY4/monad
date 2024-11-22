@@ -17,10 +17,13 @@
 using namespace monad::compiler;
 using namespace intx;
 
-template <typename... Args, evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
-Instruction i(std::uint32_t pc, Args &&...args)
+template <
+    typename Op, typename... Args,
+    evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+Instruction i(std::uint32_t pc, Op opcode, Args &&...args)
 {
-    return Instruction::lookup<Rev>(pc, std::forward<Args>(args)...);
+    auto info = opcode_table<Rev>()[std::to_underlying(opcode)];
+    return Instruction(pc, opcode, std::forward<Args>(args)..., info);
 }
 
 void blocks_eq(
