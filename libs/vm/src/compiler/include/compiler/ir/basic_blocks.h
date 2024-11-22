@@ -142,14 +142,15 @@ namespace monad::compiler::basic_blocks
      * constructed that maps byte offsets in the original program onto these
      * block identifiers.
      */
-    template <evmc_revision Rev>
+    template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
     class BasicBlocksIR
     {
     public:
         /**
          * Construct basic blocks from a bytecode program.
          */
-        BasicBlocksIR(Bytecode<Rev> const &byte_code);
+        BasicBlocksIR(std::span<std::uint8_t const>);
+        BasicBlocksIR(std::initializer_list<std::uint8_t>);
 
         /**
          * The basic blocks in the program.
@@ -183,6 +184,8 @@ namespace monad::compiler::basic_blocks
         bool is_valid() const;
 
     private:
+        BasicBlocksIR(Bytecode<Rev> const &byte_code);
+
         std::vector<Block> blocks_;
         std::unordered_map<byte_offset, block_id> jump_dests_;
 
@@ -314,6 +317,18 @@ namespace monad::compiler::basic_blocks
                 }
             }
         }
+    }
+
+    template <evmc_revision Rev>
+    BasicBlocksIR<Rev>::BasicBlocksIR(std::span<std::uint8_t const> bytes)
+        : BasicBlocksIR(Bytecode(bytes))
+    {
+    }
+
+    template <evmc_revision Rev>
+    BasicBlocksIR<Rev>::BasicBlocksIR(std::initializer_list<std::uint8_t> bytes)
+        : BasicBlocksIR(Bytecode(bytes))
+    {
     }
 
     /*

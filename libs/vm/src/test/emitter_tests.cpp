@@ -201,7 +201,7 @@ namespace
 
         std::vector<uint8_t> bytecode1{PUSH0, PUSH0, opcode, PUSH0, RETURN};
         auto ir1 = local_stacks::LocalStacksIR(
-            basic_blocks::BasicBlocksIR(Bytecode(std::move(bytecode1))));
+            basic_blocks::BasicBlocksIR(std::move(bytecode1)));
         for (auto left_loc : locs) {
             for (auto right_loc : locs) {
                 pure_bin_instr_test_instance(
@@ -228,7 +228,7 @@ namespace
             opcode,
             RETURN};
         auto ir2 = local_stacks::LocalStacksIR(
-            basic_blocks::BasicBlocksIR(Bytecode(std::move(bytecode2))));
+            basic_blocks::BasicBlocksIR(std::move(bytecode2)));
         for (auto left_loc : locs) {
             for (auto right_loc : locs) {
                 pure_bin_instr_test_instance(
@@ -353,7 +353,7 @@ TEST(Emitter, gas_decrement_check_non_negative_3)
 TEST(Emitter, return_)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, PUSH1, 2})));
+        basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
@@ -379,7 +379,7 @@ TEST(Emitter, return_)
 TEST(Emitter, revert)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, PUSH1, 2})));
+        basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
@@ -404,7 +404,7 @@ TEST(Emitter, revert)
 TEST(Emitter, mov_stack_index_to_avx_reg)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, PUSH1, 2})));
+        basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
@@ -465,7 +465,7 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
 TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, PUSH1, 2})));
+        basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
@@ -530,7 +530,7 @@ TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
 TEST(Emitter, mov_stack_index_to_stack_offset)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1, PUSH1, 2})));
+        basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
@@ -596,8 +596,8 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
 
 TEST(Emitter, discharge_deferred_comparison)
 {
-    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
-        {PUSH0, PUSH0, LT, DUP1, DUP1, PUSH0, SWAP1, POP, LT, RETURN})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        {PUSH0, PUSH0, LT, DUP1, DUP1, PUSH0, SWAP1, POP, LT, RETURN}));
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};

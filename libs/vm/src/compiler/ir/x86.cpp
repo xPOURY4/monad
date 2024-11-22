@@ -384,8 +384,7 @@ namespace
     compile_contract(asmjit::JitRuntime &rt, std::span<uint8_t const> contract)
     {
         // TODO - Need to change opcode table to depend on revision.
-        auto ir =
-            LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(contract)));
+        auto ir = LocalStacksIR(basic_blocks::BasicBlocksIR(contract));
         return compile_local_stacks<rev>(rt, ir);
     }
 }

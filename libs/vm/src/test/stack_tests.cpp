@@ -65,8 +65,7 @@ namespace
 
 TEST(VirtualStack, ctor_test_1)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({ADD})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({ADD}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -2);
@@ -81,7 +80,7 @@ TEST(VirtualStack, ctor_test_1)
 TEST(VirtualStack, ctor_test_2)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({ADD, SSTORE, JUMP})));
+        basic_blocks::BasicBlocksIR({ADD, SSTORE, JUMP}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -4);
@@ -98,7 +97,7 @@ TEST(VirtualStack, ctor_test_2)
 TEST(VirtualStack, ctor_test_3)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        Bytecode({PUSH0, PUSH1, 0, ADD, PUSH2, 0, 0, JUMPI})));
+        {PUSH0, PUSH1, 0, ADD, PUSH2, 0, 0, JUMPI}));
     Stack const stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), 0);
@@ -108,8 +107,7 @@ TEST(VirtualStack, ctor_test_3)
 
 TEST(VirtualStack, ctor_test_4)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({SWAP1})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({SWAP1}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -2);
@@ -123,8 +121,8 @@ TEST(VirtualStack, ctor_test_4)
 
 TEST(VirtualStack, ctor_test_5)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({SWAP16})));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({SWAP16}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -17);
@@ -138,8 +136,7 @@ TEST(VirtualStack, ctor_test_5)
 
 TEST(VirtualStack, ctor_test_6)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({DUP1})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({DUP1}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -1);
@@ -151,8 +148,7 @@ TEST(VirtualStack, ctor_test_6)
 
 TEST(VirtualStack, ctor_test_7)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({DUP16})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({DUP16}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -16);
@@ -166,8 +162,8 @@ TEST(VirtualStack, ctor_test_7)
 
 TEST(VirtualStack, ctor_test_8)
 {
-    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(Bytecode(
-        {PUSH0, ADD, ISZERO, DUP1, SWAP2, SWAP1, PUSH0, PUSH0, REVERT})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        {PUSH0, ADD, ISZERO, DUP1, SWAP2, SWAP1, PUSH0, PUSH0, REVERT}));
     Stack stack{ir.blocks[0]};
     ASSERT_EQ(stack.top_index(), -1);
     ASSERT_EQ(stack.min_delta(), -2);
@@ -181,8 +177,8 @@ TEST(VirtualStack, ctor_test_8)
 
 TEST(VirtualStack, push_test)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH1, 1})));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({PUSH1, 1}));
     Stack stack{ir.blocks[0]};
     stack.push_literal(1);
     ASSERT_EQ(stack.top_index(), 0);
@@ -195,8 +191,7 @@ TEST(VirtualStack, push_test)
 
 TEST(VirtualStack, pop_test)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({NOT})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({NOT}));
     Stack stack{ir.blocks[0]};
     auto e = stack.pop();
     ASSERT_EQ(stack.top_index(), -2);
@@ -209,8 +204,7 @@ TEST(VirtualStack, pop_test)
 
 TEST(VirtualStack, swap_test)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({SWAP2})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({SWAP2}));
     Stack stack{ir.blocks[0]};
     stack.swap(-3);
     ASSERT_EQ(stack.top_index(), -1);
@@ -227,8 +221,7 @@ TEST(VirtualStack, swap_test)
 
 TEST(VirtualStack, dup_test)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({DUP2})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({DUP2}));
     Stack stack{ir.blocks[0]};
     stack.dup(-2);
     ASSERT_EQ(stack.top_index(), 0);
@@ -246,7 +239,7 @@ TEST(VirtualStack, dup_test)
 TEST(VirtualStack, push_pop_dup_swap_test_1)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH0, DUP2, DUP2, POP, SWAP1})));
+        basic_blocks::BasicBlocksIR({PUSH0, DUP2, DUP2, POP, SWAP1}));
     Stack stack{ir.blocks[0]};
     stack.push_literal(0);
     stack.dup(-1);
@@ -269,8 +262,7 @@ TEST(VirtualStack, push_pop_dup_swap_test_1)
 
 TEST(VirtualStack, insert_stack_offset_test_1)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH0})));
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({PUSH0}));
     Stack stack{ir.blocks[0]};
     stack.push_literal(0);
     stack.insert_stack_offset(stack.get(0));
@@ -282,7 +274,7 @@ TEST(VirtualStack, insert_stack_offset_test_1)
 TEST(VirtualStack, insert_stack_offset_test_2)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH0, PUSH0, PUSH0})));
+        basic_blocks::BasicBlocksIR({PUSH0, PUSH0, PUSH0}));
     Stack stack{ir.blocks[0]};
     stack.push_literal(0);
     stack.push_literal(0);
@@ -304,7 +296,7 @@ TEST(VirtualStack, insert_stack_offset_test_2)
 TEST(VirtualStack, insert_stack_offset_test_3)
 {
     auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({PUSH0, PUSH0, PUSH0})));
+        basic_blocks::BasicBlocksIR({PUSH0, PUSH0, PUSH0}));
     Stack stack{ir.blocks[0]};
     stack.push_literal(0);
     stack.push_literal(0);
@@ -325,8 +317,8 @@ TEST(VirtualStack, insert_stack_offset_test_3)
 
 TEST(VirtualStack, alloc_stack_offset_test_1)
 {
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode({POP, POP})));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR({POP, POP}));
     Stack stack{ir.blocks[0]};
     stack.pop();
     stack.pop();
@@ -347,7 +339,7 @@ TEST(VirtualStack, alloc_stack_offset_test_1)
 TEST(VirtualStack, insert_avx_reg_test_1)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        Bytecode(std::vector<uint8_t>(AVX_REG_COUNT + 1, POP))));
+        std::vector<uint8_t>(AVX_REG_COUNT + 1, POP)));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         stack.insert_avx_reg(stack.get(-i - 1));
@@ -368,7 +360,7 @@ TEST(VirtualStack, insert_avx_reg_test_1)
 TEST(VirtualStack, insert_general_reg_test_1)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
-        Bytecode(std::vector<uint8_t>(GENERAL_REG_COUNT + 1, POP))));
+        std::vector<uint8_t>(GENERAL_REG_COUNT + 1, POP)));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         stack.insert_general_reg(stack.get(-i - 1));
@@ -395,8 +387,8 @@ TEST(VirtualStack, insert_avx_reg_test_2)
     for (std::uint8_t i = 0; i <= AVX_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i <= AVX_REG_COUNT; ++i) {
         stack.pop();
@@ -431,8 +423,8 @@ TEST(VirtualStack, insert_general_reg_test_2)
     for (std::uint8_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
         stack.pop();
@@ -465,8 +457,8 @@ TEST(VirtualStack, insert_avx_reg_test_3)
     for (std::uint8_t i = 0; i < AVX_REG_COUNT + 3; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     std::vector<AvxRegReserv> reservs;
     for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
@@ -507,8 +499,8 @@ TEST(VirtualStack, insert_general_reg_test_3)
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT + 3; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     std::vector<GeneralRegReserv> reservs;
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
@@ -552,8 +544,8 @@ TEST(VirtualStack, spill_all_avx_regs_test_1)
     for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
         auto p = stack.alloc_avx_reg();
@@ -574,8 +566,8 @@ TEST(VirtualStack, spill_all_caller_save_general_regs_test_1)
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
         auto p = stack.alloc_general_reg();
@@ -596,8 +588,8 @@ TEST(VirtualStack, spill_all_avx_regs_test_2)
     for (std::uint8_t i = 0; i < AVX_REG_COUNT - 1; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < AVX_REG_COUNT - 1; ++i) {
         auto p = stack.alloc_avx_reg();
@@ -618,8 +610,8 @@ TEST(VirtualStack, spill_all_caller_save_general_regs_test_2)
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 1; ++i) {
         bytecode.push_back(PUSH0);
     }
-    auto ir = local_stacks::LocalStacksIR(
-        basic_blocks::BasicBlocksIR(Bytecode(bytecode)));
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT - 1; ++i) {
         auto p = stack.alloc_general_reg();

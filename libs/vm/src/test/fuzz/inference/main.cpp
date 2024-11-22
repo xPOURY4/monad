@@ -39,10 +39,9 @@ int main(int argc, char **argv)
         int len = __AFL_FUZZ_TESTCASE_LEN;
         auto program = std::vector(buf, buf + len);
 #endif
-    auto bytecode = monad::compiler::Bytecode(program);
     auto ir = monad::compiler::poly_typed::PolyTypedIR(
         monad::compiler::local_stacks::LocalStacksIR(
-            monad::compiler::basic_blocks::BasicBlocksIR(bytecode)));
+            monad::compiler::basic_blocks::BasicBlocksIR(program)));
     ir.type_check_or_throw();
 #ifndef AFL_PERSISTENT_REPLAY_ARGPARSE
 }
