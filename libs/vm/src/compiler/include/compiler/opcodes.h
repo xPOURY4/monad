@@ -473,7 +473,7 @@ namespace monad::compiler
      * Mnemonic mapping of human-readable opcode names to their underlying byte
      * values.
      */
-    enum OpCode : uint8_t
+    enum EvmOpCode : uint8_t
     {
         STOP = 0x00,
         ADD = 0x01,

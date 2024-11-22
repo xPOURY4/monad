@@ -189,7 +189,7 @@ namespace
     }
 
     void pure_bin_instr_test(
-        OpCode opcode, PureBinEmitterInstr instr, uint256_t const &left,
+        EvmOpCode opcode, PureBinEmitterInstr instr, uint256_t const &left,
         uint256_t const &right, uint256_t const &result)
     {
         std::vector<Emitter::LocationType> const locs = {
