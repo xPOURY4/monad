@@ -45,7 +45,7 @@ namespace monad::compiler::native
             std::variant<Gpq256, Imm256, asmjit::x86::Ymm, asmjit::x86::Mem>;
 
         template <typename L, typename R>
-        using BinInstr = std::array<
+        using GeneralBinInstr = std::array<
             asmjit::Error (asmjit::x86::Assembler::*)(L const &, R const &), 4>;
 
         ////////// Initialization and de-initialization //////////
@@ -66,7 +66,7 @@ namespace monad::compiler::native
         void gas_decrement_no_check(int64_t);
         void gas_decrement_check_non_negative(int64_t);
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
-        void discharge_deferred_comparison();
+        void discharge_deferred_comparison(); // Leaves eflags unchanged
 
         ////////// Move functionality //////////
 
@@ -80,12 +80,17 @@ namespace monad::compiler::native
         void pop();
         void dup(uint8_t dup_index);
         void swap(uint8_t swap_index);
+
         void lt();
         void gt();
         void slt();
         void sgt();
         void sub();
         void add();
+
+        void iszero();
+        void not_();
+
         void stop();
         void return_();
         void revert();
@@ -98,7 +103,9 @@ namespace monad::compiler::native
         void contract_prologue();
         void contract_epilogue();
 
-        ////////// Private Core emit functionality //////////
+        ////////// Private core emit functionality //////////
+
+        void discharge_deferred_comparison(StackElem *, Comparison);
 
         asmjit::Label const &append_literal(Literal);
 
@@ -170,12 +177,15 @@ namespace monad::compiler::native
         Operand get_operand(StackElemRef, LocationType);
 
         template <
-            BinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,
-            BinInstr<asmjit::x86::Gp, asmjit::x86::Mem> GM,
-            BinInstr<asmjit::x86::Gp, asmjit::Imm> GI,
-            BinInstr<asmjit::x86::Mem, asmjit::x86::Gp> MG,
-            BinInstr<asmjit::x86::Mem, asmjit::Imm> MI>
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Mem> GM,
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::Imm> GI,
+            GeneralBinInstr<asmjit::x86::Mem, asmjit::x86::Gp> MG,
+            GeneralBinInstr<asmjit::x86::Mem, asmjit::Imm> MI>
         void general_bin_instr(Operand const &dst_op, Operand const &src_op);
+
+        std::tuple<StackElemRef, StackElemRef, LocationType> get_una_arguments(
+            StackElemRef dst, std::optional<int32_t> dst_stack_index);
 
         ////////// Fields //////////
 

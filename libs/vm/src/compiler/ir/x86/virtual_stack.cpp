@@ -63,6 +63,47 @@ namespace monad::compiler::native
                    : *stack_indices_.begin();
     }
 
+    void StackElem::deferred_comparison(Comparison c)
+    {
+        MONAD_COMPILER_ASSERT(
+            stack_.deferred_comparison_.stack_elem == nullptr);
+        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        stack_.deferred_comparison_.stack_elem = this;
+        stack_.deferred_comparison_.comparison = c;
+    }
+
+    void StackElem::deferred_comparison()
+    {
+        MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.stack_elem);
+        MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.negated_stack_elem);
+        assert(stack_.deferred_comparison_.negated_stack_elem != this);
+        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        stack_.deferred_comparison_.stack_elem = this;
+    }
+
+    void StackElem::negated_deferred_comparison()
+    {
+        MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.negated_stack_elem);
+        MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.stack_elem);
+        assert(stack_.deferred_comparison_.stack_elem != this);
+        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        stack_.deferred_comparison_.negated_stack_elem = this;
+    }
+
+    void StackElem::discharge_deferred_comparison()
+    {
+        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        assert(stack_.deferred_comparison_.stack_elem == this);
+        stack_.deferred_comparison_.stack_elem = nullptr;
+    }
+
+    void StackElem::discharge_negated_deferred_comparison()
+    {
+        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        assert(stack_.deferred_comparison_.negated_stack_elem == this);
+        stack_.deferred_comparison_.negated_stack_elem = nullptr;
+    }
+
     void StackElem::insert_literal(Literal x)
     {
         MONAD_COMPILER_ASSERT(!literal_.has_value());
@@ -158,6 +199,12 @@ namespace monad::compiler::native
         if (general_reg_.has_value()) {
             free_general_reg();
         }
+        if (stack_.deferred_comparison_.stack_elem == this) {
+            discharge_deferred_comparison();
+        }
+        if (stack_.deferred_comparison_.negated_stack_elem == this) {
+            discharge_negated_deferred_comparison();
+        }
     }
 
     Stack::Stack()
@@ -245,14 +292,6 @@ namespace monad::compiler::native
         auto rem = e->stack_indices_.erase(top_index_);
         MONAD_COMPILER_ASSERT(rem == 1);
 
-        // If we are removing the last reference to deferred comparison on
-        // the stack, then reset the deferred comparison stack element.
-        if (deferred_comparison_.stack_elem) {
-            if (!deferred_comparison_.stack_elem->is_on_stack()) {
-                deferred_comparison_.stack_elem.reset();
-            }
-        }
-
         // Note that it's valid for stack indices to become negative here.
         top_index_ -= 1;
 
@@ -269,13 +308,46 @@ namespace monad::compiler::native
 
     void Stack::push_deferred_comparison(Comparison c)
     {
-        MONAD_COMPILER_ASSERT(deferred_comparison_.stack_elem == nullptr);
         top_index_ += 1;
         auto e = std::make_shared<StackElem>(this);
         e->stack_indices_.insert(top_index_);
-        deferred_comparison_.stack_elem = e;
-        deferred_comparison_.comparison = c;
+        e->deferred_comparison(c);
         at(top_index_) = std::move(e);
+    }
+
+    bool Stack::negate_top_deferred_comparison()
+    {
+        auto e = get(top_index_);
+        auto &dc = deferred_comparison_;
+        if (dc.stack_elem == e.get()) {
+            pop();
+            if (dc.negated_stack_elem) {
+                auto i = dc.negated_stack_elem->stack_indices_.begin();
+                assert(i != dc.negated_stack_elem->stack_indices_.end());
+                push(at(*i));
+            }
+            else {
+                auto d = std::make_shared<StackElem>(this);
+                d->negated_deferred_comparison();
+                push(std::move(d));
+            }
+            return true;
+        }
+        else if (dc.negated_stack_elem == e.get()) {
+            pop();
+            if (dc.stack_elem) {
+                auto i = dc.stack_elem->stack_indices_.begin();
+                assert(i != dc.stack_elem->stack_indices_.end());
+                push(at(*i));
+            }
+            else {
+                auto d = std::make_shared<StackElem>(this);
+                d->deferred_comparison();
+                push(std::move(d));
+            }
+            return true;
+        }
+        return false;
     }
 
     void Stack::push_literal(uint256_t const &x)
@@ -317,27 +389,36 @@ namespace monad::compiler::native
 
     DeferredComparison Stack::discharge_deferred_comparison()
     {
-        MONAD_COMPILER_ASSERT(deferred_comparison_.stack_elem != nullptr);
         DeferredComparison dc{deferred_comparison_};
-        std::int32_t const preferred = dc.stack_elem->preferred_stack_offset();
-        StackOffset const offset = find_available_stack_offset(preferred);
-        dc.stack_elem->insert_stack_offset(offset);
-        deferred_comparison_.stack_elem.reset();
+        if (dc.stack_elem) {
+            dc.stack_elem->discharge_deferred_comparison();
+            insert_stack_offset(dc.stack_elem);
+        }
+        if (dc.negated_stack_elem) {
+            dc.negated_stack_elem->discharge_negated_deferred_comparison();
+            insert_stack_offset(dc.negated_stack_elem);
+        }
         return dc;
     }
 
     bool Stack::has_deferred_comparison() const
     {
-        return deferred_comparison_.stack_elem != nullptr;
+        return deferred_comparison_.stack_elem != nullptr ||
+               deferred_comparison_.negated_stack_elem != nullptr;
     }
 
     bool Stack::has_deferred_comparison_at(std::int32_t stack_index) const
     {
-        if (!deferred_comparison_.stack_elem) {
-            return false;
+        auto const &dc = deferred_comparison_;
+        if (dc.stack_elem &&
+            dc.stack_elem->stack_indices_.contains(stack_index)) {
+            return true;
         }
-        return deferred_comparison_.stack_elem->stack_indices_.contains(
-            stack_index);
+        if (dc.negated_stack_elem &&
+            dc.negated_stack_elem->stack_indices_.contains(stack_index)) {
+            return true;
+        }
+        return false;
     }
 
     StackOffset Stack::find_available_stack_offset(std::int32_t preferred) const
@@ -495,6 +576,16 @@ namespace monad::compiler::native
 
     void Stack::insert_stack_offset(StackElemRef e, std::int32_t preferred)
     {
+        insert_stack_offset(e.get(), preferred);
+    }
+
+    void Stack::insert_stack_offset(StackElemRef e)
+    {
+        insert_stack_offset(e.get());
+    }
+
+    void Stack::insert_stack_offset(StackElem *e, std::int32_t preferred)
+    {
         if (e->stack_offset_.has_value()) {
             return;
         }
@@ -502,10 +593,10 @@ namespace monad::compiler::native
         e->insert_stack_offset(offset);
     }
 
-    void Stack::insert_stack_offset(StackElemRef e)
+    void Stack::insert_stack_offset(StackElem *e)
     {
         std::int32_t const preferred = e->preferred_stack_offset();
-        return insert_stack_offset(std::move(e), preferred);
+        insert_stack_offset(e, preferred);
     }
 
     std::pair<AvxRegReserv, std::optional<StackOffset>>

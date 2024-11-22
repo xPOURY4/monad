@@ -56,6 +56,62 @@ namespace monad::compiler::native
 
     using StackElemRef = std::shared_ptr<StackElem>;
 
+    enum class Comparison
+    {
+        Below,
+        AboveEqual,
+        Above,
+        BelowEqual,
+        Less,
+        GreaterEqual,
+        Greater,
+        LessEqual,
+        Equal,
+        NotEqual,
+    };
+
+    constexpr Comparison negate_comparison(Comparison c)
+    {
+        using enum Comparison;
+        switch (c) {
+        case Below:
+            return AboveEqual;
+        case AboveEqual:
+            return Below;
+        case Above:
+            return BelowEqual;
+        case BelowEqual:
+            return Above;
+        case Less:
+            return GreaterEqual;
+        case GreaterEqual:
+            return Less;
+        case Greater:
+            return LessEqual;
+        case LessEqual:
+            return Greater;
+        case Equal:
+            return NotEqual;
+        case NotEqual:
+            return Equal;
+        default:
+            std::unreachable();
+        }
+    }
+
+    struct DeferredComparison
+    {
+        DeferredComparison()
+            : stack_elem{}
+            , negated_stack_elem{}
+        {
+        }
+
+        StackElem *stack_elem;
+        StackElem *negated_stack_elem;
+        Comparison comparison;
+    };
+
     /**
      * A stack element. It can store its word value in up to 4 locations at the
      * same time. The 4 locations are: `StackOffset`, `AvxReg`, `GeneralReg`,
@@ -113,6 +169,12 @@ namespace monad::compiler::native
         }
 
     private:
+        void deferred_comparison(Comparison);
+        void deferred_comparison();
+        void negated_deferred_comparison();
+        void discharge_deferred_comparison();
+        void discharge_negated_deferred_comparison();
+
         void insert_literal(Literal);
         void insert_stack_offset(StackOffset);
         void insert_avx_reg();
@@ -255,53 +317,6 @@ namespace monad::compiler::native
     using GeneralRegQueue = std::priority_queue<
         GeneralReg, std::vector<GeneralReg>, std::greater<GeneralReg>>;
 
-    enum class Comparison
-    {
-        Below,
-        AboveEqual,
-        Above,
-        BelowEqual,
-        Less,
-        GreaterEqual,
-        Greater,
-        LessEqual,
-        Equal,
-        NotEqual,
-    };
-
-    constexpr Comparison negate_comparison(Comparison c)
-    {
-        using enum Comparison;
-        switch (c) {
-        case Below:
-            return AboveEqual;
-        case AboveEqual:
-            return Below;
-        case Above:
-            return BelowEqual;
-        case BelowEqual:
-            return Above;
-        case Less:
-            return GreaterEqual;
-        case GreaterEqual:
-            return Less;
-        case Greater:
-            return LessEqual;
-        case LessEqual:
-            return Greater;
-        case Equal:
-            return NotEqual;
-        case NotEqual:
-            return Equal;
-        }
-    }
-
-    struct DeferredComparison
-    {
-        StackElemRef stack_elem;
-        Comparison comparison;
-    };
-
     /**
      * A `Stack` manages a virtual representation of the EVM stack, specialized
      * for the resources available on AVX2 x86 machines.
@@ -357,6 +372,12 @@ namespace monad::compiler::native
         void push_deferred_comparison(Comparison);
 
         /**
+         * If stack top element is deferred comparison, then negate it.
+         * Returns true if the top element was a deferred comparison.
+         */
+        bool negate_top_deferred_comparison();
+
+        /**
          * Push a literal onto the top of the stack, updating book-keeping
          * information.
          */
@@ -376,12 +397,19 @@ namespace monad::compiler::native
 
         /**
          * Clear deferred comparison and insert a stack offset to the
-         * corresponding stack element. Returns the `DeferredComparison`.
+         * corresponding stack elements. Returns the old `DeferredComparison`
+         * containing the stack elements.
+         * WARNING. Be careful about keeping the `DeferredComparison` object
+         * alive, because if it outlives its stack elements, then the stack
+         * element pointers in `DeferredComparison` becomes dangling pointers.
+         * Note that it is always safe if the `DeferredComparison` object never
+         * leaves its scope and no elements are removed from the stack while the
+         * `DeferredComparison` is live.
          */
         DeferredComparison discharge_deferred_comparison();
 
         /**
-         * Whether there is a deferred comparison on the stack.
+         * Whether there is a deferred comparison stack element.
          */
         bool has_deferred_comparison() const;
 
@@ -575,6 +603,17 @@ namespace monad::compiler::native
          */
         StackOffset
         find_available_stack_offset(std::int32_t preferred_offset) const;
+
+        /**
+         * Find a stack offset for the given stack element. The given
+         * `preferred_offset` will be used as offset if it is available.
+         */
+        void insert_stack_offset(StackElem *, std::int32_t preferred_offset);
+
+        /**
+         * Find a stack offset for the given stack element.
+         */
+        void insert_stack_offset(StackElem *);
 
         std::int32_t top_index_;
         std::int32_t min_delta_;

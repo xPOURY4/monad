@@ -624,3 +624,167 @@ TEST(VirtualStack, spill_all_caller_save_general_regs_test_2)
         ASSERT_EQ(ups[i].second.offset, i + 1);
     }
 }
+
+TEST(VirtualStack, deferred_comparison_test_1)
+{
+    std::vector<uint8_t> bytecode = {PUSH0, POP};
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
+    Stack stack{ir.blocks[0]};
+    ASSERT_FALSE(stack.has_deferred_comparison_at(0));
+    stack.push_deferred_comparison(Comparison::Below);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    auto dc = stack.discharge_deferred_comparison();
+    ASSERT_EQ(dc.stack_elem, stack.get(0).get());
+    ASSERT_EQ(dc.negated_stack_elem, nullptr);
+    ASSERT_EQ(dc.comparison, Comparison::Below);
+}
+
+TEST(VirtualStack, deferred_comparison_test_2)
+{
+    std::vector<uint8_t> bytecode = {PUSH0, PUSH0, POP, POP};
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
+    Stack stack{ir.blocks[0]};
+
+    ASSERT_FALSE(stack.has_deferred_comparison_at(0));
+
+    stack.push_deferred_comparison(Comparison::BelowEqual);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+
+    stack.push_literal(0);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_FALSE(stack.has_deferred_comparison_at(1));
+
+    ASSERT_FALSE(stack.negate_top_deferred_comparison());
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_FALSE(stack.has_deferred_comparison_at(1));
+
+    stack.pop();
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_FALSE(stack.has_deferred_comparison_at(1));
+
+    ASSERT_TRUE(stack.negate_top_deferred_comparison());
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+
+    auto dc = stack.discharge_deferred_comparison();
+    ASSERT_EQ(dc.stack_elem, nullptr);
+    ASSERT_EQ(dc.negated_stack_elem, stack.get(0).get());
+    ASSERT_EQ(dc.comparison, Comparison::BelowEqual);
+}
+
+TEST(VirtualStack, deferred_comparison_test_3)
+{
+    std::vector<uint8_t> bytecode = {
+        PUSH0, DUP1, PUSH0, DUP2, POP, POP, POP, POP};
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
+    Stack stack{ir.blocks[0]};
+
+    ASSERT_FALSE(stack.has_deferred_comparison_at(0));
+
+    stack.push_deferred_comparison(Comparison::Greater);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+
+    stack.dup(0);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1));
+
+    stack.push_literal(0);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1));
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2));
+
+    stack.dup(1);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0));
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1));
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2));
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3));
+
+    auto dc = stack.discharge_deferred_comparison();
+    ASSERT_EQ(dc.stack_elem, stack.get(0).get());
+    ASSERT_EQ(dc.stack_elem, stack.get(1).get());
+    ASSERT_NE(dc.stack_elem, stack.get(2).get());
+    ASSERT_EQ(dc.stack_elem, stack.get(3).get());
+    ASSERT_EQ(dc.negated_stack_elem, nullptr);
+    ASSERT_EQ(dc.comparison, Comparison::Greater);
+}
+
+TEST(VirtualStack, deferred_comparison_test_4)
+{
+    std::vector<uint8_t> bytecode = {
+        PUSH0, DUP1, PUSH0, DUP2, DUP1, SWAP3, SWAP1};
+    auto ir =
+        local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(bytecode));
+    Stack stack{ir.blocks[0]};
+
+    ASSERT_FALSE(stack.has_deferred_comparison_at(0));
+
+    stack.push_deferred_comparison(Comparison::Greater);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+
+    stack.dup(0);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // GT
+
+    stack.push_literal(0);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // GT
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+
+    stack.dup(1);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // GT
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // GT
+
+    ASSERT_TRUE(stack.negate_top_deferred_comparison());
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // GT
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+
+    stack.dup(3);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // GT
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+    ASSERT_TRUE(stack.has_deferred_comparison_at(4)); // LE
+
+    stack.swap(1);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // LE
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+    ASSERT_TRUE(stack.has_deferred_comparison_at(4)); // GT
+
+    ASSERT_TRUE(stack.negate_top_deferred_comparison());
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // LE
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+    ASSERT_TRUE(stack.has_deferred_comparison_at(4)); // LE
+
+    stack.swap(3);
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // LE
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+    ASSERT_TRUE(stack.has_deferred_comparison_at(4)); // LE
+
+    ASSERT_TRUE(stack.negate_top_deferred_comparison());
+    ASSERT_TRUE(stack.has_deferred_comparison_at(0)); // GT
+    ASSERT_TRUE(stack.has_deferred_comparison_at(1)); // LE
+    ASSERT_FALSE(stack.has_deferred_comparison_at(2)); // 0
+    ASSERT_TRUE(stack.has_deferred_comparison_at(3)); // LE
+    ASSERT_TRUE(stack.has_deferred_comparison_at(4)); // GT
+
+    auto dc = stack.discharge_deferred_comparison();
+    ASSERT_EQ(dc.stack_elem, stack.get(0).get());
+    ASSERT_EQ(dc.negated_stack_elem, stack.get(1).get());
+    ASSERT_NE(dc.stack_elem, stack.get(2).get());
+    ASSERT_NE(dc.negated_stack_elem, stack.get(2).get());
+    ASSERT_EQ(dc.negated_stack_elem, stack.get(3).get());
+    ASSERT_EQ(dc.stack_elem, stack.get(4).get());
+    ASSERT_EQ(dc.comparison, Comparison::Greater);
+}

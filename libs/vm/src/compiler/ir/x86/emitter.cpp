@@ -311,12 +311,26 @@ namespace monad::compiler::native
             return;
         }
         auto dc = stack_->discharge_deferred_comparison();
+        if (dc.stack_elem) {
+            discharge_deferred_comparison(dc.stack_elem, dc.comparison);
+        }
+        if (dc.negated_stack_elem) {
+            auto comp = negate_comparison(dc.comparison);
+            discharge_deferred_comparison(dc.negated_stack_elem, comp);
+        }
+    }
+
+    ////////// Private core emit functionality //////////
+
+    void
+    Emitter::discharge_deferred_comparison(StackElem *elem, Comparison comp)
+    {
         auto [temp_reg, reserv] = alloc_avx_reg();
         auto y = avx_reg_to_ymm(temp_reg->avx_reg().value());
-        auto m = stack_offset_to_mem(dc.stack_elem->stack_offset().value());
+        auto m = stack_offset_to_mem(elem->stack_offset().value());
         as_.vpxor(y, y, y);
         as_.vmovaps(m, y);
-        switch (dc.comparison) {
+        switch (comp) {
         case Comparison::Below:
             as_.setb(m);
             break;
@@ -349,8 +363,6 @@ namespace monad::compiler::native
             break;
         }
     }
-
-    ////////// Private core emit functionality //////////
 
     asmjit::Label const &Emitter::append_literal(Literal lit)
     {
@@ -788,6 +800,65 @@ namespace monad::compiler::native
         stack_->push(std::move(dst));
     }
 
+    // Discharge, except when top element is deferred comparison
+    void Emitter::iszero()
+    {
+        if (stack_->negate_top_deferred_comparison()) {
+            return;
+        }
+        auto elem = stack_->pop();
+        if (elem->literal()) {
+            push(elem->literal().value().value == 0);
+            return;
+        }
+        discharge_deferred_comparison();
+        auto [left, right, loc] = get_una_arguments(elem, std::nullopt);
+        assert(left == right);
+        if (loc == LocationType::AvxReg) {
+            x86::Ymm const y = avx_reg_to_ymm(left->avx_reg().value());
+            as_.vptest(y, y);
+        }
+        else {
+            assert(loc == LocationType::GeneralReg);
+            Gpq256 gpq = general_reg_to_gpq256(left->general_reg().value());
+            for (size_t i = 0; i < 3; ++i) {
+                as_.or_(gpq[i + 1], gpq[i]);
+            }
+        }
+        stack_->push_deferred_comparison(Comparison::Equal);
+    }
+
+    // Discharge
+    void Emitter::not_()
+    {
+        auto elem = stack_->pop();
+        if (elem->literal()) {
+            push(~elem->literal().value().value);
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        auto [left, right, loc] =
+            get_una_arguments(elem, stack_->top_index() + 1);
+        if (loc == LocationType::AvxReg) {
+            x86::Ymm const y_left = avx_reg_to_ymm(left->avx_reg().value());
+            x86::Ymm const y_right = avx_reg_to_ymm(right->avx_reg().value());
+            auto lbl =
+                append_literal(Literal{std::numeric_limits<uint256_t>::max()});
+            as_.vpxor(y_left, y_right, x86::ptr(lbl));
+        }
+        else {
+            assert(loc == LocationType::GeneralReg);
+            assert(left == right);
+            Gpq256 gpq = general_reg_to_gpq256(left->general_reg().value());
+            for (size_t i = 0; i < 4; ++i) {
+                as_.not_(gpq[i]);
+            }
+        }
+        stack_->push(std::move(left));
+    }
+
     // No discharge
     void Emitter::stop()
     {
@@ -1033,11 +1104,11 @@ namespace monad::compiler::native
     }
 
     template <
-        Emitter::BinInstr<x86::Gp, x86::Gp> GG,
-        Emitter::BinInstr<x86::Gp, x86::Mem> GM,
-        Emitter::BinInstr<x86::Gp, asmjit::Imm> GI,
-        Emitter::BinInstr<x86::Mem, x86::Gp> MG,
-        Emitter::BinInstr<x86::Mem, asmjit::Imm> MI>
+        Emitter::GeneralBinInstr<x86::Gp, x86::Gp> GG,
+        Emitter::GeneralBinInstr<x86::Gp, x86::Mem> GM,
+        Emitter::GeneralBinInstr<x86::Gp, asmjit::Imm> GI,
+        Emitter::GeneralBinInstr<x86::Mem, x86::Gp> MG,
+        Emitter::GeneralBinInstr<x86::Mem, asmjit::Imm> MI>
     void
     Emitter::general_bin_instr(Operand const &dst_op, Operand const &src_op)
     {
@@ -1089,5 +1160,36 @@ namespace monad::compiler::native
                 },
                 src_op);
         }
+    }
+
+    // Note that if dst_ix is null, then it is assumed that the unary avx
+    // instruction will not mutate the destination register.
+    std::tuple<StackElemRef, StackElemRef, Emitter::LocationType>
+    Emitter::get_una_arguments(StackElemRef dst, std::optional<int32_t> dst_ix)
+    {
+        assert(!dst->literal());
+        RegReserv const dst_reserv{dst};
+        if (!dst->avx_reg()) {
+            if (dst->stack_offset()) {
+                mov_stack_offset_to_avx_reg(dst);
+            }
+            else if (dst->is_on_stack()) {
+                if (dst_ix) {
+                    mov_general_reg_to_avx_reg(dst, dst_ix.value());
+                }
+                else {
+                    mov_general_reg_to_avx_reg(dst);
+                }
+            }
+        }
+        if (dst->avx_reg()) {
+            if (!dst_ix || !dst->is_on_stack()) {
+                return {dst, dst, LocationType::AvxReg};
+            }
+            auto [elem, _] = alloc_avx_reg();
+            return {elem, dst, LocationType::AvxReg};
+        }
+        assert(dst->general_reg() && !dst->is_on_stack());
+        return {dst, dst, LocationType::GeneralReg};
     }
 }
