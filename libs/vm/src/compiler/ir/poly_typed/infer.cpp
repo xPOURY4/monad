@@ -1,5 +1,4 @@
 #include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/bytecode.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/poly_typed/block.h>
 #include <compiler/ir/poly_typed/exceptions.h>

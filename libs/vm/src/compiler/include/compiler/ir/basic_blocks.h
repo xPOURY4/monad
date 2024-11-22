@@ -1,6 +1,7 @@
 #pragma once
 
-#include <compiler/ir/bytecode.h>
+#include <compiler/ir/instruction.h>
+#include <compiler/opcodes.h>
 #include <compiler/types.h>
 #include <utils/assert.h>
 
@@ -184,7 +185,8 @@ namespace monad::compiler::basic_blocks
         bool is_valid() const;
 
     private:
-        BasicBlocksIR(Bytecode<Rev> const &byte_code);
+        static Instruction scan_from(
+            std::span<std::uint8_t const> bytes, std::uint32_t &current_offset);
 
         std::vector<Block> blocks_;
         std::unordered_map<byte_offset, block_id> jump_dests_;
@@ -226,8 +228,31 @@ namespace monad::compiler::basic_blocks
     };
 
     template <evmc_revision Rev>
-    BasicBlocksIR<Rev>::BasicBlocksIR(Bytecode<Rev> const &byte_code)
-        : codesize{byte_code.code_size()}
+    Instruction BasicBlocksIR<Rev>::scan_from(
+        std::span<std::uint8_t const> bytes, std::uint32_t &current_offset)
+    {
+        auto opcode = bytes[current_offset];
+        auto info = opcode_table<Rev>()[opcode];
+
+        auto imm_size = info.num_args;
+        auto opcode_offset = current_offset;
+
+        current_offset++;
+
+        if (info == unknown_opcode_info) {
+            return Instruction::invalid(opcode_offset, opcode);
+        }
+
+        auto imm_value = utils::from_bytes(
+            imm_size, bytes.size() - current_offset, &bytes[current_offset]);
+        current_offset += imm_size;
+
+        return Instruction(opcode_offset, opcode, imm_value, info);
+    }
+
+    template <evmc_revision Rev>
+    BasicBlocksIR<Rev>::BasicBlocksIR(std::span<std::uint8_t const> bytes)
+        : codesize(bytes.size())
     {
         enum class St
         {
@@ -239,43 +264,49 @@ namespace monad::compiler::basic_blocks
 
         add_block(0);
 
-        auto const &insts = byte_code.instructions();
+        auto current_offset = std::uint32_t{0};
+        auto first = true;
 
-        auto tok = insts.begin();
-        if (tok != insts.end() && tok->opcode() == JUMPDEST) {
-            add_jump_dest();
-            ++tok;
-        }
+        while (current_offset < bytes.size()) {
+            auto inst = scan_from(bytes, current_offset);
 
-        for (; tok != insts.end(); ++tok) {
+            if (first && inst.opcode() == JUMPDEST) {
+                add_jump_dest();
+                first = false;
+                continue;
+            }
+
             if (st == St::OUTSIDE_BLOCK) {
-                if (tok->opcode() == JUMPDEST) {
-                    add_block(tok->pc());
+                if (inst.opcode() == JUMPDEST) {
+                    add_block(inst.pc());
                     st = St::INSIDE_BLOCK;
                     add_jump_dest();
                 }
             }
             else {
                 MONAD_COMPILER_ASSERT(st == St::INSIDE_BLOCK);
-                switch (tok->opcode()) {
+                switch (inst.opcode()) {
                 case JUMPDEST:
                     add_fallthrough_terminator(Terminator::FallThrough);
-                    add_block(tok->pc());
+                    add_block(inst.pc());
                     add_jump_dest();
                     break;
 
                 case JUMPI:
                     add_fallthrough_terminator(Terminator::JumpI);
-                    add_block(tok->pc() + 1);
+                    add_block(inst.pc() + 1);
                     // a corner case where we fall through JUMPI
                     // into a block starting with JUMPDEST, in which case we
                     // don't want to immediately FallThrough again, but
                     // instead just advance tok and mark the block as being
                     // a jumpdest
-                    if (tok + 1 != insts.end() &&
-                        (tok + 1)->opcode() == JUMPDEST) {
-                        ++tok;
-                        add_jump_dest();
+                    if (current_offset < bytes.size()) {
+                        auto next_offset = current_offset;
+                        if (scan_from(bytes, next_offset).opcode() ==
+                            JUMPDEST) {
+                            current_offset += 1;
+                            add_jump_dest();
+                        }
                     }
                     break;
 
@@ -306,8 +337,8 @@ namespace monad::compiler::basic_blocks
 
                 default:
                     // invalid or instruction opcode
-                    if (tok->is_valid()) {
-                        blocks_.back().instrs.push_back(*tok);
+                    if (inst.is_valid()) {
+                        blocks_.back().instrs.push_back(inst);
                     }
                     else {
                         add_terminator(Terminator::InvalidInstruction);
@@ -316,18 +347,14 @@ namespace monad::compiler::basic_blocks
                     break;
                 }
             }
+
+            first = false;
         }
     }
 
     template <evmc_revision Rev>
-    BasicBlocksIR<Rev>::BasicBlocksIR(std::span<std::uint8_t const> bytes)
-        : BasicBlocksIR(Bytecode(bytes))
-    {
-    }
-
-    template <evmc_revision Rev>
     BasicBlocksIR<Rev>::BasicBlocksIR(std::initializer_list<std::uint8_t> bytes)
-        : BasicBlocksIR(Bytecode(bytes))
+        : BasicBlocksIR(std::span(bytes))
     {
     }
 
@@ -424,7 +451,6 @@ namespace monad::compiler::basic_blocks
         blocks_.back().terminator = t;
         blocks_.back().fallthrough_dest = curr_block_id() + 1;
     }
-
 }
 
 /*

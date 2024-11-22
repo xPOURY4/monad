@@ -72,79 +72,6 @@ namespace monad::compiler
         bool dynamic_gas_;
     };
 
-    template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
-    class Bytecode
-    {
-    public:
-        static constexpr evmc_revision revision = Rev;
-
-        Bytecode(std::span<std::uint8_t const>);
-        Bytecode(std::initializer_list<std::uint8_t>);
-
-        std::vector<Instruction> const &instructions() const noexcept;
-        std::size_t code_size() const noexcept;
-
-    private:
-        std::vector<Instruction> instructions_;
-        std::size_t code_size_;
-    };
-
-    /*
-     * Bytecode
-     */
-
-    template <evmc_revision Rev>
-    Bytecode<Rev>::Bytecode(std::span<std::uint8_t const> bytes)
-        : instructions_{}
-        , code_size_{bytes.size()}
-    {
-        auto current_offset = std::uint32_t{0};
-
-        while (current_offset < bytes.size()) {
-            auto opcode = bytes[current_offset];
-            auto info = opcode_table<Rev>()[opcode];
-
-            auto imm_size = info.num_args;
-            auto opcode_offset = current_offset;
-
-            current_offset++;
-
-            if (info == unknown_opcode_info) {
-                instructions_.push_back(
-                    Instruction::invalid(opcode_offset, opcode));
-            }
-            else {
-                auto imm_value = utils::from_bytes(
-                    imm_size,
-                    bytes.size() - current_offset,
-                    &bytes[current_offset]);
-
-                instructions_.emplace_back(
-                    opcode_offset, opcode, imm_value, info);
-
-                current_offset += imm_size;
-            }
-        }
-    }
-
-    template <evmc_revision Rev>
-    Bytecode<Rev>::Bytecode(std::initializer_list<std::uint8_t> bytes)
-        : Bytecode(std::span{bytes})
-    {
-    }
-
-    template <evmc_revision Rev>
-    std::vector<Instruction> const &Bytecode<Rev>::instructions() const noexcept
-    {
-        return instructions_;
-    }
-
-    template <evmc_revision Rev>
-    std::size_t Bytecode<Rev>::code_size() const noexcept
-    {
-        return code_size_;
-    }
-
     /*
      * Instruction
      */
@@ -322,27 +249,5 @@ struct std::formatter<monad::compiler::Instruction>
         }
 
         return std::format_to(ctx.out(), "{}", info.name);
-    }
-};
-
-template <evmc_revision Rev>
-struct std::formatter<monad::compiler::Bytecode<Rev>>
-{
-    constexpr auto parse(std::format_parse_context &ctx)
-    {
-        return ctx.begin();
-    }
-
-    auto format(
-        monad::compiler::Bytecode<Rev> const &ir,
-        std::format_context &ctx) const
-    {
-        auto sep = "";
-        for (auto const &inst : ir.instructions()) {
-            std::format_to(ctx.out(), "{}{}", sep, inst);
-            sep = "\n";
-        }
-
-        return ctx.out();
     }
 };

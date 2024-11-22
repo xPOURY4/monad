@@ -1,6 +1,5 @@
 #include "asmjit/core/jitruntime.h"
 #include "compiler/ir/basic_blocks.h"
-#include "compiler/ir/bytecode.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/x86/virtual_stack.h"
 #include "compiler/opcodes.h"
