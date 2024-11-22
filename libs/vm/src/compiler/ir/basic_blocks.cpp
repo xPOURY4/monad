@@ -1,11 +1,8 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/types.h>
 
-#include <algorithm>
 #include <cassert>
 #include <tuple>
-#include <unordered_map>
-#include <vector>
 
 namespace monad::compiler::basic_blocks
 {

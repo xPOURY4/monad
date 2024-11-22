@@ -1,3 +1,4 @@
+#include "compiler/ir/instruction.h"
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/poly_typed/block.h>

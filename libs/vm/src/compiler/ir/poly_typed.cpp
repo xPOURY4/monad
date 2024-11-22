@@ -1,4 +1,5 @@
 #include "compiler/ir/poly_typed.h"
+#include "compiler/ir/instruction.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"

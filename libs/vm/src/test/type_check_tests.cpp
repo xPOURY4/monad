@@ -5,6 +5,8 @@
 #include "compiler/opcodes.h"
 
 #include <gtest/gtest.h>
+
+#include <cstdint>
 #include <utility>
 #include <variant>
 #include <vector>
