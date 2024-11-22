@@ -59,7 +59,8 @@ namespace monad::compiler::native
 
         ////////// Core emit functionality //////////
 
-        void switch_stack(Stack *);
+        Stack &get_stack();
+        void begin_stack(Block const &);
         bool block_prologue(Block const &);
         void block_epilogue(Block const &);
         void gas_decrement_no_check(int64_t);
@@ -187,7 +188,7 @@ namespace monad::compiler::native
         asmjit::Label out_of_gas_label_;
         asmjit::Label overflow_label_;
         asmjit::Label underflow_label_;
-        Stack *stack_;
+        std::unique_ptr<Stack> stack_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
     };
 }

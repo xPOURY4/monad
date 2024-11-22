@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <format>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -107,6 +108,30 @@ namespace
     }
 }
 
+// For reducing noise
+#define GENERAL_BIN_INSTR(i0, i1)                                              \
+    general_bin_instr<                                                         \
+        {&x86::Assembler::i0,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1},                                                 \
+        {&x86::Assembler::i0,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1},                                                 \
+        {&x86::Assembler::i0,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1},                                                 \
+        {&x86::Assembler::i0,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1},                                                 \
+        {&x86::Assembler::i0,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1,                                                  \
+         &x86::Assembler::i1}>
+
 namespace monad::compiler::native
 {
     Emitter::Error::Error(std::string const &msg)
@@ -149,7 +174,6 @@ namespace monad::compiler::native
         , out_of_gas_label_{as_.newNamedLabel("OutOfGas")}
         , overflow_label_{as_.newNamedLabel("Overflow")}
         , underflow_label_{as_.newNamedLabel("Underflow")}
-        , stack_{}
     {
         contract_prologue();
     }
@@ -238,9 +262,14 @@ namespace monad::compiler::native
 
     ////////// Core emit functionality //////////
 
-    void Emitter::switch_stack(Stack *s)
+    Stack &Emitter::get_stack()
     {
-        stack_ = s;
+        return *stack_;
+    }
+
+    void Emitter::begin_stack(Block const &b)
+    {
+        stack_ = std::make_unique<Stack>(b);
     }
 
     bool Emitter::block_prologue(Block const &)
@@ -729,27 +758,7 @@ namespace monad::compiler::native
 
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
-        general_bin_instr<
-            {&x86::Assembler::sub,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::sub,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::sub,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::sub,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::sub,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb}>(dst_op, src_op);
+        GENERAL_BIN_INSTR(sub, sbb)(dst_op, src_op);
 
         stack_->push(std::move(dst));
     }
@@ -774,27 +783,7 @@ namespace monad::compiler::native
 
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
-        general_bin_instr<
-            {&x86::Assembler::add,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc},
-            {&x86::Assembler::add,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc},
-            {&x86::Assembler::add,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc},
-            {&x86::Assembler::add,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc},
-            {&x86::Assembler::add,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc,
-             &x86::Assembler::adc}>(dst_op, src_op);
+        GENERAL_BIN_INSTR(add, adc)(dst_op, src_op);
 
         stack_->push(std::move(dst));
     }
@@ -886,27 +875,7 @@ namespace monad::compiler::native
     {
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
-        general_bin_instr<
-            {&x86::Assembler::cmp,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::cmp,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::cmp,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::cmp,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb},
-            {&x86::Assembler::cmp,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb,
-             &x86::Assembler::sbb}>(dst_op, src_op);
+        GENERAL_BIN_INSTR(cmp, sbb)(dst_op, src_op);
     }
 
     std::pair<Emitter::LocationType, Emitter::LocationType>

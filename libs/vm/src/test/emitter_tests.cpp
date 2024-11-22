@@ -88,9 +88,9 @@ namespace
     }
 
     void mov_literal_to_location_type(
-        Stack &stack, Emitter &emit, int32_t stack_index,
-        Emitter::LocationType loc)
+        Emitter &emit, int32_t stack_index, Emitter::LocationType loc)
     {
+        Stack &stack = emit.get_stack();
         auto elem = stack.get(stack_index);
         ASSERT_TRUE(
             elem->literal() && !elem->stack_offset() && !elem->avx_reg() &&
@@ -135,12 +135,10 @@ namespace
             return;
         }
 #endif
-        Stack stack{ir.blocks[0]};
-
         asmjit::JitRuntime rt;
 
         Emitter emit{rt};
-        emit.switch_stack(&stack);
+        emit.begin_stack(ir.blocks[0]);
         emit.push(right);
         if (dup) {
             emit.dup(1);
@@ -152,8 +150,8 @@ namespace
             emit.swap(1);
         }
 
-        mov_literal_to_location_type(stack, emit, 1 + 2 * dup, left_loc);
-        mov_literal_to_location_type(stack, emit, 2 * dup, right_loc);
+        mov_literal_to_location_type(emit, 1 + 2 * dup, left_loc);
+        mov_literal_to_location_type(emit, 2 * dup, right_loc);
 
         (emit.*instr)();
 
@@ -356,11 +354,10 @@ TEST(Emitter, return_)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
         bytecode::BytecodeIR({PUSH1, 1, PUSH1, 2})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
     uint256_t const size_value = uint256_t{1} << 255;
     uint256_t const offset_value =
         std::numeric_limits<uint256_t>::max() - (uint256_t{1} << 31) + 1;
@@ -383,11 +380,10 @@ TEST(Emitter, revert)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
         bytecode::BytecodeIR({PUSH1, 1, PUSH1, 2})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
     uint256_t const size_value = uint256_t{1} << 31;
     uint256_t const offset_value = (uint256_t{1} << 31) - 1;
     emit.push(size_value);
@@ -409,11 +405,11 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
         bytecode::BytecodeIR({PUSH1, 1, PUSH1, 2})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
+    Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
 
@@ -470,11 +466,11 @@ TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
         bytecode::BytecodeIR({PUSH1, 1, PUSH1, 2})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
+    Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
 
@@ -535,11 +531,11 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
 {
     auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
         bytecode::BytecodeIR({PUSH1, 1, PUSH1, 2})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
+    Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
 
@@ -603,14 +599,13 @@ TEST(Emitter, discharge_deferred_comparison)
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR(bytecode::BytecodeIR(
             {PUSH0, PUSH0, LT, DUP1, DUP1, PUSH0, SWAP1, POP, LT, RETURN})));
-    Stack stack{ir.blocks[0]};
 
     asmjit::JitRuntime rt;
     Emitter emit{rt};
-    emit.switch_stack(&stack);
+    emit.begin_stack(ir.blocks[0]);
+    Stack const &stack = emit.get_stack();
     emit.push(2);
-    mov_literal_to_location_type(
-        stack, emit, 0, Emitter::LocationType::StackOffset);
+    mov_literal_to_location_type(emit, 0, Emitter::LocationType::StackOffset);
     emit.push(1);
     ASSERT_FALSE(stack.has_deferred_comparison());
     emit.lt();

@@ -375,7 +375,7 @@ namespace monad::compiler::native
         void swap(std::int32_t swap_index);
 
         /**
-         * Clear deferred comparison and add insert a stack offset to the
+         * Clear deferred comparison and insert a stack offset to the
          * corresponding stack element. Returns the `DeferredComparison`.
          */
         DeferredComparison discharge_deferred_comparison();
