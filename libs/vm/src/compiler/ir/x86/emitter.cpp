@@ -193,6 +193,17 @@ namespace monad::compiler::native
         error_block(overflow_label_, runtime::StatusCode::Overflow);
         error_block(underflow_label_, runtime::StatusCode::Underflow);
 
+        // TODO jumptable
+
+        static char const *const ro_section_name = "ro";
+        static auto const ro_section_name_len = 2;
+        static auto const ro_section_index = 1;
+
+        asmjit::Section *ro_section;
+        code_holder_.newSection(&ro_section, ro_section_name, ro_section_name_len,
+                asmjit::SectionFlags::kReadOnly, 32, ro_section_index);
+
+        as_.section(ro_section);
         as_.align(asmjit::AlignMode::kData, 32);
         for (auto [lbl, lit] : literals_) {
             as_.bind(lbl);
