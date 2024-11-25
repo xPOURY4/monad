@@ -1,6 +1,5 @@
 #pragma once
 
-#include <compiler/opcodes.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
 
@@ -95,38 +94,18 @@ namespace monad::compiler
         StaticCall = 0xFA,
     };
 
-    constexpr OpCode evm_op_to_opcode(std::uint8_t op)
-    {
-        using enum OpCode;
-
-        if (is_push_opcode(op)) {
-            return Push;
-        }
-
-        if (is_swap_opcode(op)) {
-            return Swap;
-        }
-
-        if (is_dup_opcode(op)) {
-            return Dup;
-        }
-
-        if (is_log_opcode(op)) {
-            return Log;
-        }
-
-        return OpCode(op);
-    }
-
     class Instruction
     {
     public:
         constexpr Instruction(
-            std::uint32_t pc, std::uint8_t opcode, OpCodeInfo info) noexcept;
+            std::uint32_t pc, OpCode opcode, std::uint16_t static_gas_cost,
+            std::uint8_t stack_args, std::uint8_t index, bool increases_stack,
+            bool dynamic_gas);
 
         constexpr Instruction(
-            std::uint32_t pc, std::uint8_t opcode,
-            utils::uint256_t immediate_value, OpCodeInfo info) noexcept;
+            std::uint32_t pc, OpCode opcode, utils::uint256_t immediate_value,
+            std::uint16_t static_gas_cost, std::uint8_t stack_args,
+            std::uint8_t index, bool increases_stack, bool dynamic_gas);
 
         constexpr utils::uint256_t const &immediate_value() const noexcept;
         constexpr std::uint32_t pc() const noexcept;
@@ -149,7 +128,6 @@ namespace monad::compiler
         OpCode opcode_;
         std::uint8_t stack_args_;
         std::uint8_t index_;
-        bool is_valid_;
         bool increases_stack_;
         bool dynamic_gas_;
     };
@@ -159,25 +137,29 @@ namespace monad::compiler
      */
 
     constexpr Instruction::Instruction(
-        std::uint32_t pc, std::uint8_t evm_opcode,
-        utils::uint256_t immediate_value, OpCodeInfo info) noexcept
-        : immediate_value_(immediate_value)
-        , pc_(pc)
-        , static_gas_cost_(static_cast<std::uint16_t>(info.min_gas))
-        , opcode_(evm_op_to_opcode(evm_opcode))
-        , stack_args_(static_cast<std::uint8_t>(info.min_stack))
-        , index_(get_opcode_index(evm_opcode))
-        , is_valid_(true)
-        , increases_stack_(info.increases_stack)
-        , dynamic_gas_(info.dynamic_gas)
+        std::uint32_t pc, OpCode op, std::uint16_t static_gas_cost,
+        std::uint8_t stack_args, std::uint8_t index, bool increases_stack,
+        bool dynamic_gas)
+        : Instruction(
+              pc, op, 0, static_gas_cost, stack_args, index, increases_stack,
+              dynamic_gas)
     {
-        MONAD_COMPILER_ASSERT(immediate_value == 0 || opcode() == OpCode::Push);
     }
 
     constexpr Instruction::Instruction(
-        std::uint32_t pc, std::uint8_t opcode, OpCodeInfo info) noexcept
-        : Instruction(pc, opcode, 0, info)
+        std::uint32_t pc, OpCode op, utils::uint256_t immediate_value,
+        std::uint16_t static_gas_cost, std::uint8_t stack_args,
+        std::uint8_t index, bool increases_stack, bool dynamic_gas)
+        : immediate_value_(immediate_value)
+        , pc_(pc)
+        , static_gas_cost_(static_gas_cost)
+        , opcode_(op)
+        , stack_args_(stack_args)
+        , index_(index)
+        , increases_stack_(increases_stack)
+        , dynamic_gas_(dynamic_gas)
     {
+        MONAD_COMPILER_ASSERT(immediate_value == 0 || opcode() == OpCode::Push);
     }
 
     constexpr utils::uint256_t const &
@@ -234,7 +216,6 @@ namespace monad::compiler
             opcode_,
             stack_args_,
             index_,
-            is_valid_,
             increases_stack_,
             dynamic_gas_);
     }
@@ -244,11 +225,186 @@ namespace monad::compiler
     {
         return a.as_tuple() == b.as_tuple();
     }
+
+    constexpr std::string_view opcode_name(OpCode op)
+    {
+        using enum monad::compiler::OpCode;
+
+        switch (op) {
+        case Add:
+            return "ADD";
+        case Mul:
+            return "MUL";
+        case Sub:
+            return "SUB";
+        case Div:
+            return "DIV";
+        case SDiv:
+            return "SDIV";
+        case Mod:
+            return "MOD";
+        case SMod:
+            return "SMOD";
+        case AddMod:
+            return "ADDMOD";
+        case MulMod:
+            return "MULMOD";
+        case Exp:
+            return "EXP";
+        case SignExtend:
+            return "SIGNEXTEND";
+        case Lt:
+            return "LT";
+        case Gt:
+            return "GT";
+        case SLt:
+            return "SLT";
+        case SGt:
+            return "SGT";
+        case Eq:
+            return "EQ";
+        case IsZero:
+            return "ISZERO";
+        case And:
+            return "AND";
+        case Or:
+            return "OR";
+        case XOr:
+            return "XOR";
+        case Not:
+            return "NOT";
+        case Byte:
+            return "BYTE";
+        case Shl:
+            return "SHL";
+        case Shr:
+            return "SHR";
+        case Sar:
+            return "SAR";
+        case Sha3:
+            return "KECCAK256";
+        case Address:
+            return "ADDRESS";
+        case Balance:
+            return "BALANCE";
+        case Origin:
+            return "ORIGIN";
+        case Caller:
+            return "CALLER";
+        case CallValue:
+            return "CALLVALUE";
+        case CallDataLoad:
+            return "CALLDATALOAD";
+        case CallDataSize:
+            return "CALLDATASIZE";
+        case CallDataCopy:
+            return "CALLDATACOPY";
+        case CodeSize:
+            return "CODESIZE";
+        case CodeCopy:
+            return "CODECOPY";
+        case GasPrice:
+            return "GASPRICE";
+        case ExtCodeSize:
+            return "EXTCODESIZE";
+        case ExtCodeCopy:
+            return "EXTCODECOPY";
+        case ReturnDataSize:
+            return "RETURNDATASIZE";
+        case ReturnDataCopy:
+            return "RETURNDATACOPY";
+        case ExtCodeHash:
+            return "EXTCODEHASH";
+        case BlockHash:
+            return "BLOCKHASH";
+        case Coinbase:
+            return "COINBASE";
+        case Timestamp:
+            return "TIMESTAMP";
+        case Number:
+            return "NUMBER";
+        case Difficulty:
+            return "PREVRANDAO";
+        case GasLimit:
+            return "GASLIMIT";
+        case ChainId:
+            return "CHAINID";
+        case SelfBalance:
+            return "SELFBALANCE";
+        case BaseFee:
+            return "BASEFEE";
+        case BlobHash:
+            return "BLOBHASH";
+        case BlobBaseFee:
+            return "BLOBBASEFEE";
+        case Pop:
+            return "POP";
+        case MLoad:
+            return "MLOAD";
+        case MStore:
+            return "MSTORE";
+        case MStore8:
+            return "MSTORE8";
+        case SLoad:
+            return "SLOAD";
+        case SStore:
+            return "SSTORE";
+        case Pc:
+            return "PC";
+        case MSize:
+            return "MSIZE";
+        case Gas:
+            return "GAS";
+        case TLoad:
+            return "TLOAD";
+        case TStore:
+            return "TSTORE";
+        case MCopy:
+            return "MCOPY";
+        case Push:
+            return "PUSH";
+        case Dup:
+            return "DUP";
+        case Swap:
+            return "SWAP";
+        case Log:
+            return "LOG";
+        case Create:
+            return "CREATE";
+        case Call:
+            return "CALL";
+        case CallCode:
+            return "CALLCODE";
+        case DelegateCall:
+            return "DELEGATECALL";
+        case Create2:
+            return "CREATE2";
+        case StaticCall:
+            return "STATICCALL";
+        default:
+            std::unreachable();
+        }
+    }
 }
 
 /*
  * Formatter Implementations
  */
+
+template <>
+struct std::formatter<monad::compiler::OpCode>
+{
+    constexpr auto parse(std::format_parse_context &ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto
+    format(monad::compiler::OpCode const &op, std::format_context &ctx) const
+    {
+        return std::format_to(ctx.out(), "{}", opcode_name(op));
+    }
+};
 
 template <>
 struct std::formatter<monad::compiler::Instruction>
@@ -264,31 +420,21 @@ struct std::formatter<monad::compiler::Instruction>
     {
         using enum monad::compiler::OpCode;
 
-        auto base_op = std::to_underlying(inst.opcode());
-
-        switch (inst.opcode()) {
-        case Dup:
-        case Swap:
-            base_op += static_cast<std::uint8_t>(inst.index() - 1u);
-            break;
-        case Push:
-        case Log:
-            base_op += inst.index();
-            break;
-        default:
-            break;
-        }
-
-        // It's ok to use the latest revision here because an instruction that's
-        // too new should already have been flagged as invalid.
-        auto info = monad::compiler::opcode_table<
-            EVMC_LATEST_STABLE_REVISION>()[base_op];
-
         if (inst.opcode() == Push && inst.index() > 0) {
             return std::format_to(
-                ctx.out(), "{} {}", info.name, inst.immediate_value());
+                ctx.out(),
+                "{}{} {}",
+                inst.opcode(),
+                inst.index(),
+                inst.immediate_value());
         }
 
-        return std::format_to(ctx.out(), "{}", info.name);
+        if (inst.opcode() == Push || inst.opcode() == Dup ||
+            inst.opcode() == Swap || inst.opcode() == Log) {
+            return std::format_to(
+                ctx.out(), "{}{}", inst.opcode(), inst.index());
+        }
+
+        return std::format_to(ctx.out(), "{}", inst.opcode());
     }
 };

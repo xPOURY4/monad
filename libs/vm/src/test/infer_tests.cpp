@@ -1,9 +1,9 @@
+#include "compiler/evm_opcodes.h"
 #include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/infer.h"
 #include "compiler/ir/poly_typed/kind.h"
-#include "compiler/opcodes.h"
 
 #include <cstdint>
 #include <gtest/gtest.h>

@@ -1,8 +1,8 @@
+#include "compiler/evm_opcodes.h"
 #include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/poly_typed.h"
 #include "compiler/ir/poly_typed/kind.h"
-#include "compiler/opcodes.h"
 
 #include <gtest/gtest.h>
 

@@ -3,7 +3,6 @@
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/emitter.h>
-#include <compiler/opcodes.h>
 #include <utils/assert.h>
 
 #include <evmc/evmc.h>
@@ -37,10 +36,11 @@ namespace
             analysis.instr_gas += instr.static_gas_cost();
             analysis.dynamic_gas |= instr.dynamic_gas();
         }
-        auto const &info = basic_blocks::terminator_info(block.terminator);
+        auto [static_gas, dynamic_gas] =
+            basic_blocks::terminator_gas_info(block.terminator);
         // This is also correct for fall through and invalid instruction.
-        analysis.instr_gas += info.min_gas;
-        analysis.dynamic_gas |= info.dynamic_gas;
+        analysis.instr_gas += static_gas;
+        analysis.dynamic_gas |= dynamic_gas;
         return analysis;
     }
 

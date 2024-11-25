@@ -1,7 +1,7 @@
+#include <compiler/evm_opcodes.h>
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 
 #include <evmc/evmc.h>
@@ -20,10 +20,18 @@ using namespace intx;
 template <
     typename Op, typename... Args,
     evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
-Instruction i(std::uint32_t pc, Op opcode, Args &&...args)
+Instruction i(std::uint32_t pc, Op evm_opcode, Args &&...args)
 {
-    auto info = opcode_table<Rev>()[std::to_underlying(opcode)];
-    return Instruction(pc, opcode, std::forward<Args>(args)..., info);
+    auto info = opcode_table<Rev>()[evm_opcode];
+    return Instruction(
+        pc,
+        basic_blocks::evm_op_to_opcode(evm_opcode),
+        std::forward<Args>(args)...,
+        info.min_gas,
+        info.min_stack,
+        info.index,
+        info.increases_stack,
+        info.dynamic_gas);
 }
 
 void blocks_eq(

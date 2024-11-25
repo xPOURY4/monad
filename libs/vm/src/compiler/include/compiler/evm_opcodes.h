@@ -53,7 +53,14 @@ namespace monad::compiler
          * Some instructions may also consume additional dynamic gas depending
          * on run-time properties (e.g. memory expansion or storage costs).
          */
-        std::int64_t min_gas;
+        std::uint16_t min_gas;
+
+        /**
+         * The index within a set of related opcodes for this instruction.
+         *
+         * N for all PUSHN, SWAPN, DUPN and LOGN instructions, and 0 otherwise.
+         */
+        std::uint8_t index;
     };
 
     constexpr bool operator==(OpCodeInfo const &a, OpCodeInfo const &b)
@@ -84,7 +91,7 @@ namespace monad::compiler
      * cannot a-priori be changed.
      */
     inline constexpr auto unknown_opcode_info =
-        OpCodeInfo{"UNKNOWN", 0, 0, false, false, 0};
+        OpCodeInfo{"UNKNOWN", 0, 0, false, false, 0, 0};
 
     /**
      * Lookup table of opcode info for each possible 1-byte opcode value.
@@ -112,80 +119,46 @@ namespace monad::compiler
     consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_FRONTIER>()
     {
         return {
-            OpCodeInfo{"STOP", 0, 0, false, false, 0}, // 0x00
-            OpCodeInfo{"ADD", 0, 2, true, false, 3}, // 0x01
-            OpCodeInfo{"MUL", 0, 2, true, false, 5}, // 0x02
-            OpCodeInfo{"SUB", 0, 2, true, false, 3}, // 0x03
-            OpCodeInfo{"DIV", 0, 2, true, false, 5}, // 0x04,
-            OpCodeInfo{"SDIV", 0, 2, true, false, 5}, // 0x05,
-            OpCodeInfo{"MOD", 0, 2, true, false, 5}, // 0x06,
-            OpCodeInfo{"SMOD", 0, 2, true, false, 5}, // 0x07,
-            OpCodeInfo{"ADDMOD", 0, 3, true, false, 8}, // 0x08,
-            OpCodeInfo{"MULMOD", 0, 3, true, false, 8}, // 0x09,
-            OpCodeInfo{"EXP", 0, 2, true, true, 10}, // 0x0A,
-            OpCodeInfo{"SIGNEXTEND", 0, 2, true, false, 5}, // 0x0B,
+            OpCodeInfo{"STOP", 0, 0, false, false, 0, 0}, // 0x00
+            OpCodeInfo{"ADD", 0, 2, true, false, 3, 0}, // 0x01
+            OpCodeInfo{"MUL", 0, 2, true, false, 5, 0}, // 0x02
+            OpCodeInfo{"SUB", 0, 2, true, false, 3, 0}, // 0x03
+            OpCodeInfo{"DIV", 0, 2, true, false, 5, 0}, // 0x04,
+            OpCodeInfo{"SDIV", 0, 2, true, false, 5, 0}, // 0x05,
+            OpCodeInfo{"MOD", 0, 2, true, false, 5, 0}, // 0x06,
+            OpCodeInfo{"SMOD", 0, 2, true, false, 5, 0}, // 0x07,
+            OpCodeInfo{"ADDMOD", 0, 3, true, false, 8, 0}, // 0x08,
+            OpCodeInfo{"MULMOD", 0, 3, true, false, 8, 0}, // 0x09,
+            OpCodeInfo{"EXP", 0, 2, true, true, 10, 0}, // 0x0A,
+            OpCodeInfo{"SIGNEXTEND", 0, 2, true, false, 5, 0}, // 0x0B,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
 
-            OpCodeInfo{"LT", 0, 2, true, false, 3}, // 0x10,
-            OpCodeInfo{"GT", 0, 2, true, false, 3}, // 0x11,
-            OpCodeInfo{"SLT", 0, 2, true, false, 3}, // 0x12,
-            OpCodeInfo{"SGT", 0, 2, true, false, 3}, // 0x13,
-            OpCodeInfo{"EQ", 0, 2, true, false, 3}, // 0x14,
-            OpCodeInfo{"ISZERO", 0, 1, true, false, 3}, // 0x15,
-            OpCodeInfo{"AND", 0, 2, true, false, 3}, // 0x16,
-            OpCodeInfo{"OR", 0, 2, true, false, 3}, // 0x17,
-            OpCodeInfo{"XOR", 0, 2, true, false, 3}, // 0x18,
-            OpCodeInfo{"NOT", 0, 1, true, false, 3}, // 0x19,
-            OpCodeInfo{"BYTE", 0, 2, true, false, 3}, // 0x1A,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-
-            OpCodeInfo{"SHA3", 0, 2, true, true, 30}, // 0x20,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
-            unknown_opcode_info,
+            OpCodeInfo{"LT", 0, 2, true, false, 3, 0}, // 0x10,
+            OpCodeInfo{"GT", 0, 2, true, false, 3, 0}, // 0x11,
+            OpCodeInfo{"SLT", 0, 2, true, false, 3, 0}, // 0x12,
+            OpCodeInfo{"SGT", 0, 2, true, false, 3, 0}, // 0x13,
+            OpCodeInfo{"EQ", 0, 2, true, false, 3, 0}, // 0x14,
+            OpCodeInfo{"ISZERO", 0, 1, true, false, 3, 0}, // 0x15,
+            OpCodeInfo{"AND", 0, 2, true, false, 3, 0}, // 0x16,
+            OpCodeInfo{"OR", 0, 2, true, false, 3, 0}, // 0x17,
+            OpCodeInfo{"XOR", 0, 2, true, false, 3, 0}, // 0x18,
+            OpCodeInfo{"NOT", 0, 1, true, false, 3, 0}, // 0x19,
+            OpCodeInfo{"BYTE", 0, 2, true, false, 3, 0}, // 0x1A,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
 
-            OpCodeInfo{"ADDRESS", 0, 0, true, false, 2}, // 0x30,
-            OpCodeInfo{"BALANCE", 0, 1, true, true, 100}, // 0x31,
-            OpCodeInfo{"ORIGIN", 0, 0, true, false, 2}, // 0x32,
-            OpCodeInfo{"CALLER", 0, 0, true, false, 2}, // 0x33,
-            OpCodeInfo{"CALLVALUE", 0, 0, true, false, 2}, // 0x34,
-            OpCodeInfo{"CALLDATALOAD", 0, 1, true, false, 3}, // 0x35,
-            OpCodeInfo{"CALLDATASIZE", 0, 0, true, false, 2}, // 0x36,
-            OpCodeInfo{"CALLDATACOPY", 0, 3, false, true, 3}, // 0x37,
-            OpCodeInfo{"CODESIZE", 0, 0, true, false, 2}, // 0x38,
-            OpCodeInfo{"CODECOPY", 0, 3, false, true, 3}, // 0x39,
-            OpCodeInfo{"GASPRICE", 0, 0, true, false, 2}, // 0x3A,
-            OpCodeInfo{"EXTCODESIZE", 0, 1, true, true, 100}, // 0x3B,
-            OpCodeInfo{"EXTCODECOPY", 0, 4, false, true, 100}, // 0x3C,
+            OpCodeInfo{"SHA3", 0, 2, true, true, 30, 0}, // 0x20,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
-
-            OpCodeInfo{"BLOCKHASH", 0, 1, true, false, 20}, // 0x40,
-            OpCodeInfo{"COINBASE", 0, 0, true, false, 2}, // 0x41,
-            OpCodeInfo{"TIMESTAMP", 0, 0, true, false, 2}, // 0x42,
-            OpCodeInfo{"NUMBER", 0, 0, true, false, 2}, // 0x43,
-            OpCodeInfo{"DIFFICULTY", 0, 0, true, false, 2}, // 0x44,
-            OpCodeInfo{"GASLIMIT", 0, 0, true, false, 2}, // 0x45,
+            unknown_opcode_info,
+            unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -197,96 +170,130 @@ namespace monad::compiler
             unknown_opcode_info,
             unknown_opcode_info,
 
-            OpCodeInfo{"POP", 0, 1, false, false, 2}, // 0x50,
-            OpCodeInfo{"MLOAD", 0, 1, true, true, 3}, // 0x51,
-            OpCodeInfo{"MSTORE", 0, 2, false, true, 3}, // 0x52,
-            OpCodeInfo{"MSTORE8", 0, 2, false, true, 3}, // 0x53,
-            OpCodeInfo{"SLOAD", 0, 1, true, true, 100}, // 0x54,
-            OpCodeInfo{"SSTORE", 0, 2, false, true, 100}, // 0x55,
-            OpCodeInfo{"JUMP", 0, 1, false, false, 8}, // 0x56,
-            OpCodeInfo{"JUMPI", 0, 2, false, false, 10}, // 0x57,
-            OpCodeInfo{"PC", 0, 0, true, false, 2}, // 0x58,
-            OpCodeInfo{"MSIZE", 0, 0, true, false, 2}, // 0x59,
-            OpCodeInfo{"GAS", 0, 0, true, false, 2}, // 0x5A,
-            OpCodeInfo{"JUMPDEST", 0, 0, false, false, 1}, // 0x5B,
+            OpCodeInfo{"ADDRESS", 0, 0, true, false, 2, 0}, // 0x30,
+            OpCodeInfo{"BALANCE", 0, 1, true, true, 100, 0}, // 0x31,
+            OpCodeInfo{"ORIGIN", 0, 0, true, false, 2, 0}, // 0x32,
+            OpCodeInfo{"CALLER", 0, 0, true, false, 2, 0}, // 0x33,
+            OpCodeInfo{"CALLVALUE", 0, 0, true, false, 2, 0}, // 0x34,
+            OpCodeInfo{"CALLDATALOAD", 0, 1, true, false, 3, 0}, // 0x35,
+            OpCodeInfo{"CALLDATASIZE", 0, 0, true, false, 2, 0}, // 0x36,
+            OpCodeInfo{"CALLDATACOPY", 0, 3, false, true, 3, 0}, // 0x37,
+            OpCodeInfo{"CODESIZE", 0, 0, true, false, 2, 0}, // 0x38,
+            OpCodeInfo{"CODECOPY", 0, 3, false, true, 3, 0}, // 0x39,
+            OpCodeInfo{"GASPRICE", 0, 0, true, false, 2, 0}, // 0x3A,
+            OpCodeInfo{"EXTCODESIZE", 0, 1, true, true, 100, 0}, // 0x3B,
+            OpCodeInfo{"EXTCODECOPY", 0, 4, false, true, 100, 0}, // 0x3C,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+
+            OpCodeInfo{"BLOCKHASH", 0, 1, true, false, 20, 0}, // 0x40,
+            OpCodeInfo{"COINBASE", 0, 0, true, false, 2, 0}, // 0x41,
+            OpCodeInfo{"TIMESTAMP", 0, 0, true, false, 2, 0}, // 0x42,
+            OpCodeInfo{"NUMBER", 0, 0, true, false, 2, 0}, // 0x43,
+            OpCodeInfo{"DIFFICULTY", 0, 0, true, false, 2, 0}, // 0x44,
+            OpCodeInfo{"GASLIMIT", 0, 0, true, false, 2, 0}, // 0x45,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+            unknown_opcode_info,
+
+            OpCodeInfo{"POP", 0, 1, false, false, 2, 0}, // 0x50,
+            OpCodeInfo{"MLOAD", 0, 1, true, true, 3, 0}, // 0x51,
+            OpCodeInfo{"MSTORE", 0, 2, false, true, 3, 0}, // 0x52,
+            OpCodeInfo{"MSTORE8", 0, 2, false, true, 3, 0}, // 0x53,
+            OpCodeInfo{"SLOAD", 0, 1, true, true, 100, 0}, // 0x54,
+            OpCodeInfo{"SSTORE", 0, 2, false, true, 100, 0}, // 0x55,
+            OpCodeInfo{"JUMP", 0, 1, false, false, 8, 0}, // 0x56,
+            OpCodeInfo{"JUMPI", 0, 2, false, false, 10, 0}, // 0x57,
+            OpCodeInfo{"PC", 0, 0, true, false, 2, 0}, // 0x58,
+            OpCodeInfo{"MSIZE", 0, 0, true, false, 2, 0}, // 0x59,
+            OpCodeInfo{"GAS", 0, 0, true, false, 2, 0}, // 0x5A,
+            OpCodeInfo{"JUMPDEST", 0, 0, false, false, 1, 0}, // 0x5B,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
 
-            OpCodeInfo{"PUSH1", 1, 0, true, false, 3}, // 0x60,
-            OpCodeInfo{"PUSH2", 2, 0, true, false, 3}, // 0x61,
-            OpCodeInfo{"PUSH3", 3, 0, true, false, 3}, // 0x62,
-            OpCodeInfo{"PUSH4", 4, 0, true, false, 3}, // 0x63,
-            OpCodeInfo{"PUSH5", 5, 0, true, false, 3}, // 0x64,
-            OpCodeInfo{"PUSH6", 6, 0, true, false, 3}, // 0x65,
-            OpCodeInfo{"PUSH7", 7, 0, true, false, 3}, // 0x66,
-            OpCodeInfo{"PUSH8", 8, 0, true, false, 3}, // 0x67,
-            OpCodeInfo{"PUSH9", 9, 0, true, false, 3}, // 0x68,
-            OpCodeInfo{"PUSH10", 10, 0, true, false, 3}, // 0x69,
-            OpCodeInfo{"PUSH11", 11, 0, true, false, 3}, // 0x6A,
-            OpCodeInfo{"PUSH12", 12, 0, true, false, 3}, // 0x6B,
-            OpCodeInfo{"PUSH13", 13, 0, true, false, 3}, // 0x6C,
-            OpCodeInfo{"PUSH14", 14, 0, true, false, 3}, // 0x6D,
-            OpCodeInfo{"PUSH15", 15, 0, true, false, 3}, // 0x6E,
-            OpCodeInfo{"PUSH16", 16, 0, true, false, 3}, // 0x6F,
+            OpCodeInfo{"PUSH1", 1, 0, true, false, 3, 1}, // 0x60,
+            OpCodeInfo{"PUSH2", 2, 0, true, false, 3, 2}, // 0x61,
+            OpCodeInfo{"PUSH3", 3, 0, true, false, 3, 3}, // 0x62,
+            OpCodeInfo{"PUSH4", 4, 0, true, false, 3, 4}, // 0x63,
+            OpCodeInfo{"PUSH5", 5, 0, true, false, 3, 5}, // 0x64,
+            OpCodeInfo{"PUSH6", 6, 0, true, false, 3, 6}, // 0x65,
+            OpCodeInfo{"PUSH7", 7, 0, true, false, 3, 7}, // 0x66,
+            OpCodeInfo{"PUSH8", 8, 0, true, false, 3, 8}, // 0x67,
+            OpCodeInfo{"PUSH9", 9, 0, true, false, 3, 9}, // 0x68,
+            OpCodeInfo{"PUSH10", 10, 0, true, false, 3, 10}, // 0x69,
+            OpCodeInfo{"PUSH11", 11, 0, true, false, 3, 11}, // 0x6A,
+            OpCodeInfo{"PUSH12", 12, 0, true, false, 3, 12}, // 0x6B,
+            OpCodeInfo{"PUSH13", 13, 0, true, false, 3, 13}, // 0x6C,
+            OpCodeInfo{"PUSH14", 14, 0, true, false, 3, 14}, // 0x6D,
+            OpCodeInfo{"PUSH15", 15, 0, true, false, 3, 15}, // 0x6E,
+            OpCodeInfo{"PUSH16", 16, 0, true, false, 3, 16}, // 0x6F,
 
-            OpCodeInfo{"PUSH17", 17, 0, true, false, 3}, // 0x70,
-            OpCodeInfo{"PUSH18", 18, 0, true, false, 3}, // 0x71,
-            OpCodeInfo{"PUSH19", 19, 0, true, false, 3}, // 0x72,
-            OpCodeInfo{"PUSH20", 20, 0, true, false, 3}, // 0x73,
-            OpCodeInfo{"PUSH21", 21, 0, true, false, 3}, // 0x74,
-            OpCodeInfo{"PUSH22", 22, 0, true, false, 3}, // 0x75,
-            OpCodeInfo{"PUSH23", 23, 0, true, false, 3}, // 0x76,
-            OpCodeInfo{"PUSH24", 24, 0, true, false, 3}, // 0x77,
-            OpCodeInfo{"PUSH25", 25, 0, true, false, 3}, // 0x78,
-            OpCodeInfo{"PUSH26", 26, 0, true, false, 3}, // 0x79,
-            OpCodeInfo{"PUSH27", 27, 0, true, false, 3}, // 0x7A,
-            OpCodeInfo{"PUSH28", 28, 0, true, false, 3}, // 0x7B,
-            OpCodeInfo{"PUSH29", 29, 0, true, false, 3}, // 0x7C,
-            OpCodeInfo{"PUSH30", 30, 0, true, false, 3}, // 0x7D,
-            OpCodeInfo{"PUSH31", 31, 0, true, false, 3}, // 0x7E,
-            OpCodeInfo{"PUSH32", 32, 0, true, false, 3}, // 0x7F,
+            OpCodeInfo{"PUSH17", 17, 0, true, false, 3, 17}, // 0x70,
+            OpCodeInfo{"PUSH18", 18, 0, true, false, 3, 18}, // 0x71,
+            OpCodeInfo{"PUSH19", 19, 0, true, false, 3, 19}, // 0x72,
+            OpCodeInfo{"PUSH20", 20, 0, true, false, 3, 20}, // 0x73,
+            OpCodeInfo{"PUSH21", 21, 0, true, false, 3, 21}, // 0x74,
+            OpCodeInfo{"PUSH22", 22, 0, true, false, 3, 22}, // 0x75,
+            OpCodeInfo{"PUSH23", 23, 0, true, false, 3, 23}, // 0x76,
+            OpCodeInfo{"PUSH24", 24, 0, true, false, 3, 24}, // 0x77,
+            OpCodeInfo{"PUSH25", 25, 0, true, false, 3, 25}, // 0x78,
+            OpCodeInfo{"PUSH26", 26, 0, true, false, 3, 26}, // 0x79,
+            OpCodeInfo{"PUSH27", 27, 0, true, false, 3, 27}, // 0x7A,
+            OpCodeInfo{"PUSH28", 28, 0, true, false, 3, 28}, // 0x7B,
+            OpCodeInfo{"PUSH29", 29, 0, true, false, 3, 29}, // 0x7C,
+            OpCodeInfo{"PUSH30", 30, 0, true, false, 3, 30}, // 0x7D,
+            OpCodeInfo{"PUSH31", 31, 0, true, false, 3, 31}, // 0x7E,
+            OpCodeInfo{"PUSH32", 32, 0, true, false, 3, 32}, // 0x7F,
 
-            OpCodeInfo{"DUP1", 0, 1, true, false, 3}, // 0x80,
-            OpCodeInfo{"DUP2", 0, 2, true, false, 3}, // 0x81,
-            OpCodeInfo{"DUP3", 0, 3, true, false, 3}, // 0x82,
-            OpCodeInfo{"DUP4", 0, 4, true, false, 3}, // 0x83,
-            OpCodeInfo{"DUP5", 0, 5, true, false, 3}, // 0x84,
-            OpCodeInfo{"DUP6", 0, 6, true, false, 3}, // 0x85,
-            OpCodeInfo{"DUP7", 0, 7, true, false, 3}, // 0x86,
-            OpCodeInfo{"DUP8", 0, 8, true, false, 3}, // 0x87,
-            OpCodeInfo{"DUP9", 0, 9, true, false, 3}, // 0x88,
-            OpCodeInfo{"DUP10", 0, 10, true, false, 3}, // 0x89,
-            OpCodeInfo{"DUP11", 0, 11, true, false, 3}, // 0x8A,
-            OpCodeInfo{"DUP12", 0, 12, true, false, 3}, // 0x8B,
-            OpCodeInfo{"DUP13", 0, 13, true, false, 3}, // 0x8C,
-            OpCodeInfo{"DUP14", 0, 14, true, false, 3}, // 0x8D,
-            OpCodeInfo{"DUP15", 0, 15, true, false, 3}, // 0x8E,
-            OpCodeInfo{"DUP16", 0, 16, true, false, 3}, // 0x8F,
+            OpCodeInfo{"DUP1", 0, 1, true, false, 3, 1}, // 0x80,
+            OpCodeInfo{"DUP2", 0, 2, true, false, 3, 2}, // 0x81,
+            OpCodeInfo{"DUP3", 0, 3, true, false, 3, 3}, // 0x82,
+            OpCodeInfo{"DUP4", 0, 4, true, false, 3, 4}, // 0x83,
+            OpCodeInfo{"DUP5", 0, 5, true, false, 3, 5}, // 0x84,
+            OpCodeInfo{"DUP6", 0, 6, true, false, 3, 6}, // 0x85,
+            OpCodeInfo{"DUP7", 0, 7, true, false, 3, 7}, // 0x86,
+            OpCodeInfo{"DUP8", 0, 8, true, false, 3, 8}, // 0x87,
+            OpCodeInfo{"DUP9", 0, 9, true, false, 3, 9}, // 0x88,
+            OpCodeInfo{"DUP10", 0, 10, true, false, 3, 10}, // 0x89,
+            OpCodeInfo{"DUP11", 0, 11, true, false, 3, 11}, // 0x8A,
+            OpCodeInfo{"DUP12", 0, 12, true, false, 3, 12}, // 0x8B,
+            OpCodeInfo{"DUP13", 0, 13, true, false, 3, 13}, // 0x8C,
+            OpCodeInfo{"DUP14", 0, 14, true, false, 3, 14}, // 0x8D,
+            OpCodeInfo{"DUP15", 0, 15, true, false, 3, 15}, // 0x8E,
+            OpCodeInfo{"DUP16", 0, 16, true, false, 3, 16}, // 0x8F,
 
-            OpCodeInfo{"SWAP1", 0, 1 + 1, false, false, 3}, // 0x90,
-            OpCodeInfo{"SWAP2", 0, 1 + 2, false, false, 3}, // 0x91,
-            OpCodeInfo{"SWAP3", 0, 1 + 3, false, false, 3}, // 0x92,
-            OpCodeInfo{"SWAP4", 0, 1 + 4, false, false, 3}, // 0x93,
-            OpCodeInfo{"SWAP5", 0, 1 + 5, false, false, 3}, // 0x94,
-            OpCodeInfo{"SWAP6", 0, 1 + 6, false, false, 3}, // 0x95,
-            OpCodeInfo{"SWAP7", 0, 1 + 7, false, false, 3}, // 0x96,
-            OpCodeInfo{"SWAP8", 0, 1 + 8, false, false, 3}, // 0x97,
-            OpCodeInfo{"SWAP9", 0, 1 + 9, false, false, 3}, // 0x98,
-            OpCodeInfo{"SWAP10", 0, 1 + 10, false, false, 3}, // 0x99,
-            OpCodeInfo{"SWAP11", 0, 1 + 11, false, false, 3}, // 0x9A,
-            OpCodeInfo{"SWAP12", 0, 1 + 12, false, false, 3}, // 0x9B,
-            OpCodeInfo{"SWAP13", 0, 1 + 13, false, false, 3}, // 0x9C,
-            OpCodeInfo{"SWAP14", 0, 1 + 14, false, false, 3}, // 0x9D,
-            OpCodeInfo{"SWAP15", 0, 1 + 15, false, false, 3}, // 0x9E,
-            OpCodeInfo{"SWAP16", 0, 1 + 16, false, false, 3}, // 0x9F,
+            OpCodeInfo{"SWAP1", 0, 1 + 1, false, false, 3, 1}, // 0x90,
+            OpCodeInfo{"SWAP2", 0, 1 + 2, false, false, 3, 2}, // 0x91,
+            OpCodeInfo{"SWAP3", 0, 1 + 3, false, false, 3, 3}, // 0x92,
+            OpCodeInfo{"SWAP4", 0, 1 + 4, false, false, 3, 4}, // 0x93,
+            OpCodeInfo{"SWAP5", 0, 1 + 5, false, false, 3, 5}, // 0x94,
+            OpCodeInfo{"SWAP6", 0, 1 + 6, false, false, 3, 6}, // 0x95,
+            OpCodeInfo{"SWAP7", 0, 1 + 7, false, false, 3, 7}, // 0x96,
+            OpCodeInfo{"SWAP8", 0, 1 + 8, false, false, 3, 8}, // 0x97,
+            OpCodeInfo{"SWAP9", 0, 1 + 9, false, false, 3, 9}, // 0x98,
+            OpCodeInfo{"SWAP10", 0, 1 + 10, false, false, 3, 10}, // 0x99,
+            OpCodeInfo{"SWAP11", 0, 1 + 11, false, false, 3, 11}, // 0x9A,
+            OpCodeInfo{"SWAP12", 0, 1 + 12, false, false, 3, 12}, // 0x9B,
+            OpCodeInfo{"SWAP13", 0, 1 + 13, false, false, 3, 13}, // 0x9C,
+            OpCodeInfo{"SWAP14", 0, 1 + 14, false, false, 3, 14}, // 0x9D,
+            OpCodeInfo{"SWAP15", 0, 1 + 15, false, false, 3, 15}, // 0x9E,
+            OpCodeInfo{"SWAP16", 0, 1 + 16, false, false, 3, 16}, // 0x9F,
 
-            OpCodeInfo{"LOG0", 0, 2 + 0, false, true, 375}, // 0xA0,
-            OpCodeInfo{"LOG1", 0, 2 + 1, false, true, 750}, // 0xA1,
-            OpCodeInfo{"LOG2", 0, 2 + 2, false, true, 1125}, // 0xA2,
-            OpCodeInfo{"LOG3", 0, 2 + 3, false, true, 1500}, // 0xA3,
-            OpCodeInfo{"LOG4", 0, 2 + 4, false, true, 1875}, // 0xA4,
+            OpCodeInfo{"LOG0", 0, 2 + 0, false, true, 375, 0}, // 0xA0,
+            OpCodeInfo{"LOG1", 0, 2 + 1, false, true, 750, 1}, // 0xA1,
+            OpCodeInfo{"LOG2", 0, 2 + 2, false, true, 1125, 2}, // 0xA2,
+            OpCodeInfo{"LOG3", 0, 2 + 3, false, true, 1500, 3}, // 0xA3,
+            OpCodeInfo{"LOG4", 0, 2 + 4, false, true, 1875, 4}, // 0xA4,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -367,10 +374,10 @@ namespace monad::compiler
             unknown_opcode_info,
             unknown_opcode_info,
 
-            OpCodeInfo{"CREATE", 0, 3, true, true, 32000}, // 0xF0,
-            OpCodeInfo{"CALL", 0, 7, true, true, 100}, // 0xF1,
-            OpCodeInfo{"CALLCODE", 0, 7, true, true, 100}, // 0xF2,
-            OpCodeInfo{"RETURN", 0, 2, false, true, 0}, // 0xF3,
+            OpCodeInfo{"CREATE", 0, 3, true, true, 32000, 0}, // 0xF0,
+            OpCodeInfo{"CALL", 0, 7, true, true, 100, 0}, // 0xF1,
+            OpCodeInfo{"CALLCODE", 0, 7, true, true, 100, 0}, // 0xF2,
+            OpCodeInfo{"RETURN", 0, 2, false, true, 0, 0}, // 0xF3,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -382,7 +389,7 @@ namespace monad::compiler
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
-            OpCodeInfo{"SELFDESTRUCT", 0, 1, false, true, 5000} // 0xFF,
+            OpCodeInfo{"SELFDESTRUCT", 0, 1, false, true, 5000, 0} // 0xFF,
         };
     }
 
@@ -391,11 +398,11 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_BYZANTIUM)>();
 
-        add_opcode(0x3D, table, {"RETURNDATASIZE", 0, 0, true, false, 2});
-        add_opcode(0x3E, table, {"RETURNDATACOPY", 0, 3, false, true, 3});
-        add_opcode(0xF4, table, {"DELEGATECALL", 0, 6, true, true, 100});
-        add_opcode(0xFA, table, {"STATICCALL", 0, 6, true, true, 100});
-        add_opcode(0xFD, table, {"REVERT", 0, 2, false, true, 0});
+        add_opcode(0x3D, table, {"RETURNDATASIZE", 0, 0, true, false, 2, 0});
+        add_opcode(0x3E, table, {"RETURNDATACOPY", 0, 3, false, true, 3, 0});
+        add_opcode(0xF4, table, {"DELEGATECALL", 0, 6, true, true, 100, 0});
+        add_opcode(0xFA, table, {"STATICCALL", 0, 6, true, true, 100, 0});
+        add_opcode(0xFD, table, {"REVERT", 0, 2, false, true, 0, 0});
 
         return table;
     }
@@ -405,11 +412,11 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_CONSTANTINOPLE)>();
 
-        add_opcode(0x1B, table, {"SHL", 0, 2, true, false, 3});
-        add_opcode(0x1C, table, {"SHR", 0, 2, true, false, 3});
-        add_opcode(0x1D, table, {"SAR", 0, 2, true, false, 3});
-        add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 100});
-        add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 3200});
+        add_opcode(0x1B, table, {"SHL", 0, 2, true, false, 3, 0});
+        add_opcode(0x1C, table, {"SHR", 0, 2, true, false, 3, 0});
+        add_opcode(0x1D, table, {"SAR", 0, 2, true, false, 3, 0});
+        add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 100, 0});
+        add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 3200, 0});
 
         return table;
     }
@@ -419,8 +426,8 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_ISTANBUL)>();
 
-        add_opcode(0x46, table, {"CHAINID", 0, 0, true, false, 2});
-        add_opcode(0x47, table, {"SELFBALANCE", 0, 0, true, false, 5});
+        add_opcode(0x46, table, {"CHAINID", 0, 0, true, false, 2, 0});
+        add_opcode(0x47, table, {"SELFBALANCE", 0, 0, true, false, 5, 0});
 
         return table;
     }
@@ -430,7 +437,7 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_LONDON)>();
 
-        add_opcode(0x48, table, {"BASEFEE", 0, 0, true, false, 2});
+        add_opcode(0x48, table, {"BASEFEE", 0, 0, true, false, 2, 0});
 
         return table;
     }
@@ -450,7 +457,7 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_SHANGHAI)>();
 
-        add_opcode(0x5F, table, {"PUSH0", 0, 0, true, false, 2});
+        add_opcode(0x5F, table, {"PUSH0", 0, 0, true, false, 2, 0});
 
         return table;
     }
@@ -460,11 +467,11 @@ namespace monad::compiler
     {
         auto table = opcode_table<previous_evm_revision(EVMC_CANCUN)>();
 
-        add_opcode(0x49, table, {"BLOBHASH", 0, 1, true, false, 3});
-        add_opcode(0x4A, table, {"BLOBBASEFEE", 0, 0, true, false, 2});
-        add_opcode(0x5C, table, {"TLOAD", 0, 1, true, false, 100});
-        add_opcode(0x5D, table, {"TSTORE", 0, 2, false, false, 100});
-        add_opcode(0x5E, table, {"MCOPY", 0, 3, false, true, 3});
+        add_opcode(0x49, table, {"BLOBHASH", 0, 1, true, false, 3, 0});
+        add_opcode(0x4A, table, {"BLOBBASEFEE", 0, 0, true, false, 2, 0});
+        add_opcode(0x5C, table, {"TLOAD", 0, 1, true, false, 100, 0});
+        add_opcode(0x5D, table, {"TSTORE", 0, 2, false, false, 100, 0});
+        add_opcode(0x5E, table, {"MCOPY", 0, 3, false, true, 3, 0});
 
         return table;
     }

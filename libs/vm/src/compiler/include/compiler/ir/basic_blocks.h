@@ -1,7 +1,7 @@
 #pragma once
 
+#include <compiler/evm_opcodes.h>
 #include <compiler/ir/instruction.h>
-#include <compiler/opcodes.h>
 #include <compiler/types.h>
 #include <utils/assert.h>
 
@@ -70,6 +70,29 @@ namespace monad::compiler::basic_blocks
         }
     }
 
+    constexpr OpCode evm_op_to_opcode(std::uint8_t op)
+    {
+        using enum OpCode;
+
+        if (is_push_opcode(op)) {
+            return Push;
+        }
+
+        if (is_swap_opcode(op)) {
+            return Swap;
+        }
+
+        if (is_dup_opcode(op)) {
+            return Dup;
+        }
+
+        if (is_log_opcode(op)) {
+            return Log;
+        }
+
+        return OpCode(op);
+    }
+
     /**
      * Return true if this terminator can implicitly fall through to the next
      * block in sequence.
@@ -80,33 +103,29 @@ namespace monad::compiler::basic_blocks
     }
 
     /**
-     * Opcode info for a given terminator.
+     * Gas usage for a given terminator.
      *
-     * Note that info for `FallThrough` and `InvalidInstruction` is
-     * `unknown_opcode_info`, and that the information here is with respect to
-     * the latest stable EVM revision.
+     * Returns a pair (minimum_static_gas, uses_dynamic_gas).
      */
-    constexpr OpCodeInfo terminator_info(Terminator t)
+    constexpr std::pair<std::uint16_t, bool> terminator_gas_info(Terminator t)
     {
-        auto table = opcode_table<EVMC_LATEST_STABLE_REVISION>();
-
         using enum Terminator;
         switch (t) {
         case JumpI:
-            return table[JUMPI];
+            return {10, false};
         case Return:
-            return table[RETURN];
+            return {0, false};
         case Revert:
-            return table[REVERT];
+            return {0, true};
         case Jump:
-            return table[JUMP];
+            return {8, false};
         case SelfDestruct:
-            return table[SELFDESTRUCT];
+            return {5000, true};
         case Stop:
-            return table[STOP];
+            return {0, false};
         case FallThrough:
         case InvalidInstruction:
-            return unknown_opcode_info;
+            return {0, false};
         default:
             std::unreachable();
         }
@@ -118,7 +137,22 @@ namespace monad::compiler::basic_blocks
      */
     constexpr std::size_t terminator_inputs(Terminator t)
     {
-        return terminator_info(t).min_stack;
+        using enum Terminator;
+        switch (t) {
+        case JumpI:
+        case Return:
+        case Revert:
+            return 2;
+        case Jump:
+        case SelfDestruct:
+            return 1;
+        case Stop:
+        case FallThrough:
+        case InvalidInstruction:
+            return 0;
+        default:
+            std::unreachable();
+        }
     }
 
     /**
@@ -297,7 +331,15 @@ namespace monad::compiler::basic_blocks
 
         current_offset += imm_size;
 
-        return Instruction(opcode_offset, opcode, imm_value, info);
+        return Instruction(
+            opcode_offset,
+            evm_op_to_opcode(opcode),
+            imm_value,
+            info.min_gas,
+            info.min_stack,
+            info.index,
+            info.increases_stack,
+            info.dynamic_gas);
     }
 
     template <evmc_revision Rev>
