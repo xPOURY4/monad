@@ -238,6 +238,15 @@ namespace
 
 namespace monad::compiler::local_stacks
 {
+    LocalStacksIR::LocalStacksIR(basic_blocks::BasicBlocksIR ir)
+        : jumpdests(std::move(ir.jump_dests()))
+        , codesize(ir.codesize)
+    {
+        for (auto &blk : ir.blocks()) {
+            blocks.push_back(convert_block(std::move(blk), codesize));
+        }
+    }
+
     Value::Value(ValueIs is, uint256_t data)
         : is(is)
     {

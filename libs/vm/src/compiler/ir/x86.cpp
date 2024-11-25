@@ -380,7 +380,7 @@ namespace
     entrypoint_t
     compile_contract(asmjit::JitRuntime &rt, std::span<uint8_t const> contract)
     {
-        auto ir = LocalStacksIR(basic_blocks::BasicBlocksIR<Rev>(contract));
+        auto ir = LocalStacksIR(basic_blocks::make_ir<Rev>(contract));
         return compile_local_stacks<Rev>(rt, ir);
     }
 }

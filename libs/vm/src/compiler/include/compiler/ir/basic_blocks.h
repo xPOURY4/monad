@@ -166,6 +166,11 @@ namespace monad::compiler::basic_blocks
 
     bool operator==(Block const &a, Block const &b);
 
+    template <evmc_revision Rev>
+    struct RevisionMarker
+    {
+    };
+
     /**
      * In this representation, the underlying EVM code has been grouped into
      * basic blocks by splitting the program at terminator points.
@@ -175,15 +180,18 @@ namespace monad::compiler::basic_blocks
      * constructed that maps byte offsets in the original program onto these
      * block identifiers.
      */
-    template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
     class BasicBlocksIR
     {
     public:
         /**
          * Construct basic blocks from a bytecode program.
          */
-        BasicBlocksIR(std::span<std::uint8_t const>);
-        BasicBlocksIR(std::initializer_list<std::uint8_t>);
+        template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+        BasicBlocksIR(std::span<std::uint8_t const>, RevisionMarker<Rev> = {});
+
+        template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
+        BasicBlocksIR(
+            std::initializer_list<std::uint8_t>, RevisionMarker<Rev> = {});
 
         /**
          * The basic blocks in the program.
@@ -217,6 +225,7 @@ namespace monad::compiler::basic_blocks
         bool is_valid() const;
 
     private:
+        template <evmc_revision Rev>
         static std::variant<Instruction, Terminator, JumpDest> scan_from(
             std::span<std::uint8_t const> bytes, std::uint32_t &current_offset);
 
@@ -259,9 +268,11 @@ namespace monad::compiler::basic_blocks
         void add_fallthrough_terminator(Terminator t);
     };
 
+    template <evmc_revision Rev, typename... Args>
+    BasicBlocksIR make_ir(Args &&...);
+
     template <evmc_revision Rev>
-    std::variant<Instruction, Terminator, JumpDest>
-    BasicBlocksIR<Rev>::scan_from(
+    std::variant<Instruction, Terminator, JumpDest> BasicBlocksIR::scan_from(
         std::span<std::uint8_t const> bytes, std::uint32_t &current_offset)
     {
         auto opcode = bytes[current_offset];
@@ -290,7 +301,8 @@ namespace monad::compiler::basic_blocks
     }
 
     template <evmc_revision Rev>
-    BasicBlocksIR<Rev>::BasicBlocksIR(std::span<std::uint8_t const> bytes)
+    BasicBlocksIR::BasicBlocksIR(
+        std::span<std::uint8_t const> bytes, RevisionMarker<Rev>)
         : codesize(bytes.size())
     {
         enum class St
@@ -307,7 +319,7 @@ namespace monad::compiler::basic_blocks
         auto first = true;
 
         while (current_offset < bytes.size()) {
-            auto inst = scan_from(bytes, current_offset);
+            auto inst = scan_from<Rev>(bytes, current_offset);
 
             if (first && std::holds_alternative<JumpDest>(inst)) {
                 add_jump_dest();
@@ -339,7 +351,7 @@ namespace monad::compiler::basic_blocks
                         // the block as being a jumpdest
                         if (current_offset < bytes.size()) {
                             auto next_offset = current_offset;
-                            auto next_inst = scan_from(bytes, next_offset);
+                            auto next_inst = scan_from<Rev>(bytes, next_offset);
                             if (std::holds_alternative<JumpDest>(next_inst)) {
                                 current_offset += 1;
                                 add_jump_dest();
@@ -373,103 +385,17 @@ namespace monad::compiler::basic_blocks
     }
 
     template <evmc_revision Rev>
-    BasicBlocksIR<Rev>::BasicBlocksIR(std::initializer_list<std::uint8_t> bytes)
-        : BasicBlocksIR(std::span(bytes))
+    BasicBlocksIR::BasicBlocksIR(
+        std::initializer_list<std::uint8_t> bytes, RevisionMarker<Rev> rm)
+        : BasicBlocksIR(std::span(bytes), rm)
     {
     }
 
-    /*
-     * IR
-     */
-
-    template <evmc_revision Rev>
-    std::vector<Block> const &BasicBlocksIR<Rev>::blocks() const
+    template <evmc_revision Rev, typename... Args>
+    BasicBlocksIR make_ir(Args &&...args)
     {
-        return blocks_;
-    }
-
-    template <evmc_revision Rev>
-    std::vector<Block> &BasicBlocksIR<Rev>::blocks()
-    {
-        return blocks_;
-    }
-
-    template <evmc_revision Rev>
-    Block const &BasicBlocksIR<Rev>::block(block_id id) const
-    {
-        return blocks_.at(id);
-    }
-
-    template <evmc_revision Rev>
-    std::unordered_map<byte_offset, block_id> const &
-    BasicBlocksIR<Rev>::jump_dests() const
-    {
-        return jump_dests_;
-    }
-
-    template <evmc_revision Rev>
-    std::unordered_map<byte_offset, block_id> &BasicBlocksIR<Rev>::jump_dests()
-    {
-        return jump_dests_;
-    }
-
-    template <evmc_revision Rev>
-    bool BasicBlocksIR<Rev>::is_valid() const
-    {
-        auto all_blocks_valid =
-            std::all_of(blocks_.begin(), blocks_.end(), [](auto const &b) {
-                return b.is_valid();
-            });
-
-        auto all_dests_valid = std::all_of(
-            jump_dests_.begin(), jump_dests_.end(), [this](auto const &entry) {
-                auto [offset, block_id] = entry;
-                return block_id < blocks_.size();
-            });
-
-        return all_blocks_valid && all_dests_valid;
-    }
-
-    /*
-     * IR: Private construction methods
-     */
-
-    template <evmc_revision Rev>
-    block_id BasicBlocksIR<Rev>::curr_block_id() const
-    {
-        return blocks_.size() - 1;
-    }
-
-    template <evmc_revision Rev>
-    byte_offset BasicBlocksIR<Rev>::curr_block_offset() const
-    {
-        return blocks_.back().offset;
-    }
-
-    template <evmc_revision Rev>
-    void BasicBlocksIR<Rev>::add_jump_dest()
-    {
-        assert(blocks_.back().instrs.empty());
-        jump_dests_.emplace(curr_block_offset(), curr_block_id());
-    }
-
-    template <evmc_revision Rev>
-    void BasicBlocksIR<Rev>::add_block(byte_offset offset)
-    {
-        blocks_.push_back(Block{.offset = offset});
-    }
-
-    template <evmc_revision Rev>
-    void BasicBlocksIR<Rev>::add_terminator(Terminator t)
-    {
-        blocks_.back().terminator = t;
-    }
-
-    template <evmc_revision Rev>
-    void BasicBlocksIR<Rev>::add_fallthrough_terminator(Terminator t)
-    {
-        blocks_.back().terminator = t;
-        blocks_.back().fallthrough_dest = curr_block_id() + 1;
+        return BasicBlocksIR(
+            std::forward<Args>(args)..., RevisionMarker<Rev>{});
     }
 }
 
@@ -543,8 +469,8 @@ struct std::formatter<monad::compiler::basic_blocks::Block>
     }
 };
 
-template <evmc_revision Rev>
-struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR<Rev>>
+template <>
+struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
@@ -552,7 +478,7 @@ struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR<Rev>>
     }
 
     auto format(
-        monad::compiler::basic_blocks::BasicBlocksIR<Rev> const &ir,
+        monad::compiler::basic_blocks::BasicBlocksIR const &ir,
         std::format_context &ctx) const
     {
 
