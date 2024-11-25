@@ -5,6 +5,7 @@
 
 #include <intx/intx.hpp>
 
+#include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
 #include <algorithm>
@@ -42,6 +43,11 @@ namespace monad::runtime
         std::copy(addr.bytes, addr.bytes + 20, buf.begin());
 
         return intx::be::unsafe::load<intx::uint256>(buf.data());
+    }
+
+    evmc_tx_context Context::get_tx_context() const
+    {
+        return host->get_tx_context(context);
     }
 
     void Environment::set_return_data(

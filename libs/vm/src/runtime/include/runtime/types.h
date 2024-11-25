@@ -90,6 +90,8 @@ namespace monad::runtime
         get_memory_offset_and_size(
             ExitContext *ctx, utils::uint256_t offset, utils::uint256_t size);
 
+        evmc_tx_context get_tx_context() const;
+
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
         void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
