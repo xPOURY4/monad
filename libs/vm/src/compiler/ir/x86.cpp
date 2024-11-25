@@ -216,15 +216,6 @@ namespace
         case Pop:
             std::terminate();
             break;
-        case Push:
-            emit.push(instr.immediate_value());
-            break;
-        case Dup:
-            std::terminate();
-            break;
-        case Swap:
-            std::terminate();
-            break;
         case MLoad:
             std::terminate();
             break;
@@ -249,9 +240,6 @@ namespace
         case Gas:
             std::terminate();
             break;
-        case Log:
-            std::terminate();
-            break;
         case TLoad:
             std::terminate();
             break;
@@ -259,6 +247,18 @@ namespace
             std::terminate();
             break;
         case MCopy:
+            std::terminate();
+            break;
+        case Push:
+            emit.push(instr.immediate_value());
+            break;
+        case Dup:
+            std::terminate();
+            break;
+        case Swap:
+            std::terminate();
+            break;
+        case Log:
             std::terminate();
             break;
         case Create:
