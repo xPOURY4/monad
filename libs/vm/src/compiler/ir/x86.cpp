@@ -376,13 +376,12 @@ namespace
         return emit.finish_contract(rt);
     }
 
-    template <evmc_revision rev>
+    template <evmc_revision Rev>
     entrypoint_t
     compile_contract(asmjit::JitRuntime &rt, std::span<uint8_t const> contract)
     {
-        // TODO - Need to change opcode table to depend on revision.
-        auto ir = LocalStacksIR(basic_blocks::BasicBlocksIR(contract));
-        return compile_local_stacks<rev>(rt, ir);
+        auto ir = LocalStacksIR(basic_blocks::BasicBlocksIR<Rev>(contract));
+        return compile_local_stacks<Rev>(rt, ir);
     }
 }
 
