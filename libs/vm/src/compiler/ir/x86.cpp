@@ -392,9 +392,36 @@ namespace monad::compiler::native
         evmc_revision rev)
     {
         try {
-            (void)rev;
-            // TODO - branch on revision here?
-            return ::compile_contract<EVMC_CANCUN>(rt, contract);
+            switch (rev) {
+            case EVMC_FRONTIER:
+                return ::compile_contract<EVMC_FRONTIER>(rt, contract);
+            case EVMC_HOMESTEAD:
+                return ::compile_contract<EVMC_HOMESTEAD>(rt, contract);
+            case EVMC_TANGERINE_WHISTLE:
+                return ::compile_contract<EVMC_TANGERINE_WHISTLE>(rt, contract);
+            case EVMC_SPURIOUS_DRAGON:
+                return ::compile_contract<EVMC_SPURIOUS_DRAGON>(rt, contract);
+            case EVMC_BYZANTIUM:
+                return ::compile_contract<EVMC_BYZANTIUM>(rt, contract);
+            case EVMC_CONSTANTINOPLE:
+                return ::compile_contract<EVMC_CONSTANTINOPLE>(rt, contract);
+            case EVMC_PETERSBURG:
+                return ::compile_contract<EVMC_PETERSBURG>(rt, contract);
+            case EVMC_ISTANBUL:
+                return ::compile_contract<EVMC_ISTANBUL>(rt, contract);
+            case EVMC_BERLIN:
+                return ::compile_contract<EVMC_BERLIN>(rt, contract);
+            case EVMC_LONDON:
+                return ::compile_contract<EVMC_LONDON>(rt, contract);
+            case EVMC_PARIS:
+                return ::compile_contract<EVMC_PARIS>(rt, contract);
+            case EVMC_SHANGHAI:
+                return ::compile_contract<EVMC_SHANGHAI>(rt, contract);
+            case EVMC_CANCUN:
+                return ::compile_contract<EVMC_CANCUN>(rt, contract);
+            default:
+                return std::nullopt;
+            }
         }
         catch (Emitter::Error const &e) {
             (void)e;
