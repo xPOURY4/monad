@@ -918,6 +918,60 @@ TEST(Emitter, add)
         std::numeric_limits<uint256_t>::max() - 2);
 }
 
+TEST(Emitter, and_)
+{
+    pure_bin_instr_test(AND, &Emitter::and_, 1, 3, 1);
+    pure_bin_instr_test(AND, &Emitter::and_, 2, 1, 0);
+    pure_bin_instr_test(
+        AND,
+        &Emitter::and_,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max() - 1,
+        std::numeric_limits<uint256_t>::max() - 1);
+}
+
+TEST(Emitter, or_)
+{
+    pure_bin_instr_test(OR, &Emitter::or_, 1, 3, 3);
+    pure_bin_instr_test(OR, &Emitter::or_, 2, 1, 3);
+    pure_bin_instr_test(
+        OR,
+        &Emitter::or_,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max() - 1,
+        std::numeric_limits<uint256_t>::max());
+}
+
+TEST(Emitter, xor_)
+{
+    pure_bin_instr_test(XOR, &Emitter::xor_, 1, 3, 2);
+    pure_bin_instr_test(XOR, &Emitter::xor_, 2, 1, 3);
+    pure_bin_instr_test(
+        XOR,
+        &Emitter::xor_,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max() - 1,
+        1);
+}
+
+TEST(Emitter, eq)
+{
+    pure_bin_instr_test(EQ, &Emitter::eq, 0, 0, 1);
+    pure_bin_instr_test(EQ, &Emitter::eq, 1, 0, 0);
+    pure_bin_instr_test(
+        EQ,
+        &Emitter::eq,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max() - 1,
+        0);
+    pure_bin_instr_test(
+        EQ,
+        &Emitter::eq,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max(),
+        1);
+}
+
 TEST(Emitter, iszero)
 {
     pure_una_instr_test(ISZERO, &Emitter::iszero, 0, 1);

@@ -48,6 +48,11 @@ namespace monad::compiler::native
         using GeneralBinInstr = std::array<
             asmjit::Error (asmjit::x86::Assembler::*)(L const &, R const &), 4>;
 
+        template <typename R>
+        using AvxBinInstr = asmjit::Error (
+            asmjit::x86::EmitterExplicitT<asmjit::x86::Assembler>::*)(
+            asmjit::x86::Vec const &, asmjit::x86::Vec const &, R const &);
+
         ////////// Initialization and de-initialization //////////
 
         Emitter(
@@ -87,6 +92,11 @@ namespace monad::compiler::native
         void sgt();
         void sub();
         void add();
+
+        void and_();
+        void or_();
+        void xor_();
+        void eq();
 
         void iszero();
         void not_();
@@ -163,8 +173,9 @@ namespace monad::compiler::native
         void
         cmp(StackElemRef dst, LocationType, StackElemRef src, LocationType);
 
-        std::pair<LocationType, LocationType>
-        prepare_general_dest_and_source_with_regs_reserved(
+        template <bool commutative>
+        std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
+        prepare_general_dest_and_source(
             StackElemRef dst, std::optional<int32_t> dst_stack_index,
             StackElemRef src);
 
@@ -174,7 +185,8 @@ namespace monad::compiler::native
             StackElemRef dst, std::optional<int32_t> dst_stack_index,
             StackElemRef src);
 
-        Operand get_operand(StackElemRef, LocationType);
+        Operand get_operand(
+            StackElemRef, LocationType, bool always_append_literal = false);
 
         template <
             GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,
@@ -186,6 +198,26 @@ namespace monad::compiler::native
 
         std::tuple<StackElemRef, StackElemRef, LocationType> get_una_arguments(
             StackElemRef dst, std::optional<int32_t> dst_stack_index);
+
+        std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
+        prepare_avx_or_general_arguments_commutative(
+            StackElemRef dst, StackElemRef src);
+
+        std::tuple<
+            StackElemRef, StackElemRef, LocationType, StackElemRef,
+            LocationType>
+        get_avx_or_general_arguments_commutative(
+            StackElemRef dst, StackElemRef src);
+
+        template <
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Mem> GM,
+            GeneralBinInstr<asmjit::x86::Gp, asmjit::Imm> GI,
+            GeneralBinInstr<asmjit::x86::Mem, asmjit::x86::Gp> MG,
+            GeneralBinInstr<asmjit::x86::Mem, asmjit::Imm> MI,
+            AvxBinInstr<asmjit::x86::Vec> VV, AvxBinInstr<asmjit::x86::Mem> VM>
+        void avx_or_general_bin_instr(
+            StackElemRef dst, Operand const &left, Operand const &right);
 
         ////////// Fields //////////
 

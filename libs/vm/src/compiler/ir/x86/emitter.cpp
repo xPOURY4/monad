@@ -132,6 +132,32 @@ namespace
          &x86::Assembler::i1,                                                  \
          &x86::Assembler::i1}>
 
+// For reducing noise
+#define AVX_OR_GENERAL_BIN_INSTR(i, v)                                         \
+    avx_or_general_bin_instr<                                                  \
+        {&x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i},                                                  \
+        {&x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i},                                                  \
+        {&x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i},                                                  \
+        {&x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i},                                                  \
+        {&x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i,                                                   \
+         &x86::Assembler::i},                                                  \
+        &x86::Assembler::v,                                                    \
+        &x86::Assembler::v>
+
 namespace monad::compiler::native
 {
     Emitter::Error::Error(std::string const &msg)
@@ -200,8 +226,13 @@ namespace monad::compiler::native
         static auto const ro_section_index = 1;
 
         asmjit::Section *ro_section;
-        code_holder_.newSection(&ro_section, ro_section_name, ro_section_name_len,
-                asmjit::SectionFlags::kReadOnly, 32, ro_section_index);
+        code_holder_.newSection(
+            &ro_section,
+            ro_section_name,
+            ro_section_name_len,
+            asmjit::SectionFlags::kReadOnly,
+            32,
+            ro_section_index);
 
         as_.section(ro_section);
         as_.align(asmjit::AlignMode::kData, 32);
@@ -811,6 +842,125 @@ namespace monad::compiler::native
         stack_->push(std::move(dst));
     }
 
+    // Discharge
+    void Emitter::and_()
+    {
+        auto pre_dst = stack_->pop();
+        auto pre_src = stack_->pop();
+
+        if (pre_dst->literal() && pre_src->literal()) {
+            auto const &x = pre_dst->literal().value().value;
+            auto const &y = pre_src->literal().value().value;
+            push(x & y);
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        auto [dst, left, left_loc, right, right_loc] =
+            get_avx_or_general_arguments_commutative(
+                std::move(pre_dst), std::move(pre_src));
+
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(
+            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
+        AVX_OR_GENERAL_BIN_INSTR(and_, vpand)(dst, left_op, right_op);
+
+        stack_->push(std::move(dst));
+    }
+
+    // Discharge
+    void Emitter::or_()
+    {
+        auto pre_dst = stack_->pop();
+        auto pre_src = stack_->pop();
+
+        if (pre_dst->literal() && pre_src->literal()) {
+            auto const &x = pre_dst->literal().value().value;
+            auto const &y = pre_src->literal().value().value;
+            push(x | y);
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        auto [dst, left, left_loc, right, right_loc] =
+            get_avx_or_general_arguments_commutative(
+                std::move(pre_dst), std::move(pre_src));
+
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(
+            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
+        AVX_OR_GENERAL_BIN_INSTR(or_, vpor)(dst, left_op, right_op);
+
+        stack_->push(std::move(dst));
+    }
+
+    // Discharge
+    void Emitter::xor_()
+    {
+        auto pre_dst = stack_->pop();
+        auto pre_src = stack_->pop();
+
+        if (pre_dst->literal() && pre_src->literal()) {
+            auto const &x = pre_dst->literal().value().value;
+            auto const &y = pre_src->literal().value().value;
+            push(x ^ y);
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        auto [dst, left, left_loc, right, right_loc] =
+            get_avx_or_general_arguments_commutative(
+                std::move(pre_dst), std::move(pre_src));
+
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(
+            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
+        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)(dst, left_op, right_op);
+
+        stack_->push(std::move(dst));
+    }
+
+    // Discharge
+    void Emitter::eq()
+    {
+        auto pre_dst = stack_->pop();
+        auto pre_src = stack_->pop();
+
+        if (pre_dst->literal() && pre_src->literal()) {
+            auto const &x = pre_dst->literal().value().value;
+            auto const &y = pre_src->literal().value().value;
+            push(x == y);
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        auto [dst, left, left_loc, right, right_loc] =
+            get_avx_or_general_arguments_commutative(
+                std::move(pre_dst), std::move(pre_src));
+
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(
+            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
+        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)(dst, left_op, right_op);
+
+        if (left_loc == LocationType::AvxReg) {
+            x86::Ymm const &y = avx_reg_to_ymm(dst->avx_reg().value());
+            as_.vptest(y, y);
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(left_loc == LocationType::GeneralReg);
+            Gpq256 gpq = general_reg_to_gpq256(dst->general_reg().value());
+            for (size_t i = 0; i < 3; ++i) {
+                as_.or_(gpq[i + 1], gpq[i]);
+            }
+        }
+        stack_->push_deferred_comparison(Comparison::Equal);
+    }
+
     // Discharge, except when top element is deferred comparison
     void Emitter::iszero()
     {
@@ -960,96 +1110,16 @@ namespace monad::compiler::native
         GENERAL_BIN_INSTR(cmp, sbb)(dst_op, src_op);
     }
 
-    std::pair<Emitter::LocationType, Emitter::LocationType>
-    Emitter::prepare_general_dest_and_source_with_regs_reserved(
-        StackElemRef dst, std::optional<int32_t> dst_ix, StackElemRef src)
-    {
-        if (dst.get() == src.get()) {
-            if (!dst->general_reg()) {
-                if (dst_ix) {
-                    mov_stack_elem_to_general_reg_update_eflags(
-                        dst, dst_ix.value());
-                }
-                else {
-                    mov_stack_elem_to_general_reg_update_eflags(dst);
-                }
-            }
-            return {LocationType::GeneralReg, LocationType::GeneralReg};
-        }
-        if (dst_ix && dst->stack_offset()) {
-            if (src->general_reg()) {
-                return {LocationType::StackOffset, LocationType::GeneralReg};
-            }
-            if (src->literal() && is_literal_bounded(src->literal().value())) {
-                return {LocationType::StackOffset, LocationType::Literal};
-            }
-        }
-        if (dst->general_reg()) {
-            if (src->general_reg()) {
-                return {LocationType::GeneralReg, LocationType::GeneralReg};
-            }
-            if (src->stack_offset()) {
-                return {LocationType::GeneralReg, LocationType::StackOffset};
-            }
-            if (src->literal()) {
-                return {LocationType::GeneralReg, LocationType::Literal};
-            }
-            mov_avx_reg_to_stack_offset(src);
-            return {LocationType::GeneralReg, LocationType::StackOffset};
-        }
-        if (!dst->stack_offset()) {
-            if (dst->literal()) {
-                mov_literal_to_general_reg_update_eflags(dst);
-                if (src->general_reg()) {
-                    return {LocationType::GeneralReg, LocationType::GeneralReg};
-                }
-                if (src->stack_offset()) {
-                    return {
-                        LocationType::GeneralReg, LocationType::StackOffset};
-                }
-                if (src->literal()) {
-                    return {LocationType::GeneralReg, LocationType::Literal};
-                }
-                mov_avx_reg_to_stack_offset(src);
-                return {LocationType::GeneralReg, LocationType::StackOffset};
-            }
-            else {
-                if (dst_ix) {
-                    mov_avx_reg_to_stack_offset(dst, dst_ix.value());
-                }
-                else {
-                    mov_avx_reg_to_stack_offset(dst);
-                }
-                // fall through
-            }
-        }
-        if (src->general_reg()) {
-            return {LocationType::StackOffset, LocationType::GeneralReg};
-        }
-        if (src->literal() && is_literal_bounded(src->literal().value())) {
-            return {LocationType::StackOffset, LocationType::Literal};
-        }
-        if (src->stack_offset()) {
-            mov_stack_offset_to_general_reg_update_eflags(src);
-            return {LocationType::StackOffset, LocationType::GeneralReg};
-        }
-        if (src->literal()) {
-            mov_literal_to_general_reg_update_eflags(src);
-            return {LocationType::StackOffset, LocationType::Literal};
-        }
-        mov_avx_reg_to_general_reg_update_eflags(src);
-        return {LocationType::StackOffset, LocationType::GeneralReg};
-    }
-
     template <bool commutative>
     std::tuple<
         StackElemRef, Emitter::LocationType, StackElemRef,
         Emitter::LocationType>
-    Emitter::get_general_dest_and_source(
+    Emitter::prepare_general_dest_and_source(
         StackElemRef dst, std::optional<int32_t> dst_ix, StackElemRef src)
     {
         RegReserv const dst_reserv{dst};
         RegReserv const src_reserv{src};
+
         if constexpr (commutative) {
             if (dst->literal() && !dst->stack_offset() && !dst->avx_reg() &&
                 !dst->general_reg()) {
@@ -1063,9 +1133,155 @@ namespace monad::compiler::native
                 }
             }
         }
-        auto [dst_loc, src_loc] =
-            prepare_general_dest_and_source_with_regs_reserved(
-                dst, dst_ix, src);
+
+        if (dst.get() == src.get()) {
+            if (!dst->general_reg()) {
+                mov_stack_elem_to_general_reg_update_eflags(dst);
+            }
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::GeneralReg};
+        }
+
+        if (dst_ix && dst->stack_offset()) {
+            if (src->general_reg()) {
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
+            if (src->literal() && is_literal_bounded(src->literal().value())) {
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::Literal};
+            }
+        }
+        if (dst->general_reg()) {
+            if (src->general_reg()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
+            if (src->stack_offset()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::StackOffset};
+            }
+            if (src->literal()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::Literal};
+            }
+            mov_avx_reg_to_stack_offset(src);
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::StackOffset};
+        }
+        if (!dst->stack_offset()) {
+            if (dst->literal()) {
+                mov_literal_to_general_reg_update_eflags(dst);
+                if (src->general_reg()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::GeneralReg};
+                }
+                if (src->stack_offset()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::StackOffset};
+                }
+                if (src->literal()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::Literal};
+                }
+                mov_avx_reg_to_stack_offset(src);
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::StackOffset};
+            }
+            else {
+                if (dst_ix) {
+                    mov_avx_reg_to_stack_offset(dst, dst_ix.value());
+                }
+                else {
+                    mov_avx_reg_to_stack_offset(dst);
+                }
+                // fall through
+            }
+        }
+        if (src->general_reg()) {
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::GeneralReg};
+        }
+        if (src->literal() && is_literal_bounded(src->literal().value())) {
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::Literal};
+        }
+        if (src->stack_offset()) {
+            mov_stack_offset_to_general_reg_update_eflags(src);
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::GeneralReg};
+        }
+        if (src->literal()) {
+            mov_literal_to_general_reg_update_eflags(src);
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::Literal};
+        }
+        mov_avx_reg_to_general_reg_update_eflags(src);
+        return {
+            std::move(dst),
+            LocationType::StackOffset,
+            std::move(src),
+            LocationType::GeneralReg};
+    }
+
+    template <bool commutative>
+    std::tuple<
+        StackElemRef, Emitter::LocationType, StackElemRef,
+        Emitter::LocationType>
+    Emitter::get_general_dest_and_source(
+        StackElemRef dst_in, std::optional<int32_t> dst_ix, StackElemRef src_in)
+    {
+        auto [dst, dst_loc, src, src_loc] =
+            prepare_general_dest_and_source<commutative>(
+                std::move(dst_in), dst_ix, std::move(src_in));
+        RegReserv const dst_reserv{dst};
+        RegReserv const src_reserv{src};
+
         if (dst_loc == LocationType::GeneralReg) {
             if (dst->is_on_stack() && !dst->stack_offset() && !dst->literal() &&
                 !dst->avx_reg()) {
@@ -1092,7 +1308,8 @@ namespace monad::compiler::native
             src_loc};
     }
 
-    Emitter::Operand Emitter::get_operand(StackElemRef elem, LocationType loc)
+    Emitter::Operand Emitter::get_operand(
+        StackElemRef elem, LocationType loc, bool always_append_literal)
     {
         switch (loc) {
         case LocationType::StackOffset:
@@ -1100,7 +1317,8 @@ namespace monad::compiler::native
         case LocationType::GeneralReg:
             return general_reg_to_gpq256(elem->general_reg().value());
         case LocationType::Literal:
-            if (is_literal_bounded(elem->literal().value())) {
+            if (!always_append_literal &&
+                is_literal_bounded(elem->literal().value())) {
                 return literal_to_imm256(elem->literal().value());
             }
             else {
@@ -1186,12 +1404,7 @@ namespace monad::compiler::native
                 mov_stack_offset_to_avx_reg(dst);
             }
             else if (dst->is_on_stack()) {
-                if (dst_ix) {
-                    mov_general_reg_to_avx_reg(dst, dst_ix.value());
-                }
-                else {
-                    mov_general_reg_to_avx_reg(dst);
-                }
+                mov_general_reg_to_avx_reg(dst);
             }
         }
         if (dst->avx_reg()) {
@@ -1203,5 +1416,360 @@ namespace monad::compiler::native
         }
         MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg() && !dst->is_on_stack());
         return {dst, dst, LocationType::GeneralReg};
+    }
+
+    std::tuple<
+        StackElemRef, Emitter::LocationType, StackElemRef,
+        Emitter::LocationType>
+    Emitter::prepare_avx_or_general_arguments_commutative(
+        StackElemRef dst, StackElemRef src)
+    {
+        RegReserv const dst_reserv{dst};
+        RegReserv const src_reserv{src};
+
+        if (dst.get() == src.get()) {
+            if (dst->avx_reg()) {
+                return {
+                    std::move(dst),
+                    LocationType::AvxReg,
+                    std::move(src),
+                    LocationType::AvxReg};
+            }
+            if (dst->general_reg() && !dst->is_on_stack()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
+            if (dst->stack_offset()) {
+                mov_stack_offset_to_avx_reg(dst);
+                return {
+                    std::move(dst),
+                    LocationType::AvxReg,
+                    std::move(src),
+                    LocationType::AvxReg};
+            }
+            if (dst->literal()) {
+                mov_literal_to_avx_reg(dst);
+                return {
+                    std::move(dst),
+                    LocationType::AvxReg,
+                    std::move(src),
+                    LocationType::AvxReg};
+            }
+            MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg().has_value());
+            mov_general_reg_to_avx_reg(dst);
+            return {
+                std::move(dst),
+                LocationType::AvxReg,
+                std::move(src),
+                LocationType::AvxReg};
+        }
+
+        // We need to consider 15 cases for the pair (dst, src). Not 16, because
+        // the case (literal, literal) is not possible.
+        MONAD_COMPILER_DEBUG_ASSERT(!dst->literal().has_value() || !src->literal().has_value());
+
+        using OptResult = std::optional<
+            std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>>;
+
+        OptResult result{};
+
+        auto priority_1 = [](StackElemRef &d, StackElemRef &s) -> OptResult {
+            if (d->avx_reg()) {
+                if (s->avx_reg()) {
+                    return OptResult(
+                        {std::move(d),
+                         LocationType::AvxReg,
+                         std::move(s),
+                         LocationType::AvxReg});
+                }
+                if (s->stack_offset()) {
+                    return OptResult(
+                        {std::move(d),
+                         LocationType::AvxReg,
+                         std::move(s),
+                         LocationType::StackOffset});
+                }
+                if (s->literal()) {
+                    return OptResult(
+                        {std::move(d),
+                         LocationType::AvxReg,
+                         std::move(s),
+                         LocationType::Literal});
+                }
+            }
+            return std::nullopt;
+        };
+
+        // Case 1: (avx, avx)
+        // Case 2: (avx, stack)
+        // Case 3: (avx, literal)
+        result = priority_1(dst, src);
+        if (result.has_value()) {
+            return *result;
+        }
+        // Case 4: (stack, avx)
+        // Case 5: (literal, avx)
+        result = priority_1(src, dst);
+        if (result.has_value()) {
+            return *result;
+        }
+
+        auto priority_2 =
+            [this, &priority_1](StackElemRef &d, StackElemRef &s) -> OptResult {
+            if (d->stack_offset()) {
+                if (s->stack_offset()) {
+                    if (d->is_on_stack()) {
+                        mov_stack_offset_to_avx_reg(s);
+                        return priority_1(s, d);
+                    }
+                    mov_stack_offset_to_avx_reg(d);
+                    return priority_1(d, s);
+                }
+                if (s->literal()) {
+                    if (d->is_on_stack()) {
+                        mov_literal_to_avx_reg(s);
+                        return priority_1(s, d);
+                    }
+                    mov_stack_offset_to_avx_reg(d);
+                    return priority_1(d, s);
+                }
+            }
+            return std::nullopt;
+        };
+
+        // Case 6: (stack, stack)
+        // Case 7: (stack, literal)
+        result = priority_2(dst, src);
+        if (result.has_value()) {
+            return *result;
+        }
+        // Case 8: (literal, stack)
+        result = priority_2(src, dst);
+        if (result.has_value()) {
+            return *result;
+        }
+
+        auto priority_3 = [](StackElemRef &d, StackElemRef &s) -> OptResult {
+            if (!d->general_reg()) {
+                return std::nullopt;
+            }
+            if (d->is_on_stack() && !d->literal() && !d->stack_offset() &&
+                !d->avx_reg()) {
+                return std::nullopt;
+            }
+            if (s->general_reg()) {
+                return OptResult(
+                    {std::move(d),
+                     LocationType::GeneralReg,
+                     std::move(s),
+                     LocationType::GeneralReg});
+            }
+            if (s->stack_offset()) {
+                return OptResult(
+                    {std::move(d),
+                     LocationType::GeneralReg,
+                     std::move(s),
+                     LocationType::StackOffset});
+            }
+            if (s->literal()) {
+                return OptResult(
+                    {std::move(d),
+                     LocationType::GeneralReg,
+                     std::move(s),
+                     LocationType::Literal});
+            }
+            return std::nullopt;
+        };
+
+        // Case 9 (conditional): (general, general)
+        // Case 10 (conditional): (general, stack)
+        // Case 11 (conditional): (general, literal)
+        result = priority_3(dst, src);
+        if (result.has_value()) {
+            return *result;
+        }
+        // Case 12 (conditional): (stack, general)
+        // Case 13 (conditional): (literal, general)
+        result = priority_3(src, dst);
+        if (result.has_value()) {
+            return *result;
+        }
+
+        auto priority_4 =
+            [this](StackElemRef &d, StackElemRef &s) -> OptResult {
+            if (d->avx_reg() && s->general_reg()) {
+                mov_general_reg_to_stack_offset(s);
+                return OptResult(
+                    {std::move(d),
+                     LocationType::AvxReg,
+                     std::move(s),
+                     LocationType::StackOffset});
+            }
+            return std::nullopt;
+        };
+
+        // Case 14: (avx, general)
+        // Case 15: (general, avx)
+        if (src->is_on_stack()) {
+            result = priority_4(dst, src);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (dst->is_on_stack()) {
+            result = priority_4(src, dst);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (!src->is_on_stack()) {
+            result = priority_4(dst, src);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (!dst->is_on_stack()) {
+            result = priority_4(src, dst);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+
+        auto priority_5 =
+            [this](StackElemRef &d, StackElemRef &s) -> OptResult {
+            if (!s->general_reg()) {
+                return std::nullopt;
+            }
+            if (d->stack_offset()) {
+                mov_general_reg_to_avx_reg(s);
+                return OptResult(
+                    {std::move(s),
+                     LocationType::AvxReg,
+                     std::move(d),
+                     LocationType::StackOffset});
+            }
+            if (d->literal()) {
+                mov_general_reg_to_avx_reg(s);
+                return OptResult(
+                    {std::move(s),
+                     LocationType::AvxReg,
+                     std::move(d),
+                     LocationType::Literal});
+            }
+            return std::nullopt;
+        };
+
+        // Case 12 (unconditional): (stack, general)
+        // Case 10 (unconditional): (general, stack)
+        // Case 11 (unconditional): (general, literal)
+        // Case 13 (unconditional): (literal, general)
+        if (src->is_on_stack()) {
+            result = priority_5(dst, src);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (dst->is_on_stack()) {
+            result = priority_5(src, dst);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (!src->is_on_stack()) {
+            result = priority_5(dst, src);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+        if (!dst->is_on_stack()) {
+            result = priority_5(src, dst);
+            if (result.has_value()) {
+                return *result;
+            }
+        }
+
+        // Case 9 (unconditional): (general, general)
+        MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg() && src->general_reg());
+        mov_general_reg_to_stack_offset(dst);
+        return {
+            std::move(dst),
+            LocationType::GeneralReg,
+            std::move(src),
+            LocationType::GeneralReg};
+    }
+
+    std::tuple<
+        StackElemRef, StackElemRef, Emitter::LocationType, StackElemRef,
+        Emitter::LocationType>
+    Emitter::get_avx_or_general_arguments_commutative(
+        StackElemRef dst_in, StackElemRef src_in)
+    {
+        auto [dst, dst_loc, src, src_loc] =
+            prepare_avx_or_general_arguments_commutative(
+                std::move(dst_in), std::move(src_in));
+        RegReserv const dst_reserv{dst};
+        RegReserv const src_reserv{src};
+
+        if (dst_loc == LocationType::GeneralReg) {
+            MONAD_COMPILER_DEBUG_ASSERT(
+                !dst->is_on_stack() || dst->stack_offset().has_value() ||
+                dst->literal().has_value() || dst->avx_reg().has_value());
+            MONAD_COMPILER_DEBUG_ASSERT(dst.get() != src.get());
+            auto new_dst = stack_->move_general_reg(dst);
+            return {new_dst, new_dst, dst_loc, std::move(src), src_loc};
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(dst_loc == LocationType::AvxReg);
+            StackElemRef const new_dst;
+            if (dst->is_on_stack()) {
+                if (!src->is_on_stack() && src_loc == LocationType::AvxReg) {
+                    auto n = stack_->move_avx_reg(src);
+                    return {n, std::move(dst), dst_loc, n, src_loc};
+                }
+                else {
+                    auto [n, _] = alloc_avx_reg();
+                    return {
+                        n, std::move(dst), dst_loc, std::move(src), src_loc};
+                }
+            }
+            auto n = stack_->move_avx_reg(dst);
+            return {n, n, dst_loc, std::move(src), src_loc};
+        }
+    }
+
+    template <
+        Emitter::GeneralBinInstr<x86::Gp, x86::Gp> GG,
+        Emitter::GeneralBinInstr<x86::Gp, x86::Mem> GM,
+        Emitter::GeneralBinInstr<x86::Gp, asmjit::Imm> GI,
+        Emitter::GeneralBinInstr<x86::Mem, x86::Gp> MG,
+        Emitter::GeneralBinInstr<x86::Mem, asmjit::Imm> MI,
+        Emitter::AvxBinInstr<x86::Vec> VV, Emitter::AvxBinInstr<x86::Mem> VM>
+    void Emitter::avx_or_general_bin_instr(
+        StackElemRef dst, Operand const &left, Operand const &right)
+    {
+        if (std::holds_alternative<Gpq256>(left)) {
+            general_bin_instr<GG, GM, GI, MG, MI>(
+                std::move(left), std::move(right));
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
+            MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Ymm>(left));
+            if (std::holds_alternative<x86::Ymm>(right)) {
+                (as_.*VV)(
+                    avx_reg_to_ymm(*dst->avx_reg()),
+                    std::get<x86::Ymm>(left),
+                    std::get<x86::Ymm>(right));
+            }
+            else {
+                MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Mem>(right));
+                (as_.*VM)(
+                    avx_reg_to_ymm(*dst->avx_reg()),
+                    std::get<x86::Ymm>(left),
+                    std::get<x86::Mem>(right));
+            }
+        }
     }
 }
