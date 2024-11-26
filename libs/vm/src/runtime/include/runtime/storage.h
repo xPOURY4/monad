@@ -89,4 +89,33 @@ namespace monad::runtime
                 exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
         }
     }
+
+    template <evmc_revision Rev>
+    void tload(
+        ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *key_ptr)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
+
+        auto key = bytes_from_uint256(*key_ptr);
+
+        auto value = ctx->host->get_transient_storage(
+            ctx->context, &ctx->env.recipient, &key);
+
+        *result_ptr = uint256_from_bytes32(value);
+    }
+
+    template <evmc_revision Rev>
+    void tstore(
+        ExitContext *, Context *ctx, utils::uint256_t const *key_ptr,
+        utils::uint256_t const *val_ptr)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
+
+        auto key = bytes_from_uint256(*key_ptr);
+        auto val = bytes_from_uint256(*val_ptr);
+
+        ctx->host->set_transient_storage(
+            ctx->context, &ctx->env.recipient, &key, &val);
+    }
 }
