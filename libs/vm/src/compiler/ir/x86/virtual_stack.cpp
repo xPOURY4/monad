@@ -663,7 +663,7 @@ namespace monad::compiler::native
         return {std::move(e), reserv, spill};
     }
 
-    StackElemRef Stack::move_stack_offset(StackElemRef elem)
+    StackElemRef Stack::release_stack_offset(StackElemRef elem)
     {
         auto dst = std::make_shared<StackElem>(this);
         dst->stack_offset_ = elem->stack_offset_;
@@ -671,7 +671,7 @@ namespace monad::compiler::native
         return dst;
     }
 
-    StackElemRef Stack::move_avx_reg(StackElemRef elem)
+    StackElemRef Stack::release_avx_reg(StackElemRef elem)
     {
         auto dst = std::make_shared<StackElem>(this);
         AvxReg const reg = elem->avx_reg_.value();
@@ -681,7 +681,7 @@ namespace monad::compiler::native
         return dst;
     }
 
-    StackElemRef Stack::move_general_reg(StackElemRef elem)
+    StackElemRef Stack::release_general_reg(StackElemRef elem)
     {
         auto dst = std::make_shared<StackElem>(this);
         GeneralReg const reg = elem->general_reg_.value();

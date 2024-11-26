@@ -461,7 +461,7 @@ namespace monad::compiler::native
          * Remove stack offset from `elem` and return a new stack element
          * containing the stack offset register.
          */
-        StackElemRef move_stack_offset(StackElemRef elem);
+        StackElemRef release_stack_offset(StackElemRef elem);
 
         /**
          * Find an AVX register for the given stack element.
@@ -486,7 +486,7 @@ namespace monad::compiler::native
          * Remove general register from `elem` and return a new stack element
          * containing the general register.
          */
-        StackElemRef move_general_reg(StackElemRef elem);
+        StackElemRef release_general_reg(StackElemRef elem);
 
         /**
          * Remove stack offset location from the given stack element. It is
@@ -525,7 +525,7 @@ namespace monad::compiler::native
          * Remove AVX register from `elem` and return a new stack element
          * containing the AVX register.
          */
-        StackElemRef move_avx_reg(StackElemRef elem);
+        StackElemRef release_avx_reg(StackElemRef elem);
 
         /**
          * Spill all caller save general registers to persistent storage.

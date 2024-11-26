@@ -1287,7 +1287,7 @@ namespace monad::compiler::native
                 !dst->avx_reg()) {
                 mov_general_reg_to_stack_offset(dst);
             }
-            auto new_dst = stack_->move_general_reg(dst);
+            auto new_dst = stack_->release_general_reg(dst);
             if (dst.get() == src.get()) {
                 return {new_dst, dst_loc, new_dst, src_loc};
             }
@@ -1302,7 +1302,7 @@ namespace monad::compiler::native
             mov_stack_offset_to_avx_reg(dst);
         }
         return {
-            stack_->move_stack_offset(std::move(dst)),
+            stack_->release_stack_offset(std::move(dst)),
             dst_loc,
             std::move(src),
             src_loc};
@@ -1718,7 +1718,7 @@ namespace monad::compiler::native
                 !dst->is_on_stack() || dst->stack_offset().has_value() ||
                 dst->literal().has_value() || dst->avx_reg().has_value());
             MONAD_COMPILER_DEBUG_ASSERT(dst.get() != src.get());
-            auto new_dst = stack_->move_general_reg(dst);
+            auto new_dst = stack_->release_general_reg(dst);
             return {new_dst, new_dst, dst_loc, std::move(src), src_loc};
         }
         else {
@@ -1726,7 +1726,7 @@ namespace monad::compiler::native
             StackElemRef const new_dst;
             if (dst->is_on_stack()) {
                 if (!src->is_on_stack() && src_loc == LocationType::AvxReg) {
-                    auto n = stack_->move_avx_reg(src);
+                    auto n = stack_->release_avx_reg(src);
                     return {n, std::move(dst), dst_loc, n, src_loc};
                 }
                 else {
@@ -1735,7 +1735,7 @@ namespace monad::compiler::native
                         n, std::move(dst), dst_loc, std::move(src), src_loc};
                 }
             }
-            auto n = stack_->move_avx_reg(dst);
+            auto n = stack_->release_avx_reg(dst);
             return {n, n, dst_loc, std::move(src), src_loc};
         }
     }
