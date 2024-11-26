@@ -1469,7 +1469,8 @@ namespace monad::compiler::native
 
         // We need to consider 15 cases for the pair (dst, src). Not 16, because
         // the case (literal, literal) is not possible.
-        MONAD_COMPILER_DEBUG_ASSERT(!dst->literal().has_value() || !src->literal().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !dst->literal().has_value() || !src->literal().has_value());
 
         using OptResult = std::optional<
             std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>>;
@@ -1764,7 +1765,8 @@ namespace monad::compiler::native
                     std::get<x86::Ymm>(right));
             }
             else {
-                MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Mem>(right));
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    std::holds_alternative<x86::Mem>(right));
                 (as_.*VM)(
                     avx_reg_to_ymm(*dst->avx_reg()),
                     std::get<x86::Ymm>(left),
