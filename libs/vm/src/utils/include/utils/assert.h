@@ -36,6 +36,20 @@ void __attribute__((noreturn)) monad_compiler_assertion_failed(
         }
 #endif
 
+#ifdef MONAD_DEBUG_ASSERT
+    #define MONAD_COMPILER_DEBUG_ASSERT(expr) MONAD_DEBUG_ASSERT(expr)
+#else
+    #ifdef NDEBUG
+        #define MONAD_COMPILER_DEBUG_ASSERT(x)                                 \
+            do {                                                               \
+                (void)sizeof(x);                                               \
+            }                                                                  \
+            while (0)
+    #else
+        #define MONAD_COMPILER_DEBUG_ASSERT(x) MONAD_COMPILER_ASSERT(x)
+    #endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif
