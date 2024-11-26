@@ -14,6 +14,9 @@ find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
 
 if(MONAD_COMPILER_STANDALONE)
+    set(ETHASH_TESTING NO)
+    add_subdirectory(third_party/ethash)
+
     add_subdirectory(third_party/evmc)
     add_subdirectory(third_party/intx)
 endif()
