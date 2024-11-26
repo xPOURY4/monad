@@ -66,7 +66,8 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_ASSERT(
             stack_.deferred_comparison_.stack_elem == nullptr);
-        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.stack_elem = this;
         stack_.deferred_comparison_.comparison = c;
     }
@@ -75,8 +76,10 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.stack_elem);
         MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.negated_stack_elem);
-        assert(stack_.deferred_comparison_.negated_stack_elem != this);
-        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            stack_.deferred_comparison_.negated_stack_elem != this);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.stack_elem = this;
     }
 
@@ -84,22 +87,28 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.negated_stack_elem);
         MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.stack_elem);
-        assert(stack_.deferred_comparison_.stack_elem != this);
-        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            stack_.deferred_comparison_.stack_elem != this);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.negated_stack_elem = this;
     }
 
     void StackElem::discharge_deferred_comparison()
     {
-        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
-        assert(stack_.deferred_comparison_.stack_elem == this);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            stack_.deferred_comparison_.stack_elem == this);
         stack_.deferred_comparison_.stack_elem = nullptr;
     }
 
     void StackElem::discharge_negated_deferred_comparison()
     {
-        assert(!stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
-        assert(stack_.deferred_comparison_.negated_stack_elem == this);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            stack_.deferred_comparison_.negated_stack_elem == this);
         stack_.deferred_comparison_.negated_stack_elem = nullptr;
     }
 
@@ -322,7 +331,8 @@ namespace monad::compiler::native
             pop();
             if (dc.negated_stack_elem) {
                 auto i = dc.negated_stack_elem->stack_indices_.begin();
-                assert(i != dc.negated_stack_elem->stack_indices_.end());
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    i != dc.negated_stack_elem->stack_indices_.end());
                 push(at(*i));
             }
             else {
@@ -336,7 +346,8 @@ namespace monad::compiler::native
             pop();
             if (dc.stack_elem) {
                 auto i = dc.stack_elem->stack_indices_.begin();
-                assert(i != dc.stack_elem->stack_indices_.end());
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    i != dc.stack_elem->stack_indices_.end());
                 push(at(*i));
             }
             else {

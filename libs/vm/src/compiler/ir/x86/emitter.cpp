@@ -813,13 +813,13 @@ namespace monad::compiler::native
         }
         discharge_deferred_comparison();
         auto [left, right, loc] = get_una_arguments(elem, std::nullopt);
-        assert(left == right);
+        MONAD_COMPILER_DEBUG_ASSERT(left == right);
         if (loc == LocationType::AvxReg) {
             x86::Ymm const y = avx_reg_to_ymm(left->avx_reg().value());
             as_.vptest(y, y);
         }
         else {
-            assert(loc == LocationType::GeneralReg);
+            MONAD_COMPILER_DEBUG_ASSERT(loc == LocationType::GeneralReg);
             Gpq256 gpq = general_reg_to_gpq256(left->general_reg().value());
             for (size_t i = 0; i < 3; ++i) {
                 as_.or_(gpq[i + 1], gpq[i]);
@@ -849,8 +849,8 @@ namespace monad::compiler::native
             as_.vpxor(y_left, y_right, x86::ptr(lbl));
         }
         else {
-            assert(loc == LocationType::GeneralReg);
-            assert(left == right);
+            MONAD_COMPILER_DEBUG_ASSERT(loc == LocationType::GeneralReg);
+            MONAD_COMPILER_DEBUG_ASSERT(left == right);
             Gpq256 gpq = general_reg_to_gpq256(left->general_reg().value());
             for (size_t i = 0; i < 4; ++i) {
                 as_.not_(gpq[i]);
@@ -1168,7 +1168,7 @@ namespace monad::compiler::native
     std::tuple<StackElemRef, StackElemRef, Emitter::LocationType>
     Emitter::get_una_arguments(StackElemRef dst, std::optional<int32_t> dst_ix)
     {
-        assert(!dst->literal());
+        MONAD_COMPILER_DEBUG_ASSERT(!dst->literal());
         RegReserv const dst_reserv{dst};
         if (!dst->avx_reg()) {
             if (dst->stack_offset()) {
@@ -1190,7 +1190,7 @@ namespace monad::compiler::native
             auto [elem, _] = alloc_avx_reg();
             return {elem, dst, LocationType::AvxReg};
         }
-        assert(dst->general_reg() && !dst->is_on_stack());
+        MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg() && !dst->is_on_stack());
         return {dst, dst, LocationType::GeneralReg};
     }
 }
