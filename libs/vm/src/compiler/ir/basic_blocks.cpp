@@ -1,8 +1,8 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/types.h>
+#include <utils/assert.h>
 
 #include <algorithm>
-#include <cassert>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -87,7 +87,7 @@ namespace monad::compiler::basic_blocks
 
     void BasicBlocksIR::add_jump_dest()
     {
-        assert(blocks_.back().instrs.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(blocks_.back().instrs.empty());
         jump_dests_.emplace(curr_block_offset(), curr_block_id());
     }
 

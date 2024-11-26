@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <charconv>
 #include <cstdint>
 #include <iterator>

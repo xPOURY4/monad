@@ -1,9 +1,10 @@
 #pragma once
 
+#include <utils/assert.h>
+
 #include <evmc/evmc.hpp>
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -81,7 +82,7 @@ namespace monad::compiler
 
     consteval evmc_revision previous_evm_revision(evmc_revision rev)
     {
-        assert(rev > EVMC_FRONTIER);
+        MONAD_COMPILER_DEBUG_ASSERT(rev > EVMC_FRONTIER);
         return evmc_revision(std::to_underlying(rev) - 1);
     }
 
@@ -111,7 +112,7 @@ namespace monad::compiler
         std::uint8_t opcode, std::array<OpCodeInfo, 256> &table,
         OpCodeInfo info)
     {
-        assert(table[opcode] == unknown_opcode_info);
+        MONAD_COMPILER_DEBUG_ASSERT(table[opcode] == unknown_opcode_info);
         table[opcode] = info;
     }
 
@@ -690,7 +691,7 @@ namespace monad::compiler
      */
     constexpr uint8_t get_dup_opcode_index(uint8_t const opcode)
     {
-        assert(is_dup_opcode(opcode));
+        MONAD_COMPILER_DEBUG_ASSERT(is_dup_opcode(opcode));
         return opcode - DUP1 + 1;
     }
 
@@ -700,7 +701,7 @@ namespace monad::compiler
      */
     constexpr uint8_t get_swap_opcode_index(uint8_t const opcode)
     {
-        assert(is_swap_opcode(opcode));
+        MONAD_COMPILER_DEBUG_ASSERT(is_swap_opcode(opcode));
         return opcode - SWAP1 + 1;
     }
 
@@ -710,7 +711,7 @@ namespace monad::compiler
      */
     constexpr uint8_t get_push_opcode_index(uint8_t const opcode)
     {
-        assert(is_push_opcode(opcode));
+        MONAD_COMPILER_DEBUG_ASSERT(is_push_opcode(opcode));
         return opcode - PUSH0;
     }
 
@@ -720,7 +721,7 @@ namespace monad::compiler
      */
     constexpr uint8_t get_log_opcode_index(uint8_t const opcode)
     {
-        assert(is_log_opcode(opcode));
+        MONAD_COMPILER_DEBUG_ASSERT(is_log_opcode(opcode));
         return opcode - LOG0;
     }
 

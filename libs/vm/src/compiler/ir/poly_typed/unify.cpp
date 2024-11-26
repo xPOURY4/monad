@@ -4,7 +4,8 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/ir/poly_typed/subst_map.h"
 #include "compiler/types.h"
-#include <cassert>
+#include "utils/assert.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -122,7 +123,7 @@ namespace
     std::optional<Kind> find_subst_kind(
         SubstMap &su, VarName var, Kind kind, size_t depth, size_t &ticks)
     {
-        assert(!su.get_kind(var).has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(!su.get_kind(var).has_value());
         while (std::holds_alternative<KindVar>(*kind)) {
             auto new_k = su.get_kind(std::get<KindVar>(*kind).var);
             if (!new_k.has_value()) {
@@ -140,7 +141,7 @@ namespace
     std::optional<ContKind> find_subst_cont(
         SubstMap &su, VarName var, ContKind cont, size_t depth, size_t &ticks)
     {
-        assert(!su.get_cont(var).has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(!su.get_cont(var).has_value());
         while (std::holds_alternative<ContVar>(cont->tail) &&
                cont->front.empty()) {
             ContVar const cv = std::get<ContVar>(cont->tail);
@@ -444,7 +445,7 @@ namespace
         std::visit(
             Cases{
                 [&](__attribute__((unused)) KindVar const &kv1) {
-                    assert(v == kv1.var);
+                    MONAD_COMPILER_DEBUG_ASSERT(v == kv1.var);
                     su.insert_kind(v, new_k);
                 },
                 [&](Word const &) {
@@ -509,7 +510,7 @@ namespace
                 continue;
             }
             std::vector<VarName> const &new_param_vars = param_it->second;
-            assert(!new_param_vars.empty());
+            MONAD_COMPILER_DEBUG_ASSERT(!new_param_vars.empty());
             increment_kind_ticks(ticks, new_param_vars.size());
             for (VarName const n : new_param_vars) {
                 unify_param_var(su, param_vars[stack_index], n, ticks);

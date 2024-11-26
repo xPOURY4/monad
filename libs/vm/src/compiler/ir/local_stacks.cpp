@@ -8,7 +8,6 @@
 
 #include <intx/intx.hpp>
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>

@@ -13,7 +13,7 @@
 #include "intx/intx.hpp"
 #include "runtime/types.h"
 #include "utils/assert.h"
-#include <cassert>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -74,7 +74,7 @@ namespace
 
     Emitter::Imm256 literal_to_imm256(Literal lit)
     {
-        assert(is_literal_bounded(lit));
+        MONAD_COMPILER_DEBUG_ASSERT(is_literal_bounded(lit));
         return {
             asmjit::Imm{static_cast<int32_t>(lit.value[0])},
             asmjit::Imm{static_cast<int32_t>(lit.value[1])},
@@ -89,7 +89,7 @@ namespace
 
     x86::Ymm avx_reg_to_ymm(AvxReg reg)
     {
-        assert(reg.reg < 32);
+        MONAD_COMPILER_DEBUG_ASSERT(reg.reg < 32);
         return x86::Ymm(reg.reg);
     }
 
@@ -102,7 +102,7 @@ namespace
             return {x86::r8, x86::r9, x86::r10, x86::r11};
         }
         else {
-            assert(reg.reg == 2);
+            MONAD_COMPILER_DEBUG_ASSERT(reg.reg == 2);
             return {x86::rdi, x86::rsi, x86::rdx, x86::rcx};
         }
     }
@@ -569,7 +569,7 @@ namespace monad::compiler::native
     void
     Emitter::mov_general_reg_to_avx_reg(StackElemRef elem, int32_t preferred)
     {
-        assert(elem->general_reg().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->general_reg().has_value());
         stack_->insert_avx_reg(elem);
         mov_general_reg_to_stack_offset(elem, preferred);
         mov_stack_offset_to_avx_reg(elem);
@@ -577,7 +577,7 @@ namespace monad::compiler::native
 
     void Emitter::mov_literal_to_avx_reg(StackElemRef elem)
     {
-        assert(elem->literal().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
         stack_->insert_avx_reg(elem);
         auto y = avx_reg_to_ymm(elem->avx_reg().value());
         auto lit = elem->literal().value();
@@ -595,7 +595,7 @@ namespace monad::compiler::native
 
     void Emitter::mov_stack_offset_to_avx_reg(StackElemRef elem)
     {
-        assert(elem->stack_offset().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
         stack_->insert_avx_reg(elem);
         as_.vmovaps(
             avx_reg_to_ymm(elem->avx_reg().value()),
@@ -611,7 +611,7 @@ namespace monad::compiler::native
     void
     Emitter::mov_avx_reg_to_stack_offset(StackElemRef elem, int32_t preferred)
     {
-        assert(elem->avx_reg().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->avx_reg().has_value());
         stack_->insert_stack_offset(elem, preferred);
         auto y = avx_reg_to_ymm(elem->avx_reg().value());
         as_.vmovaps(stack_offset_to_mem(elem->stack_offset().value()), y);
@@ -626,7 +626,7 @@ namespace monad::compiler::native
     void Emitter::mov_general_reg_to_stack_offset(
         StackElemRef elem, int32_t preferred)
     {
-        assert(elem->general_reg().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->general_reg().has_value());
         stack_->insert_stack_offset(elem, preferred);
         mov_general_reg_to_mem(
             elem->general_reg().value(),
@@ -663,7 +663,7 @@ namespace monad::compiler::native
 
     void Emitter::mov_literal_to_general_reg_update_eflags(StackElemRef elem)
     {
-        assert(elem->literal().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
         stack_->insert_general_reg(elem);
         auto rs = general_reg_to_gpq256(elem->general_reg().value());
         auto lit = elem->literal().value();
@@ -681,7 +681,7 @@ namespace monad::compiler::native
     void
     Emitter::mov_stack_offset_to_general_reg_update_eflags(StackElemRef elem)
     {
-        assert(elem->stack_offset().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
         stack_->insert_general_reg(elem);
         x86::Mem temp{stack_offset_to_mem(elem->stack_offset().value())};
         for (auto r : general_reg_to_gpq256(elem->general_reg().value())) {
@@ -1068,8 +1068,8 @@ namespace monad::compiler::native
                 return {std::move(new_dst), dst_loc, std::move(src), src_loc};
             }
         }
-        assert(dst.get() != src.get());
-        assert(dst_loc == LocationType::StackOffset);
+        MONAD_COMPILER_DEBUG_ASSERT(dst.get() != src.get());
+        MONAD_COMPILER_DEBUG_ASSERT(dst_loc == LocationType::StackOffset);
         if (dst->is_on_stack() && !dst->general_reg() && !dst->literal() &&
             !dst->avx_reg()) {
             mov_stack_offset_to_avx_reg(dst);
@@ -1138,7 +1138,8 @@ namespace monad::compiler::native
                 src_op);
         }
         else {
-            assert(std::holds_alternative<x86::Mem>(dst_op));
+            MONAD_COMPILER_DEBUG_ASSERT(
+                std::holds_alternative<x86::Mem>(dst_op));
             x86::Mem const &dst_mem = std::get<x86::Mem>(dst_op);
             std::visit(
                 Cases{

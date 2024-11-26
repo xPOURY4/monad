@@ -6,7 +6,6 @@
 
 #include <evmc/evmc.h>
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>

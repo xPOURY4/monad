@@ -3,8 +3,9 @@
 #include "compiler/ir/poly_typed/exceptions.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
+#include "utils/assert.h"
+
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <exception>
 #include <optional>
@@ -50,7 +51,8 @@ namespace monad::compiler::poly_typed
 
     void SubstMap::link_literal_vars(VarName v1, VarName v2)
     {
-        assert(!literal_map.contains(v1) && !literal_map.contains(v2));
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !literal_map.contains(v1) && !literal_map.contains(v2));
 
         auto links1 = literal_links.find_or_default(v1);
         links1.insert(v2);
@@ -72,7 +74,7 @@ namespace monad::compiler::poly_typed
                 continue;
             }
             __attribute__((unused)) bool const ins = literal_map.put(v, t);
-            assert(ins || t == LiteralType::Word);
+            MONAD_COMPILER_DEBUG_ASSERT(ins || t == LiteralType::Word);
             auto lit = literal_links.find(v);
             if (lit != literal_links.end()) {
                 for (auto w : lit->second) {

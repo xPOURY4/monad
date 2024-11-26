@@ -1,7 +1,8 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
+#include "utils/assert.h"
+
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -224,7 +225,7 @@ namespace
             if (generic->front.size() > specific->front.size()) {
                 return false;
             }
-            assert(min_size == generic->front.size());
+            MONAD_COMPILER_DEBUG_ASSERT(min_size == generic->front.size());
             VarName const v = std::get<ContVar>(generic->tail).var;
             auto it = su.cont_map.find(v);
             if (it != su.cont_map.end()) {

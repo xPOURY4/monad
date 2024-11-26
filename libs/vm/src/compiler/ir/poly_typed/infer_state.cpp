@@ -4,7 +4,8 @@
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
-#include <cassert>
+#include "utils/assert.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -121,7 +122,7 @@ namespace monad::compiler::poly_typed
     ContKind InferState::get_type(block_id bid)
     {
         auto it = block_types.find(bid);
-        assert(it != block_types.end());
+        MONAD_COMPILER_DEBUG_ASSERT(it != block_types.end());
         PolyVarSubstMap su;
         return refresh(*this, su, it->second);
     }
@@ -158,14 +159,14 @@ namespace monad::compiler::poly_typed
                 ret, *this, &block.output[0], block.output.size());
             break;
         case basic_blocks::Terminator::JumpI:
-            assert(block.output.size() >= 2);
+            MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 2);
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdest(ret, *this, block.output[0]);
             push_static_jumpdests(
                 ret, *this, &block.output[2], block.output.size() - 2);
             break;
         case basic_blocks::Terminator::Jump:
-            assert(block.output.size() >= 1);
+            MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 1);
             push_static_jumpdests(
                 ret, *this, &block.output[0], block.output.size());
             break;

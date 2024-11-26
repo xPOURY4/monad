@@ -9,7 +9,6 @@
 
 #include <asmjit/core/jitruntime.h>
 
-#include <cassert>
 #include <cstdint>
 #include <exception>
 #include <limits>
@@ -293,7 +292,8 @@ namespace
             instr_gas <= std::numeric_limits<uint32_t>::max());
         uint32_t remaining_base_gas = static_cast<uint32_t>(instr_gas);
         for (auto const &instr : block.instrs) {
-            assert(remaining_base_gas >= instr.static_gas_cost());
+            MONAD_COMPILER_DEBUG_ASSERT(
+                remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -=
                 static_cast<uint32_t>(instr.static_gas_cost());
             emit_instr<rev>(emit, ir, instr, remaining_base_gas);

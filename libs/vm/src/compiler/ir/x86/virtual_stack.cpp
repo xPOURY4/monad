@@ -9,7 +9,6 @@
 #include <utils/assert.h>
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <cstddef>
 #include <cstdint>

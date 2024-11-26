@@ -1,5 +1,5 @@
-#include "compiler/ir/instruction.h"
 #include <compiler/ir/basic_blocks.h>
+#include <compiler/ir/instruction.h>
 #include <compiler/ir/local_stacks.h>
 #include <compiler/ir/poly_typed/block.h>
 #include <compiler/ir/poly_typed/exceptions.h>
@@ -9,9 +9,9 @@
 #include <compiler/ir/poly_typed/strongly_connected_components.h>
 #include <compiler/ir/poly_typed/unify.h>
 #include <compiler/types.h>
+#include <utils/assert.h>
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <exception>
 #include <limits>
@@ -73,7 +73,7 @@ namespace
 
     void infer_instruction_pop(std::vector<Kind> &stack)
     {
-        assert(!stack.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(!stack.empty());
         stack.pop_back();
     }
 
@@ -81,21 +81,21 @@ namespace
     infer_instruction_swap(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = ins.index();
-        assert(stack.size() > ix);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() > ix);
         std::swap(stack[stack.size() - 1], stack[stack.size() - 1 - ix]);
     }
 
     void infer_instruction_dup(Instruction const &ins, std::vector<Kind> &stack)
     {
         size_t const ix = ins.index();
-        assert(stack.size() >= ix);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= ix);
         stack.push_back(stack[stack.size() - ix]);
     }
 
     void infer_instruction_default(
         InferState &state, Instruction const &ins, std::vector<Kind> &stack)
     {
-        assert(stack.size() >= ins.stack_args());
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= ins.stack_args());
         std::vector<Kind> const front;
         for (size_t i = 0; i < ins.stack_args(); ++i) {
             unify(state.subst_map, stack.back(), word);
@@ -127,7 +127,7 @@ namespace
         InferState &state, Component const &component, std::vector<Kind> &front,
         Kind &&k, Value const &value, size_t jumpix)
     {
-        assert(alpha_equal(k, word));
+        MONAD_COMPILER_DEBUG_ASSERT(alpha_equal(k, word));
         auto b = state.get_jumpdest(value);
         if (!b.has_value()) {
             // Invalid jump
@@ -167,8 +167,8 @@ namespace
         local_stacks::Block const &block, std::vector<Kind> &&stack,
         ContTailKind &&tail, size_t jumpix)
     {
-        assert(stack.size() == block.output.size());
-        assert(stack.size() >= offset);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() == block.output.size());
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= offset);
         std::vector<Kind> front;
         for (size_t oix = offset, six = stack.size() - offset; six > 0; ++oix) {
             --six;
@@ -204,13 +204,13 @@ namespace
         Component const &component, block_id bid, std::vector<Kind> &&stack,
         ContTailKind &&tail)
     {
-        assert(stack.size() >= 2);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= 2);
         unify(state.subst_map, stack[stack.size() - 2], word);
         Kind jumpdest = stack.back();
         auto jump_stack = stack;
         auto jump_tail = tail;
         auto const &block = state.pre_blocks[bid];
-        assert(block.output.size() >= 2);
+        MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 2);
         size_t jumpix = std::numeric_limits<size_t>::max();
         if (block.output[0].is == local_stacks::ValueIs::PARAM_ID) {
             jumpix = block.output[0].param;
@@ -246,10 +246,10 @@ namespace
         Component const &component, block_id bid, std::vector<Kind> &&stack,
         ContTailKind &&tail)
     {
-        assert(stack.size() >= 1);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= 1);
         Kind jumpdest = stack.back();
         auto const &block = state.pre_blocks[bid];
-        assert(block.output.size() >= 1);
+        MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 1);
         size_t jumpix = std::numeric_limits<size_t>::max();
         if (block.output[0].is == local_stacks::ValueIs::PARAM_ID) {
             jumpix = block.output[0].param;
@@ -296,7 +296,7 @@ namespace
     Kind infer_terminator_return(
         InferState &state, block_id bid, std::vector<Kind> &&stack)
     {
-        assert(stack.size() >= 2);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= 2);
         unify(state.subst_map, stack[stack.size() - 1], word);
         unify(state.subst_map, stack[stack.size() - 2], word);
         state.block_terminators.insert_or_assign(bid, Return{});
@@ -306,7 +306,7 @@ namespace
     Kind infer_terminator_revert(
         InferState &state, block_id bid, std::vector<Kind> &&stack)
     {
-        assert(stack.size() >= 2);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= 2);
         unify(state.subst_map, stack[stack.size() - 1], word);
         unify(state.subst_map, stack[stack.size() - 2], word);
         state.block_terminators.insert_or_assign(bid, Revert{});
@@ -322,7 +322,7 @@ namespace
     Kind infer_terminator_self_destruct(
         InferState &state, block_id bid, std::vector<Kind> &&stack)
     {
-        assert(stack.size() >= 1);
+        MONAD_COMPILER_DEBUG_ASSERT(stack.size() >= 1);
         unify(state.subst_map, stack.back(), word);
         state.block_terminators.insert_or_assign(bid, SelfDestruct{});
         return any; // should never be used
@@ -424,7 +424,8 @@ namespace
     void infer_block_jump_param(
         InferState &state, BlockTypeSpec const &bts, ContKind *out_kind)
     {
-        assert(std::holds_alternative<KindVar>(*bts.jumpdest));
+        MONAD_COMPILER_DEBUG_ASSERT(
+            std::holds_alternative<KindVar>(*bts.jumpdest));
         Kind dest_kind = state.subst_map.subst_or_throw(bts.jumpdest);
         if (std::holds_alternative<KindVar>(*dest_kind)) {
             state.subst_map.transaction();
@@ -460,7 +461,7 @@ namespace
         InferState &state, BlockTypeSpec const &bts, ContKind *out_kind)
     {
         auto const &block = state.pre_blocks[bts.bid];
-        assert(!block.output.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(!block.output.empty());
         Value const &dest = block.output[0];
         switch (dest.is) {
         case ValueIs::LITERAL:
@@ -548,11 +549,11 @@ namespace
         InferState const &state, Component const &component,
         ComponentTypeSpec &cts)
     {
-        assert(cts.size() == component.size());
-        assert(!cts.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(cts.size() == component.size());
+        MONAD_COMPILER_DEBUG_ASSERT(!cts.empty());
 
         auto const &bts = cts[0];
-        assert(component.contains(bts.bid));
+        MONAD_COMPILER_DEBUG_ASSERT(component.contains(bts.bid));
 
         std::list<block_id> order;
 
@@ -576,7 +577,7 @@ namespace
         }
         while (!work_stack.empty());
 
-        assert(order.size() == cts.size());
+        MONAD_COMPILER_DEBUG_ASSERT(order.size() == cts.size());
 
         std::unordered_map<block_id, size_t> ordinals;
         auto order_it = order.begin();
@@ -601,7 +602,7 @@ namespace
         // reach a fixed point within a reasonable number of iterations, we give
         // up and throw `UnificationException`.
 
-        assert(!cts.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(!cts.empty());
 
         // We must infer types at least twice:
         for (size_t i = 0; i < 2; ++i) {
@@ -638,7 +639,7 @@ namespace
         InferState &state, Component const &component,
         ComponentTypeSpec const &cts)
     {
-        assert(cts.size() == 1);
+        MONAD_COMPILER_DEBUG_ASSERT(cts.size() == 1);
         infer_block_end(state, component, cts[0]);
         block_id const bid = cts[0].bid;
         subst_terminator(state, bid);
@@ -682,7 +683,7 @@ namespace
 
     void infer_component(InferState &state, Component const &component)
     {
-        assert(!component.empty());
+        MONAD_COMPILER_DEBUG_ASSERT(!component.empty());
         std::unordered_map<block_id, std::vector<VarName>> front_vars_map;
         state.reset();
         for (auto const bid : component) {
@@ -691,7 +692,7 @@ namespace
                     .insert_or_assign(
                         bid, initial_block_kind(state, bid, front_vars_map))
                     .second;
-            assert(ins);
+            MONAD_COMPILER_DEBUG_ASSERT(ins);
         }
         try {
             ComponentTypeSpec component_type_spec;
