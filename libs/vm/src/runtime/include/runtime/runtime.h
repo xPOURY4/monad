@@ -5,6 +5,7 @@
 #include <runtime/constants.h>
 #include <runtime/create.h>
 #include <runtime/environment.h>
+#include <runtime/keccak.h>
 #include <runtime/log.h>
 #include <runtime/math.h>
 #include <runtime/memory.h>
