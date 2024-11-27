@@ -71,6 +71,7 @@ namespace monad::compiler::native
         void gas_decrement_no_check(int64_t);
         void gas_decrement_check_non_negative(int64_t);
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
+        std::pair<StackElemRef, GeneralRegReserv> alloc_general_reg();
         void discharge_deferred_comparison(); // Leaves eflags unchanged
 
         ////////// Move functionality //////////
@@ -92,6 +93,7 @@ namespace monad::compiler::native
         void sgt();
         void sub();
         void add();
+        void byte();
 
         void and_();
         void or_();
@@ -100,6 +102,9 @@ namespace monad::compiler::native
 
         void iszero();
         void not_();
+
+        void address();
+        void codesize(uint64_t contract_bytecode_size);
 
         void stop();
         void return_();
@@ -134,9 +139,11 @@ namespace monad::compiler::native
 
         void mov_stack_elem_to_avx_reg(StackElemRef);
         void mov_stack_elem_to_avx_reg(StackElemRef, int32_t preferred_offset);
-        void mov_stack_elem_to_general_reg_update_eflags(StackElemRef);
-        void mov_stack_elem_to_general_reg_update_eflags(
-            StackElemRef, int32_t preferred_offset);
+        template <bool update_eflags>
+        void mov_stack_elem_to_general_reg(StackElemRef);
+        template <bool update_eflags>
+        void
+        mov_stack_elem_to_general_reg(StackElemRef, int32_t preferred_offset);
         void mov_stack_elem_to_stack_offset(StackElemRef);
         void
         mov_stack_elem_to_stack_offset(StackElemRef, int32_t preferred_offset);
@@ -156,11 +163,11 @@ namespace monad::compiler::native
         void
         mov_literal_to_stack_offset(StackElemRef, int32_t preferred_offset);
 
-        void mov_avx_reg_to_general_reg_update_eflags(StackElemRef);
-        void mov_avx_reg_to_general_reg_update_eflags(
-            StackElemRef, int32_t preferred_offset);
-        void mov_literal_to_general_reg_update_eflags(StackElemRef);
-        void mov_stack_offset_to_general_reg_update_eflags(StackElemRef);
+        void mov_avx_reg_to_general_reg(StackElemRef);
+        void mov_avx_reg_to_general_reg(StackElemRef, int32_t preferred_offset);
+        template <bool update_eflags>
+        void mov_literal_to_general_reg(StackElemRef);
+        void mov_stack_offset_to_general_reg(StackElemRef);
 
         ////////// Private EVM instruction utilities //////////
 
@@ -172,6 +179,10 @@ namespace monad::compiler::native
         void slt(StackElemRef dst, StackElemRef src);
         void
         cmp(StackElemRef dst, LocationType, StackElemRef src, LocationType);
+
+        void byte_literal_ix(uint256_t const &ix, StackOffset src);
+        void
+        byte_general_reg_or_stack_offset_ix(StackElemRef ix, StackOffset src);
 
         template <bool commutative>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
@@ -232,5 +243,7 @@ namespace monad::compiler::native
         asmjit::Label underflow_label_;
         std::unique_ptr<Stack> stack_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
+        std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
+            byte_out_of_bounds_handlers_;
     };
 }

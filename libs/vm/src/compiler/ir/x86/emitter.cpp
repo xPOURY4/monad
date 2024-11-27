@@ -13,6 +13,7 @@
 #include "intx/intx.hpp"
 #include "runtime/types.h"
 #include "utils/assert.h"
+#include "utils/uint256.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -38,6 +39,8 @@ constexpr auto reg_stack = x86::rbp;
 
 constexpr auto context_offset_gas_remaining =
     offsetof(runtime::Context, gas_remaining);
+constexpr auto context_offset_recipient =
+    offsetof(runtime::Context, env) + offsetof(runtime::Environment, recipient);
 
 constexpr auto result_offset_offset = offsetof(runtime::Result, offset);
 constexpr auto result_offset_size = offsetof(runtime::Result, size);
@@ -215,6 +218,17 @@ namespace monad::compiler::native
     entrypoint_t Emitter::finish_contract(asmjit::JitRuntime &rt)
     {
         contract_epilogue();
+
+        for (auto const &[lbl, rpq, back] : byte_out_of_bounds_handlers_) {
+            as_.align(asmjit::AlignMode::kCode, 16);
+            as_.bind(lbl);
+            as_.xor_(rpq[0], rpq[0]);
+            as_.mov(rpq[1], rpq[0]);
+            as_.mov(rpq[2], rpq[0]);
+            as_.mov(rpq[3], rpq[0]);
+            as_.jmp(back);
+        }
+
         error_block(out_of_gas_label_, runtime::StatusCode::OutOfGas);
         error_block(overflow_label_, runtime::StatusCode::Overflow);
         error_block(underflow_label_, runtime::StatusCode::Underflow);
@@ -347,6 +361,17 @@ namespace monad::compiler::native
         return {elem, reserv};
     }
 
+    std::pair<StackElemRef, GeneralRegReserv> Emitter::alloc_general_reg()
+    {
+        auto [elem, reserv, offset] = stack_->alloc_general_reg();
+        if (offset.has_value()) {
+            mov_general_reg_to_mem(
+                elem->general_reg().value(),
+                stack_offset_to_mem(offset.value()));
+        }
+        return {elem, reserv};
+    }
+
     void Emitter::discharge_deferred_comparison()
     {
         if (!stack_->has_deferred_comparison()) {
@@ -422,7 +447,7 @@ namespace monad::compiler::native
     void
     Emitter::mov_stack_index_to_general_reg_update_eflags(int32_t stack_index)
     {
-        mov_stack_elem_to_general_reg_update_eflags(stack_->get(stack_index));
+        mov_stack_elem_to_general_reg<true>(stack_->get(stack_index));
     }
 
     void Emitter::mov_stack_index_to_stack_offset(int32_t stack_index)
@@ -531,39 +556,40 @@ namespace monad::compiler::native
         }
     }
 
-    void Emitter::mov_stack_elem_to_general_reg_update_eflags(StackElemRef elem)
+    template <bool update_eflags>
+    void Emitter::mov_stack_elem_to_general_reg(StackElemRef elem)
     {
         if (elem->general_reg()) {
             return;
         }
         if (elem->literal()) {
-            mov_literal_to_general_reg_update_eflags(std::move(elem));
+            mov_literal_to_general_reg<update_eflags>(std::move(elem));
         }
         else if (elem->stack_offset()) {
-            mov_stack_offset_to_general_reg_update_eflags(std::move(elem));
+            mov_stack_offset_to_general_reg(std::move(elem));
         }
         else {
             MONAD_COMPILER_ASSERT(elem->avx_reg().has_value());
-            mov_avx_reg_to_general_reg_update_eflags(std::move(elem));
+            mov_avx_reg_to_general_reg(std::move(elem));
         }
     }
 
-    void Emitter::mov_stack_elem_to_general_reg_update_eflags(
-        StackElemRef elem, int32_t preferred)
+    template <bool update_eflags>
+    void
+    Emitter::mov_stack_elem_to_general_reg(StackElemRef elem, int32_t preferred)
     {
         if (elem->general_reg()) {
             return;
         }
         if (elem->literal()) {
-            mov_literal_to_general_reg_update_eflags(std::move(elem));
+            mov_literal_to_general_reg<update_eflags>(std::move(elem));
         }
         else if (elem->stack_offset()) {
-            mov_stack_offset_to_general_reg_update_eflags(std::move(elem));
+            mov_stack_offset_to_general_reg(std::move(elem));
         }
         else {
             MONAD_COMPILER_ASSERT(elem->avx_reg().has_value());
-            mov_avx_reg_to_general_reg_update_eflags(
-                std::move(elem), preferred);
+            mov_avx_reg_to_general_reg(std::move(elem), preferred);
         }
     }
 
@@ -690,29 +716,42 @@ namespace monad::compiler::native
             stack_offset_to_mem(elem->stack_offset().value()));
     }
 
-    void Emitter::mov_avx_reg_to_general_reg_update_eflags(StackElemRef elem)
+    void Emitter::mov_avx_reg_to_general_reg(StackElemRef elem)
     {
         int32_t const preferred = elem->preferred_stack_offset();
-        mov_avx_reg_to_general_reg_update_eflags(std::move(elem), preferred);
+        mov_avx_reg_to_general_reg(std::move(elem), preferred);
     }
 
-    void Emitter::mov_avx_reg_to_general_reg_update_eflags(
-        StackElemRef elem, int32_t preferred)
+    void
+    Emitter::mov_avx_reg_to_general_reg(StackElemRef elem, int32_t preferred)
     {
         mov_avx_reg_to_stack_offset(elem, preferred);
-        mov_stack_offset_to_general_reg_update_eflags(elem);
+        mov_stack_offset_to_general_reg(elem);
     }
 
-    void Emitter::mov_literal_to_general_reg_update_eflags(StackElemRef elem)
+    template <bool update_eflags>
+    void Emitter::mov_literal_to_general_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
         stack_->insert_general_reg(elem);
         auto rs = general_reg_to_gpq256(elem->general_reg().value());
         auto lit = elem->literal().value();
+        x86::Gpq const *zero_reg = nullptr;
         for (size_t i = 0; i < 4; ++i) {
             auto const &r = rs[i];
             if (lit.value[i] == 0) {
-                as_.xor_(r, r);
+                if (zero_reg) {
+                    as_.mov(r, *zero_reg);
+                }
+                else {
+                    if constexpr (update_eflags) {
+                        as_.xor_(r, r);
+                    }
+                    else {
+                        as_.mov(r, 0);
+                    }
+                    zero_reg = &r;
+                }
             }
             else {
                 as_.mov(r, lit.value[i]);
@@ -720,8 +759,7 @@ namespace monad::compiler::native
         }
     }
 
-    void
-    Emitter::mov_stack_offset_to_general_reg_update_eflags(StackElemRef elem)
+    void Emitter::mov_stack_offset_to_general_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
         stack_->insert_general_reg(elem);
@@ -840,6 +878,41 @@ namespace monad::compiler::native
         GENERAL_BIN_INSTR(add, adc)(dst_op, src_op);
 
         stack_->push(std::move(dst));
+    }
+
+    // Discharge
+    void Emitter::byte()
+    {
+        auto ix = stack_->pop();
+        auto src = stack_->pop();
+
+        if (ix->literal() && src->literal()) {
+            auto const &i = ix->literal().value().value;
+            auto const &x = src->literal().value().value;
+            push(monad::utils::byte(i, x));
+            return;
+        }
+
+        discharge_deferred_comparison();
+
+        if (!src->stack_offset()) {
+            mov_stack_elem_to_stack_offset(src);
+        }
+        if (ix->literal()) {
+            byte_literal_ix(
+                ix->literal().value().value, src->stack_offset().value());
+            return;
+        }
+        if (ix->general_reg()) {
+            byte_general_reg_or_stack_offset_ix(
+                std::move(ix), src->stack_offset().value());
+            return;
+        }
+        if (!ix->stack_offset()) {
+            mov_avx_reg_to_stack_offset(ix);
+        }
+        byte_general_reg_or_stack_offset_ix(
+            std::move(ix), src->stack_offset().value());
     }
 
     // Discharge
@@ -1021,6 +1094,33 @@ namespace monad::compiler::native
     }
 
     // No discharge
+    void Emitter::address()
+    {
+        x86::Mem m = x86::qword_ptr(reg_context, context_offset_recipient);
+        auto [dst, _] = alloc_general_reg();
+        Gpq256 gpq = general_reg_to_gpq256(dst->general_reg().value());
+        as_.mov(gpq[0], m);
+        m.addOffset(8);
+        as_.mov(gpq[1], m);
+        m.addOffset(8);
+        m.setSize(4);
+        as_.movzx(gpq[2], m);
+        if (stack_->has_deferred_comparison()) {
+            as_.mov(gpq[3], 0);
+        }
+        else {
+            as_.xor_(gpq[3], gpq[3]);
+        }
+        stack_->push(std::move(dst));
+    }
+
+    // No discharge
+    void Emitter::codesize(uint64_t cs)
+    {
+        stack_->push_literal(cs);
+    }
+
+    // No discharge
     void Emitter::stop()
     {
         status_code(runtime::StatusCode::Success);
@@ -1110,6 +1210,68 @@ namespace monad::compiler::native
         GENERAL_BIN_INSTR(cmp, sbb)(dst_op, src_op);
     }
 
+    void Emitter::byte_literal_ix(uint256_t const &ix, StackOffset src)
+    {
+        if (ix >= 32) {
+            return push(0);
+        }
+        int64_t const i = 31 - static_cast<int64_t>(ix[0]);
+
+        auto [dst, dst_reserv] = alloc_general_reg();
+        Gpq256 gpq = general_reg_to_gpq256(dst->general_reg().value());
+
+        as_.xor_(gpq[0], gpq[0]);
+        as_.mov(gpq[1], gpq[0]);
+        as_.mov(gpq[2], gpq[0]);
+        as_.mov(gpq[3], gpq[0]);
+        auto m = stack_offset_to_mem(src);
+        m.addOffset(i);
+        as_.mov(gpq[0].r8Lo(), m);
+
+        stack_->push(std::move(dst));
+    }
+
+    void Emitter::byte_general_reg_or_stack_offset_ix(
+        StackElemRef ix, StackOffset src)
+    {
+        auto [dst, dst_reserv] = alloc_general_reg();
+
+        Gpq256 dst_gpq = general_reg_to_gpq256(dst->general_reg().value());
+
+        as_.mov(dst_gpq[0], 31);
+        as_.xor_(dst_gpq[1], dst_gpq[1]);
+        as_.mov(dst_gpq[2], dst_gpq[1]);
+        as_.mov(dst_gpq[3], dst_gpq[1]);
+        if (ix->general_reg()) {
+            Gpq256 ix_gpq = general_reg_to_gpq256(ix->general_reg().value());
+            as_.sub(dst_gpq[0], ix_gpq[0]);
+            as_.sbb(dst_gpq[1], ix_gpq[1]);
+            as_.sbb(dst_gpq[2], ix_gpq[2]);
+            as_.sbb(dst_gpq[3], ix_gpq[3]);
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(ix->stack_offset().has_value());
+            x86::Mem m = stack_offset_to_mem(ix->stack_offset().value());
+            as_.sub(dst_gpq[0], m);
+            for (size_t i = 1; i < 4; ++i) {
+                m.addOffset(8);
+                as_.sbb(dst_gpq[i], m);
+            }
+        }
+        auto byte_out_of_bounds_lbl = as_.newLabel();
+        auto byte_after_lbl = as_.newLabel();
+        as_.jb(byte_out_of_bounds_lbl);
+        auto m = stack_offset_to_mem(src);
+        m.setIndex(dst_gpq[0]);
+        as_.mov(dst_gpq[0].r8Lo(), m);
+        as_.bind(byte_after_lbl);
+
+        byte_out_of_bounds_handlers_.emplace_back(
+            byte_out_of_bounds_lbl, dst_gpq, byte_after_lbl);
+
+        stack_->push(std::move(dst));
+    }
+
     template <bool commutative>
     std::tuple<
         StackElemRef, Emitter::LocationType, StackElemRef,
@@ -1136,7 +1298,7 @@ namespace monad::compiler::native
 
         if (dst.get() == src.get()) {
             if (!dst->general_reg()) {
-                mov_stack_elem_to_general_reg_update_eflags(dst);
+                mov_stack_elem_to_general_reg<true>(dst);
             }
             return {
                 std::move(dst),
@@ -1192,7 +1354,7 @@ namespace monad::compiler::native
         }
         if (!dst->stack_offset()) {
             if (dst->literal()) {
-                mov_literal_to_general_reg_update_eflags(dst);
+                mov_literal_to_general_reg<true>(dst);
                 if (src->general_reg()) {
                     return {
                         std::move(dst),
@@ -1246,7 +1408,7 @@ namespace monad::compiler::native
                 LocationType::Literal};
         }
         if (src->stack_offset()) {
-            mov_stack_offset_to_general_reg_update_eflags(src);
+            mov_stack_offset_to_general_reg(src);
             return {
                 std::move(dst),
                 LocationType::StackOffset,
@@ -1254,14 +1416,14 @@ namespace monad::compiler::native
                 LocationType::GeneralReg};
         }
         if (src->literal()) {
-            mov_literal_to_general_reg_update_eflags(src);
+            mov_literal_to_general_reg<true>(src);
             return {
                 std::move(dst),
                 LocationType::StackOffset,
                 std::move(src),
                 LocationType::Literal};
         }
-        mov_avx_reg_to_general_reg_update_eflags(src);
+        mov_avx_reg_to_general_reg(src);
         return {
             std::move(dst),
             LocationType::StackOffset,

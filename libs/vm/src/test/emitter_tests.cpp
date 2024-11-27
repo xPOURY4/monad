@@ -972,6 +972,40 @@ TEST(Emitter, eq)
         1);
 }
 
+TEST(Emitter, byte)
+{
+    pure_bin_instr_test(BYTE, &Emitter::byte, 31, 1, 1);
+    pure_bin_instr_test(
+        BYTE, &Emitter::byte, 0, {0, 0, 0, 0x8877665544332211}, 0x88);
+    pure_bin_instr_test(
+        BYTE, &Emitter::byte, 4, {0, 0, 0, 0x8877665544332211}, 0x44);
+    pure_bin_instr_test(BYTE, &Emitter::byte, 32, {-1, -1, -1, -1}, 0);
+}
+
+TEST(Emitter, address)
+{
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR({ADDRESS, ADDRESS}));
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt};
+    emit.begin_stack(ir.blocks[0]);
+    emit.address();
+    emit.address();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ret = test_result();
+    auto ctx = test_context();
+    memset(ctx.env.recipient.bytes, 0, sizeof(ctx.env.recipient));
+    ctx.env.recipient.bytes[0] = 2;
+
+    entry(&ret, &ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
+}
+
 TEST(Emitter, iszero)
 {
     pure_una_instr_test(ISZERO, &Emitter::iszero, 0, 1);
