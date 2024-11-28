@@ -107,6 +107,8 @@ namespace monad::compiler::native
         void not_();
 
         void address();
+        void caller();
+        void callvalue();
         void codesize(uint64_t contract_bytecode_size);
 
         void stop();
@@ -179,6 +181,9 @@ namespace monad::compiler::native
         void status_code(monad::runtime::StatusCode);
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
         void return_with_status_code(monad::runtime::StatusCode);
+
+        void read_context_address(int32_t offset);
+        void read_context_word(int32_t offset);
 
         void lt(StackElemRef dst, StackElemRef src);
         void slt(StackElemRef dst, StackElemRef src);

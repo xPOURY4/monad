@@ -41,6 +41,10 @@ constexpr auto context_offset_gas_remaining =
     offsetof(runtime::Context, gas_remaining);
 constexpr auto context_offset_recipient =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, recipient);
+constexpr auto context_offset_sender =
+    offsetof(runtime::Context, env) + offsetof(runtime::Environment, sender);
+constexpr auto context_offset_value =
+    offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
 
 constexpr auto result_offset_offset = offsetof(runtime::Result, offset);
 constexpr auto result_offset_size = offsetof(runtime::Result, size);
@@ -1157,22 +1161,19 @@ namespace monad::compiler::native
     // No discharge
     void Emitter::address()
     {
-        x86::Mem m = x86::qword_ptr(reg_context, context_offset_recipient);
-        auto [dst, _] = alloc_general_reg();
-        Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
-        as_.mov(gpq[0], m);
-        m.addOffset(8);
-        as_.mov(gpq[1], m);
-        m.addOffset(8);
-        m.setSize(4);
-        as_.movzx(gpq[2], m);
-        if (stack_->has_deferred_comparison()) {
-            as_.mov(gpq[3], 0);
-        }
-        else {
-            as_.xor_(gpq[3], gpq[3]);
-        }
-        stack_->push(std::move(dst));
+        read_context_address(context_offset_recipient);
+    }
+
+    // No discharge
+    void Emitter::caller()
+    {
+        read_context_address(context_offset_sender);
+    }
+
+    // No discharge
+    void Emitter::callvalue()
+    {
+        read_context_word(context_offset_value);
     }
 
     // No discharge
@@ -1230,6 +1231,34 @@ namespace monad::compiler::native
         mov_stack_elem_to_unaligned_mem(
             size, qword_ptr(reg_scratch, result_offset_size));
         as_.jmp(epilogue_label_);
+    }
+
+    void Emitter::read_context_address(int32_t offset)
+    {
+        x86::Mem m = x86::qword_ptr(reg_context, offset);
+        auto [dst, _] = alloc_general_reg();
+        Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
+        as_.mov(gpq[0], m);
+        m.addOffset(8);
+        as_.mov(gpq[1], m);
+        m.addOffset(8);
+        m.setSize(4);
+        as_.movzx(gpq[2], m);
+        if (stack_->has_deferred_comparison()) {
+            as_.mov(gpq[3], 0);
+        }
+        else {
+            as_.xor_(gpq[3], gpq[3]);
+        }
+        stack_->push(std::move(dst));
+    }
+
+    void Emitter::read_context_word(int32_t offset)
+    {
+        x86::Mem const m = x86::qword_ptr(reg_context, offset);
+        auto [dst, _] = alloc_avx_reg();
+        as_.vmovups(avx_reg_to_ymm(dst->avx_reg().value()), m);
+        stack_->push(std::move(dst));
     }
 
     void Emitter::lt(StackElemRef pre_dst, StackElemRef pre_src)

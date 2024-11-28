@@ -1104,6 +1104,56 @@ TEST(Emitter, address)
     ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
 }
 
+TEST(Emitter, caller)
+{
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR({CALLER, CALLER}));
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt};
+    emit.begin_stack(ir.blocks[0]);
+    emit.caller();
+    emit.caller();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ret = test_result();
+    auto ctx = test_context();
+    memset(ctx.env.sender.bytes, 0, sizeof(ctx.env.sender));
+    ctx.env.sender.bytes[0] = 1;
+    ctx.env.sender.bytes[1] = 1;
+    ctx.env.sender.bytes[2] = 1;
+
+    entry(&ret, &ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x010101);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x010101);
+}
+
+TEST(Emitter, callvalue)
+{
+    auto ir = local_stacks::LocalStacksIR(
+        basic_blocks::BasicBlocksIR({CALLVALUE, CALLVALUE}));
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt};
+    emit.begin_stack(ir.blocks[0]);
+    emit.callvalue();
+    emit.callvalue();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ret = test_result();
+    auto ctx = test_context();
+    memset(ctx.env.value.bytes, 0, sizeof(ctx.env.value));
+    ctx.env.value.bytes[1] = 3;
+
+    entry(&ret, &ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x0300);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x0300);
+}
+
 TEST(Emitter, iszero)
 {
     pure_una_instr_test(ISZERO, &Emitter::iszero, 0, 1);
