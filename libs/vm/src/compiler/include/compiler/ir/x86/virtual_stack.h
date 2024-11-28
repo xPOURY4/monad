@@ -551,6 +551,9 @@ namespace monad::compiler::native
          */
         std::vector<std::pair<AvxReg, StackOffset>> spill_all_avx_regs();
 
+        /** Whether the given general register is currently on the stack. */
+        bool is_general_reg_on_stack(GeneralReg);
+
         /**
          * The relative size of the stack at the *lowest* point during execution
          * of a block.

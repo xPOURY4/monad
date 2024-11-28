@@ -130,7 +130,7 @@ namespace
         local_stacks::LocalStacksIR const &ir, bool dup)
     {
 #if 0
-        if (left_loc != Emitter::LocationType::StackOffset || right_loc != Emitter::LocationType::GeneralReg || !dup) {
+        if (left_loc != Emitter::LocationType::GeneralReg || right_loc != Emitter::LocationType::GeneralReg || !dup) {
             return;
         }
 #endif
@@ -173,7 +173,7 @@ namespace
 
 #if 0
         std::cout <<
-            std::format("LEFT {} : {}\nRIGHT {} : {}",
+            std::format("LEFT {} : {}  and  RIGHT {} : {}",
                     left, Emitter::location_type_to_string(left_loc),
                     right, Emitter::location_type_to_string(right_loc)) << std::endl;
 #endif
@@ -980,6 +980,104 @@ TEST(Emitter, byte)
     pure_bin_instr_test(
         BYTE, &Emitter::byte, 4, {0, 0, 0, 0x8877665544332211}, 0x44);
     pure_bin_instr_test(BYTE, &Emitter::byte, 32, {-1, -1, -1, -1}, 0);
+}
+
+TEST(Emitter, shl)
+{
+    pure_bin_instr_test(
+        SHL, &Emitter::shl, 255, 1, {0, 0, 0, static_cast<uint64_t>(1) << 63});
+    pure_bin_instr_test(
+        SHL,
+        &Emitter::shl,
+        63,
+        ~static_cast<uint64_t>(0),
+        {static_cast<uint64_t>(1) << 63,
+         ~(static_cast<uint64_t>(1) << 63),
+         0,
+         0});
+    pure_bin_instr_test(
+        SHL,
+        &Emitter::shl,
+        127,
+        std::numeric_limits<uint256_t>::max(),
+        {0,
+         static_cast<uint64_t>(1) << 63,
+         ~static_cast<uint64_t>(0),
+         ~static_cast<uint64_t>(0)});
+    pure_bin_instr_test(
+        SHL, &Emitter::shl, 256, std::numeric_limits<uint256_t>::max(), 0);
+    pure_bin_instr_test(
+        SHL, &Emitter::shl, 257, std::numeric_limits<uint256_t>::max(), 0);
+}
+
+TEST(Emitter, shr)
+{
+    pure_bin_instr_test(SHR, &Emitter::shr, 1, 2, 1);
+    pure_bin_instr_test(
+        SHR,
+        &Emitter::shr,
+        63,
+        {0, -1, 0, 0},
+        {~static_cast<uint64_t>(0) - 1, 1, 0, 0});
+    pure_bin_instr_test(
+        SHR,
+        &Emitter::shr,
+        127,
+        std::numeric_limits<uint256_t>::max(),
+        {~static_cast<uint64_t>(0), ~static_cast<uint64_t>(0), 1, 0});
+    pure_bin_instr_test(
+        SHR, &Emitter::shr, 256, std::numeric_limits<uint256_t>::max(), 0);
+    pure_bin_instr_test(
+        SHR, &Emitter::shr, 257, std::numeric_limits<uint256_t>::max(), 0);
+}
+
+TEST(Emitter, sar)
+{
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        63,
+        {0, -1, 0, 0},
+        {~static_cast<uint64_t>(0) - 1, 1, 0, 0});
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        63,
+        {0, -1, 0, -1},
+        {~static_cast<uint64_t>(0) - 1,
+         1,
+         ~static_cast<uint64_t>(0) - 1,
+         ~static_cast<uint64_t>(0)});
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        127,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max());
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        256,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max());
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        257,
+        std::numeric_limits<uint256_t>::max(),
+        std::numeric_limits<uint256_t>::max());
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        256,
+        {0, 0, 0, ~(static_cast<uint64_t>(1) << 63)},
+        0);
+    pure_bin_instr_test(
+        SAR,
+        &Emitter::sar,
+        257,
+        {0, 0, 0, ~(static_cast<uint64_t>(1) << 63)},
+        0);
 }
 
 TEST(Emitter, address)

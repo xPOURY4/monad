@@ -94,6 +94,9 @@ namespace monad::compiler::native
         void sub();
         void add();
         void byte();
+        void shl();
+        void shr();
+        void sar();
 
         void and_();
         void or_();
@@ -123,6 +126,8 @@ namespace monad::compiler::native
         void discharge_deferred_comparison(StackElem *, Comparison);
 
         asmjit::Label const &append_literal(Literal);
+
+        Gpq256 &general_reg_to_gpq256(GeneralReg);
 
         ////////// Private move functionality //////////
 
@@ -184,6 +189,26 @@ namespace monad::compiler::native
         void
         byte_general_reg_or_stack_offset_ix(StackElemRef ix, StackOffset src);
 
+        enum class ShiftType
+        {
+            SHL,
+            SHR,
+            SAR
+        };
+
+        template <ShiftType shift_type>
+        void shift_by_stack_elem(StackElemRef shift, StackElemRef);
+
+        template <ShiftType shift_type>
+        void setup_shift_stack(StackElemRef);
+
+        template <ShiftType shift_type>
+        void shift_by_literal(uint256_t shift, StackElemRef);
+
+        template <ShiftType shift_type>
+        void
+        shift_by_general_reg_or_stack_offset(StackElemRef shift, StackElemRef);
+
         template <bool commutative>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         prepare_general_dest_and_source(
@@ -242,8 +267,13 @@ namespace monad::compiler::native
         asmjit::Label overflow_label_;
         asmjit::Label underflow_label_;
         std::unique_ptr<Stack> stack_;
+        std::array<Gpq256, 3> gpq256_regs_;
+        GeneralReg rcx_general_reg;
+        uint8_t rcx_general_reg_index;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
+        std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
+            shift_out_of_bounds_handlers_;
     };
 }

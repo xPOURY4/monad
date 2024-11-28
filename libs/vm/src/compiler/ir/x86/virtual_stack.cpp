@@ -691,6 +691,12 @@ namespace monad::compiler::native
         return dst;
     }
 
+    bool Stack::is_general_reg_on_stack(GeneralReg reg)
+    {
+        auto *e = general_reg_stack_elems_[reg.reg];
+        return e != nullptr && e->is_on_stack();
+    }
+
     std::int32_t Stack::min_delta() const
     {
         return min_delta_;
