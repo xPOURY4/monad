@@ -9,6 +9,7 @@
 #include <runtime/log.h>
 #include <runtime/math.h>
 #include <runtime/memory.h>
+#include <runtime/selfdestruct.h>
 #include <runtime/storage.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>
