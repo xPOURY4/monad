@@ -45,12 +45,12 @@ namespace monad::runtime
         ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *i_ptr)
     {
-        if (*i_ptr > std::numeric_limits<std::int32_t>::max()) {
+        if (*i_ptr > std::numeric_limits<std::uint32_t>::max()) {
             *result_ptr = 0;
             return;
         }
 
-        auto start = static_cast<std::size_t>(*i_ptr);
+        auto start = static_cast<std::uint32_t>(*i_ptr);
 
         if (ctx->env.input_data.size() <= start) {
             *result_ptr = 0;
@@ -58,9 +58,65 @@ namespace monad::runtime
         }
 
         auto len = std::min(
-            saturating_sub(ctx->env.input_data.size(), start), std::size_t{32});
+            saturating_sub(
+                ctx->env.input_data.size(), static_cast<std::size_t>(start)),
+            32ul);
 
         auto calldata = ctx->env.input_data.subspan(start, len);
         *result_ptr = uint256_from_span(calldata);
+    }
+
+    template <evmc_revision Rev>
+    void copy_impl(
+        ExitContext *exit_ctx, Context *ctx, utils::uint256_t dest_offset_word,
+        utils::uint256_t offset_word, utils::uint256_t size_word,
+        std::span<std::uint8_t const> source)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(
+            source.size() <= std::numeric_limits<std::uint32_t>::max());
+
+        auto [dest_offset, size] = Context::get_memory_offset_and_size(
+            exit_ctx, dest_offset_word, size_word);
+        if (size == 0) {
+            return;
+        }
+
+        auto size_in_words = (size + 31) / 32;
+
+        ctx->gas_remaining -= size_in_words * 3;
+        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+            exit_ctx->exit(StatusCode::OutOfGas);
+        }
+
+        ctx->expand_memory(exit_ctx, saturating_add(dest_offset, size));
+
+        auto start = [&] {
+            if (offset_word > std::numeric_limits<std::uint32_t>::max()) {
+                return static_cast<std::uint32_t>(source.size());
+            }
+            else {
+                return std::min(
+                    static_cast<std::uint32_t>(offset_word),
+                    static_cast<std::uint32_t>(source.size()));
+            }
+        }();
+
+        auto copy_size = std::min(
+            size,
+            saturating_sub(static_cast<std::uint32_t>(source.size()), start));
+
+        if (copy_size > 0) {
+            auto begin = source.begin() + start;
+            std::copy(
+                begin, begin + copy_size, ctx->memory.begin() + dest_offset);
+        }
+
+        auto size_diff = saturating_sub(size, copy_size);
+
+        if (size_diff > 0) {
+            auto begin =
+                ctx->memory.begin() + saturating_add(dest_offset, copy_size);
+            std::fill(begin, begin + size_diff, 0);
+        }
     }
 }
