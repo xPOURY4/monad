@@ -4,6 +4,7 @@
 #include <runtime/call.h>
 #include <runtime/constants.h>
 #include <runtime/create.h>
+#include <runtime/data.h>
 #include <runtime/environment.h>
 #include <runtime/keccak.h>
 #include <runtime/log.h>
