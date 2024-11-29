@@ -15,3 +15,11 @@ extern "C" void runtime_exit [[noreturn]] (
     (void)error;
     std::terminate();
 }
+
+namespace monad::runtime
+{
+    void ExitContext::exit [[noreturn]] (StatusCode code) const noexcept
+    {
+        runtime_exit(stack_pointer, ctx, code);
+    }
+}

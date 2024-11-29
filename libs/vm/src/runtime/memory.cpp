@@ -16,8 +16,7 @@ namespace monad::runtime
         constexpr auto max_offset = (1 << Context::max_memory_offset_bits) - 1;
 
         if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
-            runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
+            exit_ctx->exit(StatusCode::OutOfGas);
         }
 
         return static_cast<uint32_t>(offset);
@@ -44,10 +43,7 @@ namespace monad::runtime
             gas_remaining -= static_cast<std::int64_t>(expansion_cost);
 
             if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
-                runtime_exit(
-                    exit_ctx->stack_pointer,
-                    exit_ctx->ctx,
-                    StatusCode::OutOfGas);
+                exit_ctx->exit(StatusCode::OutOfGas);
             }
 
             memory.resize(memory_size_word * 32);

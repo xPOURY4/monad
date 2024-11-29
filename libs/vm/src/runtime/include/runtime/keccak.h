@@ -28,10 +28,7 @@ namespace monad::runtime
 
             ctx->gas_remaining -= word_size * 6;
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                runtime_exit(
-                    exit_ctx->stack_pointer,
-                    exit_ctx->ctx,
-                    StatusCode::OutOfGas);
+                exit_ctx->exit(StatusCode::OutOfGas);
             }
         }
 

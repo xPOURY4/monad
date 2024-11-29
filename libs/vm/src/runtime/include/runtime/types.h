@@ -109,6 +109,8 @@ namespace monad::runtime
     {
         void *stack_pointer;
         Context *ctx;
+
+        void exit [[noreturn]] (StatusCode code) const noexcept;
     };
 
     static_assert(std::is_standard_layout_v<ExitContext>);

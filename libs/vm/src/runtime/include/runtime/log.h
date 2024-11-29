@@ -13,10 +13,7 @@ namespace monad::runtime
         utils::uint256_t size_word, std::span<evmc::bytes32 const> topics)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
-            runtime_exit(
-                exit_ctx->stack_pointer,
-                exit_ctx->ctx,
-                StatusCode::StaticModeViolation);
+            exit_ctx->exit(StatusCode::StaticModeViolation);
         }
 
         auto [offset, size] = Context::get_memory_offset_and_size(

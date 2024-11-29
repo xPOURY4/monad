@@ -16,19 +16,13 @@ namespace monad::runtime
         utils::uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
-            runtime_exit(
-                exit_ctx->stack_pointer,
-                exit_ctx->ctx,
-                StatusCode::StaticModeViolation);
+            exit_ctx->exit(StatusCode::StaticModeViolation);
         }
 
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
             ctx->gas_remaining -= 5000;
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                runtime_exit(
-                    exit_ctx->stack_pointer,
-                    exit_ctx->ctx,
-                    StatusCode::OutOfGas);
+                exit_ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -63,8 +57,7 @@ namespace monad::runtime
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            runtime_exit(
-                exit_ctx->stack_pointer, exit_ctx->ctx, StatusCode::OutOfGas);
+            exit_ctx->exit(StatusCode::OutOfGas);
         }
 
         auto result = ctx->host->selfdestruct(
