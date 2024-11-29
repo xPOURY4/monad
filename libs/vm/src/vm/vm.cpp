@@ -81,6 +81,7 @@ namespace monad::compiler
                     .sender = msg->sender,
                     .value = msg->value,
                     .create2_salt = msg->create2_salt,
+                    .input_data = {msg->input_data, msg->input_size},
                     .return_data = {},
                 },
             .memory = {},

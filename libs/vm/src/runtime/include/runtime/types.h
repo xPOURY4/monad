@@ -43,6 +43,7 @@ namespace monad::runtime
         evmc::bytes32 value;
         evmc::bytes32 create2_salt;
 
+        std::span<std::uint8_t const> input_data;
         std::span<std::uint8_t const> return_data;
 
         void set_return_data(
@@ -51,7 +52,7 @@ namespace monad::runtime
     };
 
     static_assert(std::is_standard_layout_v<Environment>);
-    static_assert(sizeof(Environment) == 128);
+    static_assert(sizeof(Environment) == 144);
 
     struct ExitContext;
 
@@ -98,7 +99,7 @@ namespace monad::runtime
     };
 
     static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 192);
+    static_assert(sizeof(Context) == 208);
     static_assert(offsetof(Context, host) == 0);
     static_assert(offsetof(Context, context) == 8);
     static_assert(offsetof(Context, gas_remaining) == 16);
