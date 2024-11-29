@@ -19,4 +19,17 @@ namespace monad::runtime
 
         return sum;
     }
+
+    template <typename Int>
+    constexpr Int saturating_sub(Int x, Int y)
+        requires(std::is_integral_v<Int> && std::is_unsigned_v<Int>)
+    {
+        Int result;
+
+        if (MONAD_COMPILER_UNLIKELY(__builtin_sub_overflow(x, y, &result))) {
+            return 0;
+        }
+
+        return result;
+    }
 }

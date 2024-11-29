@@ -34,13 +34,20 @@ namespace monad::runtime
 
     utils::uint256_t uint256_from_bytes32(evmc::bytes32 x)
     {
-        return intx::be::unsafe::load<intx::uint256>(x.bytes);
+        return uint256_from_span(x.bytes);
     }
 
     utils::uint256_t uint256_from_address(evmc::address addr)
     {
+        return uint256_from_span(addr.bytes);
+    }
+
+    utils::uint256_t uint256_from_span(std::span<uint8_t const> bytes)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(bytes.size() <= 32);
+
         auto buf = std::array<std::uint8_t, 32>{};
-        std::copy(addr.bytes, addr.bytes + 20, buf.begin());
+        std::copy(bytes.begin(), bytes.end(), buf.begin());
 
         return intx::be::unsafe::load<intx::uint256>(buf.data());
     }

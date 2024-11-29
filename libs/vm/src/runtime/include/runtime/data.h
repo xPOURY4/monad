@@ -1,5 +1,6 @@
 #pragma once
 
+#include <runtime/arithmetic.h>
 #include <runtime/constants.h>
 #include <runtime/exit.h>
 #include <runtime/transmute.h>
@@ -8,6 +9,8 @@
 #include <utils/uint256.h>
 
 #include <evmc/evmc.hpp>
+
+#include <limits>
 
 namespace monad::runtime
 {
@@ -35,5 +38,29 @@ namespace monad::runtime
 
         auto balance = ctx->host->get_balance(ctx->context, &address);
         *result_ptr = uint256_from_bytes32(balance);
+    }
+
+    template <evmc_revision Rev>
+    void calldataload(
+        ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *i_ptr)
+    {
+        if (*i_ptr > std::numeric_limits<std::int32_t>::max()) {
+            *result_ptr = 0;
+            return;
+        }
+
+        auto start = static_cast<std::size_t>(*i_ptr);
+
+        if (ctx->env.input_data.size() <= start) {
+            *result_ptr = 0;
+            return;
+        }
+
+        auto len = std::min(
+            saturating_sub(ctx->env.input_data.size(), start), std::size_t{32});
+
+        auto calldata = ctx->env.input_data.subspan(start, len);
+        *result_ptr = uint256_from_span(calldata);
     }
 }
