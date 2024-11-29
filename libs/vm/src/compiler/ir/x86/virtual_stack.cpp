@@ -5,6 +5,7 @@
 #include <compiler/types.h>
 
 #include <memory>
+#include <set>
 #include <tuple>
 #include <utils/assert.h>
 
@@ -471,6 +472,11 @@ namespace monad::compiler::native
         return offset;
     }
 
+    void Stack::unsafe_drop_avx_reg(StackElem *e)
+    {
+        e->remove_avx_reg();
+    }
+
     void Stack::spill_stack_offset(StackElemRef e)
     {
         MONAD_COMPILER_ASSERT(
@@ -582,6 +588,11 @@ namespace monad::compiler::native
             }
         }
         return ret;
+    }
+
+    std::set<std::int32_t> const &Stack::available_stack_offsets()
+    {
+        return available_stack_offsets_;
     }
 
     void Stack::insert_stack_offset(StackElemRef e, std::int32_t preferred)

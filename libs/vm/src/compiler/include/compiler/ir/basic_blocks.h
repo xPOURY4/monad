@@ -182,8 +182,7 @@ namespace monad::compiler::basic_blocks
         block_id fallthrough_dest = INVALID_BLOCK_ID;
 
         /**
-         * Does the original bytecode block start with a JUMPDEST opcode
-         * This is needed for gas accounting
+         * The basic block byte code offset.
          */
         byte_offset offset = 0;
 

@@ -489,6 +489,11 @@ namespace monad::compiler::native
         std::optional<StackOffset> spill_avx_reg(StackElem *);
 
         /**
+         * Blindly remove AVX register from the stack element.
+         */
+        void unsafe_drop_avx_reg(StackElem *);
+
+        /**
          * Remove general register from `elem` and return a new stack element
          * containing the general register.
          */
@@ -562,6 +567,9 @@ namespace monad::compiler::native
          */
         [[nodiscard]]
         std::vector<std::pair<AvxReg, StackOffset>> spill_all_avx_regs();
+
+        /** Set of available stack offsets. */
+        std::set<std::int32_t> const &available_stack_offsets();
 
         /** Whether the given general register is currently on the stack. */
         bool is_general_reg_on_stack(GeneralReg);

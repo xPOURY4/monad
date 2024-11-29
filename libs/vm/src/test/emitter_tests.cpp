@@ -105,7 +105,7 @@ namespace
                 !elem->general_reg());
             break;
         case Emitter::LocationType::GeneralReg:
-            emit.mov_stack_index_to_general_reg_update_eflags(stack_index);
+            emit.mov_stack_index_to_general_reg(stack_index);
             stack.spill_literal(elem);
             ASSERT_TRUE(
                 elem->general_reg() && !elem->stack_offset() &&
@@ -119,6 +119,35 @@ namespace
                 !elem->literal() && !elem->avx_reg());
             break;
         case Emitter::LocationType::Literal:
+            break;
+        }
+    }
+
+    void copy_stack_offset_to_location_type(
+        Emitter &emit, int32_t stack_index, Emitter::LocationType loc)
+    {
+        Stack &stack = emit.get_stack();
+        auto elem = stack.get(stack_index);
+        ASSERT_TRUE(
+            elem->stack_offset() && !elem->general_reg() && !elem->avx_reg() &&
+            !elem->literal());
+        switch (loc) {
+        case Emitter::LocationType::AvxReg:
+            emit.mov_stack_index_to_avx_reg(stack_index);
+            ASSERT_TRUE(
+                elem->avx_reg() && elem->stack_offset() && !elem->literal() &&
+                !elem->general_reg());
+            break;
+        case Emitter::LocationType::GeneralReg:
+            emit.mov_stack_index_to_general_reg(stack_index);
+            ASSERT_TRUE(
+                elem->general_reg() && elem->stack_offset() &&
+                !elem->literal() && !elem->avx_reg());
+            break;
+        case Emitter::LocationType::StackOffset:
+            break;
+        case Emitter::LocationType::Literal:
+            ASSERT_TRUE(false);
             break;
         }
     }
@@ -138,8 +167,8 @@ namespace
 #endif
         asmjit::JitRuntime rt;
 
-        Emitter emit{rt};
-        emit.begin_stack(ir.blocks[0]);
+        Emitter emit{rt, ir.codesize};
+        (void)emit.begin_new_block(ir.blocks[0]);
         emit.push(right);
         if (dup) {
             emit.dup(1);
@@ -202,8 +231,8 @@ namespace
 #endif
         asmjit::JitRuntime rt;
 
-        Emitter emit{rt};
-        emit.begin_stack(ir.blocks[0]);
+        Emitter emit{rt, ir.codesize};
+        (void)emit.begin_new_block(ir.blocks[0]);
         emit.push(input);
         if (dup) {
             emit.dup(1);
@@ -275,6 +304,7 @@ namespace
 
         std::vector<uint8_t> bytecode2{
             PUSH0,
+            PUSH0,
             DUP1,
             PUSH0,
             DUP1,
@@ -319,12 +349,348 @@ namespace
             pure_una_instr_test_instance(instr, input, loc, result, ir1, true);
         }
     }
+
+    void jump_test(
+        Emitter::LocationType loc1, Emitter::LocationType loc2,
+        Emitter::LocationType loc_dest, bool swap)
+    {
+#if 0
+        if (swap || loc1 != Emitter::LocationType::Literal || loc2 != Emitter::LocationType::AvxReg || loc_dest != Emitter::LocationType::Literal) {
+            return;
+        }
+#endif
+#if 0
+        std::cout <<
+            std::format("LOC1 {}  and  LOC2 {}  and  LOC_DEST {}",
+                    Emitter::location_type_to_string(loc1),
+                    Emitter::location_type_to_string(loc2),
+                    Emitter::location_type_to_string(loc_dest)) << std::endl;
+#endif
+
+        auto ir =
+            swap ? local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                       {PUSH0, PUSH0, PUSH0, SWAP1, JUMP, JUMPDEST, RETURN}))
+                 : local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                       {PUSH0, PUSH0, PUSH0, JUMP, JUMPDEST, RETURN}));
+
+        asmjit::JitRuntime rt;
+        Emitter emit{rt, ir.codesize};
+
+        for (auto const &[k, _] : ir.jumpdests) {
+            emit.add_jump_dest(k);
+        }
+
+        (void)emit.begin_new_block(ir.blocks[0]);
+        emit.push(1);
+        mov_literal_to_location_type(emit, 0, loc1);
+        if (swap) {
+            emit.push(5);
+            mov_literal_to_location_type(emit, 1, loc_dest);
+            emit.push(2);
+            mov_literal_to_location_type(emit, 2, loc2);
+            emit.swap(1);
+        }
+        else {
+            emit.push(2);
+            mov_literal_to_location_type(emit, 1, loc2);
+            emit.push(4);
+            mov_literal_to_location_type(emit, 2, loc_dest);
+        }
+        emit.jump();
+        (void)emit.begin_new_block(ir.blocks[1]);
+        emit.return_();
+
+        entrypoint_t entry = emit.finish_contract(rt);
+        auto ret = test_result();
+        auto ctx = test_context();
+
+        auto stack_memory = test_stack_memory();
+        entry(&ret, &ctx, stack_memory.get());
+
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    }
+
+    local_stacks::LocalStacksIR
+    get_jumpi_ir(bool deferred_comparison, bool swap, bool dup)
+    {
+        if (deferred_comparison && swap) {
+            if (dup) {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     DUP2,
+                     ISZERO,
+                     DUP2,
+                     SWAP2,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+            else {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     PUSH0,
+                     ISZERO,
+                     PUSH0,
+                     SWAP2,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+        }
+        if (deferred_comparison) {
+            if (dup) {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     DUP2,
+                     ISZERO,
+                     DUP2,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+            else {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     PUSH0,
+                     ISZERO,
+                     PUSH0,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+        }
+        if (swap) {
+            if (dup) {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     DUP2,
+                     DUP2,
+                     SWAP2,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+            else {
+                return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                    {PUSH0,
+                     PUSH0,
+                     PUSH0,
+                     PUSH0,
+                     SWAP2,
+                     JUMPI,
+                     RETURN,
+                     JUMPDEST,
+                     REVERT}));
+            }
+        }
+        if (dup) {
+            return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                {PUSH0, PUSH0, DUP2, DUP2, JUMPI, RETURN, JUMPDEST, REVERT}));
+        }
+        else {
+            return local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+                {PUSH0, PUSH0, PUSH0, PUSH0, JUMPI, RETURN, JUMPDEST, REVERT}));
+        }
+    }
+
+    void jumpi_test(
+        Emitter::LocationType loc1, Emitter::LocationType loc2,
+        Emitter::LocationType loc_cond, Emitter::LocationType loc_dest,
+        bool take_jump, bool deferred_comparison, bool swap, bool dup)
+    {
+#if 0
+        if (!take_jump || !deferred_comparison || !swap || !dup || loc1 != Emitter::LocationType::Literal || loc2 != Emitter::LocationType::Literal || loc_cond != Emitter::LocationType::Literal || loc_dest != Emitter::LocationType::StackOffset) {
+            return;
+        }
+#endif
+#if 0
+        std::cout <<
+            std::format("LOC1 {}  and  LOC2 {}  and  LOC_COND {}  and  LOC_DEST {}",
+                    Emitter::location_type_to_string(loc1),
+                    Emitter::location_type_to_string(loc2),
+                    Emitter::location_type_to_string(loc_cond),
+                    Emitter::location_type_to_string(loc_dest)) << std::endl;
+#endif
+
+        auto ir = get_jumpi_ir(deferred_comparison, swap, dup);
+
+        asmjit::JitRuntime rt;
+        Emitter emit{rt, ir.codesize};
+
+        for (auto const &[k, _] : ir.jumpdests) {
+            emit.add_jump_dest(k);
+        }
+
+        uint256_t const cond = (take_jump + deferred_comparison) & 1;
+        uint256_t const dest = 6 + swap + deferred_comparison;
+
+        (void)emit.begin_new_block(ir.blocks[0]);
+
+        emit.push(cond);
+        if (dup) {
+            mov_literal_to_location_type(emit, 0, loc_cond);
+        }
+        else {
+            mov_literal_to_location_type(emit, 0, loc1);
+        }
+        emit.push(dest);
+        if (swap || dup) {
+            mov_literal_to_location_type(emit, 1, loc_dest);
+        }
+        else {
+            mov_literal_to_location_type(emit, 1, loc2);
+        }
+        if (dup) {
+            emit.dup(2);
+        }
+        else {
+            emit.push(cond);
+            mov_literal_to_location_type(emit, 2, loc_cond);
+        }
+        if (deferred_comparison) {
+            emit.iszero();
+        }
+        if (dup) {
+            emit.dup(2);
+        }
+        else {
+            emit.push(dest);
+            if (swap) {
+                mov_literal_to_location_type(emit, 3, loc2);
+            }
+            else {
+                mov_literal_to_location_type(emit, 3, loc_dest);
+            }
+        }
+        if (swap) {
+            emit.swap(2);
+        }
+        emit.jumpi();
+
+        (void)emit.begin_new_block(ir.blocks[1]);
+        emit.return_();
+
+        (void)emit.begin_new_block(ir.blocks[2]);
+        emit.revert();
+
+        entrypoint_t entry = emit.finish_contract(rt);
+        auto ret = test_result();
+        auto ctx = test_context();
+
+        auto stack_memory = test_stack_memory();
+        entry(&ret, &ctx, stack_memory.get());
+
+        if (take_jump) {
+            ASSERT_EQ(ret.status, runtime::StatusCode::Revert);
+        }
+        else {
+            ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+        }
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), dest);
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), cond);
+    }
+
+    void block_epilogue_test(
+        Emitter::LocationType loc1, Emitter::LocationType loc2,
+        Emitter::LocationType loc3, Emitter::LocationType loc4,
+        Emitter::LocationType loc5)
+    {
+#if 0
+        if (loc1 != Emitter::LocationType::StackOffset || loc2 != Emitter::LocationType::StackOffset || loc3 != Emitter::LocationType::StackOffset || loc4 != Emitter::LocationType::StackOffset || loc5 != Emitter::LocationType::StackOffset) {
+            return;
+        }
+#endif
+#if 0
+        std::cout <<
+            std::format("LOC1 {}  and  LOC2 {}  and  LOC3 {}  and  LOC4 {}  and  LOC5 {}",
+                    Emitter::location_type_to_string(loc1),
+                    Emitter::location_type_to_string(loc2),
+                    Emitter::location_type_to_string(loc3),
+                    Emitter::location_type_to_string(loc4),
+                    Emitter::location_type_to_string(loc5)) << std::endl;
+#endif
+
+        auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+            {PUSH0,
+             PUSH0,
+             JUMPDEST,
+             PUSH0,
+             SWAP2,
+             SWAP1,
+             DUP1,
+             DUP1,
+             PUSH0,
+             PUSH0,
+             SWAP1,
+             JUMPDEST,
+             SUB,
+             SUB,
+             SUB,
+             SUB,
+             SUB,
+             RETURN}));
+
+        asmjit::JitRuntime rt;
+        Emitter emit{rt, ir.codesize};
+
+        (void)emit.begin_new_block(ir.blocks[0]);
+        emit.push(1);
+        emit.push(10);
+        emit.fallthrough();
+
+        (void)emit.begin_new_block(ir.blocks[1]);
+        copy_stack_offset_to_location_type(emit, -2, loc1);
+        copy_stack_offset_to_location_type(emit, -1, loc2);
+
+        emit.push(2); // [2, 10, 1]
+        mov_literal_to_location_type(emit, 0, loc3);
+        emit.swap(2); // [1, 10, 2]
+        emit.swap(1); // [10, 1, 2]
+        emit.dup(1); // [10, 10, 1, 2]
+        emit.dup(1); // [10, 10 10, 1, 2]
+        emit.push(1000); // [1000, 10, 10 10, 1, 2]
+        mov_literal_to_location_type(emit, 3, loc4);
+        emit.push(100); // [100, 1000, 10, 10 10, 1, 2]
+        mov_literal_to_location_type(emit, 4, loc5);
+        emit.swap(1); // [1000, 100, 10, 10 10, 1, 2]
+        emit.fallthrough();
+
+        (void)emit.begin_new_block(ir.blocks[2]);
+        emit.sub(); // [900, 10, 10 10, 1, 2]
+        emit.sub(); // [890, 10 10, 1, 2]
+        emit.sub(); // [880, 10, 1, 2]
+        emit.sub(); // [870, 1, 2]
+        emit.sub(); // [869, 2]
+        emit.return_();
+
+        entrypoint_t entry = emit.finish_contract(rt);
+        auto ret = test_result();
+        auto ctx = test_context();
+
+        auto stack_memory = test_stack_memory();
+        entry(&ret, &ctx, stack_memory.get());
+
+        ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 869);
+        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
+    }
 }
 
 TEST(Emitter, empty)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
 
     entrypoint_t entry = emit.finish_contract(rt);
     auto ret = test_result();
@@ -340,7 +706,7 @@ TEST(Emitter, empty)
 TEST(Emitter, stop)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 1};
     emit.stop();
 
     entrypoint_t entry = emit.finish_contract(rt);
@@ -355,7 +721,7 @@ TEST(Emitter, stop)
 TEST(Emitter, gas_decrement_no_check_1)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
     emit.gas_decrement_no_check(2);
 
     entrypoint_t entry = emit.finish_contract(rt);
@@ -370,7 +736,7 @@ TEST(Emitter, gas_decrement_no_check_1)
 TEST(Emitter, gas_decrement_no_check_2)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
     emit.gas_decrement_no_check(7);
 
     entrypoint_t entry = emit.finish_contract(rt);
@@ -385,7 +751,7 @@ TEST(Emitter, gas_decrement_no_check_2)
 TEST(Emitter, gas_decrement_check_non_negative_1)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
     emit.gas_decrement_check_non_negative(6);
     emit.stop();
 
@@ -402,7 +768,7 @@ TEST(Emitter, gas_decrement_check_non_negative_1)
 TEST(Emitter, gas_decrement_check_non_negative_2)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
     emit.gas_decrement_check_non_negative(5);
     emit.stop();
 
@@ -419,7 +785,7 @@ TEST(Emitter, gas_decrement_check_non_negative_2)
 TEST(Emitter, gas_decrement_check_non_negative_3)
 {
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
+    Emitter emit{rt, 0};
     emit.gas_decrement_check_non_negative(4);
     emit.stop();
 
@@ -439,8 +805,8 @@ TEST(Emitter, return_)
         basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     uint256_t const size_value = uint256_t{1} << 255;
     uint256_t const offset_value =
         std::numeric_limits<uint256_t>::max() - (uint256_t{1} << 31) + 1;
@@ -465,8 +831,8 @@ TEST(Emitter, revert)
         basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     uint256_t const size_value = uint256_t{1} << 31;
     uint256_t const offset_value = (uint256_t{1} << 31) - 1;
     emit.push(size_value);
@@ -490,8 +856,8 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
         basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
@@ -509,7 +875,7 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
         e0->avx_reg() && !e0->stack_offset() && !e0->literal() &&
         !e0->general_reg());
 
-    emit.mov_stack_index_to_general_reg_update_eflags(0);
+    emit.mov_stack_index_to_general_reg(0);
     stack.spill_stack_offset(e0);
     (void)stack.spill_avx_reg(e0);
     ASSERT_TRUE(
@@ -545,29 +911,27 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
     ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
 }
 
-TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
+TEST(Emitter, mov_stack_index_to_general_reg)
 {
     auto ir = local_stacks::LocalStacksIR(
         basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
 
     auto e1 = stack.get(1);
 
-    emit.mov_stack_index_to_general_reg_update_eflags(
-        1); // literal -> general reg
+    emit.mov_stack_index_to_general_reg(1); // literal -> general reg
     stack.spill_literal(e1);
     ASSERT_TRUE(
         e1->general_reg() && !e1->stack_offset() && !e1->literal() &&
         !e1->avx_reg());
 
-    emit.mov_stack_index_to_general_reg_update_eflags(
-        1); // general reg -> general reg
+    emit.mov_stack_index_to_general_reg(1); // general reg -> general reg
     ASSERT_TRUE(
         e1->general_reg() && !e1->stack_offset() && !e1->literal() &&
         !e1->avx_reg());
@@ -579,7 +943,7 @@ TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
         e1->avx_reg() && !e1->stack_offset() && !e1->literal() &&
         !e1->general_reg());
 
-    emit.mov_stack_index_to_general_reg_update_eflags(
+    emit.mov_stack_index_to_general_reg(
         1); // avx reg -> stack offset & general reg
     (void)stack.spill_avx_reg(e1);
     (void)stack.spill_general_reg(e1);
@@ -587,8 +951,7 @@ TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
 
-    emit.mov_stack_index_to_general_reg_update_eflags(
-        1); // stack offset -> general reg
+    emit.mov_stack_index_to_general_reg(1); // stack offset -> general reg
     stack.spill_stack_offset(e1);
     ASSERT_TRUE(
         e1->general_reg() && !e1->avx_reg() && !e1->literal() &&
@@ -616,8 +979,8 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     Stack &stack = emit.get_stack();
     emit.push(1);
     emit.push(2);
@@ -648,8 +1011,7 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
 
-    emit.mov_stack_index_to_general_reg_update_eflags(
-        1); // stack offset -> general reg
+    emit.mov_stack_index_to_general_reg(1); // stack offset -> general reg
     stack.spill_stack_offset(e1);
     ASSERT_TRUE(
         e1->general_reg() && !e1->avx_reg() && !e1->literal() &&
@@ -683,8 +1045,8 @@ TEST(Emitter, discharge_deferred_comparison)
         {PUSH0, PUSH0, LT, DUP1, DUP1, PUSH0, SWAP1, POP, LT, RETURN}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     Stack const &stack = emit.get_stack();
     emit.push(2);
     mov_literal_to_location_type(emit, 0, Emitter::LocationType::StackOffset);
@@ -750,8 +1112,8 @@ TEST(Emitter, discharge_negated_deferred_comparison)
          RETURN}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     Stack const &stack = emit.get_stack();
     emit.push(2);
     mov_literal_to_location_type(emit, 0, Emitter::LocationType::StackOffset);
@@ -1088,8 +1450,8 @@ TEST(Emitter, address)
         basic_blocks::BasicBlocksIR({ADDRESS, ADDRESS}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     emit.address();
     emit.address();
     emit.return_();
@@ -1112,8 +1474,8 @@ TEST(Emitter, caller)
         basic_blocks::BasicBlocksIR({CALLER, CALLER}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     emit.caller();
     emit.caller();
     emit.return_();
@@ -1138,8 +1500,8 @@ TEST(Emitter, callvalue)
         basic_blocks::BasicBlocksIR({CALLVALUE, CALLVALUE}));
 
     asmjit::JitRuntime rt;
-    Emitter emit{rt};
-    emit.begin_stack(ir.blocks[0]);
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
     emit.callvalue();
     emit.callvalue();
     emit.return_();
@@ -1174,4 +1536,75 @@ TEST(Emitter, not_)
     pure_una_instr_test(NOT, &Emitter::not_, -1, {0, -1, -1, -1});
     pure_una_instr_test(
         NOT, &Emitter::not_, std::numeric_limits<uint256_t>::max(), 0);
+}
+
+TEST(Emitter, jump)
+{
+    std::vector<Emitter::LocationType> const locs = {
+        Emitter::LocationType::Literal,
+        Emitter::LocationType::AvxReg,
+        Emitter::LocationType::GeneralReg,
+        Emitter::LocationType::StackOffset};
+    for (auto loc1 : locs) {
+        for (auto loc2 : locs) {
+            for (auto loc_dest : locs) {
+                jump_test(loc1, loc2, loc_dest, false);
+                jump_test(loc1, loc2, loc_dest, true);
+            }
+        }
+    }
+}
+
+TEST(Emitter, jumpi)
+{
+    std::vector<Emitter::LocationType> const locs = {
+        Emitter::LocationType::Literal,
+        Emitter::LocationType::AvxReg,
+        Emitter::LocationType::GeneralReg,
+        Emitter::LocationType::StackOffset};
+    for (auto loc1 : locs) {
+        for (auto loc2 : locs) {
+            for (auto loc_cond : locs) {
+                for (auto loc_dest : locs) {
+                    for (int8_t i = 0; i < 16; ++i) {
+                        jumpi_test(
+                            loc1,
+                            loc2,
+                            loc_cond,
+                            loc_dest,
+                            i & 1,
+                            i & 2,
+                            i & 4,
+                            i & 8);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST(Emitter, block_epilogue)
+{
+    std::vector<Emitter::LocationType> const locs = {
+        Emitter::LocationType::Literal,
+        Emitter::LocationType::AvxReg,
+        Emitter::LocationType::GeneralReg,
+        Emitter::LocationType::StackOffset};
+    for (auto loc1 : locs) {
+        if (loc1 == Emitter::LocationType::Literal) {
+            continue;
+        }
+        for (auto loc2 : locs) {
+            if (loc2 == Emitter::LocationType::Literal) {
+                continue;
+            }
+            for (auto loc3 : locs) {
+                for (auto loc4 : locs) {
+                    for (auto loc5 : locs) {
+                        block_epilogue_test(loc1, loc2, loc3, loc4, loc5);
+                    }
+                }
+            }
+        }
+    }
 }

@@ -15,10 +15,10 @@ namespace monad::runtime
         Success = 0,
         Revert,
         OutOfGas,
-        Overflow,
-        Underflow,
+        StackOutOfBounds,
         StaticModeViolation,
         InvalidMemoryAccess,
+        InvalidJump,
     };
 
     struct Result

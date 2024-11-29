@@ -8,6 +8,7 @@
 #include <asmjit/x86.h>
 #include <asmjit/x86/x86assembler.h>
 
+using namespace monad::compiler;
 using namespace monad::compiler::local_stacks;
 
 namespace monad::compiler::native
@@ -56,7 +57,8 @@ namespace monad::compiler::native
         ////////// Initialization and de-initialization //////////
 
         Emitter(
-            asmjit::JitRuntime const &, char const *debug_log_file = nullptr);
+            asmjit::JitRuntime const &, uint64_t bytecode_size,
+            char const *debug_log_file = nullptr);
 
         ~Emitter();
 
@@ -65,9 +67,9 @@ namespace monad::compiler::native
         ////////// Core emit functionality //////////
 
         Stack &get_stack();
-        void begin_stack(Block const &);
-        bool block_prologue(Block const &);
-        void block_epilogue(Block const &);
+        void add_jump_dest(byte_offset);
+        [[nodiscard]]
+        bool begin_new_block(Block const &);
         void gas_decrement_no_check(int64_t);
         void gas_decrement_check_non_negative(int64_t);
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
@@ -79,7 +81,7 @@ namespace monad::compiler::native
         ////////// Move functionality //////////
 
         void mov_stack_index_to_avx_reg(int32_t stack_index);
-        void mov_stack_index_to_general_reg_update_eflags(int32_t stack_index);
+        void mov_stack_index_to_general_reg(int32_t stack_index);
         void mov_stack_index_to_stack_offset(int32_t stack_index);
 
         ////////// EVM instructions //////////
@@ -111,8 +113,12 @@ namespace monad::compiler::native
         void address();
         void caller();
         void callvalue();
-        void codesize(uint64_t contract_bytecode_size);
+        void codesize();
 
+        // Terminators invalidate emitter until `begin_new_block` is called.
+        void jump();
+        void jumpi();
+        void fallthrough();
         void stop();
         void return_();
         void revert();
@@ -127,6 +133,11 @@ namespace monad::compiler::native
 
         ////////// Private core emit functionality //////////
 
+        bool block_prologue(Block const &);
+        int32_t block_epilogue();
+        void write_to_final_stack_offsets();
+
+        void discharge_deferred_comparison(DeferredComparison const &);
         void discharge_deferred_comparison(StackElem *, Comparison);
 
         asmjit::Label const &append_literal(Literal);
@@ -139,18 +150,19 @@ namespace monad::compiler::native
         void mov_literal_to_mem(Literal, asmjit::x86::Mem const &);
 
         void mov_general_reg_to_mem(GeneralReg, asmjit::x86::Mem const &);
-        void mov_literal_to_unaligned_mem(Literal, asmjit::x86::Mem const &);
+        void
+        mov_literal_to_unaligned_mem(Literal const &, asmjit::x86::Mem const &);
         void mov_avx_reg_to_unaligned_mem(AvxReg, asmjit::x86::Mem const &);
         void mov_stack_offset_to_unaligned_mem(
             StackOffset, asmjit::x86::Mem const &);
         void
         mov_stack_elem_to_unaligned_mem(StackElemRef, asmjit::x86::Mem const &);
 
+        void mov_literal_to_ymm(Literal const &, asmjit::x86::Ymm const &);
+
         void mov_stack_elem_to_avx_reg(StackElemRef);
         void mov_stack_elem_to_avx_reg(StackElemRef, int32_t preferred_offset);
-        template <bool update_eflags>
         void mov_stack_elem_to_general_reg(StackElemRef);
-        template <bool update_eflags>
         void
         mov_stack_elem_to_general_reg(StackElemRef, int32_t preferred_offset);
         void mov_stack_elem_to_stack_offset(StackElemRef);
@@ -174,7 +186,6 @@ namespace monad::compiler::native
 
         void mov_avx_reg_to_general_reg(StackElemRef);
         void mov_avx_reg_to_general_reg(StackElemRef, int32_t preferred_offset);
-        template <bool update_eflags>
         void mov_literal_to_general_reg(StackElemRef);
         void mov_stack_offset_to_general_reg(StackElemRef);
 
@@ -183,6 +194,12 @@ namespace monad::compiler::native
         void status_code(monad::runtime::StatusCode);
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
         void return_with_status_code(monad::runtime::StatusCode);
+
+        void jump_stack_elem_dest(StackElemRef &&);
+        uint256_t literal_jump_dest_operand(StackElemRef &&);
+        void jump_literal_dest(uint256_t const &);
+        Operand non_literal_jump_dest_operand(StackElemRef const &);
+        void jump_non_literal_dest(Operand const &, int32_t stack_adjustment);
 
         void read_context_address(int32_t offset);
         void read_context_word(int32_t offset);
@@ -271,16 +288,22 @@ namespace monad::compiler::native
         asmjit::x86::Assembler as_;
         asmjit::Label epilogue_label_;
         asmjit::Label out_of_gas_label_;
-        asmjit::Label overflow_label_;
-        asmjit::Label underflow_label_;
+        asmjit::Label out_of_bounds_label_;
+        asmjit::Label invalid_jump_label_;
+        asmjit::Label jump_table_label_;
         std::unique_ptr<Stack> stack_;
         std::array<Gpq256, 3> gpq256_regs_;
         GeneralReg rcx_general_reg;
         uint8_t rcx_general_reg_index;
+        uint64_t bytecode_size_;
+        std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
         std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
             shift_out_of_bounds_handlers_;
+        std::vector<std::tuple<
+            asmjit::Label, std::variant<uint256_t, Operand>, int32_t>>
+            dynamic_jump_handlers_;
     };
 }

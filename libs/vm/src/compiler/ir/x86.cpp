@@ -301,21 +301,18 @@ namespace
     }
 
     template <evmc_revision rev>
-    void
-    emit_terminator(Emitter &emit, LocalStacksIR const &ir, Block const &block)
+    void emit_terminator(Emitter &emit, Block const &block)
     {
-        (void)emit;
-        (void)ir;
         using enum basic_blocks::Terminator;
         switch (block.terminator) {
         case FallThrough:
-            std::terminate();
+            emit.fallthrough();
             break;
         case JumpI:
-            std::terminate();
+            emit.jumpi();
             break;
         case Jump:
-            std::terminate();
+            emit.jump();
             break;
         case Return:
             emit.return_();
@@ -362,15 +359,17 @@ namespace
     entrypoint_t
     compile_local_stacks(asmjit::JitRuntime &rt, LocalStacksIR const &ir)
     {
-        Emitter emit{rt};
+        Emitter emit{rt, ir.codesize};
+        for (auto const &[d, _] : ir.jumpdests) {
+            emit.add_jump_dest(d);
+        }
         for (Block const &block : ir.blocks) {
-            emit.begin_stack(block);
-            bool const can_enter_block = emit.block_prologue(block);
+            bool const can_enter_block = emit.begin_new_block(block);
             if (can_enter_block) {
                 auto analysis = analyze_block(block);
                 emit_gas_check(emit, ir, block, analysis);
                 emit_instrs<rev>(emit, ir, block, analysis.instr_gas);
-                emit_terminator<rev>(emit, ir, block);
+                emit_terminator<rev>(emit, block);
             }
         }
         return emit.finish_contract(rt);
