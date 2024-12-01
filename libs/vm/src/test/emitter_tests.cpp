@@ -511,14 +511,14 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
 
     emit.mov_stack_index_to_general_reg_update_eflags(0);
     stack.spill_stack_offset(e0);
-    stack.spill_avx_reg(e0);
+    (void)stack.spill_avx_reg(e0);
     ASSERT_TRUE(
         e0->general_reg() && !e0->stack_offset() && !e0->literal() &&
         !e0->avx_reg());
 
     emit.mov_stack_index_to_avx_reg(0); // general reg -> stack offset & avx reg
-    stack.spill_general_reg(e0);
-    stack.spill_avx_reg(e0);
+    (void)stack.spill_general_reg(e0);
+    (void)stack.spill_avx_reg(e0);
     ASSERT_TRUE(
         e0->stack_offset() && !e0->general_reg() && !e0->literal() &&
         !e0->avx_reg());
@@ -574,15 +574,15 @@ TEST(Emitter, mov_stack_index_to_general_reg_update_eflags)
 
     emit.mov_stack_index_to_avx_reg(1);
     stack.spill_stack_offset(e1);
-    stack.spill_general_reg(e1);
+    (void)stack.spill_general_reg(e1);
     ASSERT_TRUE(
         e1->avx_reg() && !e1->stack_offset() && !e1->literal() &&
         !e1->general_reg());
 
     emit.mov_stack_index_to_general_reg_update_eflags(
         1); // avx reg -> stack offset & general reg
-    stack.spill_avx_reg(e1);
-    stack.spill_general_reg(e1);
+    (void)stack.spill_avx_reg(e1);
+    (void)stack.spill_general_reg(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
@@ -643,7 +643,7 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->general_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // avx reg -> stack offset
-    stack.spill_avx_reg(e1);
+    (void)stack.spill_avx_reg(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
@@ -656,7 +656,7 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->stack_offset());
 
     emit.mov_stack_index_to_stack_offset(1); // general reg -> stack offset
-    stack.spill_general_reg(e1);
+    (void)stack.spill_general_reg(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());

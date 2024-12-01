@@ -366,6 +366,17 @@ namespace monad::compiler::native
         return {elem, reserv};
     }
 
+    AvxRegReserv Emitter::insert_avx_reg(StackElemRef elem)
+    {
+        auto [reserv, offset] = stack_->insert_avx_reg(elem);
+        if (offset.has_value()) {
+            as_.vmovaps(
+                stack_offset_to_mem(offset.value()),
+                avx_reg_to_ymm(elem->avx_reg().value()));
+        }
+        return reserv;
+    }
+
     std::pair<StackElemRef, GeneralRegReserv> Emitter::alloc_general_reg()
     {
         auto [elem, reserv, offset] = stack_->alloc_general_reg();
@@ -375,6 +386,17 @@ namespace monad::compiler::native
                 stack_offset_to_mem(offset.value()));
         }
         return {elem, reserv};
+    }
+
+    GeneralRegReserv Emitter::insert_general_reg(StackElemRef elem)
+    {
+        auto [reserv, offset] = stack_->insert_general_reg(elem);
+        if (offset.has_value()) {
+            mov_general_reg_to_mem(
+                elem->general_reg().value(),
+                stack_offset_to_mem(offset.value()));
+        }
+        return reserv;
     }
 
     void Emitter::discharge_deferred_comparison()
@@ -649,7 +671,6 @@ namespace monad::compiler::native
     Emitter::mov_general_reg_to_avx_reg(StackElemRef elem, int32_t preferred)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->general_reg().has_value());
-        stack_->insert_avx_reg(elem);
         mov_general_reg_to_stack_offset(elem, preferred);
         mov_stack_offset_to_avx_reg(elem);
     }
@@ -657,7 +678,7 @@ namespace monad::compiler::native
     void Emitter::mov_literal_to_avx_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
-        stack_->insert_avx_reg(elem);
+        auto avx_reserv = insert_avx_reg(elem);
         auto y = avx_reg_to_ymm(elem->avx_reg().value());
         auto lit = elem->literal().value();
         if (lit.value == std::numeric_limits<uint256_t>::max()) {
@@ -675,7 +696,7 @@ namespace monad::compiler::native
     void Emitter::mov_stack_offset_to_avx_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
-        stack_->insert_avx_reg(elem);
+        insert_avx_reg(elem);
         as_.vmovaps(
             avx_reg_to_ymm(elem->avx_reg().value()),
             stack_offset_to_mem(elem->stack_offset().value()));
@@ -744,7 +765,7 @@ namespace monad::compiler::native
     void Emitter::mov_literal_to_general_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
-        stack_->insert_general_reg(elem);
+        insert_general_reg(elem);
         auto const &rs = general_reg_to_gpq256(elem->general_reg().value());
         auto lit = elem->literal().value();
         x86::Gpq const *zero_reg = nullptr;
@@ -773,7 +794,7 @@ namespace monad::compiler::native
     void Emitter::mov_stack_offset_to_general_reg(StackElemRef elem)
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
-        stack_->insert_general_reg(elem);
+        insert_general_reg(elem);
         x86::Mem temp{stack_offset_to_mem(elem->stack_offset().value())};
         for (auto r : general_reg_to_gpq256(elem->general_reg().value())) {
             as_.mov(r, temp);

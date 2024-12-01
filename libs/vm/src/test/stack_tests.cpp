@@ -341,7 +341,7 @@ TEST(VirtualStack, insert_avx_reg_test_1)
         std::vector<uint8_t>(AVX_REG_COUNT + 1, POP)));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
-        stack.insert_avx_reg(stack.get(-i - 1));
+        (void)stack.insert_avx_reg(stack.get(-i - 1));
     }
     auto p = stack.insert_avx_reg(stack.get(-AVX_REG_COUNT - 1));
     ASSERT_FALSE(p.second.has_value());
@@ -362,7 +362,7 @@ TEST(VirtualStack, insert_general_reg_test_1)
         std::vector<uint8_t>(GENERAL_REG_COUNT + 1, POP)));
     Stack stack{ir.blocks[0]};
     for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
-        stack.insert_general_reg(stack.get(-i - 1));
+        (void)stack.insert_general_reg(stack.get(-i - 1));
     }
     auto p = stack.insert_general_reg(stack.get(-GENERAL_REG_COUNT - 1));
     ASSERT_FALSE(p.second.has_value());

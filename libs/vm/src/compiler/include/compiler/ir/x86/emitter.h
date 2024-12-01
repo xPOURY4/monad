@@ -71,7 +71,9 @@ namespace monad::compiler::native
         void gas_decrement_no_check(int64_t);
         void gas_decrement_check_non_negative(int64_t);
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
+        AvxRegReserv insert_avx_reg(StackElemRef);
         std::pair<StackElemRef, GeneralRegReserv> alloc_general_reg();
+        GeneralRegReserv insert_general_reg(StackElemRef);
         void discharge_deferred_comparison(); // Leaves eflags unchanged
 
         ////////// Move functionality //////////

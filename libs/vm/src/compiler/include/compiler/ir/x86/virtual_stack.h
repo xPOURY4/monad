@@ -435,6 +435,7 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the AVX register to stack offset.
          */
+        [[nodiscard]]
         std::tuple<StackElemRef, AvxRegReserv, std::optional<StackOffset>>
         alloc_avx_reg();
 
@@ -443,6 +444,7 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the general register to stack offset.
          */
+        [[nodiscard]]
         std::tuple<StackElemRef, GeneralRegReserv, std::optional<StackOffset>>
         alloc_general_reg();
 
@@ -468,6 +470,7 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the AVX register to stack offset.
          */
+        [[nodiscard]]
         std::pair<AvxRegReserv, std::optional<StackOffset>>
             insert_avx_reg(StackElemRef);
 
@@ -478,8 +481,11 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the AVX register to stack offset.
          */
+        [[nodiscard]]
         std::optional<StackOffset> spill_avx_reg();
+        [[nodiscard]]
         std::optional<StackOffset> spill_avx_reg(StackElemRef);
+        [[nodiscard]]
         std::optional<StackOffset> spill_avx_reg(StackElem *);
 
         /**
@@ -491,14 +497,14 @@ namespace monad::compiler::native
         /**
          * Remove stack offset location from the given stack element. It is
          * required and checked that the stack elements holds its value in
-         * stack offset another location and some other location as well.
+         * another location.
          */
         void spill_stack_offset(StackElemRef);
 
         /**
          * Remove literal location from the given stack element. It is
          * required and checked that the stack elements holds its value in
-         * stack offset another location and some other location as well.
+         * another location.
          */
         void spill_literal(StackElemRef);
 
@@ -509,8 +515,11 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the general register to stack offset.
          */
+        [[nodiscard]]
         std::optional<StackOffset> spill_general_reg();
+        [[nodiscard]]
         std::optional<StackOffset> spill_general_reg(StackElemRef);
+        [[nodiscard]]
         std::optional<StackOffset> spill_general_reg(StackElem *);
 
         /**
@@ -518,6 +527,7 @@ namespace monad::compiler::native
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the general register to stack offset.
          */
+        [[nodiscard]]
         std::pair<GeneralRegReserv, std::optional<StackOffset>>
             insert_general_reg(StackElemRef);
 
@@ -538,6 +548,7 @@ namespace monad::compiler::native
          * calling `spill_all_avx_regs` afterwards will use faster AVX
          * instructions for moving to physical stack memory.
          */
+        [[nodiscard]]
         std::vector<std::pair<GeneralReg, StackOffset>>
         spill_all_caller_save_general_regs();
 
@@ -549,6 +560,7 @@ namespace monad::compiler::native
          * an optimization trick when both caller save general registers
          * and AVX registers need to be spilled.
          */
+        [[nodiscard]]
         std::vector<std::pair<AvxReg, StackOffset>> spill_all_avx_regs();
 
         /** Whether the given general register is currently on the stack. */
