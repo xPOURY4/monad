@@ -55,6 +55,7 @@ namespace
                     .value = max_bytes32(),
                     .create2_salt = max_bytes32(),
                     .input_data = {},
+                    .code = {},
                     .return_data = {},
                 },
             .memory = {},
