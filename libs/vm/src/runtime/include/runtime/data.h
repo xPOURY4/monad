@@ -149,4 +149,58 @@ namespace monad::runtime
             *size_ptr,
             ctx->env.code);
     }
+
+    template <evmc_revision Rev>
+    void extcodecopy(
+        ExitContext *exit_ctx, Context *ctx,
+        utils::uint256_t const *address_ptr,
+        utils::uint256_t const *dest_offset_ptr,
+        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+    {
+        ctx->gas_remaining -= extcodecopy_base_gas(Rev);
+        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+            exit_ctx->exit(StatusCode::OutOfGas);
+        }
+
+        auto [dest_offset, size] = Context::get_memory_offset_and_size(
+            exit_ctx, *dest_offset_ptr, *size_ptr);
+
+        auto offset = [&] {
+            if (*offset_ptr > std::numeric_limits<std::uint32_t>::max()) {
+                return std::numeric_limits<std::uint32_t>::max();
+            }
+
+            return static_cast<std::uint32_t>(*offset_ptr);
+        }();
+
+        if (size > 0) {
+            ctx->expand_memory(exit_ctx, size);
+        }
+
+        auto address = address_from_uint256(*address_ptr);
+        auto access_status = ctx->host->access_account(ctx->context, &address);
+
+        if constexpr (Rev >= EVMC_BERLIN) {
+            if (access_status == EVMC_ACCESS_COLD) {
+                ctx->gas_remaining -= 2500;
+                if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+                    exit_ctx->exit(StatusCode::OutOfGas);
+                }
+            }
+        }
+
+        if (size > 0) {
+            auto n = ctx->host->copy_code(
+                ctx->context,
+                &address,
+                offset,
+                ctx->memory.data() + dest_offset,
+                size);
+
+            auto begin = ctx->memory.begin() + dest_offset + n;
+            auto end = ctx->memory.begin() + dest_offset + size;
+
+            std::fill(begin, end, 0);
+        }
+    }
 }
