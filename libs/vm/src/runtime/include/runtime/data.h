@@ -119,4 +119,19 @@ namespace monad::runtime
             std::fill(begin, begin + size_diff, 0);
         }
     }
+
+    template <evmc_revision Rev>
+    void calldatacopy(
+        ExitContext *exit_ctx, Context *ctx,
+        utils::uint256_t const *dest_offset_ptr,
+        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+    {
+        copy_impl<Rev>(
+            exit_ctx,
+            ctx,
+            *dest_offset_ptr,
+            *offset_ptr,
+            *size_ptr,
+            ctx->env.input_data);
+    }
 }
