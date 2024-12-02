@@ -165,16 +165,17 @@ namespace monad::runtime
         auto [dest_offset, size] = Context::get_memory_offset_and_size(
             exit_ctx, *dest_offset_ptr, *size_ptr);
 
-        auto offset = [&] {
-            if (*offset_ptr > std::numeric_limits<std::uint32_t>::max()) {
-                return std::numeric_limits<std::uint32_t>::max();
-            }
-
-            return static_cast<std::uint32_t>(*offset_ptr);
-        }();
+        auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
         if (size > 0) {
             ctx->expand_memory(exit_ctx, size);
+
+            auto size_in_words = (size + 31) / 32;
+            ctx->gas_remaining -= size_in_words * 3;
+
+            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+                exit_ctx->exit(StatusCode::OutOfGas);
+            }
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -183,10 +184,11 @@ namespace monad::runtime
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
                 ctx->gas_remaining -= 2500;
-                if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                    exit_ctx->exit(StatusCode::OutOfGas);
-                }
             }
+        }
+
+        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+            exit_ctx->exit(StatusCode::OutOfGas);
         }
 
         if (size > 0) {
@@ -197,10 +199,42 @@ namespace monad::runtime
                 ctx->memory.data() + dest_offset,
                 size);
 
-            auto begin = ctx->memory.begin() + dest_offset + n;
+            auto begin = ctx->memory.begin() + dest_offset +
+                         static_cast<std::uint32_t>(n);
             auto end = ctx->memory.begin() + dest_offset + size;
 
             std::fill(begin, end, 0);
+        }
+    }
+
+    template <evmc_revision Rev>
+    void returndatacopy(
+        ExitContext *exit_ctx, Context *ctx,
+        utils::uint256_t const *dest_offset_ptr,
+        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+    {
+        auto [dest_offset, size] = Context::get_memory_offset_and_size(
+            exit_ctx, *dest_offset_ptr, *size_ptr);
+
+        auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
+
+        if (saturating_add(offset, size) > ctx->env.return_data.size()) {
+            exit_ctx->exit(StatusCode::InvalidMemoryAccess);
+        }
+
+        if (size > 0) {
+            ctx->expand_memory(exit_ctx, size);
+
+            auto size_in_words = (size + 31) / 32;
+            ctx->gas_remaining -= size_in_words * 3;
+
+            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
+                exit_ctx->exit(StatusCode::OutOfGas);
+            }
+
+            auto data = ctx->env.return_data.subspan(offset, size);
+            std::copy(
+                data.begin(), data.end(), ctx->memory.data() + dest_offset);
         }
     }
 }
