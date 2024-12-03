@@ -34,6 +34,15 @@ namespace monad::runtime
 
     void Context::expand_memory(ExitContext *exit_ctx, std::uint32_t size)
     {
+        expand_memory_unchecked(size);
+
+        if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
+            exit_ctx->exit(StatusCode::OutOfGas);
+        }
+    }
+
+    void Context::expand_memory_unchecked(std::uint32_t size)
+    {
         if (memory.size() < size) {
             auto memory_size_word = (size + 31) / 32;
             auto new_memory_cost = (memory_size_word * memory_size_word) / 512 +
@@ -41,10 +50,6 @@ namespace monad::runtime
 
             auto expansion_cost = new_memory_cost - memory_cost;
             gas_remaining -= static_cast<std::int64_t>(expansion_cost);
-
-            if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
-            }
 
             memory.resize(memory_size_word * 32);
         }

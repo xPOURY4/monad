@@ -72,6 +72,7 @@ namespace monad::runtime
         std::uint64_t memory_cost;
 
         void expand_memory(ExitContext *exit_ctx, std::uint32_t size);
+        void expand_memory_unchecked(std::uint32_t size);
 
         utils::uint256_t mload(ExitContext *exit_ctx, utils::uint256_t offset);
 
