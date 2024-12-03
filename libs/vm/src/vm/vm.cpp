@@ -142,11 +142,12 @@ namespace monad::compiler
             .memory_cost = 0,
         };
 
-        auto *stack_ptr = std::aligned_alloc(
-            alignof(utils::uint256_t), sizeof(utils::uint256_t) * 1024);
+        auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
+            std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
 
-        (*contract_main)(
-            &ret, &ctx, reinterpret_cast<std::uint8_t *>(stack_ptr));
+        (*contract_main)(&ret, &ctx, stack_ptr);
+
+        std::free(stack_ptr);
 
         switch (ret.status) {
         case OutOfGas:
