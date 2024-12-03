@@ -336,7 +336,7 @@ namespace monad::compiler::native
     bool Emitter::block_prologue(Block const &)
     {
         // TODO
-        return false;
+        return true;
     }
 
     void Emitter::block_epilogue(Block const &)

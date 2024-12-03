@@ -54,13 +54,13 @@ namespace
 
         switch (instr.opcode()) {
         case Add:
-            std::terminate();
+            emit.add();
             break;
         case Mul:
             std::terminate();
             break;
         case Sub:
-            std::terminate();
+            emit.sub();
             break;
         case Div:
             std::terminate();
@@ -87,52 +87,52 @@ namespace
             std::terminate();
             break;
         case Lt:
-            std::terminate();
+            emit.lt();
             break;
         case Gt:
-            std::terminate();
+            emit.gt();
             break;
         case SLt:
-            std::terminate();
+            emit.slt();
             break;
         case SGt:
-            std::terminate();
+            emit.sgt();
             break;
         case Eq:
-            std::terminate();
+            emit.eq();
             break;
         case IsZero:
-            std::terminate();
+            emit.iszero();
             break;
         case And:
-            std::terminate();
+            emit.and_();
             break;
         case Or:
-            std::terminate();
+            emit.or_();
             break;
         case XOr:
-            std::terminate();
+            emit.xor_();
             break;
         case Not:
-            std::terminate();
+            emit.not_();
             break;
         case Byte:
-            std::terminate();
+            emit.byte();
             break;
         case Shl:
-            std::terminate();
+            emit.shl();
             break;
         case Shr:
-            std::terminate();
+            emit.shr();
             break;
         case Sar:
-            std::terminate();
+            emit.sar();
             break;
         case Sha3:
             std::terminate();
             break;
         case Address:
-            std::terminate();
+            emit.address();
             break;
         case Balance:
             std::terminate();
@@ -141,10 +141,10 @@ namespace
             std::terminate();
             break;
         case Caller:
-            std::terminate();
+            emit.caller();
             break;
         case CallValue:
-            std::terminate();
+            emit.callvalue();
             break;
         case CallDataLoad:
             std::terminate();
@@ -213,7 +213,7 @@ namespace
             std::terminate();
             break;
         case Pop:
-            std::terminate();
+            emit.pop();
             break;
         case MLoad:
             std::terminate();
@@ -231,7 +231,7 @@ namespace
             std::terminate();
             break;
         case Pc:
-            std::terminate();
+            emit.push(instr.pc());
             break;
         case MSize:
             std::terminate();
@@ -252,10 +252,10 @@ namespace
             emit.push(instr.immediate_value());
             break;
         case Dup:
-            std::terminate();
+            emit.dup(instr.index());
             break;
         case Swap:
-            std::terminate();
+            emit.swap(instr.index());
             break;
         case Log:
             std::terminate();
@@ -318,13 +318,13 @@ namespace
             std::terminate();
             break;
         case Return:
-            std::terminate();
+            emit.return_();
             break;
         case Stop:
-            std::terminate();
+            emit.stop();
             break;
         case Revert:
-            std::terminate();
+            emit.revert();
             break;
         case SelfDestruct:
             std::terminate();
