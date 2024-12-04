@@ -37,3 +37,16 @@ TEST_F(RuntimeTest, SDiv)
             0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256),
         2);
 }
+
+TEST_F(RuntimeTest, UMod)
+{
+    ASSERT_EQ(call(umod<EVMC_CANCUN>, 10, 3), 1);
+    ASSERT_EQ(call(umod<EVMC_CANCUN>, 17, 5), 2);
+    ASSERT_EQ(call(umod<EVMC_CANCUN>, 247893, 0), 0);
+    ASSERT_EQ(
+        call(
+            umod<EVMC_CANCUN>,
+            0x00000FBFC7A6E43ECE42F633F09556EF460006AE023965495AE1F990468E3B58_u256,
+            15),
+        4);
+}
