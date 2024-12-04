@@ -1,6 +1,9 @@
 #include "runtime_fixture.h"
 
 #include <runtime/math.h>
+#include <utils/uint256.h>
+
+#include <intx/intx.hpp>
 
 #include <evmc/evmc.h>
 
