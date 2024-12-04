@@ -26,8 +26,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sdiv(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
-        utils::uint256_t *const b_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t const *b_ptr)
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
