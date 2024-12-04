@@ -13,8 +13,8 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void udiv(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const b_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
+        utils::uint256_t *const b_ptr)
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -26,8 +26,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sdiv(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const b_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
+        utils::uint256_t *const b_ptr)
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -39,8 +39,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void umod(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const b_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
+        utils::uint256_t *const b_ptr)
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -52,8 +52,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void smod(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const b_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
+        utils::uint256_t *const b_ptr)
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -65,9 +65,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void addmod(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const b_ptr,
-        utils::uint256_t *const n_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
+        utils::uint256_t *const b_ptr, utils::uint256_t *const n_ptr)
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
@@ -79,7 +78,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void
-    exp(ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+    exp(Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t *const a_ptr, utils::uint256_t *const exponent_ptr)
     {
         auto exponent_byte_size = intx::count_significant_bytes(*exponent_ptr);
@@ -97,7 +96,7 @@ namespace monad::runtime
 
         ctx->gas_remaining -= gas_cost;
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         *result_ptr = intx::exp(*a_ptr, *exponent_ptr);
@@ -105,40 +104,40 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void signextend(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const b_ptr, utils::uint256_t *const x_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const b_ptr,
+        utils::uint256_t *const x_ptr)
     {
         *result_ptr = utils::signextend(*b_ptr, *x_ptr);
     }
 
     template <evmc_revision Rev>
     void byte(
-        ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const i_ptr, utils::uint256_t *const x_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
+        utils::uint256_t *const x_ptr)
     {
         *result_ptr = utils::byte(*i_ptr, *x_ptr);
     }
 
     template <evmc_revision Rev>
     void
-    shl(ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const i_ptr, utils::uint256_t *const x_ptr)
+    shl(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
+        utils::uint256_t *const x_ptr)
     {
         *result_ptr = (*x_ptr) << (*i_ptr);
     }
 
     template <evmc_revision Rev>
     void
-    shr(ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const i_ptr, utils::uint256_t *const x_ptr)
+    shr(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
+        utils::uint256_t *const x_ptr)
     {
         *result_ptr = (*x_ptr) >> (*i_ptr);
     }
 
     template <evmc_revision Rev>
     void
-    sar(ExitContext *, Context *, utils::uint256_t *result_ptr,
-        utils::uint256_t *const i_ptr, utils::uint256_t *const x_ptr)
+    sar(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
+        utils::uint256_t *const x_ptr)
     {
         *result_ptr = utils::sar(*i_ptr, *x_ptr);
     }

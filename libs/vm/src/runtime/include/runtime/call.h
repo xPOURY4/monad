@@ -11,33 +11,31 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     utils::uint256_t call_impl(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t gas_word,
-        utils::uint256_t address, bool has_value, evmc_bytes32 value,
-        utils::uint256_t args_offset_word, utils::uint256_t args_size_word,
-        utils::uint256_t ret_offset_word, utils::uint256_t ret_size_word,
-        evmc_call_kind call_kind, bool static_call,
-        std::int64_t remaining_block_base_gas)
+        Context *ctx, utils::uint256_t gas_word, utils::uint256_t address,
+        bool has_value, evmc_bytes32 value, utils::uint256_t args_offset_word,
+        utils::uint256_t args_size_word, utils::uint256_t ret_offset_word,
+        utils::uint256_t ret_size_word, evmc_call_kind call_kind,
+        bool static_call, std::int64_t remaining_block_base_gas)
     {
         ctx->gas_remaining -= call_base_gas(Rev);
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         ctx->env.clear_return_data();
 
-        auto [args_offset, args_size] = Context::get_memory_offset_and_size(
-            exit_ctx, args_offset_word, args_size_word);
+        auto [args_offset, args_size] =
+            ctx->get_memory_offset_and_size(args_offset_word, args_size_word);
 
-        auto [ret_offset, ret_size] = Context::get_memory_offset_and_size(
-            exit_ctx, ret_offset_word, ret_size_word);
+        auto [ret_offset, ret_size] =
+            ctx->get_memory_offset_and_size(ret_offset_word, ret_size_word);
 
         if (args_size > 0) {
-            ctx->expand_memory(
-                exit_ctx, saturating_add(args_offset, args_size));
+            ctx->expand_memory(saturating_add(args_offset, args_size));
         }
 
         if (ret_size > 0) {
-            ctx->expand_memory(exit_ctx, saturating_add(ret_offset, ret_size));
+            ctx->expand_memory(saturating_add(ret_offset, ret_size));
         }
 
         auto code_address = address_from_uint256(address);
@@ -65,7 +63,7 @@ namespace monad::runtime
         if (call_kind == EVMC_CALL) {
             if (MONAD_COMPILER_UNLIKELY(
                     has_value && ctx->env.evmc_flags == EVMC_STATIC)) {
-                exit_ctx->exit(StatusCode::StaticModeViolation);
+                ctx->exit(StatusCode::StaticModeViolation);
             }
 
             auto empty_account = false;
@@ -82,7 +80,7 @@ namespace monad::runtime
         auto gas_left_here = ctx->gas_remaining + remaining_block_base_gas;
 
         if (MONAD_COMPILER_UNLIKELY(gas_left_here < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto i64_max = std::numeric_limits<std::int64_t>::max();
@@ -94,7 +92,7 @@ namespace monad::runtime
         }
         else {
             if (MONAD_COMPILER_UNLIKELY(gas > gas_left_here)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -103,7 +101,7 @@ namespace monad::runtime
             ctx->gas_remaining -= 2300;
 
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -138,11 +136,11 @@ namespace monad::runtime
         if (MONAD_COMPILER_UNLIKELY(
                 result.output_size >
                 std::numeric_limits<std::uint32_t>::max())) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         ctx->env.set_return_data(
@@ -163,7 +161,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void call(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
         utils::uint256_t const *value_ptr,
         utils::uint256_t const *args_offset_ptr,
@@ -173,7 +171,6 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
-            exit_ctx,
             ctx,
             *gas_ptr,
             *address_ptr,
@@ -190,7 +187,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void callcode(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
         utils::uint256_t const *value_ptr,
         utils::uint256_t const *args_offset_ptr,
@@ -200,7 +197,6 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
-            exit_ctx,
             ctx,
             *gas_ptr,
             *address_ptr,
@@ -217,7 +213,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void delegatecall(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
         utils::uint256_t const *args_offset_ptr,
         utils::uint256_t const *args_size_ptr,
@@ -226,7 +222,6 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
-            exit_ctx,
             ctx,
             *gas_ptr,
             *address_ptr,
@@ -243,7 +238,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void staticcall(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
         utils::uint256_t const *args_offset_ptr,
         utils::uint256_t const *args_size_ptr,
@@ -252,7 +247,6 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
-            exit_ctx,
             ctx,
             *gas_ptr,
             *address_ptr,

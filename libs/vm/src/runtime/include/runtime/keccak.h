@@ -15,20 +15,20 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void sha3(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t *const offset_ptr, utils::uint256_t *const size_ptr)
     {
-        auto [offset, size] = Context::get_memory_offset_and_size(
-            exit_ctx, *offset_ptr, *size_ptr);
+        auto [offset, size] =
+            ctx->get_memory_offset_and_size(*offset_ptr, *size_ptr);
 
         if (size > 0) {
-            ctx->expand_memory(exit_ctx, size);
+            ctx->expand_memory(size);
 
             auto word_size = (size + 31) / 32;
 
             ctx->gas_remaining -= word_size * 6;
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 

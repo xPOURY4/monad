@@ -17,7 +17,7 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void sload(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
         auto key = bytes_from_uint256(*key_ptr);
@@ -39,7 +39,7 @@ namespace monad::runtime
         ctx->gas_remaining -= gas_cost;
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         *result_ptr = uint256_from_bytes32(value);
@@ -47,16 +47,16 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sstore(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t const *key_ptr,
+        Context *ctx, utils::uint256_t const *key_ptr,
         utils::uint256_t const *value_ptr,
         std::int64_t remaining_block_base_gas)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
-            exit_ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::StaticModeViolation);
         }
 
         if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto key = bytes_from_uint256(*key_ptr);
@@ -80,13 +80,13 @@ namespace monad::runtime
         ctx->gas_remaining -= gas_used;
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
     }
 
     template <evmc_revision Rev>
     void tload(
-        ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
@@ -101,7 +101,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void tstore(
-        ExitContext *, Context *ctx, utils::uint256_t const *key_ptr,
+        Context *ctx, utils::uint256_t const *key_ptr,
         utils::uint256_t const *val_ptr)
     {
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);

@@ -11,18 +11,16 @@
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    void selfdestruct(
-        ExitContext *exit_ctx, Context *ctx,
-        utils::uint256_t const *address_ptr)
+    void selfdestruct(Context *ctx, utils::uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
-            exit_ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::StaticModeViolation);
         }
 
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
             ctx->gas_remaining -= 5000;
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -57,7 +55,7 @@ namespace monad::runtime
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto result = ctx->host->selfdestruct(

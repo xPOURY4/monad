@@ -55,8 +55,6 @@ namespace monad::runtime
     static_assert(std::is_standard_layout_v<Environment>);
     static_assert(sizeof(Environment) == 160);
 
-    struct ExitContext;
-
     struct Context
     {
         static constexpr std::size_t max_memory_offset_bits = 24;
@@ -71,29 +69,27 @@ namespace monad::runtime
         std::vector<std::uint8_t> memory;
         std::uint64_t memory_cost;
 
-        void expand_memory(ExitContext *exit_ctx, std::uint32_t size);
+        void *exit_stack_ptr = nullptr;
+
+        void expand_memory(std::uint32_t size);
         void expand_memory_unchecked(std::uint32_t size);
 
-        utils::uint256_t mload(ExitContext *exit_ctx, utils::uint256_t offset);
+        utils::uint256_t mload(utils::uint256_t offset);
 
-        void mstore(
-            ExitContext *exit_ctx, utils::uint256_t offset_word,
-            utils::uint256_t value);
+        void mstore(utils::uint256_t offset_word, utils::uint256_t value);
 
-        void mstore8(
-            ExitContext *exit_ctx, utils::uint256_t offset_word,
-            utils::uint256_t value);
+        void mstore8(utils::uint256_t offset_word, utils::uint256_t value);
 
         utils::uint256_t msize() const;
 
-        static std::uint32_t
-        get_memory_offset(ExitContext *ctx, utils::uint256_t offset);
+        std::uint32_t get_memory_offset(utils::uint256_t offset);
 
-        static std::pair<std::uint32_t, std::uint32_t>
-        get_memory_offset_and_size(
-            ExitContext *ctx, utils::uint256_t offset, utils::uint256_t size);
+        std::pair<std::uint32_t, std::uint32_t> get_memory_offset_and_size(
+            utils::uint256_t offset, utils::uint256_t size);
 
         evmc_tx_context get_tx_context() const;
+
+        void exit [[noreturn]] (StatusCode code) const noexcept;
 
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
@@ -101,23 +97,11 @@ namespace monad::runtime
     };
 
     static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 224);
+    static_assert(sizeof(Context) == 232);
     static_assert(offsetof(Context, host) == 0);
     static_assert(offsetof(Context, context) == 8);
     static_assert(offsetof(Context, gas_remaining) == 16);
     static_assert(offsetof(Context, gas_refund) == 24);
     static_assert(offsetof(Context, env) == 32);
-
-    struct ExitContext
-    {
-        void *stack_pointer;
-        Context *ctx;
-
-        void exit [[noreturn]] (StatusCode code) const noexcept;
-    };
-
-    static_assert(std::is_standard_layout_v<ExitContext>);
-    static_assert(sizeof(ExitContext) == 16);
-    static_assert(offsetof(ExitContext, stack_pointer) == 0);
-    static_assert(offsetof(ExitContext, ctx) == 8);
+    static_assert(offsetof(Context, exit_stack_ptr) == 224);
 }

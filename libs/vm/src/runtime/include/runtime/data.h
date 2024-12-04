@@ -16,12 +16,12 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void balance(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)
     {
         ctx->gas_remaining -= balance_base_gas(Rev);
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -31,7 +31,7 @@ namespace monad::runtime
             if (access_status == EVMC_ACCESS_COLD) {
                 ctx->gas_remaining -= 2500;
                 if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                    exit_ctx->exit(StatusCode::OutOfGas);
+                    ctx->exit(StatusCode::OutOfGas);
                 }
             }
         }
@@ -42,7 +42,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void calldataload(
-        ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *i_ptr)
     {
         if (*i_ptr > std::numeric_limits<std::uint32_t>::max()) {
@@ -68,15 +68,15 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void copy_impl(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t dest_offset_word,
+        Context *ctx, utils::uint256_t dest_offset_word,
         utils::uint256_t offset_word, utils::uint256_t size_word,
         std::span<std::uint8_t const> source)
     {
         MONAD_COMPILER_DEBUG_ASSERT(
             source.size() <= std::numeric_limits<std::uint32_t>::max());
 
-        auto [dest_offset, size] = Context::get_memory_offset_and_size(
-            exit_ctx, dest_offset_word, size_word);
+        auto [dest_offset, size] =
+            ctx->get_memory_offset_and_size(dest_offset_word, size_word);
         if (size == 0) {
             return;
         }
@@ -85,10 +85,10 @@ namespace monad::runtime
 
         ctx->gas_remaining -= size_in_words * 3;
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
-        ctx->expand_memory(exit_ctx, saturating_add(dest_offset, size));
+        ctx->expand_memory(saturating_add(dest_offset, size));
 
         auto start = [&] {
             if (offset_word > std::numeric_limits<std::uint32_t>::max()) {
@@ -122,59 +122,46 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void calldatacopy(
-        ExitContext *exit_ctx, Context *ctx,
-        utils::uint256_t const *dest_offset_ptr,
+        Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         copy_impl<Rev>(
-            exit_ctx,
-            ctx,
-            *dest_offset_ptr,
-            *offset_ptr,
-            *size_ptr,
-            ctx->env.input_data);
+            ctx, *dest_offset_ptr, *offset_ptr, *size_ptr, ctx->env.input_data);
     }
 
     template <evmc_revision Rev>
     void codecopy(
-        ExitContext *exit_ctx, Context *ctx,
-        utils::uint256_t const *dest_offset_ptr,
+        Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         copy_impl<Rev>(
-            exit_ctx,
-            ctx,
-            *dest_offset_ptr,
-            *offset_ptr,
-            *size_ptr,
-            ctx->env.code);
+            ctx, *dest_offset_ptr, *offset_ptr, *size_ptr, ctx->env.code);
     }
 
     template <evmc_revision Rev>
     void extcodecopy(
-        ExitContext *exit_ctx, Context *ctx,
-        utils::uint256_t const *address_ptr,
+        Context *ctx, utils::uint256_t const *address_ptr,
         utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         ctx->gas_remaining -= extcodecopy_base_gas(Rev);
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
-        auto [dest_offset, size] = Context::get_memory_offset_and_size(
-            exit_ctx, *dest_offset_ptr, *size_ptr);
+        auto [dest_offset, size] =
+            ctx->get_memory_offset_and_size(*dest_offset_ptr, *size_ptr);
 
         auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
         if (size > 0) {
-            ctx->expand_memory(exit_ctx, size);
+            ctx->expand_memory(size);
 
             auto size_in_words = (size + 31) / 32;
             ctx->gas_remaining -= size_in_words * 3;
 
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -188,7 +175,7 @@ namespace monad::runtime
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (size > 0) {
@@ -209,27 +196,26 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void returndatacopy(
-        ExitContext *exit_ctx, Context *ctx,
-        utils::uint256_t const *dest_offset_ptr,
+        Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
-        auto [dest_offset, size] = Context::get_memory_offset_and_size(
-            exit_ctx, *dest_offset_ptr, *size_ptr);
+        auto [dest_offset, size] =
+            ctx->get_memory_offset_and_size(*dest_offset_ptr, *size_ptr);
 
         auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
         if (saturating_add(offset, size) > ctx->env.return_data.size()) {
-            exit_ctx->exit(StatusCode::InvalidMemoryAccess);
+            ctx->exit(StatusCode::InvalidMemoryAccess);
         }
 
         if (size > 0) {
-            ctx->expand_memory(exit_ctx, size);
+            ctx->expand_memory(size);
 
             auto size_in_words = (size + 31) / 32;
             ctx->gas_remaining -= size_in_words * 3;
 
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
 
             auto data = ctx->env.return_data.subspan(offset, size);
@@ -240,12 +226,12 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void extcodehash(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)
     {
         ctx->gas_remaining -= extcodehash_base_gas(Rev);
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -257,7 +243,7 @@ namespace monad::runtime
             }
 
             if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 

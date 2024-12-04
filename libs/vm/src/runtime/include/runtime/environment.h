@@ -11,32 +11,32 @@
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    void address(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void address(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = uint256_from_address(ctx->env.recipient);
     }
 
     template <evmc_revision Rev>
-    void origin(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void origin(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = uint256_from_address(ctx->get_tx_context().tx_origin);
     }
 
     template <evmc_revision Rev>
-    void gasprice(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void gasprice(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = uint256_from_bytes32(ctx->get_tx_context().tx_gas_price);
     }
 
     template <evmc_revision Rev>
-    void gaslimit(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void gaslimit(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = ctx->get_tx_context().block_gas_limit;
     }
 
     template <evmc_revision Rev>
     void blockhash(
-        ExitContext *, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *block_number_ptr)
     {
         if (*block_number_ptr > std::numeric_limits<std::uint64_t>::max()) {
@@ -59,39 +59,39 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
-    void coinbase(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void coinbase(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr =
             uint256_from_address(ctx->get_tx_context().block_coinbase);
     }
 
     template <evmc_revision Rev>
-    void timestamp(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void timestamp(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = ctx->get_tx_context().block_timestamp;
     }
 
     template <evmc_revision Rev>
-    void number(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void number(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = ctx->get_tx_context().block_number;
     }
 
     template <evmc_revision Rev>
-    void prevrandao(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void prevrandao(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr =
             uint256_from_bytes32(ctx->get_tx_context().block_prev_randao);
     }
 
     template <evmc_revision Rev>
-    void chainid(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void chainid(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = uint256_from_bytes32(ctx->get_tx_context().chain_id);
     }
 
     template <evmc_revision Rev>
-    void selfbalance(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void selfbalance(Context *ctx, utils::uint256_t *result_ptr)
     {
         auto balance =
             ctx->host->get_balance(ctx->context, &ctx->env.recipient);
@@ -99,7 +99,7 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
-    void basefee(ExitContext *, Context *ctx, utils::uint256_t *result_ptr)
+    void basefee(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr =
             uint256_from_bytes32(ctx->get_tx_context().block_base_fee);

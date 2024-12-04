@@ -22,27 +22,26 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     utils::uint256_t create_impl(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t value,
-        utils::uint256_t offset_word, utils::uint256_t size_word,
-        utils::uint256_t salt_word, evmc_call_kind kind,
-        std::int64_t remaining_block_base_gas)
+        Context *ctx, utils::uint256_t value, utils::uint256_t offset_word,
+        utils::uint256_t size_word, utils::uint256_t salt_word,
+        evmc_call_kind kind, std::int64_t remaining_block_base_gas)
     {
         if (MONAD_COMPILER_UNLIKELY(ctx->env.evmc_flags == EVMC_STATIC)) {
-            exit_ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::StaticModeViolation);
         }
 
         ctx->env.clear_return_data();
 
-        auto [offset, size] = Context::get_memory_offset_and_size(
-            exit_ctx, offset_word, size_word);
+        auto [offset, size] =
+            ctx->get_memory_offset_and_size(offset_word, size_word);
 
         if (size > 0) {
-            ctx->expand_memory(exit_ctx, saturating_add(offset, size));
+            ctx->expand_memory(saturating_add(offset, size));
         }
 
         if constexpr (Rev >= EVMC_SHANGHAI) {
             if (MONAD_COMPILER_UNLIKELY(size > 0xC000)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -52,7 +51,7 @@ namespace monad::runtime
 
         ctx->gas_remaining -= min_words * word_cost;
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->env.depth >= 1024)) {
@@ -64,7 +63,7 @@ namespace monad::runtime
                 ctx->host->get_balance(ctx->context, &ctx->env.recipient));
 
             if (MONAD_COMPILER_UNLIKELY(balance < value)) {
-                exit_ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
@@ -100,11 +99,11 @@ namespace monad::runtime
         if (MONAD_COMPILER_UNLIKELY(
                 result.output_size >
                 std::numeric_limits<std::uint32_t>::max())) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            exit_ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         ctx->env.set_return_data(
@@ -117,12 +116,11 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void create(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t *const value_ptr, utils::uint256_t *const offset_ptr,
         utils::uint256_t *const size_ptr, std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
-            exit_ctx,
             ctx,
             *value_ptr,
             *offset_ptr,
@@ -134,13 +132,12 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void create2(
-        ExitContext *exit_ctx, Context *ctx, utils::uint256_t *result_ptr,
+        Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t *const value_ptr, utils::uint256_t *const offset_ptr,
         utils::uint256_t *const size_ptr, utils::uint256_t *const salt_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
-            exit_ctx,
             ctx,
             *value_ptr,
             *offset_ptr,
