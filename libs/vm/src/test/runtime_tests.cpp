@@ -83,3 +83,16 @@ TEST_F(RuntimeTest, AddMod)
           2),
         1);
 }
+
+TEST_F(RuntimeTest, MulMod)
+{
+    auto f = wrap(mulmod<EVMC_CANCUN>);
+
+    ASSERT_EQ(f(10, 10, 8), 4);
+    ASSERT_EQ(f(134, 378, 0), 0);
+    ASSERT_EQ(
+        f(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256,
+          0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256,
+          12),
+        9);
+}

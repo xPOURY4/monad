@@ -77,6 +77,19 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
+    void mulmod(
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
+    {
+        if (*n_ptr == 0) {
+            *result_ptr = 0;
+            return;
+        }
+
+        *result_ptr = intx::mulmod(*a_ptr, *b_ptr, *n_ptr);
+    }
+
+    template <evmc_revision Rev>
     void
     exp(Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t *const a_ptr, utils::uint256_t *const exponent_ptr)
