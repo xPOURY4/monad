@@ -1,6 +1,7 @@
 add_subdirectory(utils)
 
 add_executable(unit-tests
+    runtime_fixture.cpp
     compiler_tests.cpp
     evm_fixture.cpp
     evm_tests.cpp
@@ -15,6 +16,7 @@ add_executable(unit-tests
     type_check_tests.cpp
     stack_tests.cpp
     emitter_tests.cpp
+    runtime_tests.cpp
 )
 
 monad_compile_options(unit-tests)
