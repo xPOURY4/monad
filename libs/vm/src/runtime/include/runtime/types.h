@@ -66,8 +66,9 @@ namespace monad::runtime
         std::int64_t gas_refund;
 
         Environment env;
-        std::vector<std::uint8_t> memory;
-        std::uint64_t memory_cost;
+
+        std::vector<std::uint8_t> memory = {};
+        std::uint64_t memory_cost = 0;
 
         void *exit_stack_ptr = nullptr;
 

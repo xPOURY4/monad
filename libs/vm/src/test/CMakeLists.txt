@@ -1,7 +1,6 @@
 add_subdirectory(utils)
 
 add_executable(unit-tests
-    runtime_fixture.cpp
     compiler_tests.cpp
     evm_fixture.cpp
     evm_tests.cpp
