@@ -98,53 +98,63 @@ namespace monad::compiler::test
          * objects, and creates an array of the corresponding uint256_t objects
          * on the stack, which can then be passed to the runtime.
          */
-        template <typename... FnArgs, typename... Args>
-        auto call(void (*f)(FnArgs...), Args &&...args)
-            -> std::conditional_t<
-                detail::uses_result_v<FnArgs...>, utils::uint256_t, void>
+        template <typename... FnArgs>
+        auto wrap(void (*f)(FnArgs...))
         {
             constexpr auto use_result = detail::uses_result_v<FnArgs...>;
             constexpr auto use_base_gas = detail::uses_base_gas_v<FnArgs...>;
 
-            auto result = utils::uint256_t{};
+            return [f, this]<typename... Args>(Args &&...args)
+                       -> std::conditional_t<
+                           detail::uses_result_v<FnArgs...>,
+                           utils::uint256_t,
+                           void> {
+                auto result = utils::uint256_t{};
 
-            auto uint_args =
-                std::array{utils::uint256_t(std::forward<Args>(args))...};
+                auto uint_args =
+                    std::array{utils::uint256_t(std::forward<Args>(args))...};
 
-            auto arg_ptrs =
-                std::array<utils::uint256_t const *, uint_args.size()>{};
-            for (auto i = 0u; i < uint_args.size(); ++i) {
-                arg_ptrs[i] = std::addressof(uint_args[i]);
-            }
+                auto arg_ptrs =
+                    std::array<utils::uint256_t const *, uint_args.size()>{};
+                for (auto i = 0u; i < uint_args.size(); ++i) {
+                    arg_ptrs[i] = &uint_args[i];
+                }
 
-            auto word_args = [&] {
+                auto word_args = [&] {
+                    if constexpr (use_result) {
+                        return std::tuple_cat(
+                            std::tuple(&ctx_, &result), arg_ptrs);
+                    }
+                    else {
+                        return std::tuple_cat(std::tuple(&ctx_), arg_ptrs);
+                    }
+                }();
+
+                auto all_args = [&] {
+                    if constexpr (use_base_gas) {
+                        return std::tuple_cat(
+                            word_args, std::tuple(std::int64_t{0}));
+                    }
+                    else {
+                        return word_args;
+                    }
+                }();
+
+                std::apply(f, all_args);
+
                 if constexpr (use_result) {
-                    return std::tuple_cat(
-                        std::tuple(&ctx_, std::addressof(result)), arg_ptrs);
+                    return result;
                 }
                 else {
-                    return std::tuple_cat(std::tuple(&ctx_), arg_ptrs);
+                    return;
                 }
-            }();
+            };
+        }
 
-            auto all_args = [&] {
-                if constexpr (use_base_gas) {
-                    return std::tuple_cat(
-                        word_args, std::tuple(std::int64_t{0}));
-                }
-                else {
-                    return word_args;
-                }
-            }();
-
-            std::apply(f, all_args);
-
-            if constexpr (use_result) {
-                return result;
-            }
-            else {
-                return;
-            }
+        template <typename... FnArgs, typename... Args>
+        auto call(void (*f)(FnArgs...), Args &&...args)
+        {
+            return wrap(f)(std::forward<Args>(args)...);
         }
     };
 }
