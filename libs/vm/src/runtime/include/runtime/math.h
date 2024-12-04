@@ -65,8 +65,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void addmod(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const a_ptr,
-        utils::uint256_t *const b_ptr, utils::uint256_t *const n_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
