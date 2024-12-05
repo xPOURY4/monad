@@ -17,10 +17,7 @@ namespace monad::runtime
         utils::uint256_t ret_size_word, evmc_call_kind call_kind,
         bool static_call, std::int64_t remaining_block_base_gas)
     {
-        ctx->gas_remaining -= call_base_gas(Rev);
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(call_base_gas(Rev));
 
         ctx->env.clear_return_data();
 
@@ -98,11 +95,7 @@ namespace monad::runtime
 
         if (has_value) {
             gas += 2300;
-            ctx->gas_remaining -= 2300;
-
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
+            ctx->deduct_gas(2300);
         }
 
         if (ctx->env.depth >= 1024) {
@@ -131,7 +124,6 @@ namespace monad::runtime
         auto call_gas_used = gas - result.gas_left;
 
         ctx->gas_refund += result.gas_refund;
-        ctx->gas_remaining -= call_gas_used;
 
         if (MONAD_COMPILER_UNLIKELY(
                 result.output_size >
@@ -139,9 +131,7 @@ namespace monad::runtime
             ctx->exit(StatusCode::OutOfGas);
         }
 
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(call_gas_used);
 
         ctx->env.set_return_data(
             result.output_data, static_cast<std::uint32_t>(result.output_size));

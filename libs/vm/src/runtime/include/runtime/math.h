@@ -105,12 +105,7 @@ namespace monad::runtime
             }
         }();
 
-        auto gas_cost = exponent_byte_size * exponent_cost;
-
-        ctx->gas_remaining -= gas_cost;
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(exponent_byte_size * exponent_cost);
 
         *result_ptr = intx::exp(*a_ptr, *exponent_ptr);
     }

@@ -19,20 +19,14 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)
     {
-        ctx->gas_remaining -= balance_base_gas(Rev);
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(balance_base_gas(Rev));
 
         auto address = address_from_uint256(*address_ptr);
         auto access_status = ctx->host->access_account(ctx->context, &address);
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                ctx->gas_remaining -= 2500;
-                if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                    ctx->exit(StatusCode::OutOfGas);
-                }
+                ctx->deduct_gas(2500);
             }
         }
 
@@ -82,11 +76,7 @@ namespace monad::runtime
         }
 
         auto size_in_words = (size + 31) / 32;
-
-        ctx->gas_remaining -= size_in_words * 3;
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(size_in_words * 3);
 
         ctx->expand_memory(saturating_add(dest_offset, size));
 
@@ -144,10 +134,7 @@ namespace monad::runtime
         utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
-        ctx->gas_remaining -= extcodecopy_base_gas(Rev);
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(extcodecopy_base_gas(Rev));
 
         auto [dest_offset, size] =
             ctx->get_memory_offset_and_size(*dest_offset_ptr, *size_ptr);
@@ -158,11 +145,7 @@ namespace monad::runtime
             ctx->expand_memory(size);
 
             auto size_in_words = (size + 31) / 32;
-            ctx->gas_remaining -= size_in_words * 3;
-
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
+            ctx->deduct_gas(size_in_words * 3);
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -170,12 +153,8 @@ namespace monad::runtime
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                ctx->gas_remaining -= 2500;
+                ctx->deduct_gas(2500);
             }
-        }
-
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (size > 0) {
@@ -212,11 +191,7 @@ namespace monad::runtime
             ctx->expand_memory(size);
 
             auto size_in_words = (size + 31) / 32;
-            ctx->gas_remaining -= size_in_words * 3;
-
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
+            ctx->deduct_gas(size_in_words * 3);
 
             auto data = ctx->env.return_data.subspan(offset, size);
             std::copy(
@@ -229,21 +204,14 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)
     {
-        ctx->gas_remaining -= extcodehash_base_gas(Rev);
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(extcodehash_base_gas(Rev));
 
         auto address = address_from_uint256(*address_ptr);
         auto access_status = ctx->host->access_account(ctx->context, &address);
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                ctx->gas_remaining -= 2500;
-            }
-
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
+                ctx->deduct_gas(2500);
             }
         }
 

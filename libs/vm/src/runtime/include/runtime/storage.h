@@ -28,18 +28,10 @@ namespace monad::runtime
         auto value =
             ctx->host->get_storage(ctx->context, &ctx->env.recipient, &key);
 
-        auto gas_cost = load_base_gas(Rev);
-
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                gas_cost += (COST_ACCESS_COLD - COST_ACCESS_WARM);
+                ctx->deduct_gas(COST_ACCESS_COLD - COST_ACCESS_WARM);
             }
-        }
-
-        ctx->gas_remaining -= gas_cost;
-
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
         }
 
         *result_ptr = uint256_from_bytes32(value);
@@ -77,11 +69,7 @@ namespace monad::runtime
         }
 
         ctx->gas_refund += gas_refund;
-        ctx->gas_remaining -= gas_used;
-
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(gas_used);
     }
 
     template <evmc_revision Rev>

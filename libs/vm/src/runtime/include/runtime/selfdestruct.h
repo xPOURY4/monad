@@ -18,10 +18,7 @@ namespace monad::runtime
         }
 
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
-            ctx->gas_remaining -= 5000;
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
+            ctx->deduct_gas(5000);
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -29,7 +26,7 @@ namespace monad::runtime
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                ctx->gas_remaining -= 2600;
+                ctx->deduct_gas(2600);
             }
         }
 
@@ -49,13 +46,9 @@ namespace monad::runtime
                 auto exists = ctx->host->account_exists(ctx->context, &address);
 
                 if (!exists) {
-                    ctx->gas_remaining -= 25000;
+                    ctx->deduct_gas(25000);
                 }
             }
-        }
-
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto result = ctx->host->selfdestruct(

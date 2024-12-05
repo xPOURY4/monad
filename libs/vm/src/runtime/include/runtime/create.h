@@ -49,10 +49,7 @@ namespace monad::runtime
         auto word_cost = (kind == EVMC_CREATE2) ? create2_code_word_cost(Rev)
                                                 : create_code_word_cost(Rev);
 
-        ctx->gas_remaining -= min_words * word_cost;
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(min_words * word_cost);
 
         if (MONAD_COMPILER_UNLIKELY(ctx->env.depth >= 1024)) {
             return 0;
@@ -94,7 +91,6 @@ namespace monad::runtime
         auto call_gas_used = gas - result.gas_left;
 
         ctx->gas_refund += result.gas_refund;
-        ctx->gas_remaining -= call_gas_used;
 
         if (MONAD_COMPILER_UNLIKELY(
                 result.output_size >
@@ -102,9 +98,7 @@ namespace monad::runtime
             ctx->exit(StatusCode::OutOfGas);
         }
 
-        if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
+        ctx->deduct_gas(call_gas_used);
 
         ctx->env.set_return_data(
             result.output_data, static_cast<std::uint32_t>(result.output_size));

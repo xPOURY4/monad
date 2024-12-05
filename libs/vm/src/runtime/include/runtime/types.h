@@ -72,6 +72,8 @@ namespace monad::runtime
 
         void *exit_stack_ptr = nullptr;
 
+        void deduct_gas(std::int64_t gas);
+
         void expand_memory(std::uint32_t size);
         void expand_memory_unchecked(std::uint32_t size);
 

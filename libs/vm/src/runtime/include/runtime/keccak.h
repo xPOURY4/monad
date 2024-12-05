@@ -25,11 +25,7 @@ namespace monad::runtime
             ctx->expand_memory(size);
 
             auto word_size = (size + 31) / 32;
-
-            ctx->gas_remaining -= word_size * 6;
-            if (MONAD_COMPILER_UNLIKELY(ctx->gas_remaining < 0)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
+            ctx->deduct_gas(word_size * 6);
         }
 
         auto hash = ethash::keccak256(ctx->memory.data() + offset, size);
