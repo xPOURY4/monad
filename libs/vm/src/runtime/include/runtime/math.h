@@ -117,8 +117,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void signextend(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const b_ptr,
-        utils::uint256_t *const x_ptr)
+        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *b_ptr,
+        utils::uint256_t const *x_ptr)
     {
         *result_ptr = utils::signextend(*b_ptr, *x_ptr);
     }
