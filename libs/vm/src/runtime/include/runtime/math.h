@@ -122,36 +122,4 @@ namespace monad::runtime
     {
         *result_ptr = utils::signextend(*b_ptr, *x_ptr);
     }
-
-    template <evmc_revision Rev>
-    void byte(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
-        utils::uint256_t *const x_ptr)
-    {
-        *result_ptr = utils::byte(*i_ptr, *x_ptr);
-    }
-
-    template <evmc_revision Rev>
-    void
-    shl(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
-        utils::uint256_t *const x_ptr)
-    {
-        *result_ptr = (*x_ptr) << (*i_ptr);
-    }
-
-    template <evmc_revision Rev>
-    void
-    shr(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
-        utils::uint256_t *const x_ptr)
-    {
-        *result_ptr = (*x_ptr) >> (*i_ptr);
-    }
-
-    template <evmc_revision Rev>
-    void
-    sar(Context *, utils::uint256_t *result_ptr, utils::uint256_t *const i_ptr,
-        utils::uint256_t *const x_ptr)
-    {
-        *result_ptr = utils::sar(*i_ptr, *x_ptr);
-    }
 }
