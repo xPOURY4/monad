@@ -339,7 +339,7 @@ namespace monad::compiler
             OpCodeInfo{"CODECOPY", 0, 3, false, true, 3, 0}, // 0x39,
             OpCodeInfo{"GASPRICE", 0, 0, true, false, 2, 0}, // 0x3A,
             OpCodeInfo{"EXTCODESIZE", 0, 1, true, true, 100, 0}, // 0x3B,
-            OpCodeInfo{"EXTCODECOPY", 0, 4, false, true, 100, 0}, // 0x3C,
+            OpCodeInfo{"EXTCODECOPY", 0, 4, false, true, 20, 0}, // 0x3C,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -559,6 +559,7 @@ namespace monad::compiler
         // EIP-150
         table[SLOAD].min_gas = 200;
         table[BALANCE].min_gas = 400;
+        table[EXTCODECOPY].min_gas = 700;
 
         return table;
     }
@@ -616,6 +617,7 @@ namespace monad::compiler
         // EIP-2929
         table[SLOAD].min_gas = 100;
         table[BALANCE].min_gas = 100;
+        table[EXTCODECOPY].min_gas = 100;
 
         return table;
     }

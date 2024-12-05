@@ -132,8 +132,6 @@ namespace monad::runtime
         utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
-        ctx->deduct_gas(extcodecopy_base_gas(Rev));
-
         auto [dest_offset, size] =
             ctx->get_memory_offset_and_size(*dest_offset_ptr, *size_ptr);
 
