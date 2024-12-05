@@ -9,23 +9,6 @@ namespace monad::runtime
     constexpr std::int64_t COST_ACCESS_COLD = 2100;
     constexpr std::int64_t COST_ACCESS_WARM = 100;
 
-    consteval std::int64_t load_base_gas(evmc_revision rev)
-    {
-        if (rev < EVMC_TANGERINE_WHISTLE) {
-            return 50;
-        }
-
-        if (rev < EVMC_ISTANBUL) {
-            return 200;
-        }
-
-        if (rev < EVMC_BERLIN) {
-            return 800;
-        }
-
-        return COST_ACCESS_WARM;
-    }
-
     consteval std::int64_t call_base_gas(evmc_revision rev)
     {
         if (rev < EVMC_TANGERINE_WHISTLE) {
