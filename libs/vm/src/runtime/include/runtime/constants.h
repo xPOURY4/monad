@@ -22,23 +22,6 @@ namespace monad::runtime
         return COST_ACCESS_WARM;
     }
 
-    consteval std::int64_t balance_base_gas(evmc_revision rev)
-    {
-        if (rev < EVMC_TANGERINE_WHISTLE) {
-            return 20;
-        }
-
-        if (rev < EVMC_ISTANBUL) {
-            return 400;
-        }
-
-        if (rev < EVMC_BERLIN) {
-            return 700;
-        }
-
-        return COST_ACCESS_WARM;
-    }
-
     consteval std::int64_t extcodecopy_base_gas(evmc_revision rev)
     {
         if (rev < EVMC_TANGERINE_WHISTLE) {

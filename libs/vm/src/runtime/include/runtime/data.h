@@ -19,8 +19,6 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)
     {
-        ctx->deduct_gas(balance_base_gas(Rev));
-
         auto address = address_from_uint256(*address_ptr);
         auto access_status = ctx->host->access_account(ctx->context, &address);
 

@@ -328,7 +328,7 @@ namespace monad::compiler
             unknown_opcode_info,
 
             OpCodeInfo{"ADDRESS", 0, 0, true, false, 2, 0}, // 0x30,
-            OpCodeInfo{"BALANCE", 0, 1, true, true, 100, 0}, // 0x31,
+            OpCodeInfo{"BALANCE", 0, 1, true, true, 20, 0}, // 0x31,
             OpCodeInfo{"ORIGIN", 0, 0, true, false, 2, 0}, // 0x32,
             OpCodeInfo{"CALLER", 0, 0, true, false, 2, 0}, // 0x33,
             OpCodeInfo{"CALLVALUE", 0, 0, true, false, 2, 0}, // 0x34,
@@ -558,6 +558,7 @@ namespace monad::compiler
 
         // EIP-150
         table[SLOAD].min_gas = 200;
+        table[BALANCE].min_gas = 400;
 
         return table;
     }
@@ -601,6 +602,9 @@ namespace monad::compiler
         // EIP-2200
         table[SLOAD].min_gas = 800;
 
+        // EIP-1884
+        table[BALANCE].min_gas = 700;
+
         return table;
     }
 
@@ -610,7 +614,8 @@ namespace monad::compiler
         auto table = opcode_table<previous_evm_revision(EVMC_BERLIN)>();
 
         // EIP-2929
-        table[SLOAD].min_gas = 0;
+        table[SLOAD].min_gas = 100;
+        table[BALANCE].min_gas = 100;
 
         return table;
     }
