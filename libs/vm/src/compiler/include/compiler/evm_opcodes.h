@@ -532,10 +532,10 @@ namespace monad::compiler
             unknown_opcode_info,
 
             OpCodeInfo{"CREATE", 0, 3, true, true, 32000, 0}, // 0xF0,
-            OpCodeInfo{"CALL", 0, 7, true, true, 100, 0}, // 0xF1,
-            OpCodeInfo{"CALLCODE", 0, 7, true, true, 100, 0}, // 0xF2,
+            OpCodeInfo{"CALL", 0, 7, true, true, 40, 0}, // 0xF1,
+            OpCodeInfo{"CALLCODE", 0, 7, true, true, 40, 0}, // 0xF2,
             OpCodeInfo{"RETURN", 0, 2, false, true, 0, 0}, // 0xF3,
-            unknown_opcode_info,
+            OpCodeInfo{"DELEGATECALL", 0, 6, true, true, 40, 0}, // 0xF4,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -560,6 +560,9 @@ namespace monad::compiler
         table[SLOAD].min_gas = 200;
         table[BALANCE].min_gas = 400;
         table[EXTCODECOPY].min_gas = 700;
+        table[CALL].min_gas = 700;
+        table[CALLCODE].min_gas = 700;
+        table[DELEGATECALL].min_gas = 700;
 
         return table;
     }
@@ -571,8 +574,7 @@ namespace monad::compiler
 
         add_opcode(0x3D, table, {"RETURNDATASIZE", 0, 0, true, false, 2, 0});
         add_opcode(0x3E, table, {"RETURNDATACOPY", 0, 3, false, true, 3, 0});
-        add_opcode(0xF4, table, {"DELEGATECALL", 0, 6, true, true, 100, 0});
-        add_opcode(0xFA, table, {"STATICCALL", 0, 6, true, true, 100, 0});
+        add_opcode(0xFA, table, {"STATICCALL", 0, 6, true, true, 700, 0});
         add_opcode(0xFD, table, {"REVERT", 0, 2, false, true, 0, 0});
 
         return table;
@@ -620,6 +622,10 @@ namespace monad::compiler
         table[BALANCE].min_gas = 100;
         table[EXTCODECOPY].min_gas = 100;
         table[EXTCODEHASH].min_gas = 100;
+        table[CALL].min_gas = 100;
+        table[CALLCODE].min_gas = 100;
+        table[DELEGATECALL].min_gas = 100;
+        table[STATICCALL].min_gas = 100;
 
         return table;
     }

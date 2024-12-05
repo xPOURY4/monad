@@ -17,8 +17,6 @@ namespace monad::runtime
         utils::uint256_t ret_size_word, evmc_call_kind call_kind,
         bool static_call, std::int64_t remaining_block_base_gas)
     {
-        ctx->deduct_gas(call_base_gas(Rev));
-
         ctx->env.clear_return_data();
 
         auto [args_offset, args_size] =
