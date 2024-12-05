@@ -586,7 +586,7 @@ namespace monad::compiler
         add_opcode(0x1B, table, {"SHL", 0, 2, true, false, 3, 0});
         add_opcode(0x1C, table, {"SHR", 0, 2, true, false, 3, 0});
         add_opcode(0x1D, table, {"SAR", 0, 2, true, false, 3, 0});
-        add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 100, 0});
+        add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 400, 0});
         add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 3200, 0});
 
         return table;
@@ -605,6 +605,7 @@ namespace monad::compiler
 
         // EIP-1884
         table[BALANCE].min_gas = 700;
+        table[EXTCODEHASH].min_gas = 700;
 
         return table;
     }
@@ -618,6 +619,7 @@ namespace monad::compiler
         table[SLOAD].min_gas = 100;
         table[BALANCE].min_gas = 100;
         table[EXTCODECOPY].min_gas = 100;
+        table[EXTCODEHASH].min_gas = 100;
 
         return table;
     }
