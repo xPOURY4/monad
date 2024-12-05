@@ -96,3 +96,53 @@ TEST_F(RuntimeTest, MulMod)
           12),
         9);
 }
+
+TEST_F(RuntimeTest, ExpOld)
+{
+    auto f = wrap(exp<EVMC_TANGERINE_WHISTLE>);
+
+    ctx_.gas_remaining = 0;
+    ASSERT_EQ(f(100, 0), 1);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 10;
+    ASSERT_EQ(f(10, 2), 100);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 20;
+    ASSERT_EQ(
+        f(3, 256),
+        0xC7ADEEB80D4FFF81FED242815E55BC8375A205DE07597D51D2105F2F0730F401_u256);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 30;
+    ASSERT_EQ(
+        f(5, 65536),
+        0x6170C9D4CF040C5B5B784780A1BD33BA7B6BB3803AA626C24C21067A267C0001_u256);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+}
+
+TEST_F(RuntimeTest, ExpNew)
+{
+    auto f = wrap(exp<EVMC_CANCUN>);
+
+    ctx_.gas_remaining = 0;
+    ASSERT_EQ(f(100, 0), 1);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 50;
+    ASSERT_EQ(f(10, 2), 100);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 100;
+    ASSERT_EQ(
+        f(3, 256),
+        0xC7ADEEB80D4FFF81FED242815E55BC8375A205DE07597D51D2105F2F0730F401_u256);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+
+    ctx_.gas_remaining = 150;
+    ASSERT_EQ(
+        f(5, 65536),
+        0x6170C9D4CF040C5B5B784780A1BD33BA7B6BB3803AA626C24C21067A267C0001_u256);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+}

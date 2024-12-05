@@ -92,11 +92,11 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void
     exp(Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t *const a_ptr, utils::uint256_t *const exponent_ptr)
+        utils::uint256_t const *a_ptr, utils::uint256_t const *exponent_ptr)
     {
         auto exponent_byte_size = intx::count_significant_bytes(*exponent_ptr);
 
-        auto exponent_cost = [] {
+        auto exponent_cost = [] -> decltype(exponent_byte_size) {
             if constexpr (Rev >= EVMC_SPURIOUS_DRAGON) {
                 return 50;
             }
