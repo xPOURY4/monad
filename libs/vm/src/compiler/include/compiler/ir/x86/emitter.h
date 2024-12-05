@@ -3,6 +3,7 @@
 #include "compiler/ir/local_stacks.h"
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/virtual_stack.h>
+#include <runtime/detail.h>
 #include <runtime/types.h>
 
 #include <asmjit/x86.h>
@@ -54,6 +55,104 @@ namespace monad::compiler::native
             asmjit::x86::EmitterExplicitT<asmjit::x86::Assembler>::*)(
             asmjit::x86::Vec const &, asmjit::x86::Vec const &, R const &);
 
+        class RuntimeImpl
+        {
+        public:
+            template <typename... Args>
+            RuntimeImpl(
+                Emitter *e, int32_t remaining_base_gas, void (*f)(Args...))
+                : em_{e}
+                , remaining_base_gas_{remaining_base_gas}
+                , runtime_fun_{reinterpret_cast<void *>(f)}
+                , arg_count_{sizeof...(Args)}
+                , context_arg_{monad::runtime::detail::context_arg_t<
+                      Args...>::context_arg}
+                , result_arg_{monad::runtime::detail::result_arg_t<
+                      Args...>::result_arg}
+                , remaining_gas_arg_{
+                      monad::runtime::detail::remaining_gas_arg_t<
+                          Args...>::remaining_gas_arg}
+            {
+            }
+
+            RuntimeImpl &pass(StackElemRef &&);
+
+            void call_impl();
+
+            size_t implicit_arg_count();
+            size_t explicit_arg_count();
+
+        protected:
+            using RuntimeArg =
+                std::variant<asmjit::x86::Gpq, asmjit::Imm, asmjit::x86::Mem>;
+
+            void mov_arg(size_t arg_index, RuntimeArg &&arg);
+            void mov_reg_arg(asmjit::x86::Gpq const &, RuntimeArg &&arg);
+            void mov_stack_arg(int32_t sp_offset, RuntimeArg &&arg);
+
+            Emitter *em_;
+            std::vector<StackElemRef> explicit_args_;
+            int32_t remaining_base_gas_;
+            void *runtime_fun_;
+            size_t arg_count_;
+            std::optional<size_t> context_arg_;
+            std::optional<size_t> result_arg_;
+            std::optional<size_t> remaining_gas_arg_;
+        };
+
+        template <typename... Args>
+        class Runtime : public RuntimeImpl
+        {
+        public:
+            Runtime(Emitter *e, int32_t remaining_base_gas, void (*f)(Args...))
+                : RuntimeImpl(e, remaining_base_gas, f)
+            {
+                static_assert(
+                    monad::runtime::detail::uses_context_v<Args...> ||
+                    monad::runtime::detail::uses_remaining_gas_v<Args...>);
+            }
+
+            void call()
+            {
+                em_->call_runtime_impl(*this);
+            }
+        };
+
+        template <typename... Args>
+        class Runtime<uint256_t *, Args...> : public RuntimeImpl
+        {
+        public:
+            Runtime(
+                Emitter *e, int32_t remaining_base_gas,
+                void (*f)(uint256_t *, Args...))
+                : RuntimeImpl(e, remaining_base_gas, f)
+            {
+                static_assert(monad::runtime::detail::is_result_v<uint256_t *>);
+                static_assert(!monad::runtime::detail::uses_context_v<Args...>);
+                static_assert(
+                    !monad::runtime::detail::uses_remaining_gas_v<Args...>);
+            }
+
+            uint256_t static_call(Args... args)
+            {
+                uint256_t result;
+                auto f = reinterpret_cast<void (*)(uint256_t *, Args...)>(
+                    runtime_fun_);
+                f(&result, args...);
+                return result;
+            }
+
+            void call()
+            {
+                em_->call_runtime_pure(
+                    *this, std::index_sequence_for<Args...>{});
+            }
+        };
+
+        friend class RuntimeImpl;
+        template <typename... Args>
+        friend class Runtime;
+
         ////////// Initialization and de-initialization //////////
 
         Emitter(
@@ -70,8 +169,11 @@ namespace monad::compiler::native
         void add_jump_dest(byte_offset);
         [[nodiscard]]
         bool begin_new_block(Block const &);
-        void gas_decrement_no_check(int64_t);
-        void gas_decrement_check_non_negative(int64_t);
+        void gas_decrement_no_check(int32_t);
+        void gas_decrement_check_non_negative(int32_t);
+        void spill_all_caller_save_regs();
+        void spill_all_caller_save_general_regs();
+        void spill_all_avx_regs();
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
         AvxRegReserv insert_avx_reg(StackElemRef);
         std::pair<StackElemRef, GeneralRegReserv> alloc_general_reg();
@@ -115,6 +217,12 @@ namespace monad::compiler::native
         void callvalue();
         void codesize();
 
+        template <typename... Args>
+        void call_runtime(int32_t remaining_base_gas, void (*f)(Args...))
+        {
+            Runtime<Args...>(this, remaining_base_gas, f).call();
+        }
+
         // Terminators invalidate emitter until `begin_new_block` is called.
         void jump();
         void jumpi();
@@ -141,6 +249,7 @@ namespace monad::compiler::native
         void discharge_deferred_comparison(StackElem *, Comparison);
 
         asmjit::Label const &append_literal(Literal);
+        asmjit::Label const &append_external_function(void *);
 
         Gpq256 &general_reg_to_gpq256(GeneralReg);
 
@@ -190,6 +299,29 @@ namespace monad::compiler::native
         void mov_stack_offset_to_general_reg(StackElemRef);
 
         ////////// Private EVM instruction utilities //////////
+
+        void call_runtime_impl(RuntimeImpl &rt);
+
+        template <typename... Args, size_t... Is>
+        void call_runtime_pure(
+            Runtime<uint256_t *, Args...> &rt, std::index_sequence<Is...>)
+        {
+            std::array<StackElemRef, sizeof...(Args)> elems;
+            ((std::get<Is>(elems) = stack_->pop()), ...);
+            if ((... && std::get<Is>(elems)->literal())) {
+                auto args = std::make_tuple(
+                    &std::get<Is>(elems)->literal().value().value...);
+                push(std::apply(
+                    [&rt](Args... args) { return rt.static_call(args...); },
+                    args));
+            }
+            else {
+                discharge_deferred_comparison();
+                spill_all_caller_save_regs();
+                (rt.pass(std::move(std::get<Is>(elems))), ...);
+                rt.call_impl();
+            }
+        }
 
         void status_code(monad::runtime::StatusCode);
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
@@ -298,6 +430,7 @@ namespace monad::compiler::native
         uint64_t bytecode_size_;
         std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
+        std::vector<std::pair<asmjit::Label, void *>> external_functions_;
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
         std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>

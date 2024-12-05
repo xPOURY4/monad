@@ -1,5 +1,6 @@
 #pragma once
 
+#include <runtime/detail.h>
 #include <runtime/types.h>
 #include <utils/uint256.h>
 
@@ -9,54 +10,9 @@
 #include <evmc/mocked_host.hpp>
 
 #include <limits>
-#include <optional>
 
+using namespace monad::runtime;
 using namespace evmc::literals;
-
-namespace detail
-{
-    template <std::size_t N, typename... Ts>
-    using nth_t = std::tuple_element_t<N, std::tuple<Ts...>>;
-
-    template <typename... Ts>
-    using last_t = nth_t<sizeof...(Ts) - 1, Ts...>;
-
-    template <typename T>
-    struct is_const_pointer : std::false_type
-    {
-    };
-
-    template <typename T>
-    struct is_const_pointer<T const *> : std::true_type
-    {
-    };
-
-    template <typename T>
-    constexpr auto is_const_pointer_v = is_const_pointer<T>::value;
-
-    template <typename... Args>
-    struct uses_result
-    {
-        static_assert(
-            sizeof...(Args) >= 2,
-            "All runtime functions take at least two arguments");
-
-        static constexpr auto value = !is_const_pointer_v<nth_t<1, Args...>>;
-    };
-
-    template <typename... Args>
-    constexpr auto uses_result_v = uses_result<Args...>::value;
-
-    template <typename... Args>
-    struct uses_base_gas
-    {
-        static constexpr auto value =
-            std::is_same_v<last_t<Args...>, std::int64_t>;
-    };
-
-    template <typename... Args>
-    constexpr auto uses_base_gas_v = uses_base_gas<Args...>::value;
-}
 
 namespace monad::compiler::test
 {
@@ -86,14 +42,18 @@ namespace monad::compiler::test
         template <typename... FnArgs>
         auto wrap(void (*f)(FnArgs...))
         {
+            constexpr auto use_context = detail::uses_context_v<FnArgs...>;
             constexpr auto use_result = detail::uses_result_v<FnArgs...>;
-            constexpr auto use_base_gas = detail::uses_base_gas_v<FnArgs...>;
+            constexpr auto use_base_gas =
+                detail::uses_remaining_gas_v<FnArgs...>;
 
             return [f, this]<typename... Args>(Args &&...args)
                        -> std::conditional_t<
                            detail::uses_result_v<FnArgs...>,
                            utils::uint256_t,
                            void> {
+                (void)this; // Prevent compile error when `this` is not used.
+
                 auto result = utils::uint256_t{};
 
                 auto uint_args = std::array<utils::uint256_t, sizeof...(Args)>{
@@ -106,12 +66,18 @@ namespace monad::compiler::test
                 }
 
                 auto word_args = [&] {
-                    if constexpr (use_result) {
+                    if constexpr (use_result && use_context) {
                         return std::tuple_cat(
                             std::tuple(&ctx_, &result), arg_ptrs);
                     }
-                    else {
+                    else if constexpr (use_context) {
                         return std::tuple_cat(std::tuple(&ctx_), arg_ptrs);
+                    }
+                    else if constexpr (use_result) {
+                        return std::tuple_cat(std::tuple(&result), arg_ptrs);
+                    }
+                    else {
+                        return arg_ptrs;
                     }
                 }();
 

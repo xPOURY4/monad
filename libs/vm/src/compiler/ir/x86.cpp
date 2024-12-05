@@ -24,7 +24,7 @@ namespace
 {
     struct BlockAnalysis
     {
-        int64_t instr_gas;
+        int32_t instr_gas;
         bool dynamic_gas;
     };
 
@@ -46,7 +46,7 @@ namespace
     template <evmc_revision rev>
     void emit_instr(
         Emitter &emit, LocalStacksIR const &ir, Instruction const &instr,
-        uint32_t remaining_base_gas)
+        int32_t remaining_base_gas)
     {
         using enum OpCode;
         (void)ir;
@@ -63,7 +63,7 @@ namespace
             emit.sub();
             break;
         case Div:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::udiv<rev>);
             break;
         case SDiv:
             std::terminate();
@@ -286,16 +286,14 @@ namespace
     template <evmc_revision rev>
     void emit_instrs(
         Emitter &emit, LocalStacksIR const &ir, Block const &block,
-        int64_t instr_gas)
+        int32_t instr_gas)
     {
-        MONAD_COMPILER_ASSERT(
-            instr_gas <= std::numeric_limits<uint32_t>::max());
-        uint32_t remaining_base_gas = static_cast<uint32_t>(instr_gas);
+        MONAD_COMPILER_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
+        int32_t remaining_base_gas = instr_gas;
         for (auto const &instr : block.instrs) {
             MONAD_COMPILER_DEBUG_ASSERT(
                 remaining_base_gas >= instr.static_gas_cost());
-            remaining_base_gas -=
-                static_cast<uint32_t>(instr.static_gas_cost());
+            remaining_base_gas -= instr.static_gas_cost();
             emit_instr<rev>(emit, ir, instr, remaining_base_gas);
         }
     }
@@ -341,13 +339,12 @@ namespace
         // Arbitrary gas threshold for when to emit gas check.
         // Needs to be big enough to make the gas check insignificant,
         // and small enough to avoid exploitation of the optimization.
-        static int64_t const STATIC_GAS_CHECK_THRESHOLD = 1000;
+        static int32_t const STATIC_GAS_CHECK_THRESHOLD = 1000;
 
-        int64_t const gas = ir.jumpdests.contains(block.offset)
+        int32_t const gas = ir.jumpdests.contains(block.offset)
                                 ? analysis.instr_gas + 1
                                 : analysis.instr_gas;
-        if (!analysis.dynamic_gas ||
-            analysis.instr_gas >= STATIC_GAS_CHECK_THRESHOLD) {
+        if (!analysis.dynamic_gas || gas >= STATIC_GAS_CHECK_THRESHOLD) {
             emit.gas_decrement_no_check(gas);
         }
         else {

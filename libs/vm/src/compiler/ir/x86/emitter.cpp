@@ -187,6 +187,155 @@ namespace monad::compiler::native
         }
     }
 
+    Emitter::RuntimeImpl &Emitter::RuntimeImpl::pass(StackElemRef &&elem)
+    {
+        if (!elem->stack_offset() && !elem->literal()) {
+            em_->mov_stack_elem_to_stack_offset(elem);
+        }
+        explicit_args_.push_back(std::move(elem));
+        return *this;
+    }
+
+    void Emitter::RuntimeImpl::call_impl()
+    {
+        MONAD_COMPILER_ASSERT(
+            explicit_args_.size() + implicit_arg_count() == arg_count_);
+        MONAD_COMPILER_DEBUG_ASSERT(arg_count_ <= 11);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !context_arg_.has_value() || context_arg_ != result_arg_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !context_arg_.has_value() || context_arg_ != remaining_gas_arg_);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !result_arg_.has_value() || result_arg_ != remaining_gas_arg_);
+
+        for (size_t a = 0, i = 0; i < arg_count_; ++i) {
+            auto u = std::optional{i};
+            if (u == context_arg_ || u == result_arg_ ||
+                u == remaining_gas_arg_) {
+                continue;
+            }
+            StackElemRef const elem = explicit_args_[a++];
+            if (elem->stack_offset()) {
+                mov_arg(i, stack_offset_to_mem(elem->stack_offset().value()));
+            }
+            else {
+                MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
+                auto lbl = em_->append_literal(elem->literal().value());
+                mov_arg(i, x86::qword_ptr(lbl));
+            }
+        }
+
+        // Clear stack elements to deallocate registers and stack offsets:
+        explicit_args_.clear();
+
+        if (context_arg_.has_value()) {
+            mov_arg(context_arg_.value(), reg_context);
+        }
+        if (remaining_gas_arg_.has_value()) {
+            mov_arg(remaining_gas_arg_.value(), remaining_base_gas_);
+        }
+        StackElemRef result = nullptr;
+        if (result_arg_.has_value()) {
+            result =
+                em_->stack_->alloc_stack_offset(em_->stack_->top_index() + 1);
+            mov_arg(
+                result_arg_.value(),
+                stack_offset_to_mem(result->stack_offset().value()));
+        }
+
+        em_->as_.vzeroupper();
+        auto lbl = em_->append_external_function(runtime_fun_);
+        em_->as_.call(x86::qword_ptr(lbl));
+
+        if (result) {
+            em_->stack_->push(std::move(result));
+        }
+    }
+
+    size_t Emitter::RuntimeImpl::implicit_arg_count()
+    {
+        return context_arg_.has_value() + result_arg_.has_value() +
+               remaining_gas_arg_.has_value();
+    }
+
+    size_t Emitter::RuntimeImpl::explicit_arg_count()
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(arg_count_ >= implicit_arg_count());
+        return arg_count_ - implicit_arg_count();
+    }
+
+    void Emitter::RuntimeImpl::mov_arg(size_t arg_index, RuntimeArg &&arg)
+    {
+        switch (arg_index) {
+        case 0:
+            mov_reg_arg(x86::rdi, std::move(arg));
+            break;
+        case 1:
+            mov_reg_arg(x86::rsi, std::move(arg));
+            break;
+        case 2:
+            mov_reg_arg(x86::rdx, std::move(arg));
+            break;
+        case 3:
+            mov_reg_arg(x86::rcx, std::move(arg));
+            break;
+        case 4:
+            mov_reg_arg(x86::r8, std::move(arg));
+            break;
+        case 5:
+            mov_reg_arg(x86::r9, std::move(arg));
+            break;
+        case 6:
+            mov_stack_arg(sp_offset_arg1, std::move(arg));
+            break;
+        case 7:
+            mov_stack_arg(sp_offset_arg2, std::move(arg));
+            break;
+        case 8:
+            mov_stack_arg(sp_offset_arg3, std::move(arg));
+            break;
+        case 9:
+            mov_stack_arg(sp_offset_arg4, std::move(arg));
+            break;
+        case 10:
+            mov_stack_arg(sp_offset_arg5, std::move(arg));
+            break;
+        default:
+            MONAD_COMPILER_ASSERT(false);
+        }
+    }
+
+    void Emitter::RuntimeImpl::mov_reg_arg(
+        asmjit::x86::Gpq const &reg, RuntimeArg &&arg)
+    {
+        std::visit(
+            Cases{
+                [&](x86::Gpq const &x) { em_->as_.mov(reg, x); },
+                [&](asmjit::Imm const &x) { em_->as_.mov(reg, x); },
+                [&](x86::Mem const &x) { em_->as_.lea(reg, x); },
+            },
+            arg);
+    }
+
+    void
+    Emitter::RuntimeImpl::mov_stack_arg(int32_t sp_offset, RuntimeArg &&arg)
+    {
+        std::visit(
+            Cases{
+                [&](x86::Gpq const &x) {
+                    em_->as_.mov(x86::qword_ptr(x86::rsp, sp_offset), x);
+                },
+                [&](asmjit::Imm const &x) {
+                    em_->as_.mov(x86::qword_ptr(x86::rsp, sp_offset), x);
+                },
+                [&](x86::Mem const &x) {
+                    em_->as_.lea(x86::rax, x);
+                    em_->as_.mov(x86::qword_ptr(x86::rsp, sp_offset), x86::rax);
+                },
+            },
+            arg);
+    }
+
     ////////// Initialization and de-initialization //////////
 
     Emitter::Emitter(
@@ -275,6 +424,13 @@ namespace monad::compiler::native
             as_.embed(&lit.value[0], 32);
         }
 
+        for (auto [lbl, f] : external_functions_) {
+            as_.bind(lbl);
+            static_assert(sizeof(void *) == sizeof(uint64_t));
+            as_.embedUInt64(reinterpret_cast<uint64_t>(f));
+        }
+
+        // We are 8 byte aligned.
         as_.bind(jump_table_label_);
         for (size_t bid = 0; bid < bytecode_size_; ++bid) {
             auto lbl = jump_dests_.find(bid);
@@ -340,6 +496,7 @@ namespace monad::compiler::native
     {
         as_.align(asmjit::AlignMode::kCode, 16);
         as_.bind(epilogue_label_);
+        as_.vzeroupper();
         as_.add(x86::rsp, stack_frame_size);
         as_.pop(x86::r15);
         as_.pop(x86::r14);
@@ -373,15 +530,44 @@ namespace monad::compiler::native
         return block_prologue(b);
     }
 
-    void Emitter::gas_decrement_no_check(int64_t gas)
+    void Emitter::gas_decrement_no_check(int32_t gas)
     {
         as_.sub(x86::qword_ptr(reg_context, context_offset_gas_remaining), gas);
     }
 
-    void Emitter::gas_decrement_check_non_negative(int64_t gas)
+    void Emitter::gas_decrement_check_non_negative(int32_t gas)
     {
         gas_decrement_no_check(gas);
         as_.jb(out_of_gas_label_);
+    }
+
+    void Emitter::spill_all_caller_save_regs()
+    {
+        // Spill general regs first, because if stack element is in both
+        // general register and avx register then stack element will be
+        // moved to stack using avx register.
+        spill_all_caller_save_general_regs();
+        spill_all_avx_regs();
+    }
+
+    void Emitter::spill_all_caller_save_general_regs()
+    {
+        for (auto const &[reg, off] :
+             stack_->spill_all_caller_save_general_regs()) {
+            Gpq256 const &gpq = general_reg_to_gpq256(reg);
+            x86::Mem m = stack_offset_to_mem(off);
+            for (size_t i = 0; i < 4; ++i) {
+                as_.mov(m, gpq[i]);
+                m.addOffset(8);
+            }
+        }
+    }
+
+    void Emitter::spill_all_avx_regs()
+    {
+        for (auto const &[reg, off] : stack_->spill_all_avx_regs()) {
+            as_.vmovaps(stack_offset_to_mem(off), avx_reg_to_ymm(reg));
+        }
     }
 
     std::pair<StackElemRef, AvxRegReserv> Emitter::alloc_avx_reg()
@@ -731,6 +917,12 @@ namespace monad::compiler::native
     {
         literals_.emplace_back(as_.newLabel(), lit);
         return literals_.back().first;
+    }
+
+    asmjit::Label const &Emitter::append_external_function(void *f)
+    {
+        external_functions_.emplace_back(as_.newLabel(), f);
+        return external_functions_.back().first;
     }
 
     Emitter::Gpq256 &Emitter::general_reg_to_gpq256(GeneralReg reg)
@@ -1473,6 +1665,18 @@ namespace monad::compiler::native
     }
 
     // Discharge
+    void Emitter::call_runtime_impl(RuntimeImpl &rt)
+    {
+        discharge_deferred_comparison();
+        spill_all_caller_save_regs();
+        size_t const n = rt.explicit_arg_count();
+        for (size_t i = 0; i < n; ++i) {
+            rt.pass(stack_->pop());
+        }
+        rt.call_impl();
+    }
+
+    // Discharge
     void Emitter::jump()
     {
         discharge_deferred_comparison();
@@ -1629,7 +1833,7 @@ namespace monad::compiler::native
     void Emitter::status_code(runtime::StatusCode status)
     {
         as_.mov(reg_scratch, x86::ptr(x86::rsp, sp_offset_result_ptr));
-        uint64_t const c = static_cast<uint64_t>(status);
+        int32_t const c = static_cast<int32_t>(status);
         as_.mov(x86::qword_ptr(reg_scratch, result_offset_status), c);
     }
 

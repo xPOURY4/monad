@@ -4,8 +4,10 @@
 #include "compiler/ir/local_stacks.h"
 #include "compiler/ir/x86/virtual_stack.h"
 #include "compiler/types.h"
+#include "evmc/evmc.h"
 #include "evmc/evmc.hpp"
 #include "intx/intx.hpp"
+#include "runtime/math.h"
 #include "runtime/types.h"
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/emitter.h>
@@ -13,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
@@ -22,6 +25,7 @@
 namespace runtime = monad::runtime;
 using namespace monad::compiler;
 using namespace monad::compiler::native;
+using namespace intx;
 
 namespace
 {
@@ -39,7 +43,7 @@ namespace
         return ret;
     }
 
-    runtime::Context test_context(int64_t gas_remaining = 10)
+    runtime::Context test_context(int64_t gas_remaining = 1'000'000)
     {
         return runtime::Context{
             .host = nullptr,
@@ -152,7 +156,8 @@ namespace
         }
     }
 
-    using PureEmitterInstr = void (Emitter::*)();
+    using PureEmitterInstr = std::function<void(Emitter &)>;
+    using PureEmitterInstrPtr = void (Emitter::*)();
 
     void pure_bin_instr_test_instance(
         PureEmitterInstr instr, uint256_t const &left,
@@ -161,10 +166,17 @@ namespace
         local_stacks::LocalStacksIR const &ir, bool dup)
     {
 #if 0
-        if (left_loc != Emitter::LocationType::GeneralReg || right_loc != Emitter::LocationType::GeneralReg || !dup) {
+        if (left_loc != Emitter::LocationType::Literal || right_loc != Emitter::LocationType::Literal || dup) {
             return;
         }
 #endif
+#if 0
+        std::cout <<
+            std::format("LEFT {} : {}  and  RIGHT {} : {}",
+                    left, Emitter::location_type_to_string(left_loc),
+                    right, Emitter::location_type_to_string(right_loc)) << std::endl;
+#endif
+
         asmjit::JitRuntime rt;
 
         Emitter emit{rt, ir.codesize};
@@ -183,12 +195,12 @@ namespace
         mov_literal_to_location_type(emit, 1 + 2 * dup, left_loc);
         mov_literal_to_location_type(emit, 2 * dup, right_loc);
 
-        (emit.*instr)();
+        instr(emit);
 
         if (dup) {
             emit.swap(2);
             emit.swap(1);
-            (emit.*instr)();
+            instr(emit);
         }
         else {
             emit.push(0);
@@ -201,13 +213,6 @@ namespace
 
         auto stack_memory = test_stack_memory();
         entry(&ret, &ctx, stack_memory.get());
-
-#if 0
-        std::cout <<
-            std::format("LEFT {} : {}  and  RIGHT {} : {}",
-                    left, Emitter::location_type_to_string(left_loc),
-                    right, Emitter::location_type_to_string(right_loc)) << std::endl;
-#endif
 
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         if (dup) {
@@ -229,6 +234,13 @@ namespace
             return;
         }
 #endif
+#if 0
+        std::cout <<
+            std::format("INPUT {} : {} with dup = {}",
+                    input, Emitter::location_type_to_string(loc), dup)
+            << std::endl;
+#endif
+
         asmjit::JitRuntime rt;
 
         Emitter emit{rt, ir.codesize};
@@ -240,11 +252,11 @@ namespace
 
         mov_literal_to_location_type(emit, dup, loc);
 
-        (emit.*instr)();
+        instr(emit);
 
         if (dup) {
             emit.swap(1);
-            (emit.*instr)();
+            instr(emit);
         }
         else {
             emit.push(0);
@@ -257,13 +269,6 @@ namespace
 
         auto stack_memory = test_stack_memory();
         entry(&ret, &ctx, stack_memory.get());
-
-#if 0
-        std::cout <<
-            std::format("INPUT {} : {} with dup = {}",
-                    input, Emitter::location_type_to_string(loc), dup)
-            << std::endl;
-#endif
 
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         if (dup) {
@@ -324,6 +329,14 @@ namespace
         }
     }
 
+    void pure_bin_instr_test(
+        EvmOpCode opcode, PureEmitterInstrPtr instr, uint256_t const &left,
+        uint256_t const &right, uint256_t const &result)
+    {
+        pure_bin_instr_test(
+            opcode, [&](Emitter &e) { (e.*instr)(); }, left, right, result);
+    }
+
     void pure_una_instr_test(
         EvmOpCode opcode, PureEmitterInstr instr, uint256_t const &input,
         uint256_t const &result)
@@ -348,6 +361,14 @@ namespace
         for (auto loc : locs) {
             pure_una_instr_test_instance(instr, input, loc, result, ir1, true);
         }
+    }
+
+    void pure_una_instr_test(
+        EvmOpCode opcode, PureEmitterInstrPtr instr, uint256_t const &input,
+        uint256_t const &result)
+    {
+        pure_una_instr_test(
+            opcode, [&](Emitter &e) { (e.*instr)(); }, input, result);
     }
 
     void jump_test(
@@ -684,6 +705,28 @@ namespace
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 869);
         ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
+    }
+
+    void runtime_test_10_arg_fun(
+        runtime::Context *ctx, uint256_t *result, uint256_t const *a,
+        uint256_t const *b, uint256_t const *c, uint256_t const *d,
+        uint256_t const *e, uint256_t const *f, uint256_t const *g,
+        uint64_t remaining_base_gas)
+    {
+        *result = uint256_t{ctx->gas_remaining} -
+                  (uint256_t{remaining_base_gas} -
+                   (*a - (*b - (*c - (*d - (*e - (*f - *g)))))));
+    }
+
+    void runtime_test_11_arg_fun(
+        runtime::Context *ctx, uint256_t *result, uint256_t const *a,
+        uint256_t const *b, uint256_t const *c, uint256_t const *d,
+        uint256_t const *e, uint256_t const *f, uint256_t const *g,
+        uint256_t const *h, uint64_t remaining_base_gas)
+    {
+        *result = uint256_t{ctx->gas_remaining} -
+                  (uint256_t{remaining_base_gas} -
+                   (*a - (*b - (*c - (*d - (*e - (*f - (*g - *h))))))));
     }
 }
 
@@ -1442,6 +1485,101 @@ TEST(Emitter, sar)
         257,
         {0, 0, 0, ~(static_cast<uint64_t>(1) << 63)},
         0);
+}
+
+TEST(Emitter, call_runtime_pure)
+{
+    pure_bin_instr_test(
+        DIV,
+        [](Emitter &emit) {
+            emit.call_runtime(0, runtime::udiv<EVMC_FRONTIER>);
+        },
+        1000,
+        4,
+        250);
+}
+
+TEST(Emitter, call_runtime_impl)
+{
+    pure_bin_instr_test(
+        EXP,
+        [](Emitter &emit) {
+            emit.call_runtime(0, runtime::exp<EVMC_FRONTIER>);
+        },
+        10,
+        20,
+        100000000000000000000_u256);
+}
+
+TEST(Emitter, call_runtime_10_arg_fun)
+{
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        {PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         CALL,
+         RETURN}));
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
+    for (int32_t i = 0; i < 8; ++i) {
+        emit.push(i);
+        mov_literal_to_location_type(emit, i, Emitter::LocationType::AvxReg);
+    }
+    emit.call_runtime(8, runtime_test_10_arg_fun);
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ret = test_result();
+    auto ctx = test_context(10);
+
+    auto stack_memory = test_stack_memory();
+    entry(&ret, &ctx, stack_memory.get());
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 6);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0);
+}
+
+TEST(Emitter, call_runtime_11_arg_fun)
+{
+    auto ir = local_stacks::LocalStacksIR(basic_blocks::BasicBlocksIR(
+        {PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         PUSH0,
+         CALL,
+         RETURN}));
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks[0]);
+    for (int32_t i = 0; i < 9; ++i) {
+        emit.push(i);
+        mov_literal_to_location_type(emit, i, Emitter::LocationType::AvxReg);
+    }
+    emit.call_runtime(9, runtime_test_11_arg_fun);
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ret = test_result();
+    auto ctx = test_context(10);
+
+    auto stack_memory = test_stack_memory();
+    entry(&ret, &ctx, stack_memory.get());
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 5);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0);
 }
 
 TEST(Emitter, address)
