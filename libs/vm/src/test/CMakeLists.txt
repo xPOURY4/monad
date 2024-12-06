@@ -19,6 +19,7 @@ add_executable(unit-tests
     runtime/math_tests.cpp
     runtime/memory_tests.cpp
     runtime/keccak_tests.cpp
+    runtime/environment_tests.cpp
 )
 
 monad_compile_options(unit-tests)
