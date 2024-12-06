@@ -1,6 +1,5 @@
 #pragma once
 
-#include <runtime/exit.h>
 #include <runtime/storage_costs.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>

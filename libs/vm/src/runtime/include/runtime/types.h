@@ -21,7 +21,7 @@ namespace monad::runtime
         InvalidJump,
     };
 
-    struct Result
+    struct alignas(uint64_t) Result
     {
         uint8_t offset[32];
         uint8_t size[32];
@@ -67,6 +67,8 @@ namespace monad::runtime
 
         Environment env;
 
+        Result result;
+
         std::vector<std::uint8_t> memory = {};
         std::uint64_t memory_cost = 0;
 
@@ -92,7 +94,7 @@ namespace monad::runtime
 
         evmc_tx_context get_tx_context() const;
 
-        void exit [[noreturn]] (StatusCode code) const noexcept;
+        void exit [[noreturn]] (StatusCode code) noexcept;
 
     private:
         void set_memory_word(std::uint32_t offset, utils::uint256_t word);
@@ -100,11 +102,12 @@ namespace monad::runtime
     };
 
     static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 232);
+    static_assert(sizeof(Context) == 304);
     static_assert(offsetof(Context, host) == 0);
     static_assert(offsetof(Context, context) == 8);
     static_assert(offsetof(Context, gas_remaining) == 16);
     static_assert(offsetof(Context, gas_refund) == 24);
     static_assert(offsetof(Context, env) == 32);
-    static_assert(offsetof(Context, exit_stack_ptr) == 224);
+    static_assert(offsetof(Context, result) == 192);
+    static_assert(offsetof(Context, exit_stack_ptr) == 296);
 }

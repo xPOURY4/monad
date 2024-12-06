@@ -35,32 +35,35 @@ namespace x86 = asmjit::x86;
 
 static_assert(ASMJIT_ARCH_X86 == 64);
 
-constexpr auto reg_scratch = x86::rax;
 constexpr auto reg_context = x86::rbx;
 constexpr auto reg_stack = x86::rbp;
 
 constexpr auto context_offset_gas_remaining =
     offsetof(runtime::Context, gas_remaining);
-constexpr auto context_offset_recipient =
+constexpr auto context_offset_exit_stack_ptr =
+    offsetof(runtime::Context, exit_stack_ptr);
+constexpr auto context_offset_env_recipient =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, recipient);
-constexpr auto context_offset_sender =
+constexpr auto context_offset_env_sender =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, sender);
-constexpr auto context_offset_value =
+constexpr auto context_offset_env_value =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
-
-constexpr auto result_offset_offset = offsetof(runtime::Result, offset);
-constexpr auto result_offset_size = offsetof(runtime::Result, size);
-constexpr auto result_offset_status = offsetof(runtime::Result, status);
+constexpr auto context_offset_result_offset =
+    offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
+constexpr auto context_offset_result_size =
+    offsetof(runtime::Context, result) + offsetof(runtime::Result, size);
+constexpr auto context_offset_result_status =
+    offsetof(runtime::Context, result) + offsetof(runtime::Result, status);
 
 constexpr auto sp_offset_arg1 = 0;
 constexpr auto sp_offset_arg2 = sp_offset_arg1 + 8;
 constexpr auto sp_offset_arg3 = sp_offset_arg2 + 8;
 constexpr auto sp_offset_arg4 = sp_offset_arg3 + 8;
 constexpr auto sp_offset_arg5 = sp_offset_arg4 + 8;
-constexpr auto sp_offset_stack_size = sp_offset_arg5 + 8;
-constexpr auto sp_offset_result_ptr = sp_offset_stack_size + 8;
+constexpr auto sp_offset_arg6 = sp_offset_arg5 + 8;
+constexpr auto sp_offset_stack_size = sp_offset_arg6 + 8;
 
-constexpr auto stack_frame_size = sp_offset_result_ptr + 8;
+constexpr auto stack_frame_size = sp_offset_stack_size + 8;
 
 namespace
 {
@@ -200,7 +203,7 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_ASSERT(
             explicit_args_.size() + implicit_arg_count() == arg_count_);
-        MONAD_COMPILER_DEBUG_ASSERT(arg_count_ <= 11);
+        MONAD_COMPILER_DEBUG_ASSERT(arg_count_ <= MAX_RUNTIME_ARGS);
         MONAD_COMPILER_DEBUG_ASSERT(
             !context_arg_.has_value() || context_arg_ != result_arg_);
         MONAD_COMPILER_DEBUG_ASSERT(
@@ -266,6 +269,7 @@ namespace monad::compiler::native
 
     void Emitter::RuntimeImpl::mov_arg(size_t arg_index, RuntimeArg &&arg)
     {
+        static_assert(MAX_RUNTIME_ARGS == 12);
         switch (arg_index) {
         case 0:
             mov_reg_arg(x86::rdi, std::move(arg));
@@ -299,6 +303,9 @@ namespace monad::compiler::native
             break;
         case 10:
             mov_stack_arg(sp_offset_arg5, std::move(arg));
+            break;
+        case 11:
+            mov_stack_arg(sp_offset_arg6, std::move(arg));
             break;
         default:
             MONAD_COMPILER_ASSERT(false);
@@ -472,9 +479,8 @@ namespace monad::compiler::native
     void Emitter::contract_prologue()
     {
         // Arguments
-        // rdi: result pointer
-        // rsi: context pointer
-        // rdx: stack pointer
+        // rdi: context pointer
+        // rsi: stack pointer
 
         as_.push(x86::rbp); // 16 byte aligned
         as_.push(x86::rbx); // unaligned
@@ -483,12 +489,13 @@ namespace monad::compiler::native
         as_.push(x86::r14); // 16 byte aligned
         as_.push(x86::r15); // unaligned
 
+        as_.mov(reg_context, x86::rdi);
+        as_.mov(reg_stack, x86::rsi);
+        as_.mov(x86::ptr(reg_context, context_offset_exit_stack_ptr), x86::rsp);
+
         static_assert(stack_frame_size % 16 == 8);
         as_.sub(x86::rsp, stack_frame_size); // 16 byte aligned
 
-        as_.mov(x86::ptr(x86::rsp, sp_offset_result_ptr), x86::rdi);
-        as_.mov(reg_context, x86::rsi);
-        as_.mov(reg_stack, x86::rdx);
         as_.mov(x86::qword_ptr(x86::rsp, sp_offset_stack_size), 0);
     }
 
@@ -1643,19 +1650,19 @@ namespace monad::compiler::native
     // No discharge
     void Emitter::address()
     {
-        read_context_address(context_offset_recipient);
+        read_context_address(context_offset_env_recipient);
     }
 
     // No discharge
     void Emitter::caller()
     {
-        read_context_address(context_offset_sender);
+        read_context_address(context_offset_env_sender);
     }
 
     // No discharge
     void Emitter::callvalue()
     {
-        read_context_word(context_offset_value);
+        read_context_word(context_offset_env_value);
     }
 
     // No discharge
@@ -1832,9 +1839,8 @@ namespace monad::compiler::native
 
     void Emitter::status_code(runtime::StatusCode status)
     {
-        as_.mov(reg_scratch, x86::ptr(x86::rsp, sp_offset_result_ptr));
         int32_t const c = static_cast<int32_t>(status);
-        as_.mov(x86::qword_ptr(reg_scratch, result_offset_status), c);
+        as_.mov(x86::qword_ptr(reg_context, context_offset_result_status), c);
     }
 
     void Emitter::error_block(asmjit::Label &lbl, runtime::StatusCode status)
@@ -1854,9 +1860,9 @@ namespace monad::compiler::native
         RegReserv const size_avx_reserv{size};
         status_code(status);
         mov_stack_elem_to_unaligned_mem(
-            offset, qword_ptr(reg_scratch, result_offset_offset));
+            offset, qword_ptr(reg_context, context_offset_result_offset));
         mov_stack_elem_to_unaligned_mem(
-            size, qword_ptr(reg_scratch, result_offset_size));
+            size, qword_ptr(reg_context, context_offset_result_size));
         as_.jmp(epilogue_label_);
     }
 

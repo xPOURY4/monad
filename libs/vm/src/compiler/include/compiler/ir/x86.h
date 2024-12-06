@@ -12,8 +12,7 @@
 
 namespace monad::compiler::native
 {
-    using entrypoint_t =
-        void (*)(runtime::Result *, runtime::Context *, uint8_t *);
+    using entrypoint_t = void (*)(runtime::Context *, uint8_t *);
 
     /**
      * Compile the given contract and add it to JitRuntime. On success

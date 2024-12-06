@@ -55,6 +55,8 @@ namespace monad::compiler::native
             asmjit::x86::EmitterExplicitT<asmjit::x86::Assembler>::*)(
             asmjit::x86::Vec const &, asmjit::x86::Vec const &, R const &);
 
+        static constexpr auto MAX_RUNTIME_ARGS = 12;
+
         class RuntimeImpl
         {
         public:

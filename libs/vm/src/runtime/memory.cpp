@@ -1,4 +1,3 @@
-#include <runtime/exit.h>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>

@@ -70,10 +70,10 @@ namespace monad::compiler
     }
 
     std::variant<std::span<std::uint8_t const>, evmc_status_code>
-    copy_result_data(runtime::Context &ctx, runtime::Result const &res)
+    copy_result_data(runtime::Context &ctx)
     {
-        auto offset_word = intx::be::load<utils::uint256_t>(res.offset);
-        auto size_word = intx::be::load<utils::uint256_t>(res.size);
+        auto offset_word = intx::be::load<utils::uint256_t>(ctx.result.offset);
+        auto size_word = intx::be::load<utils::uint256_t>(ctx.result.size);
 
         if (MONAD_COMPILER_UNLIKELY(
                 offset_word > std::numeric_limits<std::uint32_t>::max())) {
@@ -120,7 +120,6 @@ namespace monad::compiler
             return error_result(EVMC_INTERNAL_ERROR);
         }
 
-        auto ret = runtime::Result{};
         auto ctx = runtime::Context{
             .host = host,
             .context = context,
@@ -138,6 +137,7 @@ namespace monad::compiler
                     .code = {code, code_size},
                     .return_data = {},
                 },
+            .result = {},
             .memory = {},
             .memory_cost = 0,
         };
@@ -145,11 +145,11 @@ namespace monad::compiler
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
             std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
 
-        (*contract_main)(&ret, &ctx, stack_ptr);
+        (*contract_main)(&ctx, stack_ptr);
 
         std::free(stack_ptr);
 
-        switch (ret.status) {
+        switch (ctx.result.status) {
         case OutOfGas:
             return error_result(EVMC_OUT_OF_GAS);
         case StackOutOfBounds:
@@ -163,9 +163,9 @@ namespace monad::compiler
         }
 
         MONAD_COMPILER_DEBUG_ASSERT(
-            ret.status == Success || ret.status == Revert);
+            ctx.result.status == Success || ctx.result.status == Revert);
 
-        auto maybe_output = copy_result_data(ctx, ret);
+        auto maybe_output = copy_result_data(ctx);
         if (auto *ec = std::get_if<evmc_status_code>(&maybe_output)) {
             return error_result(*ec);
         }
@@ -177,9 +177,10 @@ namespace monad::compiler
         auto output = std::get<std::span<std::uint8_t const>>(maybe_output);
 
         return evmc_result{
-            .status_code = ret.status == Success ? EVMC_SUCCESS : EVMC_REVERT,
+            .status_code =
+                ctx.result.status == Success ? EVMC_SUCCESS : EVMC_REVERT,
             .gas_left = ctx.gas_remaining,
-            .gas_refund = ret.status == Success ? ctx.gas_refund : 0,
+            .gas_refund = ctx.result.status == Success ? ctx.gas_refund : 0,
             .output_data = output.data(),
             .output_size = output.size(),
             .release = release_result,
