@@ -46,8 +46,11 @@ namespace monad::runtime
             ctx->exit(StatusCode::StaticModeViolation);
         }
 
-        if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
-            ctx->exit(StatusCode::OutOfGas);
+        // EIP-2200
+        if constexpr (Rev >= EVMC_ISTANBUL) {
+            if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
+                ctx->exit(StatusCode::OutOfGas);
+            }
         }
 
         auto key = bytes_from_uint256(*key_ptr);
