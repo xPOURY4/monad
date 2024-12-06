@@ -338,7 +338,7 @@ namespace monad::compiler
             OpCodeInfo{"CODESIZE", 0, 0, true, false, 2, 0}, // 0x38,
             OpCodeInfo{"CODECOPY", 0, 3, false, true, 3, 0}, // 0x39,
             OpCodeInfo{"GASPRICE", 0, 0, true, false, 2, 0}, // 0x3A,
-            OpCodeInfo{"EXTCODESIZE", 0, 1, true, true, 100, 0}, // 0x3B,
+            OpCodeInfo{"EXTCODESIZE", 0, 1, true, true, 20, 0}, // 0x3B,
             OpCodeInfo{"EXTCODECOPY", 0, 4, false, true, 20, 0}, // 0x3C,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -560,6 +560,7 @@ namespace monad::compiler
         table[SLOAD].min_gas = 200;
         table[BALANCE].min_gas = 400;
         table[EXTCODECOPY].min_gas = 700;
+        table[EXTCODESIZE].min_gas = 700;
         table[CALL].min_gas = 700;
         table[CALLCODE].min_gas = 700;
         table[DELEGATECALL].min_gas = 700;
@@ -622,6 +623,7 @@ namespace monad::compiler
         table[BALANCE].min_gas = 100;
         table[EXTCODECOPY].min_gas = 100;
         table[EXTCODEHASH].min_gas = 100;
+        table[EXTCODESIZE].min_gas = 100;
         table[CALL].min_gas = 100;
         table[CALLCODE].min_gas = 100;
         table[DELEGATECALL].min_gas = 100;

@@ -212,4 +212,21 @@ namespace monad::runtime
         auto hash = ctx->host->get_code_hash(ctx->context, &address);
         *result_ptr = uint256_from_bytes32(hash);
     }
+
+    template <evmc_revision Rev>
+    void extcodesize(
+        Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *address_ptr)
+    {
+        auto address = address_from_uint256(*address_ptr);
+        auto access_status = ctx->host->access_account(ctx->context, &address);
+
+        if constexpr (Rev >= EVMC_BERLIN) {
+            if (access_status == EVMC_ACCESS_COLD) {
+                ctx->deduct_gas(2500);
+            }
+        }
+
+        *result_ptr = ctx->host->get_code_size(ctx->context, &address);
+    }
 }
