@@ -15,6 +15,7 @@ add_executable(unit-tests
     type_check_tests.cpp
     stack_tests.cpp
     emitter_tests.cpp
+    runtime/fixture.cpp
     runtime/math_tests.cpp
     runtime/memory_tests.cpp
     runtime/keccak_tests.cpp

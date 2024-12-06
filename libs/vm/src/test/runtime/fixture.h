@@ -63,26 +63,11 @@ namespace monad::compiler::test
     class RuntimeTest : public testing::Test
     {
     protected:
+        RuntimeTest();
+
         evmc::MockedHost host_;
 
-        runtime::Context ctx_ = {
-            .host = &host_.get_interface(),
-            .context = host_.to_context(),
-            .gas_remaining = std::numeric_limits<std::int64_t>::max(),
-            .gas_refund = 0,
-            .env =
-                {
-                    .evmc_flags = 0,
-                    .depth = 0,
-                    .recipient = evmc::address{},
-                    .sender = evmc::address{},
-                    .value = {},
-                    .create2_salt = {},
-                    .input_data = {},
-                    .code = {},
-                    .return_data = {},
-                },
-        };
+        runtime::Context ctx_;
 
         /**
          * This function performs some slightly gnarly metaprogramming to make
