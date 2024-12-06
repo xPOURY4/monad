@@ -51,6 +51,7 @@ namespace monad::runtime
             gas_remaining -= static_cast<std::int64_t>(expansion_cost);
 
             memory.resize(memory_size_word * 32);
+            memory_cost = new_memory_cost;
         }
     }
 

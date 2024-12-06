@@ -111,8 +111,8 @@ namespace monad::compiler::test
                            void> {
                 auto result = utils::uint256_t{};
 
-                auto uint_args =
-                    std::array{utils::uint256_t(std::forward<Args>(args))...};
+                auto uint_args = std::array<utils::uint256_t, sizeof...(Args)>{
+                    utils::uint256_t(std::forward<Args>(args))...};
 
                 auto arg_ptrs =
                     std::array<utils::uint256_t const *, uint_args.size()>{};
