@@ -11,12 +11,6 @@
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    void address(Context *ctx, utils::uint256_t *result_ptr)
-    {
-        *result_ptr = uint256_from_address(ctx->env.recipient);
-    }
-
-    template <evmc_revision Rev>
     void origin(Context *ctx, utils::uint256_t *result_ptr)
     {
         *result_ptr = uint256_from_address(ctx->get_tx_context().tx_origin);
