@@ -17,10 +17,6 @@ namespace monad::runtime
             ctx->exit(StatusCode::StaticModeViolation);
         }
 
-        if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
-            ctx->deduct_gas(5000);
-        }
-
         auto address = address_from_uint256(*address_ptr);
         auto access_status = ctx->host->access_account(ctx->context, &address);
 

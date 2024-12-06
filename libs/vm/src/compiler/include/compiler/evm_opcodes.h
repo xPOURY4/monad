@@ -546,7 +546,7 @@ namespace monad::compiler
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
-            OpCodeInfo{"SELFDESTRUCT", 0, 1, false, true, 5000, 0} // 0xFF,
+            OpCodeInfo{"SELFDESTRUCT", 0, 1, false, true, 0, 0} // 0xFF,
         };
     }
 
@@ -564,6 +564,7 @@ namespace monad::compiler
         table[CALL].min_gas = 700;
         table[CALLCODE].min_gas = 700;
         table[DELEGATECALL].min_gas = 700;
+        table[SELFDESTRUCT].min_gas = 5000;
 
         return table;
     }
