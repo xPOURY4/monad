@@ -1,6 +1,5 @@
 #pragma once
 
-#include <runtime/constants.h>
 #include <runtime/exit.h>
 #include <runtime/storage_costs.h>
 #include <runtime/transmute.h>
@@ -30,7 +29,7 @@ namespace monad::runtime
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                ctx->deduct_gas(COST_ACCESS_COLD - COST_ACCESS_WARM);
+                ctx->deduct_gas(2000);
             }
         }
 
@@ -62,9 +61,15 @@ namespace monad::runtime
 
         auto [gas_used, gas_refund] = store_cost<Rev>(storage_status);
 
+        // The code generator has taken care of accounting for the minimum base
+        // gas cost of this SSTORE already, but to keep the table of costs
+        // readable it encodes the total gas usage of each combination, rather
+        // than the amount relative to the minimum gas.
+        gas_used -= minimum_store_gas<Rev>();
+
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
-                gas_used += COST_ACCESS_COLD;
+                gas_used += 2100;
             }
         }
 

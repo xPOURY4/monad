@@ -366,7 +366,7 @@ namespace monad::compiler
             OpCodeInfo{"MSTORE", 0, 2, false, true, 3, 0}, // 0x52,
             OpCodeInfo{"MSTORE8", 0, 2, false, true, 3, 0}, // 0x53,
             OpCodeInfo{"SLOAD", 0, 1, true, true, 50, 0}, // 0x54,
-            OpCodeInfo{"SSTORE", 0, 2, false, true, 100, 0}, // 0x55,
+            OpCodeInfo{"SSTORE", 0, 2, false, true, 5000, 0}, // 0x55,
             OpCodeInfo{"JUMP", 0, 1, false, false, 8, 0}, // 0x56,
             OpCodeInfo{"JUMPI", 0, 2, false, false, 10, 0}, // 0x57,
             OpCodeInfo{"PC", 0, 0, true, false, 2, 0}, // 0x58,
@@ -592,6 +592,20 @@ namespace monad::compiler
         add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 400, 0});
         add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 3200, 0});
 
+        // EIP-1283
+        table[SSTORE].min_gas = 200;
+
+        return table;
+    }
+
+    template <>
+    consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_PETERSBURG>()
+    {
+        auto table = opcode_table<previous_evm_revision(EVMC_PETERSBURG)>();
+
+        // EIP-1283 reverted
+        table[SSTORE].min_gas = 5000;
+
         return table;
     }
 
@@ -605,6 +619,7 @@ namespace monad::compiler
 
         // EIP-2200
         table[SLOAD].min_gas = 800;
+        table[SSTORE].min_gas = 800;
 
         // EIP-1884
         table[BALANCE].min_gas = 700;
@@ -620,6 +635,7 @@ namespace monad::compiler
 
         // EIP-2929
         table[SLOAD].min_gas = 100;
+        table[SSTORE].min_gas = 100;
         table[BALANCE].min_gas = 100;
         table[EXTCODECOPY].min_gas = 100;
         table[EXTCODEHASH].min_gas = 100;
