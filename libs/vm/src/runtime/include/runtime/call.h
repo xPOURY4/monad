@@ -76,9 +76,7 @@ namespace monad::runtime
             ctx->exit(StatusCode::OutOfGas);
         }
 
-        auto i64_max = std::numeric_limits<std::int64_t>::max();
-        auto gas = (gas_word > i64_max) ? i64_max
-                                        : static_cast<std::int64_t>(gas_word);
+        auto gas = clamp_cast<std::int64_t>(gas_word);
 
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
             gas = std::min(gas, gas_left_here - (gas_left_here / 64));
