@@ -23,7 +23,8 @@ namespace monad::runtime::detail
     template <typename T>
     struct is_mut_pointer
     {
-        static constexpr auto value = !is_const_pointer_v<T>;
+        static constexpr auto value =
+            std::is_pointer_v<T> && !is_const_pointer_v<T>;
     };
 
     template <typename T>
@@ -95,7 +96,7 @@ namespace monad::runtime::detail
     };
 
     template <typename T>
-    struct is_remaining_gas : std::is_same<T, std::uint64_t>
+    struct is_remaining_gas : std::is_same<T, std::int64_t>
     {
     };
 

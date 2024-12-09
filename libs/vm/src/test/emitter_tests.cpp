@@ -711,7 +711,7 @@ namespace
         runtime::Context *ctx, uint256_t *result, uint256_t const *a,
         uint256_t const *b, uint256_t const *c, uint256_t const *d,
         uint256_t const *e, uint256_t const *f, uint256_t const *g,
-        uint64_t remaining_base_gas)
+        int64_t remaining_base_gas)
     {
         *result = uint256_t{ctx->gas_remaining} -
                   (uint256_t{remaining_base_gas} -
@@ -722,7 +722,7 @@ namespace
         runtime::Context *ctx, uint256_t *result, uint256_t const *a,
         uint256_t const *b, uint256_t const *c, uint256_t const *d,
         uint256_t const *e, uint256_t const *f, uint256_t const *g,
-        uint256_t const *h, uint64_t remaining_base_gas)
+        uint256_t const *h, int64_t remaining_base_gas)
     {
         *result = uint256_t{ctx->gas_remaining} -
                   (uint256_t{remaining_base_gas} -
