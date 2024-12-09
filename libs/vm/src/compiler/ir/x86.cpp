@@ -1,6 +1,5 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
-#include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/emitter.h>
 #include <utils/assert.h>
@@ -17,7 +16,7 @@
 #include <utility>
 
 using namespace monad::compiler;
-using namespace monad::compiler::local_stacks;
+using namespace monad::compiler::basic_blocks;
 using namespace monad::compiler::native;
 
 namespace
@@ -45,7 +44,7 @@ namespace
 
     template <evmc_revision rev>
     void emit_instr(
-        Emitter &emit, LocalStacksIR const &ir, Instruction const &instr,
+        Emitter &emit, BasicBlocksIR const &ir, Instruction const &instr,
         int32_t remaining_base_gas)
     {
         using enum OpCode;
@@ -285,7 +284,7 @@ namespace
 
     template <evmc_revision rev>
     void emit_instrs(
-        Emitter &emit, LocalStacksIR const &ir, Block const &block,
+        Emitter &emit, BasicBlocksIR const &ir, Block const &block,
         int32_t instr_gas)
     {
         MONAD_COMPILER_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
@@ -333,7 +332,7 @@ namespace
     }
 
     void emit_gas_check(
-        Emitter &emit, LocalStacksIR const &ir, Block const &block,
+        Emitter &emit, BasicBlocksIR const &ir, Block const &block,
         BlockAnalysis const &analysis)
     {
         // Arbitrary gas threshold for when to emit gas check.
@@ -341,7 +340,7 @@ namespace
         // and small enough to avoid exploitation of the optimization.
         static int32_t const STATIC_GAS_CHECK_THRESHOLD = 1000;
 
-        int32_t const gas = ir.jumpdests.contains(block.offset)
+        int32_t const gas = ir.jump_dests().contains(block.offset)
                                 ? analysis.instr_gas + 1
                                 : analysis.instr_gas;
         if (!analysis.dynamic_gas || gas >= STATIC_GAS_CHECK_THRESHOLD) {
@@ -354,13 +353,13 @@ namespace
 
     template <evmc_revision rev>
     entrypoint_t
-    compile_local_stacks(asmjit::JitRuntime &rt, LocalStacksIR const &ir)
+    compile_local_stacks(asmjit::JitRuntime &rt, BasicBlocksIR const &ir)
     {
         Emitter emit{rt, ir.codesize};
-        for (auto const &[d, _] : ir.jumpdests) {
+        for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
-        for (Block const &block : ir.blocks) {
+        for (Block const &block : ir.blocks()) {
             bool const can_enter_block = emit.begin_new_block(block);
             if (can_enter_block) {
                 auto analysis = analyze_block(block);
@@ -376,7 +375,7 @@ namespace
     entrypoint_t
     compile_contract(asmjit::JitRuntime &rt, std::span<uint8_t const> contract)
     {
-        auto ir = LocalStacksIR(basic_blocks::make_ir<Rev>(contract));
+        auto ir = BasicBlocksIR(basic_blocks::make_ir<Rev>(contract));
         return compile_local_stacks<Rev>(rt, ir);
     }
 }

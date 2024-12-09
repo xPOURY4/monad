@@ -38,7 +38,6 @@ namespace monad::compiler::test
                     .code = {},
                     .return_data = {},
                 },
-            .result = {},
         };
 
         host_.tx_context = evmc_tx_context{

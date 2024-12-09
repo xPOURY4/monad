@@ -1,6 +1,5 @@
 #include <compiler/ir/basic_blocks.h>
 #include <compiler/ir/instruction.h>
-#include <compiler/ir/local_stacks.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
 
@@ -232,7 +231,7 @@ namespace monad::compiler::native
         }
     }
 
-    Stack::Stack(local_stacks::Block const &block)
+    Stack::Stack(basic_blocks::Block const &block)
         : Stack()
     {
         for (auto const &instr : block.instrs) {

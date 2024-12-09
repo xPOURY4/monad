@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compiler/ir/local_stacks.h"
+#include "compiler/ir/basic_blocks.h"
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <runtime/detail.h>
@@ -8,9 +8,6 @@
 
 #include <asmjit/x86.h>
 #include <asmjit/x86/x86assembler.h>
-
-using namespace monad::compiler;
-using namespace monad::compiler::local_stacks;
 
 namespace monad::compiler::native
 {
@@ -170,7 +167,7 @@ namespace monad::compiler::native
         Stack &get_stack();
         void add_jump_dest(byte_offset);
         [[nodiscard]]
-        bool begin_new_block(Block const &);
+        bool begin_new_block(basic_blocks::Block const &);
         void gas_decrement_no_check(int32_t);
         void gas_decrement_check_non_negative(int32_t);
         void spill_all_caller_save_regs();
@@ -243,7 +240,7 @@ namespace monad::compiler::native
 
         ////////// Private core emit functionality //////////
 
-        bool block_prologue(Block const &);
+        bool block_prologue(basic_blocks::Block const &);
         int32_t block_epilogue();
         void write_to_final_stack_offsets();
 

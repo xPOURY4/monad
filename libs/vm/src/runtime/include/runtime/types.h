@@ -67,7 +67,7 @@ namespace monad::runtime
 
         Environment env;
 
-        Result result;
+        Result result = {};
 
         std::vector<std::uint8_t> memory = {};
         std::uint64_t memory_cost = 0;

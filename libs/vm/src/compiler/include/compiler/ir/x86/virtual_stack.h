@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/local_stacks.h>
+#include <compiler/ir/basic_blocks.h>
 
 #include <evmc/evmc.hpp>
 
@@ -339,7 +339,7 @@ namespace monad::compiler::native
          * is because the calling code must inspect each instruction to perform
          * code generation while also updating the stack.
          */
-        Stack(local_stacks::Block const &);
+        Stack(basic_blocks::Block const &);
 
         /**
          * Obtain a reference to an item on the stack. Negative indices

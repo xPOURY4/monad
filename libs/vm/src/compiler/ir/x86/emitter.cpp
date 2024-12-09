@@ -6,7 +6,7 @@
 #include "asmjit/core/jitruntime.h"
 #include "asmjit/core/operand.h"
 #include "asmjit/x86/x86operand.h"
-#include "compiler/ir/local_stacks.h"
+#include "compiler/ir/basic_blocks.h"
 #include "compiler/ir/x86.h"
 #include "compiler/ir/x86/virtual_stack.h"
 #include "compiler/types.h"
@@ -531,7 +531,7 @@ namespace monad::compiler::native
         jump_dests_.emplace(d, as_.newNamedLabel(name, size));
     }
 
-    bool Emitter::begin_new_block(Block const &b)
+    bool Emitter::begin_new_block(basic_blocks::Block const &b)
     {
         stack_ = std::make_unique<Stack>(b);
         return block_prologue(b);
@@ -621,7 +621,7 @@ namespace monad::compiler::native
         return reserv;
     }
 
-    bool Emitter::block_prologue(Block const &b)
+    bool Emitter::block_prologue(basic_blocks::Block const &b)
     {
         auto it = jump_dests_.find(b.offset);
         if (it != jump_dests_.end()) {
