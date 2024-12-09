@@ -21,7 +21,7 @@ namespace monad::runtime
     };
 
     template <evmc_revision Rev>
-    static constexpr std::int64_t minimum_store_gas()
+    static consteval std::int64_t minimum_store_gas()
     {
         constexpr auto costs = StorageCostTable<Rev>::costs;
         return std::min_element(
