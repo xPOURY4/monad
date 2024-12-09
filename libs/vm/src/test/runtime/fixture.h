@@ -25,6 +25,13 @@ namespace monad::compiler::test
 
         runtime::Context ctx_;
 
+        evmc_result
+        success_result(std::int64_t gas_left, std::int64_t gas_refund = 0);
+
+        evmc_result failure_result(evmc_status_code = EVMC_INTERNAL_ERROR);
+
+        std::array<std::uint8_t, 128> call_return_data_;
+
         /**
          * This function performs some slightly gnarly metaprogramming to make
          * it easier for us to write unit tests for the runtime library.

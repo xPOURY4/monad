@@ -87,9 +87,10 @@ namespace monad::runtime
             }
         }
 
+        auto call_gas = gas;
         if (has_value) {
-            gas += 2300;
-            ctx->deduct_gas(2300);
+            call_gas += 2300;
+            ctx->gas_remaining += 2300;
         }
 
         if (ctx->env.depth >= 1024) {
@@ -101,7 +102,7 @@ namespace monad::runtime
             .flags = static_call ? static_cast<std::uint32_t>(EVMC_STATIC)
                                  : ctx->env.evmc_flags,
             .depth = ctx->env.depth + 1,
-            .gas = gas,
+            .gas = call_gas,
             .recipient = recipient,
             .sender = sender,
             .input_data =
@@ -230,6 +231,7 @@ namespace monad::runtime
         utils::uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_BYZANTIUM);
         *result_ptr = call_impl<Rev>(
             ctx,
             *gas_ptr,

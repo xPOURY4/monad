@@ -2,12 +2,14 @@
 
 #include <runtime/transmute.h>
 
+#include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
 #include <intx/intx.hpp>
 
 #include <cstdint>
 #include <limits>
+#include <numeric>
 
 using namespace monad::runtime;
 
@@ -59,5 +61,36 @@ namespace monad::compiler::test
 
         host_.block_hash = bytes_from_uint256(
             0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
+
+        std::iota(call_return_data_.begin(), call_return_data_.end(), 0);
+    }
+
+    evmc_result
+    RuntimeTest::success_result(std::int64_t gas_left, std::int64_t gas_refund)
+    {
+        return {
+            .status_code = EVMC_SUCCESS,
+            .gas_left = gas_left,
+            .gas_refund = gas_refund,
+            .output_data = &call_return_data_[0],
+            .output_size = call_return_data_.size(),
+            .release = nullptr,
+            .create_address = {},
+            .padding = {},
+        };
+    }
+
+    evmc_result RuntimeTest::failure_result(evmc_status_code sc)
+    {
+        return {
+            .status_code = sc,
+            .gas_left = 0,
+            .gas_refund = 0,
+            .output_data = &call_return_data_[0],
+            .output_size = call_return_data_.size(),
+            .release = nullptr,
+            .create_address = {},
+            .padding = {},
+        };
     }
 }
