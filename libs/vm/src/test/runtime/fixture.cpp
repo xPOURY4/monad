@@ -92,4 +92,11 @@ namespace monad::compiler::test
             .padding = {},
         };
     }
+
+    void
+    RuntimeTest::set_balance(utils::uint256_t addr, utils::uint256_t balance)
+    {
+        host_.accounts[address_from_uint256(addr)].balance =
+            bytes_from_uint256(balance);
+    }
 }

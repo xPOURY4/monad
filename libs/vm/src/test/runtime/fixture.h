@@ -114,5 +114,7 @@ namespace monad::compiler::test
         {
             return wrap(f)(std::forward<Args>(args)...);
         }
+
+        void set_balance(utils::uint256_t addr, utils::uint256_t balance);
     };
 }
