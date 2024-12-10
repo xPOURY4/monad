@@ -55,7 +55,7 @@ namespace
             emit.add();
             break;
         case Mul:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mul<rev>);
             break;
         case Sub:
             emit.sub();

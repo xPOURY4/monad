@@ -34,7 +34,7 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void log0(
         Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t *const size_ptr)
+        utils::uint256_t const *size_ptr)
     {
         log_impl<Rev>(ctx, *offset_ptr, *size_ptr, {});
     }
@@ -42,7 +42,7 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void log1(
         Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t *const size_ptr, utils::uint256_t *const topic1_ptr)
+        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr)
     {
         log_impl<Rev>(
             ctx,
@@ -56,8 +56,8 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void log2(
         Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t *const size_ptr, utils::uint256_t *const topic1_ptr,
-        utils::uint256_t *const topic2_ptr)
+        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
+        utils::uint256_t const *topic2_ptr)
     {
         log_impl<Rev>(
             ctx,
@@ -72,8 +72,8 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void log3(
         Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t *const size_ptr, utils::uint256_t *const topic1_ptr,
-        utils::uint256_t *const topic2_ptr, utils::uint256_t *const topic3_ptr)
+        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
+        utils::uint256_t const *topic2_ptr, utils::uint256_t const *topic3_ptr)
     {
         log_impl<Rev>(
             ctx,
@@ -89,9 +89,9 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void log4(
         Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t *const size_ptr, utils::uint256_t *const topic1_ptr,
-        utils::uint256_t *const topic2_ptr, utils::uint256_t *const topic3_ptr,
-        utils::uint256_t *const topic4_ptr)
+        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
+        utils::uint256_t const *topic2_ptr, utils::uint256_t const *topic3_ptr,
+        utils::uint256_t const *topic4_ptr)
     {
         log_impl<Rev>(
             ctx,

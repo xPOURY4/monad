@@ -94,7 +94,6 @@ namespace
 
     Emitter::Imm256 literal_to_imm256(Literal lit)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(is_literal_bounded(lit));
         return {
             asmjit::Imm{static_cast<int32_t>(lit.value[0])},
             asmjit::Imm{static_cast<int32_t>(lit.value[1])},
@@ -2663,8 +2662,7 @@ namespace monad::compiler::native
         case LocationType::GeneralReg:
             return general_reg_to_gpq256(elem->general_reg().value());
         case LocationType::Literal:
-            if (!always_append_literal &&
-                is_literal_bounded(elem->literal().value())) {
+            if (!always_append_literal) {
                 return literal_to_imm256(elem->literal().value());
             }
             else {
@@ -2732,7 +2730,7 @@ namespace monad::compiler::native
                             temp.addOffset(8);
                         }
                     },
-                    [](auto const &) { std::unreachable(); },
+                    [](auto const &) { MONAD_COMPILER_ASSERT(false); },
                 },
                 src_op);
         }
