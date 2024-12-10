@@ -57,6 +57,12 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
+    void calldatasize(Context *ctx, utils::uint256_t *result_ptr)
+    {
+        *result_ptr = ctx->env.input_data.size();
+    }
+
+    template <evmc_revision Rev>
     void copy_impl(
         Context *ctx, utils::uint256_t dest_offset_word,
         utils::uint256_t offset_word, utils::uint256_t size_word,

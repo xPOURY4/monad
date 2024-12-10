@@ -91,3 +91,8 @@ TEST_F(RuntimeTest, CallDataLoadOutOfBounds)
         load(109),
         0x6D6E6F707172737475767778797A7B7C7D7E7F00000000000000000000000000_u256);
 }
+
+TEST_F(RuntimeTest, CallDataSize)
+{
+    ASSERT_EQ(call(calldatasize<EVMC_CANCUN>), 128);
+}
