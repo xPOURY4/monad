@@ -222,3 +222,73 @@ TEST_F(RuntimeTest, CodeCopyOutOfBounds)
         ASSERT_EQ(ctx_.memory[i], 0);
     }
 }
+
+TEST_F(RuntimeTest, ExtCodeCopyHomestead)
+{
+    constexpr auto rev = EVMC_HOMESTEAD;
+    auto copy = wrap(extcodecopy<rev>);
+
+    host_.accounts[address_from_uint256(addr)].code =
+        evmc::bytes(code_.begin(), code_.end());
+
+    ctx_.gas_remaining = 6;
+    copy(addr, 0, 0, 32);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 32);
+
+    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], 127 - i);
+    }
+}
+
+TEST_F(RuntimeTest, ExtCodeCopyCancunOutOfBounds)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto copy = wrap(extcodecopy<rev>);
+
+    host_.accounts[address_from_uint256(addr)].code =
+        evmc::bytes(code_.begin(), code_.end());
+
+    ctx_.gas_remaining = 2506;
+    copy(addr, 0, 112, 32);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 32);
+
+    for (auto i = 0u; i < 16; ++i) {
+        ASSERT_EQ(ctx_.memory[i], 15 - i);
+    }
+
+    for (auto i = 16u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], 0);
+    }
+}
+
+TEST_F(RuntimeTest, ExtCodeSize)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto size = wrap(extcodesize<rev>);
+
+    host_.accounts[address_from_uint256(addr)].code =
+        evmc::bytes(code_.begin(), code_.end());
+
+    ctx_.gas_remaining = 2500;
+
+    ASSERT_EQ(size(addr), 128);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+}
+
+TEST_F(RuntimeTest, ExtCodeHash)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto hash = wrap(extcodehash<rev>);
+
+    host_.accounts[address_from_uint256(addr)].codehash =
+        bytes_from_uint256(713682);
+
+    ctx_.gas_remaining = 2500;
+
+    ASSERT_EQ(hash(addr), 713682);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+}
