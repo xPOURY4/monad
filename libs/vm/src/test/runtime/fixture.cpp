@@ -34,7 +34,7 @@ namespace monad::compiler::test
                         0x0000000000000000000000000000000000000002_address,
                     .value = {},
                     .create2_salt = {},
-                    .input_data = {},
+                    .input_data = call_data_,
                     .code = {},
                     .return_data = {},
                 },
@@ -61,6 +61,7 @@ namespace monad::compiler::test
         host_.block_hash = bytes_from_uint256(
             0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
 
+        std::iota(call_data_.begin(), call_data_.end(), 0);
         std::iota(call_return_data_.begin(), call_return_data_.end(), 0);
     }
 

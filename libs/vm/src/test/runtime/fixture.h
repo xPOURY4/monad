@@ -30,6 +30,7 @@ namespace monad::compiler::test
 
         evmc_result failure_result(evmc_status_code = EVMC_INTERNAL_ERROR);
 
+        std::array<std::uint8_t, 128> call_data_;
         std::array<std::uint8_t, 128> call_return_data_;
 
         /**
