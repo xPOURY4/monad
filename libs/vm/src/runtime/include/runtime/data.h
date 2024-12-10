@@ -202,6 +202,12 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
+    void returndatasize(Context *ctx, utils::uint256_t *result_ptr)
+    {
+        *result_ptr = ctx->env.return_data.size();
+    }
+
+    template <evmc_revision Rev>
     void extcodehash(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *address_ptr)

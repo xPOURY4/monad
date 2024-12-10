@@ -292,3 +292,32 @@ TEST_F(RuntimeTest, ExtCodeHash)
     ASSERT_EQ(hash(addr), 713682);
     ASSERT_EQ(ctx_.gas_remaining, 0);
 }
+
+TEST_F(RuntimeTest, ReturnDataSize)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto size = wrap(returndatasize<rev>);
+
+    ctx_.env.return_data = call_return_data_;
+
+    ctx_.gas_remaining = 0;
+
+    ASSERT_EQ(size(), 128);
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+}
+
+TEST_F(RuntimeTest, ReturnDataCopyAll)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto copy = wrap(returndatacopy<rev>);
+
+    ctx_.env.return_data = call_return_data_;
+    ctx_.gas_remaining = 24;
+    copy(0, 0, 128);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 128);
+    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], i);
+    }
+}
