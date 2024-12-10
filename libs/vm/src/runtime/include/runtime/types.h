@@ -18,7 +18,7 @@ namespace monad::runtime
         StackOutOfBounds,
         StaticModeViolation,
         InvalidMemoryAccess,
-        InvalidJump,
+        InvalidInstruction,
     };
 
     struct alignas(uint64_t) Result
@@ -43,9 +43,13 @@ namespace monad::runtime
         evmc::bytes32 value;
         evmc::bytes32 create2_salt;
 
-        std::span<std::uint8_t const> input_data;
-        std::span<std::uint8_t const> code;
-        std::span<std::uint8_t const> return_data;
+        std::uint8_t const *input_data;
+        std::uint8_t const *code;
+        std::uint8_t const *return_data;
+
+        std::uint32_t input_data_size;
+        std::uint32_t code_size;
+        std::uint32_t return_data_size;
 
         void set_return_data(
             std::uint8_t const *output_data, std::uint32_t output_size);
@@ -53,7 +57,7 @@ namespace monad::runtime
     };
 
     static_assert(std::is_standard_layout_v<Environment>);
-    static_assert(sizeof(Environment) == 160);
+    static_assert(sizeof(Environment) == 152);
 
     struct Context
     {
@@ -70,6 +74,7 @@ namespace monad::runtime
         Result result = {};
 
         std::vector<std::uint8_t> memory = {};
+        std::uint32_t memory_size = 0;
         std::uint64_t memory_cost = 0;
 
         void *exit_stack_ptr = nullptr;
@@ -85,7 +90,9 @@ namespace monad::runtime
 
         void mstore8(utils::uint256_t offset_word, utils::uint256_t value);
 
-        utils::uint256_t msize() const;
+        void mcopy(
+            utils::uint256_t dst_in, utils::uint256_t src_in,
+            utils::uint256_t size_in);
 
         std::uint32_t get_memory_offset(utils::uint256_t offset);
 
@@ -108,6 +115,6 @@ namespace monad::runtime
     static_assert(offsetof(Context, gas_remaining) == 16);
     static_assert(offsetof(Context, gas_refund) == 24);
     static_assert(offsetof(Context, env) == 32);
-    static_assert(offsetof(Context, result) == 192);
+    static_assert(offsetof(Context, result) == 184);
     static_assert(offsetof(Context, exit_stack_ptr) == 296);
 }

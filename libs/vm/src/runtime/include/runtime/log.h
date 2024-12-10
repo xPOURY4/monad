@@ -48,9 +48,9 @@ namespace monad::runtime
             ctx,
             *offset_ptr,
             *size_ptr,
-            {
+            {{
                 bytes_from_uint256(*topic1_ptr),
-            });
+            }});
     }
 
     template <evmc_revision Rev>
@@ -63,10 +63,10 @@ namespace monad::runtime
             ctx,
             *offset_ptr,
             *size_ptr,
-            {
+            {{
                 bytes_from_uint256(*topic1_ptr),
                 bytes_from_uint256(*topic2_ptr),
-            });
+            }});
     }
 
     template <evmc_revision Rev>
@@ -79,11 +79,11 @@ namespace monad::runtime
             ctx,
             *offset_ptr,
             *size_ptr,
-            {
+            {{
                 bytes_from_uint256(*topic1_ptr),
                 bytes_from_uint256(*topic2_ptr),
                 bytes_from_uint256(*topic3_ptr),
-            });
+            }});
     }
 
     template <evmc_revision Rev>
@@ -97,11 +97,11 @@ namespace monad::runtime
             ctx,
             *offset_ptr,
             *size_ptr,
-            {
+            {{
                 bytes_from_uint256(*topic1_ptr),
                 bytes_from_uint256(*topic2_ptr),
                 bytes_from_uint256(*topic3_ptr),
                 bytes_from_uint256(*topic4_ptr),
-            });
+            }});
     }
 }

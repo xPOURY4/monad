@@ -13,7 +13,6 @@
 #include <limits>
 #include <optional>
 #include <span>
-#include <utility>
 
 using namespace monad::compiler;
 using namespace monad::compiler::basic_blocks;
@@ -65,25 +64,26 @@ namespace
             emit.call_runtime(remaining_base_gas, monad::runtime::udiv<rev>);
             break;
         case SDiv:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::sdiv<rev>);
             break;
         case Mod:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::umod<rev>);
             break;
         case SMod:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::smod<rev>);
             break;
         case AddMod:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::addmod<rev>);
             break;
         case MulMod:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mulmod<rev>);
             break;
         case Exp:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::exp<rev>);
             break;
         case SignExtend:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::signextend<rev>);
             break;
         case Lt:
             emit.lt();
@@ -128,16 +128,16 @@ namespace
             emit.sar();
             break;
         case Sha3:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::sha3<rev>);
             break;
         case Address:
             emit.address();
             break;
         case Balance:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::balance<rev>);
             break;
         case Origin:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::origin<rev>);
             break;
         case Caller:
             emit.caller();
@@ -146,64 +146,78 @@ namespace
             emit.callvalue();
             break;
         case CallDataLoad:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::calldataload<rev>);
             break;
         case CallDataSize:
-            std::terminate();
+            emit.calldatasize();
             break;
         case CallDataCopy:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::calldatacopy<rev>);
             break;
         case CodeSize:
-            std::terminate();
+            emit.codesize();
             break;
         case CodeCopy:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::codecopy<rev>);
             break;
         case GasPrice:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::gasprice<rev>);
             break;
         case ExtCodeSize:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::extcodesize<rev>);
             break;
         case ExtCodeCopy:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::extcodecopy<rev>);
             break;
         case ReturnDataSize:
-            std::terminate();
+            emit.returndatasize();
             break;
         case ReturnDataCopy:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::returndatacopy<rev>);
             break;
         case ExtCodeHash:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::extcodehash<rev>);
             break;
         case BlockHash:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::blockhash<rev>);
             break;
         case Coinbase:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::coinbase<rev>);
             break;
         case Timestamp:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::timestamp<rev>);
             break;
         case Number:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::number<rev>);
             break;
         case Difficulty:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::prevrandao<rev>);
             break;
         case GasLimit:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::gaslimit<rev>);
             break;
         case ChainId:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::chainid<rev>);
             break;
         case SelfBalance:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::selfbalance<rev>);
             break;
         case BaseFee:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::basefee<rev>);
             break;
         case BlobHash:
             std::terminate();
@@ -215,37 +229,37 @@ namespace
             emit.pop();
             break;
         case MLoad:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mload<rev>);
             break;
         case MStore:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mstore<rev>);
             break;
         case MStore8:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mstore8<rev>);
             break;
         case SLoad:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::sload<rev>);
             break;
         case SStore:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::sstore<rev>);
             break;
         case Pc:
             emit.push(instr.pc());
             break;
         case MSize:
-            std::terminate();
+            emit.msize();
             break;
         case Gas:
-            std::terminate();
+            emit.gas(remaining_base_gas);
             break;
         case TLoad:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::tload<rev>);
             break;
         case TStore:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::tstore<rev>);
             break;
         case MCopy:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::mcopy<rev>);
             break;
         case Push:
             emit.push(instr.immediate_value());
@@ -257,28 +271,52 @@ namespace
             emit.swap(instr.index());
             break;
         case Log:
-            std::terminate();
+            switch (instr.index()) {
+            case 0:
+                emit.call_runtime(
+                    remaining_base_gas, monad::runtime::log0<rev>);
+                break;
+            case 1:
+                emit.call_runtime(
+                    remaining_base_gas, monad::runtime::log1<rev>);
+                break;
+            case 2:
+                emit.call_runtime(
+                    remaining_base_gas, monad::runtime::log2<rev>);
+                break;
+            case 3:
+                emit.call_runtime(
+                    remaining_base_gas, monad::runtime::log3<rev>);
+                break;
+            case 4:
+                emit.call_runtime(
+                    remaining_base_gas, monad::runtime::log4<rev>);
+                break;
+            default:
+                MONAD_COMPILER_ASSERT(false);
+            }
             break;
         case Create:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::create<rev>);
             break;
         case Call:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::call<rev>);
             break;
         case CallCode:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::callcode<rev>);
             break;
         case DelegateCall:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::delegatecall<rev>);
             break;
         case Create2:
-            std::terminate();
+            emit.call_runtime(remaining_base_gas, monad::runtime::create2<rev>);
             break;
         case StaticCall:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::staticcall<rev>);
             break;
-        default:
-            std::unreachable();
         }
     }
 
@@ -300,6 +338,9 @@ namespace
     template <evmc_revision rev>
     void emit_terminator(Emitter &emit, Block const &block)
     {
+        // Remaining block base gas is zero for terminator instruction,
+        // because there are no more instructions left in the block.
+        constexpr int32_t remaining_base_gas = 0;
         using enum basic_blocks::Terminator;
         switch (block.terminator) {
         case FallThrough:
@@ -321,13 +362,12 @@ namespace
             emit.revert();
             break;
         case SelfDestruct:
-            std::terminate();
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::selfdestruct<rev>);
             break;
         case InvalidInstruction:
-            std::terminate();
+            emit.invalid_instruction();
             break;
-        default:
-            std::unreachable();
         }
     }
 

@@ -70,6 +70,9 @@ namespace
                     .input_data = {},
                     .code = {},
                     .return_data = {},
+                    .input_data_size = 0,
+                    .code_size = 0,
+                    .return_data_size = 0,
                 },
             .result = test_result(),
             .memory = {},
@@ -755,6 +758,21 @@ TEST(Emitter, stop)
     entry(&ctx, nullptr);
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+}
+
+TEST(Emitter, invalid_instruction)
+{
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, 1};
+    emit.invalid_instruction();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
 }
 
 TEST(Emitter, gas_decrement_no_check_1)
@@ -1646,6 +1664,94 @@ TEST(Emitter, caller)
     ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x010101);
 }
 
+TEST(Emitter, calldatasize)
+{
+    auto ir = basic_blocks::BasicBlocksIR({CALLDATASIZE, CALLDATASIZE, RETURN});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.calldatasize();
+    emit.calldatasize();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    ctx.env.input_data_size = 5;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 5);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 5);
+}
+
+TEST(Emitter, returndatasize)
+{
+    auto ir =
+        basic_blocks::BasicBlocksIR({RETURNDATASIZE, RETURNDATASIZE, RETURN});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.returndatasize();
+    emit.returndatasize();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    ctx.env.return_data_size = 6;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 6);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 6);
+}
+
+TEST(Emitter, msize)
+{
+    auto ir = basic_blocks::BasicBlocksIR({MSIZE, MSIZE, RETURN});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.msize();
+    emit.msize();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    ctx.memory_size = 7;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 7);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 7);
+}
+
+TEST(Emitter, gas)
+{
+    auto ir = basic_blocks::BasicBlocksIR({GAS, GAS, RETURN});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.gas(2);
+    emit.gas(2);
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context(10);
+    auto const &ret = ctx.result;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 8);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 8);
+}
+
 TEST(Emitter, callvalue)
 {
     auto ir = basic_blocks::BasicBlocksIR({CALLVALUE, CALLVALUE});
@@ -1706,6 +1812,25 @@ TEST(Emitter, jump)
     }
 }
 
+TEST(Emitter, jump_invalid)
+{
+    auto ir = basic_blocks::BasicBlocksIR({PUSH0, JUMP});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.push(0);
+    emit.jump();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    auto stack_memory = test_stack_memory();
+    entry(&ctx, stack_memory.get());
+
+    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
+}
+
 TEST(Emitter, jumpi)
 {
     std::vector<Emitter::LocationType> const locs = {
@@ -1732,6 +1857,26 @@ TEST(Emitter, jumpi)
             }
         }
     }
+}
+
+TEST(Emitter, jumpi_invalid)
+{
+    auto ir = basic_blocks::BasicBlocksIR({PUSH0, PUSH0, JUMPI});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.push(1);
+    emit.push(1);
+    emit.jumpi();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    auto stack_memory = test_stack_memory();
+    entry(&ctx, stack_memory.get());
+
+    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
 }
 
 TEST(Emitter, block_epilogue)

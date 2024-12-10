@@ -115,6 +115,11 @@ namespace monad::compiler
     {
         using enum runtime::StatusCode;
 
+        MONAD_COMPILER_ASSERT(
+            code_size <= std::numeric_limits<std::uint32_t>::max());
+        MONAD_COMPILER_ASSERT(
+            msg->input_size <= std::numeric_limits<std::uint32_t>::max());
+
         auto contract_main = native::compile(runtime_, {code, code_size}, rev);
         if (!contract_main) {
             return error_result(EVMC_INTERNAL_ERROR);
@@ -133,9 +138,13 @@ namespace monad::compiler
                     .sender = msg->sender,
                     .value = msg->value,
                     .create2_salt = msg->create2_salt,
-                    .input_data = {msg->input_data, msg->input_size},
-                    .code = {code, code_size},
+                    .input_data = msg->input_data,
+                    .code = code,
                     .return_data = {},
+                    .input_data_size =
+                        static_cast<std::uint32_t>(msg->input_size),
+                    .code_size = static_cast<std::uint32_t>(code_size),
+                    .return_data_size = 0,
                 },
             .result = {},
             .memory = {},

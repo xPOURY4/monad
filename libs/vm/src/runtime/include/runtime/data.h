@@ -42,24 +42,14 @@ namespace monad::runtime
 
         auto start = static_cast<std::uint32_t>(*i_ptr);
 
-        if (ctx->env.input_data.size() <= start) {
+        if (ctx->env.input_data_size <= start) {
             *result_ptr = 0;
             return;
         }
 
-        auto len = std::min(
-            saturating_sub(
-                ctx->env.input_data.size(), static_cast<std::size_t>(start)),
-            32ul);
+        auto len = std::min(ctx->env.input_data_size - start, 32u);
 
-        auto calldata = ctx->env.input_data.subspan(start, len);
-        *result_ptr = uint256_from_span(calldata);
-    }
-
-    template <evmc_revision Rev>
-    void calldatasize(Context *ctx, utils::uint256_t *result_ptr)
-    {
-        *result_ptr = ctx->env.input_data.size();
+        *result_ptr = uint256_from_span({&ctx->env.input_data[start], len});
     }
 
     template <evmc_revision Rev>
@@ -118,7 +108,11 @@ namespace monad::runtime
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         copy_impl<Rev>(
-            ctx, *dest_offset_ptr, *offset_ptr, *size_ptr, ctx->env.input_data);
+            ctx,
+            *dest_offset_ptr,
+            *offset_ptr,
+            *size_ptr,
+            {ctx->env.input_data, ctx->env.input_data_size});
     }
 
     template <evmc_revision Rev>
@@ -127,7 +121,11 @@ namespace monad::runtime
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         copy_impl<Rev>(
-            ctx, *dest_offset_ptr, *offset_ptr, *size_ptr, ctx->env.code);
+            ctx,
+            *dest_offset_ptr,
+            *offset_ptr,
+            *size_ptr,
+            {ctx->env.code, ctx->env.code_size});
     }
 
     template <evmc_revision Rev>
@@ -185,7 +183,7 @@ namespace monad::runtime
 
         auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
-        if (saturating_add(offset, size) > ctx->env.return_data.size()) {
+        if (saturating_add(offset, size) > ctx->env.return_data_size) {
             ctx->exit(StatusCode::InvalidMemoryAccess);
         }
 
@@ -195,16 +193,11 @@ namespace monad::runtime
             auto size_in_words = (size + 31) / 32;
             ctx->deduct_gas(size_in_words * 3);
 
-            auto data = ctx->env.return_data.subspan(offset, size);
             std::copy(
-                data.begin(), data.end(), ctx->memory.data() + dest_offset);
+                &ctx->env.return_data[offset],
+                &ctx->env.return_data[offset + size],
+                ctx->memory.data() + dest_offset);
         }
-    }
-
-    template <evmc_revision Rev>
-    void returndatasize(Context *ctx, utils::uint256_t *result_ptr)
-    {
-        *result_ptr = ctx->env.return_data.size();
     }
 
     template <evmc_revision Rev>

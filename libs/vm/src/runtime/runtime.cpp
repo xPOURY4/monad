@@ -69,12 +69,13 @@ namespace monad::runtime
     void Environment::set_return_data(
         std::uint8_t const *output_data, std::uint32_t output_size)
     {
-        MONAD_COMPILER_ASSERT(return_data.empty());
-        return_data = {output_data, output_size};
+        MONAD_COMPILER_ASSERT(return_data_size == 0);
+        return_data = output_data;
+        return_data_size = output_size;
     }
 
     void Environment::clear_return_data()
     {
-        return_data = {};
+        return_data_size = 0;
     }
 }

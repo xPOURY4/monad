@@ -94,7 +94,7 @@ TEST_F(RuntimeTest, CallDataLoadOutOfBounds)
 
 TEST_F(RuntimeTest, CallDataSize)
 {
-    ASSERT_EQ(call(calldatasize<EVMC_CANCUN>), 128);
+    ASSERT_EQ(ctx_.env.input_data_size, 128);
 }
 
 TEST_F(RuntimeTest, CallDataCopyAll)
@@ -295,14 +295,12 @@ TEST_F(RuntimeTest, ExtCodeHash)
 
 TEST_F(RuntimeTest, ReturnDataSize)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto size = wrap(returndatasize<rev>);
-
-    ctx_.env.return_data = call_return_data_;
+    ctx_.env.return_data = &call_return_data_[0];
+    ctx_.env.return_data_size = sizeof(call_return_data_);
 
     ctx_.gas_remaining = 0;
 
-    ASSERT_EQ(size(), 128);
+    ASSERT_EQ(ctx_.env.return_data_size, 128);
     ASSERT_EQ(ctx_.gas_remaining, 0);
 }
 
@@ -311,7 +309,8 @@ TEST_F(RuntimeTest, ReturnDataCopyAll)
     constexpr auto rev = EVMC_CANCUN;
     auto copy = wrap(returndatacopy<rev>);
 
-    ctx_.env.return_data = call_return_data_;
+    ctx_.env.return_data = &call_return_data_[0];
+    ctx_.env.return_data_size = sizeof(call_return_data_);
     ctx_.gas_remaining = 24;
     copy(0, 0, 128);
 

@@ -211,9 +211,14 @@ namespace monad::compiler::native
         void iszero();
         void not_();
 
+        void gas(int32_t remaining_base_gas);
+
         void address();
         void caller();
         void callvalue();
+        void calldatasize();
+        void returndatasize();
+        void msize();
         void codesize();
 
         template <typename... Args>
@@ -227,6 +232,7 @@ namespace monad::compiler::native
         void jumpi();
         void fallthrough();
         void stop();
+        void invalid_instruction();
         void return_();
         void revert();
 
@@ -334,6 +340,7 @@ namespace monad::compiler::native
 
         void read_context_address(int32_t offset);
         void read_context_word(int32_t offset);
+        void read_context_uint32_to_word(int32_t offset);
 
         void lt(StackElemRef dst, StackElemRef src);
         void slt(StackElemRef dst, StackElemRef src);
@@ -420,7 +427,7 @@ namespace monad::compiler::native
         asmjit::Label epilogue_label_;
         asmjit::Label out_of_gas_label_;
         asmjit::Label out_of_bounds_label_;
-        asmjit::Label invalid_jump_label_;
+        asmjit::Label invalid_instruction_label_;
         asmjit::Label jump_table_label_;
         std::unique_ptr<Stack> stack_;
         std::array<Gpq256, 3> gpq256_regs_;

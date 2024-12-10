@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cstring>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
@@ -41,6 +43,8 @@ namespace monad::runtime
 
     void Context::expand_memory_unchecked(std::uint32_t size)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
+
         if (memory.size() < size) {
             auto memory_size_word = (size + 31) / 32;
             auto new_memory_cost = (memory_size_word * memory_size_word) / 512 +
@@ -49,13 +53,16 @@ namespace monad::runtime
             auto expansion_cost = new_memory_cost - memory_cost;
             gas_remaining -= static_cast<std::int64_t>(expansion_cost);
 
-            memory.resize(memory_size_word * 32);
+            memory_size = memory_size_word * 32;
+            memory.resize(memory_size);
             memory_cost = new_memory_cost;
         }
     }
 
     utils::uint256_t Context::mload(utils::uint256_t offset_word)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
+
         auto offset = get_memory_offset(offset_word);
         expand_memory(offset + 32);
 
@@ -64,6 +71,8 @@ namespace monad::runtime
 
     void Context::mstore(utils::uint256_t offset_word, utils::uint256_t value)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
+
         auto offset = get_memory_offset(offset_word);
         expand_memory(offset + 32);
 
@@ -72,25 +81,41 @@ namespace monad::runtime
 
     void Context::mstore8(utils::uint256_t offset_word, utils::uint256_t value)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
+
         auto offset = get_memory_offset(offset_word);
         expand_memory(offset + 1);
 
         set_memory_byte(offset, intx::as_bytes(value)[0]);
     }
 
-    utils::uint256_t Context::msize() const
+    void Context::mcopy(
+        utils::uint256_t dst_in, utils::uint256_t src_in,
+        utils::uint256_t size_in)
     {
-        return memory.size();
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
+
+        auto size = get_memory_offset(size_in);
+        if (size > 0) {
+            auto src = get_memory_offset(src_in);
+            auto dst = get_memory_offset(dst_in);
+            expand_memory(std::max(dst, src) + size);
+            auto size_in_words = (size + 31) / 32;
+            deduct_gas(size_in_words * 3);
+            std::memmove(&memory[dst], &memory[src], size);
+        }
     }
 
     void Context::set_memory_word(std::uint32_t offset, utils::uint256_t word)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
         MONAD_COMPILER_ASSERT(offset + 31 < memory.size());
         intx::be::unsafe::store(memory.data() + offset, word);
     }
 
     void Context::set_memory_byte(std::uint32_t offset, std::uint8_t byte)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(memory_size == memory.size());
         MONAD_COMPILER_ASSERT(offset < memory.size());
         memory[offset] = byte;
     }

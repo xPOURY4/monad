@@ -10,7 +10,8 @@
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    void selfdestruct(Context *ctx, utils::uint256_t const *address_ptr)
+    void selfdestruct
+        [[noreturn]] (Context *ctx, utils::uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
             ctx->exit(StatusCode::StaticModeViolation);
@@ -54,5 +55,7 @@ namespace monad::runtime
                 ctx->gas_refund += 24000;
             }
         }
+
+        ctx->exit(StatusCode::Success);
     }
 }

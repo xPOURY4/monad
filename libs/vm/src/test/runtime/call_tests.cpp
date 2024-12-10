@@ -26,7 +26,7 @@ TEST_F(RuntimeTest, CallBasic)
     auto res = do_call(10000, 0, 0, 0, 0, 0, 32);
 
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 32);
+    ASSERT_EQ(ctx_.memory_size, 32);
     for (auto i = 0u; i < 32; ++i) {
         ASSERT_EQ(ctx_.memory[i], i);
     }
@@ -44,7 +44,7 @@ TEST_F(RuntimeTest, CallWithValueCold)
     auto res = do_call(10000, 0, 1, 0, 0, 0, 0);
 
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 0);
+    ASSERT_EQ(ctx_.memory_size, 0);
     ASSERT_EQ(ctx_.gas_remaining, 57800);
 }
 
@@ -60,7 +60,7 @@ TEST_F(RuntimeTest, CallGasLimit)
         do_call(std::numeric_limits<std::int64_t>::max(), 0, 0, 0, 0, 0, 0);
 
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 0);
+    ASSERT_EQ(ctx_.memory_size, 0);
     ASSERT_EQ(ctx_.gas_remaining, 3000);
 }
 
@@ -74,7 +74,7 @@ TEST_F(RuntimeTest, CallFailure)
 
     auto res = do_call(10000, 0, 0, 0, 0, 0, 0);
     ASSERT_EQ(res, 0);
-    ASSERT_EQ(call(msize<rev>), 0);
+    ASSERT_EQ(ctx_.memory_size, 0);
     ASSERT_EQ(ctx_.gas_remaining, 87500);
 }
 
@@ -88,7 +88,7 @@ TEST_F(RuntimeTest, DelegateCallIstanbul)
 
     auto res = do_call(10000, 0, 0, 0, 0, 0);
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 0);
+    ASSERT_EQ(ctx_.memory_size, 0);
     ASSERT_EQ(ctx_.gas_remaining, 92000);
 }
 
@@ -102,7 +102,7 @@ TEST_F(RuntimeTest, CallCodeHomestead)
 
     auto res = do_call(10000, 0, 34, 120, 2, 3, 54);
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 128);
+    ASSERT_EQ(ctx_.memory_size, 128);
     ASSERT_EQ(ctx_.gas_remaining, 85288);
 }
 
@@ -116,6 +116,6 @@ TEST_F(RuntimeTest, StaticCallByzantium)
 
     auto res = do_call(10000, 0, 23, 238, 890, 67);
     ASSERT_EQ(res, 1);
-    ASSERT_EQ(call(msize<rev>), 960);
+    ASSERT_EQ(ctx_.memory_size, 960);
     ASSERT_EQ(ctx_.gas_remaining, 91909);
 }

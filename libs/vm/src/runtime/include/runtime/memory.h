@@ -27,8 +27,10 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
-    void msize(Context *ctx, utils::uint256_t *result_ptr)
+    void mcopy(
+        Context *ctx, utils::uint256_t const *dst, utils::uint256_t const *src,
+        utils::uint256_t const *size)
     {
-        *result_ptr = ctx->msize();
+        ctx->mcopy(*dst, *src, *size);
     }
 }

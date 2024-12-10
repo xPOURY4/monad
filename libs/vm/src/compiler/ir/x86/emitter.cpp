@@ -48,6 +48,14 @@ constexpr auto context_offset_env_sender =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, sender);
 constexpr auto context_offset_env_value =
     offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
+constexpr auto context_offset_env_input_data_size =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, input_data_size);
+constexpr auto context_offset_env_return_data_size =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, return_data_size);
+constexpr auto context_offset_memory_size =
+    offsetof(runtime::Context, memory_size);
 constexpr auto context_offset_result_offset =
     offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
 constexpr auto context_offset_result_size =
@@ -351,7 +359,7 @@ namespace monad::compiler::native
         , epilogue_label_{as_.newNamedLabel("ContractEpilogue")}
         , out_of_gas_label_{as_.newNamedLabel("OutOfGas")}
         , out_of_bounds_label_{as_.newNamedLabel("OutOfBounds")}
-        , invalid_jump_label_{as_.newNamedLabel("InvalidJump")}
+        , invalid_instruction_label_{as_.newNamedLabel("InvalidInstruction")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
         , rcx_general_reg{2}
@@ -409,7 +417,9 @@ namespace monad::compiler::native
         error_block(out_of_gas_label_, runtime::StatusCode::OutOfGas);
         error_block(
             out_of_bounds_label_, runtime::StatusCode::StackOutOfBounds);
-        error_block(invalid_jump_label_, runtime::StatusCode::InvalidJump);
+        error_block(
+            invalid_instruction_label_,
+            runtime::StatusCode::InvalidInstruction);
 
         static char const *const ro_section_name = "ro";
         static auto const ro_section_name_len = 2;
@@ -446,9 +456,9 @@ namespace monad::compiler::native
                 // as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
             }
             else {
-                as_.embedLabel(invalid_jump_label_);
-                // as_.embedLabelDelta(invalid_jump_label_, jump_table_label_,
-                // 4);
+                as_.embedLabel(invalid_instruction_label_);
+                // as_.embedLabelDelta(invalid_instruction_label_,
+                // jump_table_label_, 4);
             }
         }
 
@@ -1647,6 +1657,21 @@ namespace monad::compiler::native
         stack_->push(std::move(left));
     }
 
+    // Discharge
+    void Emitter::gas(int32_t remaining_base_gas)
+    {
+        discharge_deferred_comparison();
+        auto [dst, _] = alloc_general_reg();
+        Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
+        as_.mov(
+            gpq[0], x86::qword_ptr(reg_context, context_offset_gas_remaining));
+        as_.sub(gpq[0], remaining_base_gas);
+        as_.xor_(gpq[1], gpq[1]);
+        as_.mov(gpq[2], gpq[1]);
+        as_.mov(gpq[3], gpq[1]);
+        stack_->push(std::move(dst));
+    }
+
     // No discharge
     void Emitter::address()
     {
@@ -1663,6 +1688,24 @@ namespace monad::compiler::native
     void Emitter::callvalue()
     {
         read_context_word(context_offset_env_value);
+    }
+
+    // No discharge
+    void Emitter::calldatasize()
+    {
+        read_context_uint32_to_word(context_offset_env_input_data_size);
+    }
+
+    // No discharge
+    void Emitter::returndatasize()
+    {
+        read_context_uint32_to_word(context_offset_env_return_data_size);
+    }
+
+    // No discharge
+    void Emitter::msize()
+    {
+        read_context_uint32_to_word(context_offset_memory_size);
     }
 
     // No discharge
@@ -1823,6 +1866,12 @@ namespace monad::compiler::native
         as_.jmp(epilogue_label_);
     }
 
+    // Not discharge
+    void Emitter::invalid_instruction()
+    {
+        as_.jmp(invalid_instruction_label_);
+    }
+
     // Discharge through `return_with_status_code`
     void Emitter::return_()
     {
@@ -1890,12 +1939,12 @@ namespace monad::compiler::native
     void Emitter::jump_literal_dest(uint256_t const &dest)
     {
         if (dest >= bytecode_size_) {
-            as_.jmp(invalid_jump_label_);
+            as_.jmp(invalid_instruction_label_);
         }
         else {
             auto it = jump_dests_.find(dest[0]);
             if (it == jump_dests_.end()) {
-                as_.jmp(invalid_jump_label_);
+                as_.jmp(invalid_instruction_label_);
             }
             else {
                 as_.jmp(it->second);
@@ -1960,7 +2009,7 @@ namespace monad::compiler::native
             as_.sbb(gpq[1], 0);
             as_.sbb(gpq[2], 0);
             as_.sbb(gpq[3], 0);
-            as_.jnb(invalid_jump_label_);
+            as_.jnb(invalid_instruction_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.jmp(x86::ptr(x86::rax, gpq[0], 3));
         }
@@ -1978,7 +2027,7 @@ namespace monad::compiler::native
                 m.addOffset(8);
                 as_.sbb(m, 0);
             }
-            as_.jnb(invalid_jump_label_);
+            as_.jnb(invalid_instruction_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.jmp(x86::ptr(x86::rax, x86::rcx, 3));
         }
@@ -2009,6 +2058,22 @@ namespace monad::compiler::native
         x86::Mem const m = x86::qword_ptr(reg_context, offset);
         auto [dst, _] = alloc_avx_reg();
         as_.vmovups(avx_reg_to_ymm(dst->avx_reg().value()), m);
+        stack_->push(std::move(dst));
+    }
+
+    void Emitter::read_context_uint32_to_word(int32_t offset)
+    {
+        auto [dst, _] = alloc_general_reg();
+        Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
+        as_.movzx(gpq[0], x86::dword_ptr(reg_context, offset));
+        if (stack_->has_deferred_comparison()) {
+            as_.mov(gpq[1], 0);
+        }
+        else {
+            as_.xor_(gpq[1], gpq[1]);
+        }
+        as_.mov(gpq[2], gpq[1]);
+        as_.mov(gpq[3], gpq[1]);
         stack_->push(std::move(dst));
     }
 

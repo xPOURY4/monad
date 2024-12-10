@@ -34,9 +34,12 @@ namespace monad::compiler::test
                         0x0000000000000000000000000000000000000002_address,
                     .value = {},
                     .create2_salt = {},
-                    .input_data = call_data_,
-                    .code = code_,
+                    .input_data = &call_data_[0],
+                    .code = &code_[0],
                     .return_data = {},
+                    .input_data_size = sizeof(call_data_),
+                    .code_size = sizeof(code_),
+                    .return_data_size = 0,
                 },
         };
 
