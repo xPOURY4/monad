@@ -96,3 +96,66 @@ TEST_F(RuntimeTest, CallDataSize)
 {
     ASSERT_EQ(call(calldatasize<EVMC_CANCUN>), 128);
 }
+
+TEST_F(RuntimeTest, CallDataCopyAll)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto copy = wrap(calldatacopy<rev>);
+
+    ctx_.gas_remaining = 24;
+    copy(0, 0, 128);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 128);
+    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], i);
+    }
+}
+
+TEST_F(RuntimeTest, CallDataCopyPartial)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto copy = wrap(calldatacopy<rev>);
+
+    ctx_.gas_remaining = 12;
+    copy(67, 5, 23);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 96);
+
+    for (auto i = 0u; i < 67; ++i) {
+        ASSERT_EQ(ctx_.memory[i], 0);
+    }
+
+    for (auto i = 67u; i < 90; ++i) {
+        ASSERT_EQ(ctx_.memory[i], i - 62);
+    }
+
+    for (auto i = 90u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], 0);
+    }
+}
+
+TEST_F(RuntimeTest, CallDataCopyOutOfBounds)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto copy = wrap(calldatacopy<rev>);
+
+    ctx_.gas_remaining = 51;
+    copy(17, 0, 256);
+
+    ASSERT_EQ(ctx_.gas_remaining, 0);
+    ASSERT_EQ(ctx_.memory.size(), 288);
+
+    for (auto i = 0u; i < 17; ++i) {
+        ASSERT_EQ(ctx_.memory[i], 0);
+    }
+
+    for (auto i = 17u; i < 145; ++i) {
+        ASSERT_EQ(ctx_.memory[i], i - 17);
+    }
+
+    for (auto i = 145u; i < ctx_.memory.size(); ++i) {
+        ASSERT_EQ(ctx_.memory[i], 0);
+    }
+}
