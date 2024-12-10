@@ -33,7 +33,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sdiv(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr)
     {
         if (*b_ptr == 0) {
@@ -46,7 +46,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void umod(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr)
     {
         if (*b_ptr == 0) {
@@ -59,7 +59,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void smod(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr)
     {
         if (*b_ptr == 0) {
@@ -72,7 +72,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void addmod(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
     {
         if (*n_ptr == 0) {
@@ -85,7 +85,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void mulmod(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
     {
         if (*n_ptr == 0) {
@@ -119,7 +119,7 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void signextend(
-        Context *, utils::uint256_t *result_ptr, utils::uint256_t const *b_ptr,
+        utils::uint256_t *result_ptr, utils::uint256_t const *b_ptr,
         utils::uint256_t const *x_ptr)
     {
         *result_ptr = utils::signextend(*b_ptr, *x_ptr);
