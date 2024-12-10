@@ -14,6 +14,21 @@ using namespace monad::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 
+TEST_F(RuntimeTest, Mul)
+{
+    auto f = wrap(mul<EVMC_CANCUN>);
+
+    ASSERT_EQ(f(10, 10), 100);
+    ASSERT_EQ(
+        f(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE_u256,
+          0),
+        0);
+    ASSERT_EQ(
+        f(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF_u256,
+          2),
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE_u256);
+}
+
 TEST_F(RuntimeTest, UDiv)
 {
     auto f = wrap(udiv<EVMC_CANCUN>);

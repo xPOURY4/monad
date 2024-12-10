@@ -11,6 +11,14 @@
 namespace monad::runtime
 {
     template <evmc_revision Rev>
+    void
+    mul(utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
+        utils::uint256_t const *b_ptr)
+    {
+        *result_ptr = *a_ptr * *b_ptr;
+    }
+
+    template <evmc_revision Rev>
     void udiv(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
         utils::uint256_t const *b_ptr)
