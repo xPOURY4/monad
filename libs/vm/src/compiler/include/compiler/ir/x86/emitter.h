@@ -334,6 +334,7 @@ namespace monad::compiler::native
 
         void jump_stack_elem_dest(StackElemRef &&);
         uint256_t literal_jump_dest_operand(StackElemRef &&);
+        asmjit::Label const &jump_dest_label(uint256_t const &);
         void jump_literal_dest(uint256_t const &);
         Operand non_literal_jump_dest_operand(StackElemRef const &);
         void jump_non_literal_dest(Operand const &, int32_t stack_adjustment);
@@ -441,8 +442,7 @@ namespace monad::compiler::native
             byte_out_of_bounds_handlers_;
         std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
             shift_out_of_bounds_handlers_;
-        std::vector<std::tuple<
-            asmjit::Label, std::variant<uint256_t, Operand>, int32_t>>
+        std::vector<std::tuple<asmjit::Label, Operand, int32_t>>
             dynamic_jump_handlers_;
     };
 }

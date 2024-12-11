@@ -381,12 +381,7 @@ namespace monad::compiler::native
         for (auto const &[lbl, op, adj] : dynamic_jump_handlers_) {
             as_.align(asmjit::AlignMode::kCode, 16);
             as_.bind(lbl);
-            if (std::holds_alternative<uint256_t>(op)) {
-                jump_literal_dest(std::get<uint256_t>(op));
-            }
-            else {
-                jump_non_literal_dest(std::get<Operand>(op), adj);
-            }
+            jump_non_literal_dest(op, adj);
         }
 
         contract_epilogue();
@@ -1345,10 +1340,16 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
-        if (pre_dst->literal() && pre_src->literal()) {
-            auto const &x = pre_dst->literal().value().value;
-            auto const &y = pre_src->literal().value().value;
-            push(x - y);
+        if (pre_dst->literal()) {
+            if (pre_src->literal()) {
+                auto const &x = pre_dst->literal().value().value;
+                auto const &y = pre_src->literal().value().value;
+                push(x - y);
+                return;
+            }
+        }
+        else if (pre_src->literal() && pre_src->literal().value().value == 0) {
+            stack_->push(std::move(pre_dst));
             return;
         }
 
@@ -1370,10 +1371,20 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
-        if (pre_dst->literal() && pre_src->literal()) {
-            auto const &x = pre_dst->literal().value().value;
-            auto const &y = pre_src->literal().value().value;
-            push(x + y);
+        if (pre_dst->literal()) {
+            if (pre_src->literal()) {
+                auto const &x = pre_dst->literal().value().value;
+                auto const &y = pre_src->literal().value().value;
+                push(x + y);
+                return;
+            }
+            else if (pre_dst->literal().value().value == 0) {
+                stack_->push(std::move(pre_src));
+                return;
+            }
+        }
+        else if (pre_src->literal() && pre_src->literal().value().value == 0) {
+            stack_->push(std::move(pre_dst));
             return;
         }
 
@@ -1481,10 +1492,23 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
-        if (pre_dst->literal() && pre_src->literal()) {
-            auto const &x = pre_dst->literal().value().value;
-            auto const &y = pre_src->literal().value().value;
-            push(x & y);
+        if (pre_dst->literal()) {
+            if (pre_src->literal()) {
+                auto const &x = pre_dst->literal().value().value;
+                auto const &y = pre_src->literal().value().value;
+                push(x & y);
+                return;
+            }
+            if (pre_dst->literal().value().value ==
+                std::numeric_limits<uint256_t>::max()) {
+                stack_->push(std::move(pre_src));
+                return;
+            }
+        }
+        else if (
+            pre_src->literal() && pre_src->literal().value().value ==
+                                      std::numeric_limits<uint256_t>::max()) {
+            stack_->push(std::move(pre_dst));
             return;
         }
 
@@ -1508,10 +1532,20 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
-        if (pre_dst->literal() && pre_src->literal()) {
-            auto const &x = pre_dst->literal().value().value;
-            auto const &y = pre_src->literal().value().value;
-            push(x | y);
+        if (pre_dst->literal()) {
+            if (pre_src->literal()) {
+                auto const &x = pre_dst->literal().value().value;
+                auto const &y = pre_src->literal().value().value;
+                push(x | y);
+                return;
+            }
+            if (pre_dst->literal().value().value == 0) {
+                stack_->push(std::move(pre_src));
+                return;
+            }
+        }
+        else if (pre_src->literal() && pre_src->literal().value().value == 0) {
+            stack_->push(std::move(pre_dst));
             return;
         }
 
@@ -1535,6 +1569,10 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
+        if (pre_dst == pre_src) {
+            push(0);
+            return;
+        }
         if (pre_dst->literal() && pre_src->literal()) {
             auto const &x = pre_dst->literal().value().value;
             auto const &y = pre_src->literal().value().value;
@@ -1562,6 +1600,10 @@ namespace monad::compiler::native
         auto pre_dst = stack_->pop();
         auto pre_src = stack_->pop();
 
+        if (pre_dst == pre_src) {
+            push(1);
+            return;
+        }
         if (pre_dst->literal() && pre_src->literal()) {
             auto const &x = pre_dst->literal().value().value;
             auto const &y = pre_src->literal().value().value;
@@ -1801,14 +1843,14 @@ namespace monad::compiler::native
         // Clear to remove locations, if not on stack:
         cond = nullptr;
 
-        auto dynamic_jump_lbl = as_.newLabel();
+        asmjit::Label dynamic_jump_lbl;
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
-            auto stack_adjustment = block_epilogue();
-            dynamic_jump_handlers_.emplace_back(
-                dynamic_jump_lbl, lit, stack_adjustment);
+            dynamic_jump_lbl = jump_dest_label(lit);
+            block_epilogue();
         }
         else {
+            dynamic_jump_lbl = as_.newLabel();
             auto op = non_literal_jump_dest_operand(dest);
             // Need to keep `dest` alive during block epilogue, to prevent
             // using the stack offset, optionally occupied by `dest`.
@@ -1935,20 +1977,25 @@ namespace monad::compiler::native
         return dest->literal().value().value;
     }
 
-    void Emitter::jump_literal_dest(uint256_t const &dest)
+    asmjit::Label const &Emitter::jump_dest_label(uint256_t const &dest)
     {
         if (dest >= bytecode_size_) {
-            as_.jmp(invalid_instruction_label_);
+            return invalid_instruction_label_;
         }
         else {
             auto it = jump_dests_.find(dest[0]);
             if (it == jump_dests_.end()) {
-                as_.jmp(invalid_instruction_label_);
+                return invalid_instruction_label_;
             }
             else {
-                as_.jmp(it->second);
+                return it->second;
             }
         }
+    }
+
+    void Emitter::jump_literal_dest(uint256_t const &dest)
+    {
+        as_.jmp(jump_dest_label(dest));
     }
 
     Emitter::Operand
@@ -2185,8 +2232,6 @@ namespace monad::compiler::native
         RegReserv const ix_reserv{shift};
         RegReserv const src_reserv{value};
 
-        discharge_deferred_comparison();
-
         if (shift->literal()) {
             shift_by_literal<shift_type>(
                 shift->literal().value().value, std::move(value));
@@ -2247,6 +2292,12 @@ namespace monad::compiler::native
                 shift = 256;
             }
         }
+        else if (shift == 0) {
+            stack_->push(std::move(value));
+            return;
+        }
+
+        discharge_deferred_comparison();
 
         setup_shift_stack<shift_type>(value);
 
@@ -2263,25 +2314,29 @@ namespace monad::compiler::native
             as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, -16 - d));
             as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, -24 - d));
             as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, -32 - d));
-            as_.shld(dst_gpq[3], dst_gpq[2], c);
-            as_.shld(dst_gpq[2], dst_gpq[1], c);
-            as_.shld(dst_gpq[1], dst_gpq[0], c);
-            as_.shl(dst_gpq[0], c);
+            if (c > 0) {
+                as_.shld(dst_gpq[3], dst_gpq[2], c);
+                as_.shld(dst_gpq[2], dst_gpq[1], c);
+                as_.shld(dst_gpq[1], dst_gpq[0], c);
+                as_.shl(dst_gpq[0], c);
+            }
         }
         else {
             as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, d - 40));
             as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, d - 48));
             as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, d - 56));
             as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, d - 64));
-            as_.shrd(dst_gpq[0], dst_gpq[1], c);
-            as_.shrd(dst_gpq[1], dst_gpq[2], c);
-            as_.shrd(dst_gpq[2], dst_gpq[3], c);
-            if constexpr (shift_type == ShiftType::SHR) {
-                as_.shr(dst_gpq[3], c);
-            }
-            else {
-                static_assert(shift_type == ShiftType::SAR);
-                as_.sar(dst_gpq[3], c);
+            if (c > 0) {
+                as_.shrd(dst_gpq[0], dst_gpq[1], c);
+                as_.shrd(dst_gpq[1], dst_gpq[2], c);
+                as_.shrd(dst_gpq[2], dst_gpq[3], c);
+                if constexpr (shift_type == ShiftType::SHR) {
+                    as_.shr(dst_gpq[3], c);
+                }
+                else {
+                    static_assert(shift_type == ShiftType::SAR);
+                    as_.sar(dst_gpq[3], c);
+                }
             }
         }
 
@@ -2292,6 +2347,20 @@ namespace monad::compiler::native
     void Emitter::shift_by_general_reg_or_stack_offset(
         StackElemRef shift, StackElemRef value)
     {
+        if (value->literal()) {
+            if (value->literal().value().value == 0) {
+                stack_->push(std::move(value));
+                return;
+            }
+            if constexpr (shift_type == ShiftType::SAR) {
+                if (value->literal().value().value ==
+                    std::numeric_limits<uint256_t>::max()) {
+                    stack_->push(std::move(value));
+                    return;
+                }
+            }
+        }
+        discharge_deferred_comparison();
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(dst->general_reg().value());
         Operand shift_op{dst_gpq};
