@@ -285,7 +285,7 @@ TEST_F(RuntimeTest, ExtCodeHash)
     auto hash = wrap(extcodehash<rev>);
 
     host_.accounts[address_from_uint256(addr)].codehash =
-        bytes_from_uint256(713682);
+        bytes32_from_uint256(713682);
 
     ctx_.gas_remaining = 2500;
 

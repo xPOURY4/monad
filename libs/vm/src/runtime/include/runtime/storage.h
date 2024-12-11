@@ -18,7 +18,7 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
-        auto key = bytes_from_uint256(*key_ptr);
+        auto key = bytes32_from_uint256(*key_ptr);
 
         auto access_status =
             ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
@@ -52,8 +52,8 @@ namespace monad::runtime
             }
         }
 
-        auto key = bytes_from_uint256(*key_ptr);
-        auto value = bytes_from_uint256(*value_ptr);
+        auto key = bytes32_from_uint256(*key_ptr);
+        auto value = bytes32_from_uint256(*value_ptr);
 
         auto access_status =
             ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
@@ -86,7 +86,7 @@ namespace monad::runtime
     {
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
 
-        auto key = bytes_from_uint256(*key_ptr);
+        auto key = bytes32_from_uint256(*key_ptr);
 
         auto value = ctx->host->get_transient_storage(
             ctx->context, &ctx->env.recipient, &key);
@@ -101,8 +101,8 @@ namespace monad::runtime
     {
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
 
-        auto key = bytes_from_uint256(*key_ptr);
-        auto val = bytes_from_uint256(*val_ptr);
+        auto key = bytes32_from_uint256(*key_ptr);
+        auto val = bytes32_from_uint256(*val_ptr);
 
         ctx->host->set_transient_storage(
             ctx->context, &ctx->env.recipient, &key, &val);

@@ -47,19 +47,18 @@ namespace monad::runtime
             return;
         }
 
-        auto len = std::min(ctx->env.input_data_size - start, 32u);
-
-        *result_ptr = uint256_from_span({&ctx->env.input_data[start], len});
+        *result_ptr = uint256_load_bounded_be(
+            &ctx->env.input_data[start], ctx->env.input_data_size - start);
     }
 
     template <evmc_revision Rev>
     void copy_impl(
         Context *ctx, utils::uint256_t dest_offset_word,
         utils::uint256_t offset_word, utils::uint256_t size_word,
-        std::span<std::uint8_t const> source)
+        std::uint8_t const *source, std::uint32_t len)
     {
         MONAD_COMPILER_DEBUG_ASSERT(
-            source.size() <= std::numeric_limits<std::uint32_t>::max());
+            len <= std::numeric_limits<std::uint32_t>::max());
 
         auto [dest_offset, size] =
             ctx->get_memory_offset_and_size(dest_offset_word, size_word);
@@ -74,21 +73,17 @@ namespace monad::runtime
 
         auto start = [&] {
             if (offset_word > std::numeric_limits<std::uint32_t>::max()) {
-                return static_cast<std::uint32_t>(source.size());
+                return len;
             }
             else {
-                return std::min(
-                    static_cast<std::uint32_t>(offset_word),
-                    static_cast<std::uint32_t>(source.size()));
+                return std::min(static_cast<std::uint32_t>(offset_word), len);
             }
         }();
 
-        auto copy_size = std::min(
-            size,
-            saturating_sub(static_cast<std::uint32_t>(source.size()), start));
+        auto copy_size = std::min(size, saturating_sub(len, start));
 
         if (copy_size > 0) {
-            auto begin = source.begin() + start;
+            auto begin = source + start;
             std::copy(
                 begin, begin + copy_size, ctx->memory.begin() + dest_offset);
         }
@@ -112,7 +107,8 @@ namespace monad::runtime
             *dest_offset_ptr,
             *offset_ptr,
             *size_ptr,
-            {ctx->env.input_data, ctx->env.input_data_size});
+            ctx->env.input_data,
+            ctx->env.input_data_size);
     }
 
     template <evmc_revision Rev>
@@ -125,7 +121,8 @@ namespace monad::runtime
             *dest_offset_ptr,
             *offset_ptr,
             *size_ptr,
-            {ctx->env.code, ctx->env.code_size});
+            ctx->env.code,
+            ctx->env.code_size);
     }
 
     template <evmc_revision Rev>

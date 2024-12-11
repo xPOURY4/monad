@@ -1,10 +1,10 @@
 #pragma once
 
+#include <utils/assert.h>
 #include <utils/uint256.h>
 
 #include <evmc/evmc.hpp>
 
-#include <span>
 #include <type_traits>
 #include <vector>
 
@@ -52,8 +52,18 @@ namespace monad::runtime
         std::uint32_t return_data_size;
 
         void set_return_data(
-            std::uint8_t const *output_data, std::uint32_t output_size);
-        void clear_return_data();
+            std::uint8_t const *output_data, std::uint32_t output_size)
+        {
+            MONAD_COMPILER_ASSERT(return_data_size == 0);
+            return_data = output_data;
+            return_data_size = output_size;
+        }
+
+        [[gnu::always_inline]]
+        void clear_return_data()
+        {
+            return_data_size = 0;
+        }
     };
 
     static_assert(std::is_standard_layout_v<Environment>);
@@ -79,7 +89,14 @@ namespace monad::runtime
 
         void *exit_stack_ptr = nullptr;
 
-        void deduct_gas(std::int64_t gas);
+        [[gnu::always_inline]]
+        void deduct_gas(std::int64_t gas)
+        {
+            gas_remaining -= gas;
+            if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
+                exit(StatusCode::OutOfGas);
+            }
+        }
 
         void expand_memory(std::uint32_t size);
         void expand_memory_unchecked(std::uint32_t size);
@@ -99,7 +116,11 @@ namespace monad::runtime
         std::pair<std::uint32_t, std::uint32_t> get_memory_offset_and_size(
             utils::uint256_t offset, utils::uint256_t size);
 
-        evmc_tx_context get_tx_context() const;
+        [[gnu::always_inline]]
+        evmc_tx_context get_tx_context() const
+        {
+            return host->get_tx_context(context);
+        }
 
         void exit [[noreturn]] (StatusCode code) noexcept;
 

@@ -44,24 +44,24 @@ namespace monad::compiler::test
         };
 
         host_.tx_context = evmc_tx_context{
-            .tx_gas_price = bytes_from_uint256(56762),
+            .tx_gas_price = bytes32_from_uint256(56762),
             .tx_origin = 0x000000000000000000000000000000005CA1AB1E_address,
             .block_coinbase =
                 0x00000000000000000000000000000000BA5EBA11_address,
             .block_number = 23784,
             .block_timestamp = 1733494490,
             .block_gas_limit = 30000000,
-            .block_prev_randao = bytes_from_uint256(89273),
-            .chain_id = bytes_from_uint256(2342),
-            .block_base_fee = bytes_from_uint256(389),
-            .blob_base_fee = bytes_from_uint256(98988),
+            .block_prev_randao = bytes32_from_uint256(89273),
+            .chain_id = bytes32_from_uint256(2342),
+            .block_base_fee = bytes32_from_uint256(389),
+            .blob_base_fee = bytes32_from_uint256(98988),
             .blob_hashes = nullptr,
             .blob_hashes_count = 0,
             .initcodes = nullptr,
             .initcodes_count = 0,
         };
 
-        host_.block_hash = bytes_from_uint256(
+        host_.block_hash = bytes32_from_uint256(
             0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
 
         std::iota(code_.rbegin(), code_.rend(), 0);
@@ -102,6 +102,6 @@ namespace monad::compiler::test
     RuntimeTest::set_balance(utils::uint256_t addr, utils::uint256_t balance)
     {
         host_.accounts[address_from_uint256(addr)].balance =
-            bytes_from_uint256(balance);
+            bytes32_from_uint256(balance);
     }
 }

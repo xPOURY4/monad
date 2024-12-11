@@ -49,7 +49,7 @@ namespace monad::runtime
             *offset_ptr,
             *size_ptr,
             {{
-                bytes_from_uint256(*topic1_ptr),
+                bytes32_from_uint256(*topic1_ptr),
             }});
     }
 
@@ -64,8 +64,8 @@ namespace monad::runtime
             *offset_ptr,
             *size_ptr,
             {{
-                bytes_from_uint256(*topic1_ptr),
-                bytes_from_uint256(*topic2_ptr),
+                bytes32_from_uint256(*topic1_ptr),
+                bytes32_from_uint256(*topic2_ptr),
             }});
     }
 
@@ -80,9 +80,9 @@ namespace monad::runtime
             *offset_ptr,
             *size_ptr,
             {{
-                bytes_from_uint256(*topic1_ptr),
-                bytes_from_uint256(*topic2_ptr),
-                bytes_from_uint256(*topic3_ptr),
+                bytes32_from_uint256(*topic1_ptr),
+                bytes32_from_uint256(*topic2_ptr),
+                bytes32_from_uint256(*topic3_ptr),
             }});
     }
 
@@ -98,10 +98,10 @@ namespace monad::runtime
             *offset_ptr,
             *size_ptr,
             {{
-                bytes_from_uint256(*topic1_ptr),
-                bytes_from_uint256(*topic2_ptr),
-                bytes_from_uint256(*topic3_ptr),
-                bytes_from_uint256(*topic4_ptr),
+                bytes32_from_uint256(*topic1_ptr),
+                bytes32_from_uint256(*topic2_ptr),
+                bytes32_from_uint256(*topic3_ptr),
+                bytes32_from_uint256(*topic4_ptr),
             }});
     }
 }

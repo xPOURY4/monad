@@ -94,9 +94,9 @@ TEST_F(RuntimeTest, StorageConstantinopleOriginalNonEmpty)
 
     // current == original
     auto &loc =
-        host_.accounts[ctx_.env.recipient].storage[bytes_from_uint256(key)];
-    loc.original = bytes_from_uint256(val);
-    loc.current = bytes_from_uint256(val);
+        host_.accounts[ctx_.env.recipient].storage[bytes32_from_uint256(key)];
+    loc.original = bytes32_from_uint256(val);
+    loc.current = bytes32_from_uint256(val);
 
     ctx_.gas_remaining = 0;
     ASSERT_EQ(load(key), val);
@@ -158,9 +158,9 @@ TEST_F(RuntimeTest, StorageIstanbulOriginalNonEmpty)
 
     // current == original
     auto &loc =
-        host_.accounts[ctx_.env.recipient].storage[bytes_from_uint256(key)];
-    loc.original = bytes_from_uint256(val);
-    loc.current = bytes_from_uint256(val);
+        host_.accounts[ctx_.env.recipient].storage[bytes32_from_uint256(key)];
+    loc.original = bytes32_from_uint256(val);
+    loc.current = bytes32_from_uint256(val);
 
     ctx_.gas_remaining = 0;
     ASSERT_EQ(load(key), val);
@@ -202,7 +202,7 @@ TEST_F(RuntimeTest, StorageBerlinLoadWarm)
     constexpr auto rev = EVMC_BERLIN;
     auto load = wrap(sload<rev>);
 
-    host_.access_storage(ctx_.env.recipient, bytes_from_uint256(key));
+    host_.access_storage(ctx_.env.recipient, bytes32_from_uint256(key));
 
     ctx_.gas_remaining = 0;
     ASSERT_EQ(load(key), 0);
@@ -243,9 +243,9 @@ TEST_F(RuntimeTest, StorageBerlinOriginalNonEmpty)
 
     // current == original
     auto &loc =
-        host_.accounts[ctx_.env.recipient].storage[bytes_from_uint256(key)];
-    loc.original = bytes_from_uint256(val);
-    loc.current = bytes_from_uint256(val);
+        host_.accounts[ctx_.env.recipient].storage[bytes32_from_uint256(key)];
+    loc.original = bytes32_from_uint256(val);
+    loc.current = bytes32_from_uint256(val);
 
     // nonempty -> same nonempty (cold)
     ctx_.gas_remaining = 2301;
@@ -275,9 +275,9 @@ TEST_F(RuntimeTest, StorageLondonOriginalNonEmpty)
 
     // current == original
     auto &loc =
-        host_.accounts[ctx_.env.recipient].storage[bytes_from_uint256(key)];
-    loc.original = bytes_from_uint256(val);
-    loc.current = bytes_from_uint256(val);
+        host_.accounts[ctx_.env.recipient].storage[bytes32_from_uint256(key)];
+    loc.original = bytes32_from_uint256(val);
+    loc.current = bytes32_from_uint256(val);
 
     // nonempty -> same nonempty (cold)
     ctx_.gas_remaining = 2301;
@@ -316,7 +316,7 @@ TEST_F(RuntimeTest, StorageCancunLoadWarm)
     constexpr auto rev = EVMC_CANCUN;
     auto load = wrap(sload<rev>);
 
-    host_.access_storage(ctx_.env.recipient, bytes_from_uint256(key));
+    host_.access_storage(ctx_.env.recipient, bytes32_from_uint256(key));
 
     ctx_.gas_remaining = 0;
     ASSERT_EQ(load(key), 0);
@@ -357,9 +357,9 @@ TEST_F(RuntimeTest, StorageCancunOriginalNonEmpty)
 
     // current == original
     auto &loc =
-        host_.accounts[ctx_.env.recipient].storage[bytes_from_uint256(key)];
-    loc.original = bytes_from_uint256(val);
-    loc.current = bytes_from_uint256(val);
+        host_.accounts[ctx_.env.recipient].storage[bytes32_from_uint256(key)];
+    loc.original = bytes32_from_uint256(val);
+    loc.current = bytes32_from_uint256(val);
 
     // nonempty -> same nonempty (cold)
     ctx_.gas_remaining = 2301;
