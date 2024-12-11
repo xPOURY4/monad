@@ -1,0 +1,10 @@
+#pragma once
+
+#include <filesystem>
+
+namespace test_resource
+{
+    inline std::filesystem::path const third_party_dir = "@THIRD_PARTY_DIR@";
+
+    inline auto const ethereum_tests_dir = third_party_dir / "ethereum-tests";
+}

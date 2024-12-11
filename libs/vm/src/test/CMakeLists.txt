@@ -39,3 +39,18 @@ add_test(
     NAME "Unit Tests"
     COMMAND unit-tests
 )
+
+add_executable(blockchain-tests)
+target_sources(blockchain-tests
+    PRIVATE
+        blockchain_tests.cpp
+)
+target_include_directories(blockchain-tests
+    PRIVATE
+        "${TOP_CURRENT_BINARY_DIR}/test"
+)
+monad_compile_options(blockchain-tests)
+target_link_libraries(blockchain-tests
+    utils
+    monad-compiler-vm
+    evmone-blockchaintest-lib)

@@ -1,1 +1,1 @@
-BlockchainTests.GeneralStateTests/stExample/add11.json
+GeneralStateTests/stExample.add11
