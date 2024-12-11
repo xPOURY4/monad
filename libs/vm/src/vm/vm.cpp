@@ -93,6 +93,10 @@ namespace monad::compiler
             return EVMC_OUT_OF_GAS;
         }
 
+        if (size == 0) {
+            return {};
+        }
+
         auto *output_buf = new std::uint8_t[size];
         std::copy_n(ctx.memory.begin() + offset, size, &output_buf[0]);
         return std::span{output_buf, size};
