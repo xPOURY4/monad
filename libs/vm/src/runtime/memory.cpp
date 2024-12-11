@@ -13,9 +13,7 @@ namespace monad::runtime
 {
     std::uint32_t Context::get_memory_offset(utils::uint256_t offset)
     {
-        constexpr auto max_offset = (1 << Context::max_memory_offset_bits) - 1;
-
-        if (MONAD_COMPILER_UNLIKELY(offset > max_offset)) {
+        if (MONAD_COMPILER_UNLIKELY(offset > Context::max_offset)) {
             exit(StatusCode::OutOfGas);
         }
 

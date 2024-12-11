@@ -72,6 +72,7 @@ namespace monad::runtime
     struct Context
     {
         static constexpr std::size_t max_memory_offset_bits = 24;
+        static constexpr std::size_t max_offset = (1 << max_memory_offset_bits) - 1;
 
         evmc_host_interface const *host;
         evmc_host_context *context;

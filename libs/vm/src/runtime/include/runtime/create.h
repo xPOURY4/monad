@@ -1,6 +1,5 @@
 #pragma once
 
-#include <runtime/arithmetic.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>
 #include <utils/uint256.h>
@@ -35,7 +34,7 @@ namespace monad::runtime
             ctx->get_memory_offset_and_size(offset_word, size_word);
 
         if (size > 0) {
-            ctx->expand_memory(saturating_add(offset, size));
+            ctx->expand_memory(offset + size);
         }
 
         if constexpr (Rev >= EVMC_SHANGHAI) {

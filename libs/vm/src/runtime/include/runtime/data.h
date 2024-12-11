@@ -1,6 +1,5 @@
 #pragma once
 
-#include <runtime/arithmetic.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>
 #include <utils/assert.h>
@@ -57,9 +56,6 @@ namespace monad::runtime
         utils::uint256_t offset_word, utils::uint256_t size_word,
         std::uint8_t const *source, std::uint32_t len)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(
-            len <= std::numeric_limits<std::uint32_t>::max());
-
         auto [dest_offset, size] =
             ctx->get_memory_offset_and_size(dest_offset_word, size_word);
         if (size == 0) {
@@ -69,7 +65,7 @@ namespace monad::runtime
         auto size_in_words = (size + 31) / 32;
         ctx->deduct_gas(size_in_words * 3);
 
-        ctx->expand_memory(saturating_add(dest_offset, size));
+        ctx->expand_memory(dest_offset + size);
 
         auto start = [&] {
             if (offset_word > std::numeric_limits<std::uint32_t>::max()) {
@@ -80,7 +76,7 @@ namespace monad::runtime
             }
         }();
 
-        auto copy_size = std::min(size, saturating_sub(len, start));
+        auto copy_size = std::min(size, len - start);
 
         if (copy_size > 0) {
             auto begin = source + start;
@@ -88,11 +84,11 @@ namespace monad::runtime
                 begin, begin + copy_size, ctx->memory.begin() + dest_offset);
         }
 
-        auto size_diff = saturating_sub(size, copy_size);
+        auto size_diff = size - copy_size;
 
         if (size_diff > 0) {
             auto begin =
-                ctx->memory.begin() + saturating_add(dest_offset, copy_size);
+                ctx->memory.begin() + dest_offset + copy_size;
             std::fill(begin, begin + size_diff, 0);
         }
     }
@@ -179,8 +175,11 @@ namespace monad::runtime
             ctx->get_memory_offset_and_size(*dest_offset_ptr, *size_ptr);
 
         auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
+        std::uint32_t end;
 
-        if (saturating_add(offset, size) > ctx->env.return_data_size) {
+        if (MONAD_COMPILER_UNLIKELY(
+                __builtin_add_overflow(offset, size, &end) ||
+                end > ctx->env.return_data_size)) {
             ctx->exit(StatusCode::InvalidMemoryAccess);
         }
 
@@ -192,7 +191,7 @@ namespace monad::runtime
 
             std::copy(
                 &ctx->env.return_data[offset],
-                &ctx->env.return_data[offset + size],
+                &ctx->env.return_data[end],
                 ctx->memory.data() + dest_offset);
         }
     }

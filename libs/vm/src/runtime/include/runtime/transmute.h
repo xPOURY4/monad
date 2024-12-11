@@ -121,4 +121,14 @@ namespace monad::runtime
         std::memset(ret + 20, 0, 12);
         return std::bit_cast<utils::uint256_t>(ret);
     }
+
+    template <typename To, typename From>
+    [[gnu::always_inline]]
+    constexpr To clamp_cast(From const &x) noexcept
+    {
+        if (x > std::numeric_limits<To>::max()) {
+            return std::numeric_limits<To>::max();
+        }
+        return static_cast<To>(x);
+    }
 }

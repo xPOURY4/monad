@@ -1,6 +1,5 @@
 #pragma once
 
-#include <runtime/arithmetic.h>
 #include <runtime/transmute.h>
 #include <runtime/types.h>
 #include <utils/assert.h>
@@ -24,11 +23,11 @@ namespace monad::runtime
             ctx->get_memory_offset_and_size(ret_offset_word, ret_size_word);
 
         if (args_size > 0) {
-            ctx->expand_memory(saturating_add(args_offset, args_size));
+            ctx->expand_memory(args_offset + args_size);
         }
 
         if (ret_size > 0) {
-            ctx->expand_memory(saturating_add(ret_offset, ret_size));
+            ctx->expand_memory(ret_offset + ret_size);
         }
 
         auto code_address = address_from_uint256(address);

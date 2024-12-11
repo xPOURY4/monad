@@ -1,5 +1,4 @@
 #include <compiler/ir/x86.h>
-#include <runtime/arithmetic.h>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
@@ -87,8 +86,12 @@ namespace monad::compiler
 
         auto offset = static_cast<std::uint32_t>(offset_word);
         auto size = static_cast<std::uint32_t>(size_word);
+        std::uint32_t end;
 
-        ctx.expand_memory_unchecked(runtime::saturating_add(offset, size));
+        if (MONAD_COMPILER_UNLIKELY(__builtin_add_overflow(offset, size, &end))) {
+            return EVMC_OUT_OF_GAS;
+        }
+        ctx.expand_memory_unchecked(end);
         if (MONAD_COMPILER_UNLIKELY(ctx.gas_remaining < 0)) {
             return EVMC_OUT_OF_GAS;
         }
