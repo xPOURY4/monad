@@ -1,4 +1,5 @@
 #include <compiler/ir/x86.h>
+#include <cstring>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
@@ -8,7 +9,6 @@
 
 #include <evmc/evmc.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -69,7 +69,7 @@ namespace monad::compiler
     }
 
     std::variant<std::span<std::uint8_t const>, evmc_status_code>
-    copy_result_data(runtime::Context &ctx)
+    copy_result_data(runtime::Context const &ctx)
     {
         auto offset_word = intx::be::load<utils::uint256_t>(ctx.result.offset);
         auto size_word = intx::be::load<utils::uint256_t>(ctx.result.size);
@@ -88,10 +88,6 @@ namespace monad::compiler
         auto size = static_cast<std::uint32_t>(size_word);
         std::uint32_t end;
 
-        if (MONAD_COMPILER_UNLIKELY(__builtin_add_overflow(offset, size, &end))) {
-            return EVMC_OUT_OF_GAS;
-        }
-        ctx.expand_memory_unchecked(end);
         if (MONAD_COMPILER_UNLIKELY(ctx.gas_remaining < 0)) {
             return EVMC_OUT_OF_GAS;
         }
@@ -100,8 +96,20 @@ namespace monad::compiler
             return {};
         }
 
+        if (MONAD_COMPILER_UNLIKELY(
+                __builtin_add_overflow(offset, size, &end))) {
+            return EVMC_OUT_OF_GAS;
+        }
+
         auto *output_buf = new std::uint8_t[size];
-        std::copy_n(ctx.memory.begin() + offset, size, &output_buf[0]);
+        if (end <= ctx.memory.size) {
+            std::memcpy(output_buf, ctx.memory.data + offset, size);
+        }
+        else {
+            auto n = ctx.memory.size - offset;
+            std::memcpy(output_buf, ctx.memory.data + offset, n);
+            std::memset(output_buf + n, 0, end - ctx.memory.size);
+        }
         return std::span{output_buf, size};
     }
 
@@ -155,7 +163,6 @@ namespace monad::compiler
                 },
             .result = {},
             .memory = {},
-            .memory_cost = 0,
         };
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(

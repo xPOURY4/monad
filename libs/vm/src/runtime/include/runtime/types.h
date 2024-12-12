@@ -28,12 +28,6 @@ namespace monad::runtime
         StatusCode status;
     };
 
-    static_assert(std::is_standard_layout_v<Result>);
-    static_assert(sizeof(Result) == 72);
-    static_assert(offsetof(Result, offset) == 0);
-    static_assert(offsetof(Result, size) == 32);
-    static_assert(offsetof(Result, status) == 64);
-
     struct Environment
     {
         std::uint32_t evmc_flags;
@@ -51,10 +45,11 @@ namespace monad::runtime
         std::uint32_t code_size;
         std::uint32_t return_data_size;
 
+        [[gnu::always_inline]]
         void set_return_data(
             std::uint8_t const *output_data, std::uint32_t output_size)
         {
-            MONAD_COMPILER_ASSERT(return_data_size == 0);
+            MONAD_COMPILER_DEBUG_ASSERT(return_data_size == 0);
             return_data = output_data;
             return_data_size = output_size;
         }
@@ -66,13 +61,85 @@ namespace monad::runtime
         }
     };
 
-    static_assert(std::is_standard_layout_v<Environment>);
-    static_assert(sizeof(Environment) == 152);
+    struct Memory
+    {
+        std::uint32_t size;
+        std::uint32_t capacity;
+        std::uint8_t *data;
+        std::int64_t cost;
+
+        static constexpr auto initial_capacity = 4096;
+
+        Memory()
+            : size{}
+            , capacity{initial_capacity}
+            , data{alloc(capacity)}
+            , cost{}
+        {
+            memset(data, 0, capacity);
+        }
+
+        Memory(Memory &&m)
+            : size{m.size}
+            , capacity{m.capacity}
+            , data{m.data}
+            , cost{m.cost}
+        {
+            m.clear();
+        }
+
+        Memory &operator=(Memory &&m)
+        {
+            dealloc(data);
+
+            size = m.size;
+            capacity = m.capacity;
+            data = m.data;
+            cost = m.cost;
+
+            m.clear();
+            return *this;
+        }
+
+        Memory(Memory const &) = delete;
+
+        Memory &operator=(Memory const &) = delete;
+
+        ~Memory()
+        {
+            dealloc(data);
+        }
+
+        [[gnu::always_inline]]
+        void clear()
+        {
+            size = 0;
+            capacity = 0;
+            data = nullptr;
+            cost = 0;
+        }
+
+        [[gnu::always_inline]]
+        static uint8_t *alloc(std::uint32_t n)
+        {
+            return static_cast<uint8_t *>(std::aligned_alloc(32, n));
+        }
+
+        [[gnu::always_inline]]
+        static void dealloc(uint8_t *d)
+        {
+            std::free(d);
+        }
+    };
 
     struct Context
     {
         static constexpr std::size_t max_memory_offset_bits = 24;
-        static constexpr std::size_t max_offset = (1 << max_memory_offset_bits) - 1;
+        // Make sure that `max_memory_offset` is sufficiently small,
+        // so that `a + b` does not overflow `std::uint32_t` for
+        // `a <= max_memory_offset` and `b <= max_memory_offset`.
+        static constexpr std::size_t max_memory_offset =
+            (1 << max_memory_offset_bits) - 1;
 
         evmc_host_interface const *host;
         evmc_host_context *context;
@@ -84,9 +151,7 @@ namespace monad::runtime
 
         Result result = {};
 
-        std::vector<std::uint8_t> memory = {};
-        std::uint32_t memory_size = 0;
-        std::uint64_t memory_cost = 0;
+        Memory memory = {};
 
         void *exit_stack_ptr = nullptr;
 
@@ -99,23 +164,46 @@ namespace monad::runtime
             }
         }
 
-        void expand_memory(std::uint32_t size);
-        void expand_memory_unchecked(std::uint32_t size);
+        template <bool gas_check>
+        void expand_memory(std::uint32_t min_size)
+        {
+            if (memory.size < min_size) {
+                auto wsize = (min_size + 31) / 32;
+                auto new_size = wsize * 32;
+                if (memory.capacity < new_size) {
+                    memory.capacity = std::max(memory.capacity * 2, new_size);
+                    MONAD_COMPILER_DEBUG_ASSERT((memory.capacity & 31) == 0);
+                    std::uint8_t *new_data = Memory::alloc(memory.capacity);
+                    std::memcpy(new_data, memory.data, memory.size);
+                    std::memset(
+                        new_data + memory.size,
+                        0,
+                        memory.capacity - memory.size);
+                    Memory::dealloc(memory.data);
+                    memory.data = new_data;
+                }
+                auto s = static_cast<int64_t>(wsize);
+                auto new_cost = (s * s) / 512 + (3 * s);
+                auto expansion_cost = new_cost - memory.cost;
+                gas_remaining -= expansion_cost;
+                if constexpr (gas_check) {
+                    if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
+                        exit(StatusCode::OutOfGas);
+                    }
+                }
+                memory.size = new_size;
+                memory.cost = new_cost;
+            }
+        }
 
-        utils::uint256_t mload(utils::uint256_t offset);
-
-        void mstore(utils::uint256_t offset_word, utils::uint256_t value);
-
-        void mstore8(utils::uint256_t offset_word, utils::uint256_t value);
-
-        void mcopy(
-            utils::uint256_t dst_in, utils::uint256_t src_in,
-            utils::uint256_t size_in);
-
-        std::uint32_t get_memory_offset(utils::uint256_t offset);
-
-        std::pair<std::uint32_t, std::uint32_t> get_memory_offset_and_size(
-            utils::uint256_t offset, utils::uint256_t size);
+        [[gnu::always_inline]]
+        std::uint32_t get_memory_offset(utils::uint256_t const &offset)
+        {
+            if (MONAD_COMPILER_UNLIKELY(offset > max_memory_offset)) {
+                exit(StatusCode::OutOfGas);
+            }
+            return static_cast<uint32_t>(offset);
+        }
 
         [[gnu::always_inline]]
         evmc_tx_context get_tx_context() const
@@ -124,19 +212,5 @@ namespace monad::runtime
         }
 
         void exit [[noreturn]] (StatusCode code) noexcept;
-
-    private:
-        void set_memory_word(std::uint32_t offset, utils::uint256_t word);
-        void set_memory_byte(std::uint32_t offset, std::uint8_t byte);
     };
-
-    static_assert(std::is_standard_layout_v<Context>);
-    static_assert(sizeof(Context) == 304);
-    static_assert(offsetof(Context, host) == 0);
-    static_assert(offsetof(Context, context) == 8);
-    static_assert(offsetof(Context, gas_remaining) == 16);
-    static_assert(offsetof(Context, gas_refund) == 24);
-    static_assert(offsetof(Context, env) == 32);
-    static_assert(offsetof(Context, result) == 184);
-    static_assert(offsetof(Context, exit_stack_ptr) == 296);
 }

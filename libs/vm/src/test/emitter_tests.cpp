@@ -76,7 +76,6 @@ namespace
                 },
             .result = test_result(),
             .memory = {},
-            .memory_cost = 0,
             .exit_stack_ptr = nullptr};
     }
 
@@ -1951,7 +1950,7 @@ TEST(Emitter, msize)
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
     auto const &ret = ctx.result;
-    ctx.memory_size = 7;
+    ctx.memory.size = 7;
 
     entry(&ctx, nullptr);
 

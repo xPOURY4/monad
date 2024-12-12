@@ -1,8 +1,7 @@
 enable_language(C ASM)
 add_library(runtime
     exit.S
-    exit.cpp
-    memory.cpp)
+    exit.cpp)
 
 monad_compile_options(runtime)
 

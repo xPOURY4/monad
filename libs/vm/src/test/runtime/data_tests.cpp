@@ -106,9 +106,9 @@ TEST_F(RuntimeTest, CallDataCopyAll)
     copy(0, 0, 128);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 128);
-    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], i);
+    ASSERT_EQ(ctx_.memory.size, 128);
+    for (auto i = 0u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], i);
     }
 }
 
@@ -121,18 +121,18 @@ TEST_F(RuntimeTest, CallDataCopyPartial)
     copy(67, 5, 23);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 96);
+    ASSERT_EQ(ctx_.memory.size, 96);
 
     for (auto i = 0u; i < 67; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 
     for (auto i = 67u; i < 90; ++i) {
-        ASSERT_EQ(ctx_.memory[i], i - 62);
+        ASSERT_EQ(ctx_.memory.data[i], i - 62);
     }
 
-    for (auto i = 90u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+    for (auto i = 90u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 }
 
@@ -145,18 +145,18 @@ TEST_F(RuntimeTest, CallDataCopyOutOfBounds)
     copy(17, 0, 256);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 288);
+    ASSERT_EQ(ctx_.memory.size, 288);
 
     for (auto i = 0u; i < 17; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 
     for (auto i = 17u; i < 145; ++i) {
-        ASSERT_EQ(ctx_.memory[i], i - 17);
+        ASSERT_EQ(ctx_.memory.data[i], i - 17);
     }
 
-    for (auto i = 145u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+    for (auto i = 145u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 }
 
@@ -169,9 +169,9 @@ TEST_F(RuntimeTest, CodeCopyAll)
     copy(0, 0, 128);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 128);
-    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 127 - i);
+    ASSERT_EQ(ctx_.memory.size, 128);
+    for (auto i = 0u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 127 - i);
     }
 }
 
@@ -184,18 +184,18 @@ TEST_F(RuntimeTest, CodeCopyPartial)
     copy(47, 12, 23);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 96);
+    ASSERT_EQ(ctx_.memory.size, 96);
 
     for (auto i = 0u; i < 47; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 
     for (auto i = 47u; i < 70; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 162 - i);
+        ASSERT_EQ(ctx_.memory.data[i], 162 - i);
     }
 
-    for (auto i = 70u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+    for (auto i = 70u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 }
 
@@ -208,18 +208,18 @@ TEST_F(RuntimeTest, CodeCopyOutOfBounds)
     copy(25, 0, 256);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 288);
+    ASSERT_EQ(ctx_.memory.size, 288);
 
     for (auto i = 0u; i < 25; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 
     for (auto i = 25u; i < 153; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 152 - i);
+        ASSERT_EQ(ctx_.memory.data[i], 152 - i);
     }
 
-    for (auto i = 153u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+    for (auto i = 153u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 }
 
@@ -235,10 +235,10 @@ TEST_F(RuntimeTest, ExtCodeCopyHomestead)
     copy(addr, 0, 0, 32);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 32);
+    ASSERT_EQ(ctx_.memory.size, 32);
 
-    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 127 - i);
+    for (auto i = 0u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 127 - i);
     }
 }
 
@@ -254,14 +254,14 @@ TEST_F(RuntimeTest, ExtCodeCopyCancunOutOfBounds)
     copy(addr, 0, 112, 32);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 32);
+    ASSERT_EQ(ctx_.memory.size, 32);
 
     for (auto i = 0u; i < 16; ++i) {
-        ASSERT_EQ(ctx_.memory[i], 15 - i);
+        ASSERT_EQ(ctx_.memory.data[i], 15 - i);
     }
 
-    for (auto i = 16u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], 0);
+    for (auto i = 16u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], 0);
     }
 }
 
@@ -315,8 +315,8 @@ TEST_F(RuntimeTest, ReturnDataCopyAll)
     copy(0, 0, 128);
 
     ASSERT_EQ(ctx_.gas_remaining, 0);
-    ASSERT_EQ(ctx_.memory.size(), 128);
-    for (auto i = 0u; i < ctx_.memory.size(); ++i) {
-        ASSERT_EQ(ctx_.memory[i], i);
+    ASSERT_EQ(ctx_.memory.size, 128);
+    for (auto i = 0u; i < ctx_.memory.size; ++i) {
+        ASSERT_EQ(ctx_.memory.data[i], i);
     }
 }

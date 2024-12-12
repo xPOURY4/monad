@@ -39,6 +39,6 @@ TEST_F(RuntimeTest, KeccakExpand)
     ASSERT_EQ(
         call(sha3<EVMC_CANCUN>, 0, 65),
         0xAE61B77B3E4CBAC1353BFA4C59274E3AE531285C24E3CF57C11771ECBF72D9BF_u256);
-    ASSERT_EQ(ctx_.memory_cost, 9);
+    ASSERT_EQ(ctx_.memory.cost, 9);
     ASSERT_EQ(ctx_.gas_remaining, 0);
 }

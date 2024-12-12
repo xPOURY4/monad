@@ -55,7 +55,7 @@ constexpr auto context_offset_env_return_data_size =
     offsetof(runtime::Context, env) +
     offsetof(runtime::Environment, return_data_size);
 constexpr auto context_offset_memory_size =
-    offsetof(runtime::Context, memory_size);
+    offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
 constexpr auto context_offset_result_offset =
     offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
 constexpr auto context_offset_result_size =

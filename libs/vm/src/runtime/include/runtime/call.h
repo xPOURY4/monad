@@ -8,27 +8,26 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     utils::uint256_t call_impl(
-        Context *ctx, utils::uint256_t gas_word, utils::uint256_t address,
-        bool has_value, evmc_bytes32 value, utils::uint256_t args_offset_word,
-        utils::uint256_t args_size_word, utils::uint256_t ret_offset_word,
-        utils::uint256_t ret_size_word, evmc_call_kind call_kind,
+        Context *ctx, utils::uint256_t const &gas_word,
+        utils::uint256_t const &address, bool has_value,
+        evmc_bytes32 const &value, utils::uint256_t const &args_offset_word,
+        utils::uint256_t const &args_size_word,
+        utils::uint256_t const &ret_offset_word,
+        utils::uint256_t const &ret_size_word, evmc_call_kind call_kind,
         bool static_call, std::int64_t remaining_block_base_gas)
     {
         ctx->env.clear_return_data();
 
-        auto [args_offset, args_size] =
-            ctx->get_memory_offset_and_size(args_offset_word, args_size_word);
+        auto args_size = ctx->get_memory_offset(args_size_word);
+        auto args_offset =
+            (args_size > 0) ? ctx->get_memory_offset(args_offset_word) : 0;
 
-        auto [ret_offset, ret_size] =
-            ctx->get_memory_offset_and_size(ret_offset_word, ret_size_word);
+        auto ret_size = ctx->get_memory_offset(ret_size_word);
+        auto ret_offset =
+            (ret_size > 0) ? ctx->get_memory_offset(ret_offset_word) : 0;
 
-        if (args_size > 0) {
-            ctx->expand_memory(args_offset + args_size);
-        }
-
-        if (ret_size > 0) {
-            ctx->expand_memory(ret_offset + ret_size);
-        }
+        ctx->expand_memory<false>(
+            std::max(args_offset + args_size, ret_offset + ret_size));
 
         auto code_address = address_from_uint256(address);
 
@@ -105,7 +104,7 @@ namespace monad::runtime
             .recipient = recipient,
             .sender = sender,
             .input_data =
-                (args_size > 0) ? ctx->memory.data() + args_offset : nullptr,
+                (args_size > 0) ? ctx->memory.data + args_offset : nullptr,
             .input_size = args_size,
             .value = value,
             .create2_salt = ctx->env.create2_salt,
@@ -137,7 +136,7 @@ namespace monad::runtime
             std::copy(
                 result.output_data,
                 result.output_data + copy_size,
-                ctx->memory.begin() + ret_offset);
+                ctx->memory.data + ret_offset);
         }
 
         return (result.status_code == EVMC_SUCCESS) ? 1 : 0;

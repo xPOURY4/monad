@@ -8,24 +8,29 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void log_impl(
-        Context *ctx, utils::uint256_t offset_word, utils::uint256_t size_word,
+        Context *ctx, utils::uint256_t const &offset_word,
+        utils::uint256_t const &size_word,
         std::span<evmc::bytes32 const> topics)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
             ctx->exit(StatusCode::StaticModeViolation);
         }
 
-        auto [offset, size] =
-            ctx->get_memory_offset_and_size(offset_word, size_word);
+        std::uint32_t offset;
+        auto size = ctx->get_memory_offset(size_word);
 
         if (size > 0) {
-            ctx->expand_memory(size);
+            offset = ctx->get_memory_offset(offset_word);
+            ctx->expand_memory<true>(offset + size);
+        }
+        else {
+            offset = 0;
         }
 
         ctx->host->emit_log(
             ctx->context,
             &ctx->env.recipient,
-            ctx->memory.data() + offset,
+            ctx->memory.data + offset,
             size,
             topics.data(),
             topics.size());

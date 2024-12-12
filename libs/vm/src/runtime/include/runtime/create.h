@@ -20,9 +20,10 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     utils::uint256_t create_impl(
-        Context *ctx, utils::uint256_t value, utils::uint256_t offset_word,
-        utils::uint256_t size_word, utils::uint256_t salt_word,
-        evmc_call_kind kind, std::int64_t remaining_block_base_gas)
+        Context *ctx, utils::uint256_t const &value,
+        utils::uint256_t const &offset_word, utils::uint256_t const &size_word,
+        utils::uint256_t const &salt_word, evmc_call_kind kind,
+        std::int64_t remaining_block_base_gas)
     {
         if (MONAD_COMPILER_UNLIKELY(ctx->env.evmc_flags == EVMC_STATIC)) {
             ctx->exit(StatusCode::StaticModeViolation);
@@ -30,11 +31,15 @@ namespace monad::runtime
 
         ctx->env.clear_return_data();
 
-        auto [offset, size] =
-            ctx->get_memory_offset_and_size(offset_word, size_word);
+        std::uint32_t offset;
+        auto size = ctx->get_memory_offset(size_word);
 
         if (size > 0) {
-            ctx->expand_memory(offset + size);
+            offset = ctx->get_memory_offset(offset_word);
+            ctx->expand_memory<false>(offset + size);
+        }
+        else {
+            offset = 0;
         }
 
         if constexpr (Rev >= EVMC_SHANGHAI) {
@@ -76,7 +81,7 @@ namespace monad::runtime
             .gas = gas,
             .recipient = evmc::address{},
             .sender = ctx->env.recipient,
-            .input_data = (size > 0) ? ctx->memory.data() + offset : nullptr,
+            .input_data = (size > 0) ? ctx->memory.data + offset : nullptr,
             .input_size = size,
             .value = bytes32_from_uint256(value),
             .create2_salt = bytes32_from_uint256(salt_word),
