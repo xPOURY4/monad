@@ -1857,13 +1857,20 @@ TEST(Emitter, address)
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
     auto const &ret = ctx.result;
-    memset(ctx.env.recipient.bytes, 0, sizeof(ctx.env.recipient));
-    ctx.env.recipient.bytes[0] = 2;
+
+    for (uint8_t i = 0; i < 20; ++i) {
+        ctx.env.recipient.bytes[19 - i] = i + 1;
+    }
+    uint256_t result;
+    uint8_t *result_bytes = intx::as_bytes(result);
+    for (uint8_t i = 0; i < 20; ++i) {
+        result_bytes[i] = i + 1;
+    }
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
 }
 
 TEST(Emitter, caller)
@@ -1880,15 +1887,20 @@ TEST(Emitter, caller)
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
     auto const &ret = ctx.result;
-    memset(ctx.env.sender.bytes, 0, sizeof(ctx.env.sender));
-    ctx.env.sender.bytes[0] = 1;
-    ctx.env.sender.bytes[1] = 1;
-    ctx.env.sender.bytes[2] = 1;
+
+    for (uint8_t i = 0; i < 20; ++i) {
+        ctx.env.sender.bytes[19 - i] = i + 1;
+    }
+    uint256_t result;
+    uint8_t *result_bytes = intx::as_bytes(result);
+    for (uint8_t i = 0; i < 20; ++i) {
+        result_bytes[i] = i + 1;
+    }
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x010101);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x010101);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
 }
 
 TEST(Emitter, calldatasize)
@@ -1950,12 +1962,12 @@ TEST(Emitter, msize)
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
     auto const &ret = ctx.result;
-    ctx.memory.size = 7;
+    ctx.memory.size = 0xffffffff;
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 7);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 7);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xffffffff);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xffffffff);
 }
 
 TEST(Emitter, gas)
@@ -1993,13 +2005,20 @@ TEST(Emitter, callvalue)
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
     auto const &ret = ctx.result;
-    memset(ctx.env.value.bytes, 0, sizeof(ctx.env.value));
-    ctx.env.value.bytes[1] = 3;
+
+    for (uint8_t i = 0; i < 32; ++i) {
+        ctx.env.value.bytes[31 - i] = i + 1;
+    }
+    uint256_t result;
+    uint8_t *result_bytes = intx::as_bytes(result);
+    for (uint8_t i = 0; i < 32; ++i) {
+        result_bytes[i] = i + 1;
+    }
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x0300);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x0300);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
 }
 
 TEST(Emitter, iszero)

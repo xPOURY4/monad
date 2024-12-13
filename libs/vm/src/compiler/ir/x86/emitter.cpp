@@ -2082,18 +2082,23 @@ namespace monad::compiler::native
         x86::Mem m = x86::qword_ptr(reg_context, offset);
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
-        as_.mov(gpq[0], m);
-        m.addOffset(8);
+
+        m.setSize(4);
+        as_.mov(gpq[2].r32(), m);
+        m.addOffset(4);
+        m.setSize(8);
         as_.mov(gpq[1], m);
         m.addOffset(8);
-        m.setSize(4);
-        as_.movzx(gpq[2], m);
+        as_.mov(gpq[0], m);
         if (stack_->has_deferred_comparison()) {
             as_.mov(gpq[3], 0);
         }
         else {
             as_.xor_(gpq[3], gpq[3]);
         }
+        as_.bswap(gpq[2].r32());
+        as_.bswap(gpq[1]);
+        as_.bswap(gpq[0]);
         stack_->push(std::move(dst));
     }
 
@@ -2101,7 +2106,21 @@ namespace monad::compiler::native
     {
         x86::Mem const m = x86::qword_ptr(reg_context, offset);
         auto [dst, _] = alloc_avx_reg();
-        as_.vmovups(avx_reg_to_ymm(dst->avx_reg().value()), m);
+        auto y = avx_reg_to_ymm(dst->avx_reg().value());
+        as_.vmovups(y, m);
+        auto const &lbl = append_literal(Literal{uint256_t{
+            0x0001020304050607,
+            0x08090a0b0c0d0e0f,
+            0x0001020304050607,
+            0x08090a0b0c0d0e0f}});
+        // Permute bytes in avx register y:
+        // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+        // {b7, ..., b0, b15, ..., b8, b23, ..., b16, b31, ..., b24}
+        as_.vpshufb(y, y, x86::ptr(lbl));
+        // Permute qwords in avx register y:
+        // {b7, ..., b0, b15, ..., b8, b23, ..., b16, b31, ..., b24} ->
+        // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
+        as_.vpermq(y, y, 27);
         stack_->push(std::move(dst));
     }
 
@@ -2109,7 +2128,7 @@ namespace monad::compiler::native
     {
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
-        as_.movzx(gpq[0], x86::dword_ptr(reg_context, offset));
+        as_.mov(gpq[0].r32(), x86::dword_ptr(reg_context, offset));
         if (stack_->has_deferred_comparison()) {
             as_.mov(gpq[1], 0);
         }
@@ -2671,7 +2690,7 @@ namespace monad::compiler::native
                 std::move(dst),
                 LocationType::StackOffset,
                 std::move(src),
-                LocationType::Literal};
+                LocationType::GeneralReg};
         }
         mov_avx_reg_to_general_reg(src);
         return {
@@ -2729,7 +2748,8 @@ namespace monad::compiler::native
         case LocationType::GeneralReg:
             return general_reg_to_gpq256(elem->general_reg().value());
         case LocationType::Literal:
-            if (!always_append_literal) {
+            if (!always_append_literal &&
+                is_literal_bounded(elem->literal().value())) {
                 return literal_to_imm256(elem->literal().value());
             }
             else {
