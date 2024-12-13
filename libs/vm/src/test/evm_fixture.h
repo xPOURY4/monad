@@ -36,5 +36,13 @@ namespace monad::compiler::test
         void execute(
             std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
             std::span<std::uint8_t const> calldata = {}) noexcept;
+
+        void execute(
+            std::span<std::uint8_t const> code,
+            std::span<std::uint8_t const> calldata = {}) noexcept;
+
+        void execute(
+            std::initializer_list<std::uint8_t> code,
+            std::span<std::uint8_t const> calldata = {}) noexcept;
     };
 }

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <span>
 
 namespace monad::compiler::test
@@ -35,5 +36,19 @@ namespace monad::compiler::test
         std::span<std::uint8_t const> calldata) noexcept
     {
         execute(gas_limit, std::span{code}, calldata);
+    }
+
+    void EvmTest::execute(
+        std::span<std::uint8_t const> code,
+        std::span<std::uint8_t const> calldata) noexcept
+    {
+        execute(std::numeric_limits<std::int64_t>::max(), code, calldata);
+    }
+
+    void EvmTest::execute(
+        std::initializer_list<std::uint8_t> code,
+        std::span<std::uint8_t const> calldata) noexcept
+    {
+        execute(std::span{code}, calldata);
     }
 }
