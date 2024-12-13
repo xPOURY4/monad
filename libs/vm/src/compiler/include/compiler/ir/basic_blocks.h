@@ -103,29 +103,28 @@ namespace monad::compiler::basic_blocks
     }
 
     /**
-     * Gas usage for a given terminator.
-     *
-     * Returns a pair (minimum_static_gas, uses_dynamic_gas).
+     * Base gas usage for a given terminator.
      */
-    constexpr std::pair<std::uint16_t, bool> terminator_gas_info(Terminator t)
+    constexpr std::uint16_t terminator_static_gas(Terminator t)
     {
         using enum Terminator;
         switch (t) {
         case JumpI:
-            return {10, false};
+            return 10;
         case Return:
-            return {0, false};
+            return 0;
         case Revert:
-            return {0, true};
+            return 0;
         case Jump:
-            return {8, false};
+            return 8;
         case SelfDestruct:
-            return {5000, true};
+            return 5000;
         case Stop:
-            return {0, false};
+            return 0;
         case FallThrough:
+            return 0;
         case InvalidInstruction:
-            return {0, false};
+            return 0;
         default:
             std::unreachable();
         }

@@ -26,30 +26,22 @@ namespace
         bool dynamic_gas;
     };
 
-    BlockAnalysis analyze_block(Block const &block)
+    int32_t block_base_gas(Block const &block)
     {
-        BlockAnalysis analysis{.instr_gas = 0, .dynamic_gas = false};
+        int32_t base_gas = 0;
         for (auto const &instr : block.instrs) {
-            analysis.instr_gas += instr.static_gas_cost();
-            analysis.dynamic_gas |= instr.dynamic_gas();
+            base_gas += instr.static_gas_cost();
         }
-        auto [static_gas, dynamic_gas] =
-            basic_blocks::terminator_gas_info(block.terminator);
-        // This is also correct for fall through and invalid instruction.
-        analysis.instr_gas += static_gas;
-        analysis.dynamic_gas |= dynamic_gas;
-        return analysis;
+        auto term_gas = basic_blocks::terminator_static_gas(block.terminator);
+        // This is also correct for fall through and invalid instruction:
+        return base_gas + term_gas;
     }
 
     template <evmc_revision rev>
     void emit_instr(
-        Emitter &emit, BasicBlocksIR const &ir, Instruction const &instr,
-        int32_t remaining_base_gas)
+        Emitter &emit, Instruction const &instr, int32_t remaining_base_gas)
     {
         using enum OpCode;
-        (void)ir;
-        (void)remaining_base_gas;
-
         switch (instr.opcode()) {
         case Add:
             emit.add();
@@ -321,9 +313,7 @@ namespace
     }
 
     template <evmc_revision rev>
-    void emit_instrs(
-        Emitter &emit, BasicBlocksIR const &ir, Block const &block,
-        int32_t instr_gas)
+    void emit_instrs(Emitter &emit, Block const &block, int32_t instr_gas)
     {
         MONAD_COMPILER_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
         int32_t remaining_base_gas = instr_gas;
@@ -331,7 +321,7 @@ namespace
             MONAD_COMPILER_DEBUG_ASSERT(
                 remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -= instr.static_gas_cost();
-            emit_instr<rev>(emit, ir, instr, remaining_base_gas);
+            emit_instr<rev>(emit, instr, remaining_base_gas);
         }
     }
 
@@ -371,23 +361,29 @@ namespace
         }
     }
 
-    void emit_gas_check(
+    void emit_gas_decrement(
         Emitter &emit, BasicBlocksIR const &ir, Block const &block,
-        BlockAnalysis const &analysis)
+        int32_t block_base_gas, int32_t *accumulated_base_gas)
     {
+        if (ir.jump_dests().contains(block.offset)) {
+            *accumulated_base_gas = 0;
+            emit.gas_decrement_check_non_negative(block_base_gas + 1);
+            return;
+        }
+
         // Arbitrary gas threshold for when to emit gas check.
         // Needs to be big enough to make the gas check insignificant,
         // and small enough to avoid exploitation of the optimization.
         static int32_t const STATIC_GAS_CHECK_THRESHOLD = 1000;
 
-        int32_t const gas = ir.jump_dests().contains(block.offset)
-                                ? analysis.instr_gas + 1
-                                : analysis.instr_gas;
-        if (!analysis.dynamic_gas || gas >= STATIC_GAS_CHECK_THRESHOLD) {
-            emit.gas_decrement_no_check(gas);
+        int32_t const acc = *accumulated_base_gas + block_base_gas;
+        if (acc < STATIC_GAS_CHECK_THRESHOLD) {
+            *accumulated_base_gas = acc;
+            emit.gas_decrement_no_check(block_base_gas);
         }
         else {
-            emit.gas_decrement_check_non_negative(gas);
+            *accumulated_base_gas = 0;
+            emit.gas_decrement_check_non_negative(block_base_gas);
         }
     }
 
@@ -399,12 +395,14 @@ namespace
         for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
+        int32_t accumulated_base_gas = 0;
         for (Block const &block : ir.blocks()) {
             bool const can_enter_block = emit.begin_new_block(block);
             if (can_enter_block) {
-                auto analysis = analyze_block(block);
-                emit_gas_check(emit, ir, block, analysis);
-                emit_instrs<rev>(emit, ir, block, analysis.instr_gas);
+                int32_t const base_gas = block_base_gas(block);
+                emit_gas_decrement(
+                    emit, ir, block, base_gas, &accumulated_base_gas);
+                emit_instrs<rev>(emit, block, base_gas);
                 emit_terminator<rev>(emit, block);
             }
         }

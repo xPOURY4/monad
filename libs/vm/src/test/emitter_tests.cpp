@@ -1975,8 +1975,8 @@ TEST(Emitter, gas)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 8);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 8);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 12);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 12);
 }
 
 TEST(Emitter, callvalue)

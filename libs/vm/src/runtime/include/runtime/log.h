@@ -21,7 +21,7 @@ namespace monad::runtime
 
         if (size > 0) {
             offset = ctx->get_memory_offset(offset_word);
-            ctx->expand_memory<true>(offset + size);
+            ctx->expand_memory(offset + size);
         }
         else {
             offset = 0;

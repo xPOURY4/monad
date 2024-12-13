@@ -43,11 +43,11 @@ namespace monad::runtime
 
         std::uint32_t input_data_size;
         std::uint32_t code_size;
-        std::uint32_t return_data_size;
+        std::size_t return_data_size;
 
         [[gnu::always_inline]]
         void set_return_data(
-            std::uint8_t const *output_data, std::uint32_t output_size)
+            std::uint8_t const *output_data, std::size_t output_size)
         {
             MONAD_COMPILER_DEBUG_ASSERT(return_data_size == 0);
             return_data = output_data;
@@ -164,12 +164,22 @@ namespace monad::runtime
             }
         }
 
-        template <bool gas_check>
+        [[gnu::always_inline]]
+        static int64_t memory_cost_from_word_count(std::uint32_t word_count)
+        {
+            auto c = static_cast<int64_t>(word_count);
+            return (c * c) / 512 + (3 * c);
+        }
+
         void expand_memory(std::uint32_t min_size)
         {
             if (memory.size < min_size) {
                 auto wsize = (min_size + 31) / 32;
                 auto new_size = wsize * 32;
+                auto new_cost = memory_cost_from_word_count(wsize);
+                auto expansion_cost = new_cost - memory.cost;
+                // Must perform gas check before expanding:
+                deduct_gas(expansion_cost);
                 if (memory.capacity < new_size) {
                     memory.capacity = std::max(memory.capacity * 2, new_size);
                     MONAD_COMPILER_DEBUG_ASSERT((memory.capacity & 31) == 0);
@@ -181,15 +191,6 @@ namespace monad::runtime
                         memory.capacity - memory.size);
                     Memory::dealloc(memory.data);
                     memory.data = new_data;
-                }
-                auto s = static_cast<int64_t>(wsize);
-                auto new_cost = (s * s) / 512 + (3 * s);
-                auto expansion_cost = new_cost - memory.cost;
-                gas_remaining -= expansion_cost;
-                if constexpr (gas_check) {
-                    if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
-                        exit(StatusCode::OutOfGas);
-                    }
                 }
                 memory.size = new_size;
                 memory.cost = new_cost;

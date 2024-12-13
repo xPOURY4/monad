@@ -63,7 +63,7 @@ namespace monad::runtime
 
         auto dest_offset = ctx->get_memory_offset(dest_offset_word);
 
-        ctx->expand_memory<false>(dest_offset + size);
+        ctx->expand_memory(dest_offset + size);
 
         auto size_in_words = (size + 31) / 32;
         ctx->deduct_gas(size_in_words * 3);
@@ -132,7 +132,7 @@ namespace monad::runtime
         if (size > 0) {
             dest_offset = ctx->get_memory_offset(*dest_offset_ptr);
 
-            ctx->expand_memory<false>(dest_offset + size);
+            ctx->expand_memory(dest_offset + size);
 
             auto size_in_words = (size + 31) / 32;
             ctx->deduct_gas(size_in_words * 3);
@@ -188,7 +188,7 @@ namespace monad::runtime
         if (size > 0) {
             auto dest_offset = ctx->get_memory_offset(*dest_offset_ptr);
 
-            ctx->expand_memory<false>(dest_offset + size);
+            ctx->expand_memory(dest_offset + size);
 
             auto size_in_words = (size + 31) / 32;
             ctx->deduct_gas(size_in_words * 3);

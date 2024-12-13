@@ -378,12 +378,6 @@ namespace monad::compiler::native
 
     entrypoint_t Emitter::finish_contract(asmjit::JitRuntime &rt)
     {
-        for (auto const &[lbl, op, adj] : dynamic_jump_handlers_) {
-            as_.align(asmjit::AlignMode::kCode, 16);
-            as_.bind(lbl);
-            jump_non_literal_dest(op, adj);
-        }
-
         contract_epilogue();
 
         for (auto const &[lbl, op, back] : shift_out_of_bounds_handlers_) {
@@ -1701,12 +1695,13 @@ namespace monad::compiler::native
     // Discharge
     void Emitter::gas(int32_t remaining_base_gas)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(remaining_base_gas >= 0);
         discharge_deferred_comparison();
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
         as_.mov(
             gpq[0], x86::qword_ptr(reg_context, context_offset_gas_remaining));
-        as_.sub(gpq[0], remaining_base_gas);
+        as_.add(gpq[0], remaining_base_gas);
         as_.xor_(gpq[1], gpq[1]);
         as_.mov(gpq[2], gpq[1]);
         as_.mov(gpq[3], gpq[1]);
@@ -1843,53 +1838,20 @@ namespace monad::compiler::native
         // Clear to remove locations, if not on stack:
         cond = nullptr;
 
-        asmjit::Label dynamic_jump_lbl;
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
-            dynamic_jump_lbl = jump_dest_label(lit);
             block_epilogue();
+            conditional_jmp(jump_dest_label(lit), comp);
         }
         else {
-            dynamic_jump_lbl = as_.newLabel();
             auto op = non_literal_jump_dest_operand(dest);
             // Need to keep `dest` alive during block epilogue, to prevent
-            // using the stack offset, optionally occupied by `dest`.
+            // using the stack offset potentially occupied by `dest`.
             auto stack_adjustment = block_epilogue();
-            dynamic_jump_handlers_.emplace_back(
-                dynamic_jump_lbl, op, stack_adjustment);
-        }
-
-        switch (comp) {
-        case Comparison::Below:
-            as_.jb(dynamic_jump_lbl);
-            break;
-        case Comparison::AboveEqual:
-            as_.jae(dynamic_jump_lbl);
-            break;
-        case Comparison::Above:
-            as_.ja(dynamic_jump_lbl);
-            break;
-        case Comparison::BelowEqual:
-            as_.jbe(dynamic_jump_lbl);
-            break;
-        case Comparison::Less:
-            as_.jl(dynamic_jump_lbl);
-            break;
-        case Comparison::GreaterEqual:
-            as_.jge(dynamic_jump_lbl);
-            break;
-        case Comparison::Greater:
-            as_.jg(dynamic_jump_lbl);
-            break;
-        case Comparison::LessEqual:
-            as_.jle(dynamic_jump_lbl);
-            break;
-        case Comparison::Equal:
-            as_.je(dynamic_jump_lbl);
-            break;
-        case Comparison::NotEqual:
-            as_.jne(dynamic_jump_lbl);
-            break;
+            asmjit::Label const lbl = as_.newLabel();
+            conditional_jmp(lbl, negate_comparison(comp));
+            jump_non_literal_dest(op, stack_adjustment);
+            as_.bind(lbl);
         }
     }
 
@@ -2076,6 +2038,42 @@ namespace monad::compiler::native
             as_.jnb(invalid_instruction_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.jmp(x86::ptr(x86::rax, x86::rcx, 3));
+        }
+    }
+
+    void Emitter::conditional_jmp(asmjit::Label const &lbl, Comparison comp)
+    {
+        switch (comp) {
+        case Comparison::Below:
+            as_.jb(lbl);
+            break;
+        case Comparison::AboveEqual:
+            as_.jae(lbl);
+            break;
+        case Comparison::Above:
+            as_.ja(lbl);
+            break;
+        case Comparison::BelowEqual:
+            as_.jbe(lbl);
+            break;
+        case Comparison::Less:
+            as_.jl(lbl);
+            break;
+        case Comparison::GreaterEqual:
+            as_.jge(lbl);
+            break;
+        case Comparison::Greater:
+            as_.jg(lbl);
+            break;
+        case Comparison::LessEqual:
+            as_.jle(lbl);
+            break;
+        case Comparison::Equal:
+            as_.je(lbl);
+            break;
+        case Comparison::NotEqual:
+            as_.jne(lbl);
+            break;
         }
     }
 

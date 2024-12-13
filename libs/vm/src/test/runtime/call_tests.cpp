@@ -45,7 +45,7 @@ TEST_F(RuntimeTest, CallWithValueCold)
 
     ASSERT_EQ(res, 1);
     ASSERT_EQ(ctx_.memory.size, 0);
-    ASSERT_EQ(ctx_.gas_remaining, 57800);
+    ASSERT_EQ(ctx_.gas_remaining, 55500);
 }
 
 TEST_F(RuntimeTest, CallGasLimit)
@@ -103,7 +103,7 @@ TEST_F(RuntimeTest, CallCodeHomestead)
     auto res = do_call(10000, 0, 34, 120, 2, 3, 54);
     ASSERT_EQ(res, 1);
     ASSERT_EQ(ctx_.memory.size, 128);
-    ASSERT_EQ(ctx_.gas_remaining, 85288);
+    ASSERT_EQ(ctx_.gas_remaining, 82988);
 }
 
 TEST_F(RuntimeTest, StaticCallByzantium)

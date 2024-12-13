@@ -69,46 +69,44 @@ namespace monad::compiler
     }
 
     std::variant<std::span<std::uint8_t const>, evmc_status_code>
-    copy_result_data(runtime::Context const &ctx)
+    copy_result_data(runtime::Context &ctx)
     {
-        auto offset_word = intx::be::load<utils::uint256_t>(ctx.result.offset);
-        auto size_word = intx::be::load<utils::uint256_t>(ctx.result.size);
-
-        if (MONAD_COMPILER_UNLIKELY(
-                offset_word > std::numeric_limits<std::uint32_t>::max())) {
-            return EVMC_OUT_OF_MEMORY;
-        }
-
-        if (MONAD_COMPILER_UNLIKELY(
-                size_word > std::numeric_limits<std::uint32_t>::max())) {
-            return EVMC_OUT_OF_MEMORY;
-        }
-
-        auto offset = static_cast<std::uint32_t>(offset_word);
-        auto size = static_cast<std::uint32_t>(size_word);
-        std::uint32_t end;
-
-        if (MONAD_COMPILER_UNLIKELY(ctx.gas_remaining < 0)) {
+        auto size_word = intx::le::load<utils::uint256_t>(ctx.result.size);
+        if (size_word > runtime::Context::max_memory_offset) {
             return EVMC_OUT_OF_GAS;
         }
-
+        auto size = static_cast<uint32_t>(size_word);
         if (size == 0) {
-            return {};
+            if (ctx.gas_remaining < 0) {
+                return EVMC_OUT_OF_GAS;
+            }
+            return std::span<std::uint8_t const>({});
         }
+        auto offset_word = intx::le::load<utils::uint256_t>(ctx.result.offset);
+        if (offset_word > runtime::Context::max_memory_offset) {
+            return EVMC_OUT_OF_GAS;
+        }
+        auto offset = static_cast<uint32_t>(offset_word);
 
-        if (MONAD_COMPILER_UNLIKELY(
-                __builtin_add_overflow(offset, size, &end))) {
+        auto min_memory_size = offset + size;
+        auto total_memory_cost = runtime::Context::memory_cost_from_word_count(
+            (min_memory_size + 31) / 32);
+        ctx.gas_remaining -= total_memory_cost - ctx.memory.cost;
+        if (ctx.gas_remaining < 0) {
             return EVMC_OUT_OF_GAS;
         }
 
         auto *output_buf = new std::uint8_t[size];
-        if (end <= ctx.memory.size) {
+        if (min_memory_size <= ctx.memory.size) {
             std::memcpy(output_buf, ctx.memory.data + offset, size);
         }
-        else {
+        else if (offset < ctx.memory.size) {
             auto n = ctx.memory.size - offset;
             std::memcpy(output_buf, ctx.memory.data + offset, n);
-            std::memset(output_buf + n, 0, end - ctx.memory.size);
+            std::memset(output_buf + n, 0, min_memory_size - ctx.memory.size);
+        }
+        else {
+            std::memset(output_buf, 0, size);
         }
         return std::span{output_buf, size};
     }

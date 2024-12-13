@@ -36,7 +36,7 @@ namespace monad::runtime
 
         if (size > 0) {
             offset = ctx->get_memory_offset(offset_word);
-            ctx->expand_memory<false>(offset + size);
+            ctx->expand_memory(offset + size);
         }
         else {
             offset = 0;
@@ -91,20 +91,10 @@ namespace monad::runtime
         };
 
         auto result = ctx->host->call(ctx->context, &message);
-        auto call_gas_used = gas - result.gas_left;
 
+        ctx->deduct_gas(gas - result.gas_left);
         ctx->gas_refund += result.gas_refund;
-
-        if (MONAD_COMPILER_UNLIKELY(
-                result.output_size >
-                std::numeric_limits<std::uint32_t>::max())) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
-
-        ctx->deduct_gas(call_gas_used);
-
-        ctx->env.set_return_data(
-            result.output_data, static_cast<std::uint32_t>(result.output_size));
+        ctx->env.set_return_data(result.output_data, result.output_size);
 
         return (result.status_code == EVMC_SUCCESS)
                    ? uint256_from_address(result.create_address)

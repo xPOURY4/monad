@@ -26,7 +26,7 @@ namespace monad::runtime
         auto ret_offset =
             (ret_size > 0) ? ctx->get_memory_offset(ret_offset_word) : 0;
 
-        ctx->expand_memory<false>(
+        ctx->expand_memory(
             std::max(args_offset + args_size, ret_offset + ret_size));
 
         auto code_address = address_from_uint256(address);
@@ -85,13 +85,12 @@ namespace monad::runtime
             }
         }
 
-        auto call_gas = gas;
         if (has_value) {
-            call_gas += 2300;
+            gas += 2300;
             ctx->gas_remaining += 2300;
         }
 
-        if (ctx->env.depth >= 1024) {
+        if (MONAD_COMPILER_UNLIKELY(ctx->env.depth >= 1024)) {
             return 0;
         }
 
@@ -100,7 +99,7 @@ namespace monad::runtime
             .flags = static_call ? static_cast<std::uint32_t>(EVMC_STATIC)
                                  : ctx->env.evmc_flags,
             .depth = ctx->env.depth + 1,
-            .gas = call_gas,
+            .gas = gas,
             .recipient = recipient,
             .sender = sender,
             .input_data =
@@ -114,20 +113,10 @@ namespace monad::runtime
         };
 
         auto result = ctx->host->call(ctx->context, &message);
-        auto call_gas_used = gas - result.gas_left;
 
+        ctx->deduct_gas(gas - result.gas_left);
         ctx->gas_refund += result.gas_refund;
-
-        if (MONAD_COMPILER_UNLIKELY(
-                result.output_size >
-                std::numeric_limits<std::uint32_t>::max())) {
-            ctx->exit(StatusCode::OutOfGas);
-        }
-
-        ctx->deduct_gas(call_gas_used);
-
-        ctx->env.set_return_data(
-            result.output_data, static_cast<std::uint32_t>(result.output_size));
+        ctx->env.set_return_data(result.output_data, result.output_size);
 
         auto copy_size =
             std::min(static_cast<std::size_t>(ret_size), result.output_size);

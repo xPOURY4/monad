@@ -22,7 +22,7 @@ namespace monad::runtime
         if (size > 0) {
             offset = ctx->get_memory_offset(*offset_ptr);
 
-            ctx->expand_memory<false>(offset + size);
+            ctx->expand_memory(offset + size);
 
             auto word_size = (size + 31) / 32;
             ctx->deduct_gas(word_size * 6);

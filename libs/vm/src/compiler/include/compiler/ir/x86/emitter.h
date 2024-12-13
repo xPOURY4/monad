@@ -338,6 +338,7 @@ namespace monad::compiler::native
         void jump_literal_dest(uint256_t const &);
         Operand non_literal_jump_dest_operand(StackElemRef const &);
         void jump_non_literal_dest(Operand const &, int32_t stack_adjustment);
+        void conditional_jmp(asmjit::Label const &, Comparison);
 
         void read_context_address(int32_t offset);
         void read_context_word(int32_t offset);
@@ -442,7 +443,5 @@ namespace monad::compiler::native
             byte_out_of_bounds_handlers_;
         std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
             shift_out_of_bounds_handlers_;
-        std::vector<std::tuple<asmjit::Label, Operand, int32_t>>
-            dynamic_jump_handlers_;
     };
 }
