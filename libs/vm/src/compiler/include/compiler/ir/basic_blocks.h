@@ -505,6 +505,7 @@ struct std::formatter<monad::compiler::basic_blocks::Block>
         monad::compiler::basic_blocks::Block const &blk,
         std::format_context &ctx) const
     {
+        std::format_to(ctx.out(), "  0x{:02x}:\n", blk.offset);
 
         for (auto const &tok : blk.instrs) {
             std::format_to(ctx.out(), "      {}\n", tok);
@@ -534,7 +535,7 @@ struct std::formatter<monad::compiler::basic_blocks::BasicBlocksIR>
         std::format_to(ctx.out(), "basic_blocks:\n");
         int i = 0;
         for (auto const &blk : ir.blocks()) {
-            std::format_to(ctx.out(), "  block {} - 0x{}:\n", i, blk.offset);
+            std::format_to(ctx.out(), "  block {}", i);
             std::format_to(ctx.out(), "{}", blk);
             i++;
         }

@@ -591,7 +591,7 @@ namespace monad::compiler
         add_opcode(0x1C, table, {"SHR", 0, 2, true, false, 3, 0});
         add_opcode(0x1D, table, {"SAR", 0, 2, true, false, 3, 0});
         add_opcode(0x3F, table, {"EXTCODEHASH", 0, 1, true, true, 400, 0});
-        add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 3200, 0});
+        add_opcode(0xF5, table, {"CREATE2", 0, 4, true, true, 32000, 0});
 
         // EIP-1283
         table[SSTORE].min_gas = 200;

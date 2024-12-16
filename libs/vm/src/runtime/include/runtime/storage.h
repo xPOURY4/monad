@@ -45,9 +45,12 @@ namespace monad::runtime
             ctx->exit(StatusCode::StaticModeViolation);
         }
 
+        constexpr auto min_gas = minimum_store_gas<Rev>();
+
         // EIP-2200
         if constexpr (Rev >= EVMC_ISTANBUL) {
-            if (ctx->gas_remaining + remaining_block_base_gas <= 2300) {
+            if (ctx->gas_remaining + remaining_block_base_gas + min_gas <=
+                2300) {
                 ctx->exit(StatusCode::OutOfGas);
             }
         }
@@ -67,7 +70,7 @@ namespace monad::runtime
         // gas cost of this SSTORE already, but to keep the table of costs
         // readable it encodes the total gas usage of each combination, rather
         // than the amount relative to the minimum gas.
-        gas_used -= minimum_store_gas<Rev>();
+        gas_used -= min_gas;
 
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
@@ -100,6 +103,10 @@ namespace monad::runtime
         utils::uint256_t const *val_ptr)
     {
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
+
+        if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
+            ctx->exit(StatusCode::StaticModeViolation);
+        }
 
         auto key = bytes32_from_uint256(*key_ptr);
         auto val = bytes32_from_uint256(*val_ptr);

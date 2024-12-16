@@ -16,9 +16,9 @@ namespace monad::compiler::native
 
     /**
      * Compile the given contract and add it to JitRuntime. On success
-     * the contract main functions is returned. Returns null on error.
+     * the contract main function is returned. Returns null on error.
      */
     std::optional<entrypoint_t> compile(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
-        evmc_revision rev);
+        evmc_revision rev, char const *asm_log);
 }

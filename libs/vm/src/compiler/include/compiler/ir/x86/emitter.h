@@ -162,6 +162,11 @@ namespace monad::compiler::native
 
         entrypoint_t finish_contract(asmjit::JitRuntime &);
 
+        ////////// Debug functionality //////////
+
+        void runtime_print_gas_remaining(std::string const &msg);
+        void asm_comment(std::string const &msg);
+
         ////////// Core emit functionality //////////
 
         Stack &get_stack();
@@ -243,6 +248,10 @@ namespace monad::compiler::native
         init_code_holder(asmjit::JitRuntime const &, char const *);
         void contract_prologue();
         void contract_epilogue();
+
+        ////////// Private debug functionality //////////
+
+        void unsafe_asm_comment(std::string const &msg);
 
         ////////// Private core emit functionality //////////
 
@@ -443,5 +452,6 @@ namespace monad::compiler::native
             byte_out_of_bounds_handlers_;
         std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
             shift_out_of_bounds_handlers_;
+        std::vector<std::pair<asmjit::Label, std::string>> debug_messages_;
     };
 }

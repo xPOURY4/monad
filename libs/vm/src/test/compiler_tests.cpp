@@ -222,7 +222,7 @@ TEST(BlockTest, Formatter)
 {
     EXPECT_EQ(
         std::format("{}", basic_blocks::Block{{}, Return, INVALID_BLOCK_ID}),
-        "    Return\n");
+        "  0x00:\n    Return\n");
 
     EXPECT_EQ(
         std::format(
@@ -234,7 +234,7 @@ TEST(BlockTest, Formatter)
                 },
                 SelfDestruct,
                 INVALID_BLOCK_ID}),
-        "      ADD\n      ADD\n    SelfDestruct\n");
+        "  0x00:\n      ADD\n      ADD\n    SelfDestruct\n");
 
     EXPECT_EQ(
         std::format(
@@ -245,7 +245,7 @@ TEST(BlockTest, Formatter)
                 },
                 JumpI,
                 0}),
-        "      ADD\n    JumpI 0\n");
+        "  0x00:\n      ADD\n    JumpI 0\n");
 }
 
 auto const instrIR0 = basic_blocks::BasicBlocksIR({});
@@ -271,7 +271,7 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR0),
         R"(basic_blocks:
-  block 0 - 0x0:
+  block 0  0x00:
     Stop
 
   jumpdests:
@@ -280,11 +280,11 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR1),
         R"(basic_blocks:
-  block 0 - 0x0:
+  block 0  0x00:
       SUB
       SUB
     FallThrough 1
-  block 1 - 0x3:
+  block 1  0x03:
     Stop
 
   jumpdests:
@@ -295,12 +295,12 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR2),
         R"(basic_blocks:
-  block 0 - 0x0:
+  block 0  0x00:
     FallThrough 1
-  block 1 - 0x1:
+  block 1  0x01:
       SUB
     FallThrough 2
-  block 2 - 0x3:
+  block 2  0x03:
     Stop
 
   jumpdests:
@@ -312,21 +312,21 @@ TEST(BasicBlocksIRTest, Formatter)
     EXPECT_EQ(
         std::format("{}", instrIR3),
         R"(basic_blocks:
-  block 0 - 0x0:
+  block 0  0x00:
       PUSH1 0xff
       PUSH1 0xe
       SWAP2
       PUSH1 0x11
     JumpI 1
-  block 1 - 0x8:
+  block 1  0x08:
       PUSH1 0x1
       ADD
       SWAP1
     Jump
-  block 2 - 0x14:
+  block 2  0x0e:
       POP
     Stop
-  block 3 - 0x17:
+  block 3  0x11:
       SWAP1
       PUSH1 0x8
     Jump

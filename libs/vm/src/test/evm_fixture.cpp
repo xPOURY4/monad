@@ -22,7 +22,7 @@ namespace monad::compiler::test
             host_.access_account(msg_.recipient);
         }
 
-        result_ = evmc::Result(vm_.execute(
+        result_ = evmc::Result(vm_.compile_and_execute(
             &host_.get_interface(),
             host_.to_context(),
             rev_,

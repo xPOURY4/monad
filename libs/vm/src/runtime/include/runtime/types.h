@@ -136,8 +136,10 @@ namespace monad::runtime
     {
         static constexpr std::size_t max_memory_offset_bits = 24;
         // Make sure that `max_memory_offset` is sufficiently small,
-        // so that `a + b` does not overflow `std::uint32_t` for
-        // `a <= max_memory_offset` and `b <= max_memory_offset`.
+        // so that the following does not overflow `std::uint32_t`:
+        // * `a + b` and
+        // * `(a + 1) * 32`,
+        // for `a <= max_memory_offset` and `b <= max_memory_offset`.
         static constexpr std::size_t max_memory_offset =
             (1 << max_memory_offset_bits) - 1;
 

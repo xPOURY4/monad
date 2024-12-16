@@ -58,20 +58,9 @@ namespace monad::runtime
             return 0;
         }
 
-        if (value != 0) {
-            auto balance = uint256_from_bytes32(
-                ctx->host->get_balance(ctx->context, &ctx->env.recipient));
-
-            if (MONAD_COMPILER_UNLIKELY(balance < value)) {
-                ctx->exit(StatusCode::OutOfGas);
-            }
-        }
-
-        auto gas_left_here = ctx->gas_remaining + remaining_block_base_gas;
-        auto gas = gas_left_here;
-
+        auto gas = ctx->gas_remaining + remaining_block_base_gas;
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
-            gas = gas_left_here - (gas_left_here / 64);
+            gas = gas - (gas / 64);
         }
 
         auto message = evmc_message{

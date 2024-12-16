@@ -57,13 +57,12 @@ namespace monad::runtime
                 ctx->exit(StatusCode::StaticModeViolation);
             }
 
-            auto empty_account = false;
-            if constexpr (Rev < EVMC_SPURIOUS_DRAGON) {
-                empty_account =
-                    ctx->host->account_exists(ctx->context, &code_address);
+            auto has_empty_cost = true;
+            if constexpr (Rev >= EVMC_SPURIOUS_DRAGON) {
+                has_empty_cost = has_value;
             }
-
-            if (has_value || empty_account) {
+            if (has_empty_cost &&
+                !ctx->host->account_exists(ctx->context, &code_address)) {
                 ctx->gas_remaining -= 25000;
             }
         }

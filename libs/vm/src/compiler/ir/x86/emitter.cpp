@@ -19,9 +19,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <format>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -110,6 +112,13 @@ namespace
     {
         MONAD_COMPILER_DEBUG_ASSERT(reg.reg < 32);
         return x86::Ymm(reg.reg);
+    }
+
+    void runtime_print_gas_remaining_impl(
+        char const *msg, runtime::Context const *ctx)
+    {
+        std::cout << msg << ": gas remaining: " << ctx->gas_remaining
+                  << std::endl;
     }
 }
 
@@ -450,6 +459,11 @@ namespace monad::compiler::native
             }
         }
 
+        for (auto const &[lbl, msg] : debug_messages_) {
+            as_.bind(lbl);
+            as_.embed(msg.c_str(), msg.size() + 1);
+        }
+
         entrypoint_t contract_main;
         auto err = rt.add(&contract_main, &code_holder_);
         if (err != asmjit::kErrorOk) {
@@ -512,6 +526,29 @@ namespace monad::compiler::native
         as_.ret();
     }
 
+    ////////// Debug functionality //////////
+
+    void Emitter::runtime_print_gas_remaining(std::string const &msg)
+    {
+        auto msg_lbl = as_.newLabel();
+        debug_messages_.emplace_back(msg_lbl, msg);
+        auto fn_lbl = as_.newLabel();
+        external_functions_.emplace_back(
+            fn_lbl, reinterpret_cast<void *>(runtime_print_gas_remaining_impl));
+
+        spill_all_caller_save_regs();
+        as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
+        as_.mov(x86::rsi, reg_context);
+        as_.call(x86::qword_ptr(fn_lbl));
+    }
+
+    void Emitter::asm_comment(std::string const &msg)
+    {
+        if (debug_logger_.file()) {
+            unsafe_asm_comment(msg);
+        }
+    }
+
     ////////// Core emit functionality //////////
 
     Stack &Emitter::get_stack()
@@ -531,6 +568,9 @@ namespace monad::compiler::native
 
     bool Emitter::begin_new_block(basic_blocks::Block const &b)
     {
+        if (debug_logger_.file()) {
+            unsafe_asm_comment(std::format("{}", b));
+        }
         stack_ = std::make_unique<Stack>(b);
         return block_prologue(b);
     }
@@ -626,6 +666,8 @@ namespace monad::compiler::native
             as_.bind(it->second);
         }
 
+        // runtime_print_gas_remaining(std::format("Block 0x{:02x}", b.offset));
+
         auto const min_delta = stack_->min_delta();
         auto const max_delta = stack_->max_delta();
         if (min_delta < -1024 || max_delta > 1024) {
@@ -693,6 +735,11 @@ namespace monad::compiler::native
         std::unordered_map<StackElem *, int32_t> dep_counts;
         for (int32_t i = min_delta; i <= top_index; ++i) {
             auto d = stack_->get(i);
+
+            MONAD_COMPILER_DEBUG_ASSERT(
+                d->general_reg().has_value() || d->avx_reg().has_value() ||
+                d->stack_offset().has_value() || d->literal().has_value());
+
             if (i != *d->stack_indices().begin()) {
                 // Already visited
                 continue;
@@ -753,12 +800,13 @@ namespace monad::compiler::native
                     mov_literal_to_ymm(d->literal().value(), yx1);
                 }
                 else {
+                    MONAD_COMPILER_DEBUG_ASSERT(d->general_reg().has_value());
                     auto m = stack_offset_to_mem(StackOffset{*it});
                     // Move to final stack offset:
                     mov_general_reg_to_mem(d->general_reg().value(), m);
                     // Point to next stack offset:
                     ++it;
-                    // Put in `yx` if there are more final stack offsets:
+                    // Put in `yx1` if there are more final stack offsets:
                     if (it != is.end()) {
                         as_.vmovaps(yx1, m);
                     }
@@ -870,6 +918,19 @@ namespace monad::compiler::native
         if (dc.negated_stack_elem) {
             auto comp = negate_comparison(dc.comparison);
             discharge_deferred_comparison(dc.negated_stack_elem, comp);
+        }
+    }
+
+    ////////// Private debug functionality //////////
+
+    void Emitter::unsafe_asm_comment(std::string const &msg)
+    {
+        std::stringstream ss{msg};
+        std::string line;
+        while (std::getline(ss, line, '\n')) {
+            debug_logger_.log("// ");
+            debug_logger_.log(line.c_str());
+            debug_logger_.log("\n");
         }
     }
 
@@ -2839,14 +2900,19 @@ namespace monad::compiler::native
             }
         }
         if (dst->avx_reg()) {
-            if (!dst_ix || !dst->is_on_stack()) {
+            if (!dst_ix) {
                 return {dst, dst, LocationType::AvxReg};
             }
-            auto [elem, _] = alloc_avx_reg();
-            return {elem, dst, LocationType::AvxReg};
+            if (!dst->is_on_stack()) {
+                auto n = stack_->release_avx_reg(std::move(dst));
+                return {n, n, LocationType::AvxReg};
+            }
+            auto [n, _] = alloc_avx_reg();
+            return {n, dst, LocationType::AvxReg};
         }
         MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg() && !dst->is_on_stack());
-        return {dst, dst, LocationType::GeneralReg};
+        auto n = stack_->release_general_reg(std::move(dst));
+        return {n, n, LocationType::GeneralReg};
     }
 
     std::tuple<

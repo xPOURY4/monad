@@ -9,7 +9,6 @@
 #include <asmjit/core/jitruntime.h>
 
 #include <cstdint>
-#include <exception>
 #include <limits>
 #include <optional>
 #include <span>
@@ -20,12 +19,6 @@ using namespace monad::compiler::native;
 
 namespace
 {
-    struct BlockAnalysis
-    {
-        int32_t instr_gas;
-        bool dynamic_gas;
-    };
-
     template <evmc_revision Rev>
     int32_t block_base_gas(Block const &block)
     {
@@ -214,10 +207,11 @@ namespace
             emit.call_runtime(remaining_base_gas, monad::runtime::basefee<rev>);
             break;
         case BlobHash:
-            std::terminate();
+            // TODO - missing implementation
             break;
         case BlobBaseFee:
-            std::terminate();
+            emit.push(0);
+            // TODO - missing implementation
             break;
         case Pop:
             emit.pop();
@@ -390,10 +384,10 @@ namespace
     }
 
     template <evmc_revision rev>
-    entrypoint_t
-    compile_local_stacks(asmjit::JitRuntime &rt, BasicBlocksIR const &ir)
+    entrypoint_t compile_local_stacks(
+        asmjit::JitRuntime &rt, BasicBlocksIR const &ir, char const *asm_log)
     {
-        Emitter emit{rt, ir.codesize};
+        Emitter emit{rt, ir.codesize, asm_log};
         for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
@@ -412,11 +406,12 @@ namespace
     }
 
     template <evmc_revision Rev>
-    entrypoint_t
-    compile_contract(asmjit::JitRuntime &rt, std::span<uint8_t const> contract)
+    entrypoint_t compile_contract(
+        asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
+        char const *asm_log)
     {
         auto ir = BasicBlocksIR(basic_blocks::make_ir<Rev>(contract));
-        return compile_local_stacks<Rev>(rt, ir);
+        return compile_local_stacks<Rev>(rt, ir, asm_log);
     }
 }
 
@@ -424,36 +419,42 @@ namespace monad::compiler::native
 {
     std::optional<entrypoint_t> compile(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
-        evmc_revision rev)
+        evmc_revision rev, char const *asm_log)
     {
         try {
             switch (rev) {
             case EVMC_FRONTIER:
-                return ::compile_contract<EVMC_FRONTIER>(rt, contract);
+                return ::compile_contract<EVMC_FRONTIER>(rt, contract, asm_log);
             case EVMC_HOMESTEAD:
-                return ::compile_contract<EVMC_HOMESTEAD>(rt, contract);
+                return ::compile_contract<EVMC_HOMESTEAD>(
+                    rt, contract, asm_log);
             case EVMC_TANGERINE_WHISTLE:
-                return ::compile_contract<EVMC_TANGERINE_WHISTLE>(rt, contract);
+                return ::compile_contract<EVMC_TANGERINE_WHISTLE>(
+                    rt, contract, asm_log);
             case EVMC_SPURIOUS_DRAGON:
-                return ::compile_contract<EVMC_SPURIOUS_DRAGON>(rt, contract);
+                return ::compile_contract<EVMC_SPURIOUS_DRAGON>(
+                    rt, contract, asm_log);
             case EVMC_BYZANTIUM:
-                return ::compile_contract<EVMC_BYZANTIUM>(rt, contract);
+                return ::compile_contract<EVMC_BYZANTIUM>(
+                    rt, contract, asm_log);
             case EVMC_CONSTANTINOPLE:
-                return ::compile_contract<EVMC_CONSTANTINOPLE>(rt, contract);
+                return ::compile_contract<EVMC_CONSTANTINOPLE>(
+                    rt, contract, asm_log);
             case EVMC_PETERSBURG:
-                return ::compile_contract<EVMC_PETERSBURG>(rt, contract);
+                return ::compile_contract<EVMC_PETERSBURG>(
+                    rt, contract, asm_log);
             case EVMC_ISTANBUL:
-                return ::compile_contract<EVMC_ISTANBUL>(rt, contract);
+                return ::compile_contract<EVMC_ISTANBUL>(rt, contract, asm_log);
             case EVMC_BERLIN:
-                return ::compile_contract<EVMC_BERLIN>(rt, contract);
+                return ::compile_contract<EVMC_BERLIN>(rt, contract, asm_log);
             case EVMC_LONDON:
-                return ::compile_contract<EVMC_LONDON>(rt, contract);
+                return ::compile_contract<EVMC_LONDON>(rt, contract, asm_log);
             case EVMC_PARIS:
-                return ::compile_contract<EVMC_PARIS>(rt, contract);
+                return ::compile_contract<EVMC_PARIS>(rt, contract, asm_log);
             case EVMC_SHANGHAI:
-                return ::compile_contract<EVMC_SHANGHAI>(rt, contract);
+                return ::compile_contract<EVMC_SHANGHAI>(rt, contract, asm_log);
             case EVMC_CANCUN:
-                return ::compile_contract<EVMC_CANCUN>(rt, contract);
+                return ::compile_contract<EVMC_CANCUN>(rt, contract, asm_log);
             default:
                 return std::nullopt;
             }

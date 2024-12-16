@@ -1,5 +1,7 @@
 #pragma once
 
+#include <compiler/evm_opcodes.h>
+
 #include <evmc/evmc.hpp>
 
 #include <array>
@@ -24,11 +26,13 @@ namespace monad::runtime
     static consteval std::int64_t minimum_store_gas()
     {
         constexpr auto costs = StorageCostTable<Rev>::costs;
-        return std::min_element(
-                   costs.begin(),
-                   costs.end(),
-                   [](auto ca, auto cb) { return ca.gas_cost < cb.gas_cost; })
-            ->gas_cost;
+        constexpr auto min_gas =
+            std::min_element(costs.begin(), costs.end(), [](auto ca, auto cb) {
+                return ca.gas_cost < cb.gas_cost;
+            })->gas_cost;
+        static_assert(
+            compiler::opcode_table<Rev>()[compiler::SSTORE].min_gas == min_gas);
+        return min_gas;
     }
 
     template <evmc_revision Rev>

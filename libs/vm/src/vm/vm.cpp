@@ -1,5 +1,6 @@
 #include <compiler/ir/x86.h>
 #include <cstring>
+#include <optional>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
@@ -18,41 +19,8 @@
 
 namespace
 {
-
-    void destroy(evmc_vm *vm)
-    {
-        reinterpret_cast<monad::compiler::VM *>(vm)->~VM();
-    }
-
-    evmc_result execute(
-        evmc_vm *vm, evmc_host_interface const *host,
-        evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
-        uint8_t const *code, size_t code_size)
-    {
-        return reinterpret_cast<monad::compiler::VM *>(vm)->execute(
-            host, context, rev, msg, code, code_size);
-    }
-
-    evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
-    {
-        return reinterpret_cast<monad::compiler::VM *>(vm)->get_capabilities();
-    }
-
-}
-
-namespace monad::compiler
-{
-    VM::VM()
-        : evmc_vm{
-              EVMC_ABI_VERSION,
-              "monad-compiler-vm",
-              "0.0.0",
-              ::destroy,
-              ::execute,
-              ::get_capabilities,
-              nullptr}
-    {
-    }
+    using namespace monad;
+    using namespace monad::compiler;
 
     constexpr evmc_result error_result(evmc_status_code code)
     {
@@ -122,10 +90,51 @@ namespace monad::compiler
         }
     }
 
+    void destroy(evmc_vm *vm)
+    {
+        reinterpret_cast<monad::compiler::VM *>(vm)->~VM();
+    }
+
+    evmc_result execute(
+        evmc_vm *vm, evmc_host_interface const *host,
+        evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
+        uint8_t const *code, size_t code_size)
+    {
+        return reinterpret_cast<monad::compiler::VM *>(vm)->compile_and_execute(
+            host, context, rev, msg, code, code_size);
+    }
+
+    evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
+    {
+        return reinterpret_cast<monad::compiler::VM *>(vm)->get_capabilities();
+    }
+}
+
+namespace monad::compiler
+{
+    VM::VM()
+        : evmc_vm{
+              EVMC_ABI_VERSION,
+              "monad-compiler-vm",
+              "0.0.0",
+              ::destroy,
+              ::execute,
+              ::get_capabilities,
+              nullptr}
+    {
+    }
+
+    std::optional<native::entrypoint_t> VM::compile(
+        evmc_revision rev, uint8_t const *code, size_t code_size,
+        char const *asm_log)
+    {
+        return native::compile(runtime_, {code, code_size}, rev, asm_log);
+    }
+
     evmc_result VM::execute(
-        evmc_host_interface const *host, evmc_host_context *context,
-        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-        size_t code_size)
+        native::entrypoint_t contract_main, evmc_host_interface const *host,
+        evmc_host_context *context, evmc_message const *msg,
+        uint8_t const *code, size_t code_size)
     {
         using enum runtime::StatusCode;
 
@@ -133,11 +142,6 @@ namespace monad::compiler
             code_size <= std::numeric_limits<std::uint32_t>::max());
         MONAD_COMPILER_ASSERT(
             msg->input_size <= std::numeric_limits<std::uint32_t>::max());
-
-        auto contract_main = native::compile(runtime_, {code, code_size}, rev);
-        if (!contract_main) {
-            return error_result(EVMC_INTERNAL_ERROR);
-        }
 
         auto ctx = runtime::Context{
             .host = host,
@@ -167,7 +171,7 @@ namespace monad::compiler
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
             std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
 
-        (*contract_main)(&ctx, stack_ptr);
+        contract_main(&ctx, stack_ptr);
 
         std::free(stack_ptr);
 
@@ -180,12 +184,13 @@ namespace monad::compiler
             return error_result(EVMC_STATIC_MODE_VIOLATION);
         case InvalidMemoryAccess:
             return error_result(EVMC_INVALID_MEMORY_ACCESS);
-        default:
+        case InvalidInstruction:
+            return error_result(EVMC_UNDEFINED_INSTRUCTION);
+        case Success:
+            break;
+        case Revert:
             break;
         }
-
-        MONAD_COMPILER_DEBUG_ASSERT(
-            ctx.result.status == Success || ctx.result.status == Revert);
 
         auto maybe_output = copy_result_data(ctx);
         if (auto *ec = std::get_if<evmc_status_code>(&maybe_output)) {
@@ -211,10 +216,45 @@ namespace monad::compiler
         };
     }
 
+    evmc_result VM::compile_and_execute(
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+        size_t code_size)
+    {
+        auto f = compile(rev, code, code_size, nullptr);
+        if (!f) {
+            return error_result(EVMC_INTERNAL_ERROR);
+        }
+        return execute(*f, host, context, msg, code, code_size);
+    }
+
     evmc_capabilities_flagset VM::get_capabilities() const
     {
         return EVMC_CAPABILITY_EVM1;
     }
+}
+
+extern "C" void *monad_compiler_compile(
+    evmc_vm *vm, evmc_revision rev, uint8_t const *code, size_t code_size,
+    char const *asm_log)
+{
+    auto contract_main = reinterpret_cast<monad::compiler::VM *>(vm)->compile(
+        rev, code, code_size, asm_log);
+    return contract_main ? reinterpret_cast<void *>(*contract_main) : nullptr;
+}
+
+extern "C" evmc_result monad_compiler_execute(
+    evmc_vm *vm, void *contract_main, evmc_host_interface const *host,
+    evmc_host_context *context, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    return reinterpret_cast<monad::compiler::VM *>(vm)->execute(
+        reinterpret_cast<native::entrypoint_t>(contract_main),
+        host,
+        context,
+        msg,
+        code,
+        code_size);
 }
 
 /**

@@ -22,6 +22,7 @@ namespace monad::runtime
         if (size > 0) {
             offset = ctx->get_memory_offset(offset_word);
             ctx->expand_memory(offset + size);
+            ctx->deduct_gas(size * 8);
         }
         else {
             offset = 0;
