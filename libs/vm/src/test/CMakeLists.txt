@@ -1,5 +1,6 @@
 include(GoogleTest)
 
+add_subdirectory(blockchain)
 add_subdirectory(utils)
 
 add_executable(unit-tests
@@ -38,20 +39,5 @@ target_link_libraries(unit-tests
 )
 
 gtest_discover_tests(unit-tests
-    TEST_PREFIX "Compiler.Unit."
+    TEST_PREFIX "Unit."
 )
-
-add_executable(blockchain-tests)
-target_sources(blockchain-tests
-    PRIVATE
-        blockchain_tests.cpp
-)
-target_include_directories(blockchain-tests
-    PRIVATE
-        "${TOP_CURRENT_BINARY_DIR}/test"
-)
-monad_compile_options(blockchain-tests)
-target_link_libraries(blockchain-tests
-    utils
-    monad-compiler-vm
-    evmone-blockchaintest-lib)
