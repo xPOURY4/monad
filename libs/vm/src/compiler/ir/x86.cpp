@@ -374,7 +374,7 @@ namespace
         // Arbitrary gas threshold for when to emit gas check.
         // Needs to be big enough to make the gas check insignificant,
         // and small enough to avoid exploitation of the optimization.
-        static int32_t const STATIC_GAS_CHECK_THRESHOLD = 1000;
+        constexpr int32_t STATIC_GAS_CHECK_THRESHOLD = 1000;
 
         int32_t const acc = *accumulated_base_gas + block_base_gas;
         if (acc < STATIC_GAS_CHECK_THRESHOLD) {
