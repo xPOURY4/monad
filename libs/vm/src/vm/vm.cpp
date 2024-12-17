@@ -71,15 +71,15 @@ namespace monad::compiler
     std::variant<std::span<std::uint8_t const>, evmc_status_code>
     copy_result_data(runtime::Context &ctx)
     {
+        if (ctx.gas_remaining < 0) {
+            return EVMC_OUT_OF_GAS;
+        }
         auto size_word = intx::le::load<utils::uint256_t>(ctx.result.size);
         if (size_word > runtime::Context::max_memory_offset) {
             return EVMC_OUT_OF_GAS;
         }
         auto size = static_cast<uint32_t>(size_word);
         if (size == 0) {
-            if (ctx.gas_remaining < 0) {
-                return EVMC_OUT_OF_GAS;
-            }
             return std::span<std::uint8_t const>({});
         }
         auto offset_word = intx::le::load<utils::uint256_t>(ctx.result.offset);
@@ -88,25 +88,26 @@ namespace monad::compiler
         }
         auto offset = static_cast<uint32_t>(offset_word);
 
-        auto min_memory_size = offset + size;
-        auto total_memory_cost = runtime::Context::memory_cost_from_word_count(
-            (min_memory_size + 31) / 32);
-        ctx.gas_remaining -= total_memory_cost - ctx.memory.cost;
-        if (ctx.gas_remaining < 0) {
-            return EVMC_OUT_OF_GAS;
-        }
-
+        auto memory_end = offset + size;
         auto *output_buf = new std::uint8_t[size];
-        if (min_memory_size <= ctx.memory.size) {
+        if (memory_end <= ctx.memory.size) {
             std::memcpy(output_buf, ctx.memory.data + offset, size);
         }
-        else if (offset < ctx.memory.size) {
-            auto n = ctx.memory.size - offset;
-            std::memcpy(output_buf, ctx.memory.data + offset, n);
-            std::memset(output_buf + n, 0, min_memory_size - ctx.memory.size);
-        }
         else {
-            std::memset(output_buf, 0, size);
+            auto memory_cost = runtime::Context::memory_cost_from_word_count(
+                (memory_end + 31) / 32);
+            ctx.gas_remaining -= memory_cost - ctx.memory.cost;
+            if (ctx.gas_remaining < 0) {
+                return EVMC_OUT_OF_GAS;
+            }
+            if (offset < ctx.memory.size) {
+                auto n = ctx.memory.size - offset;
+                std::memcpy(output_buf, ctx.memory.data + offset, n);
+                std::memset(output_buf + n, 0, memory_end - ctx.memory.size);
+            }
+            else {
+                std::memset(output_buf, 0, size);
+            }
         }
         return std::span{output_buf, size};
     }
