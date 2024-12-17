@@ -34,29 +34,7 @@ jobs:
               with:
                 token: ${{ steps.generate_token.outputs.token }}
                 submodules: recursive
-                path: compiler
-            
-            - name: Check out EVMC
-              uses: actions/checkout@v4
-              with:
-                repository: ethereum/evmc
-                path: evmc
 
-            # The reference we're checking out here is so that we can get a
-            # version of the core monad client that dynamically loads its
-            # execution VM from a shared library. This isn't a change that
-            # should get merged into the upstream client; we'll want to
-            # implement things differently when we come to merge the compiler
-            # and client.
-            - name: Check out Monad core
-              uses: actions/checkout@v4
-              with:
-                token: ${{ steps.generate_token.outputs.token }}
-                repository: monad-crypto/monad
-                path: monad
-                submodules: recursive
-                ref: bruce/jit-vm
- 
             - name: Install dependencies
               run: |
                 sudo apt install -y     \
@@ -76,24 +54,7 @@ jobs:
               run: |
                 sudo apt remove -y libgcc-14-dev
 
-            - name: Install Monad client dependencies
-              working-directory: monad
-              run: |
-                sudo ./scripts/ubuntu-build/install-boost.sh
-                sudo ./scripts/ubuntu-build/install-deps.sh
-                sudo ./scripts/ubuntu-build/install-tools.sh
-                sudo apt update --fix-missing
-                sudo apt install -y     \
-                    libarchive-dev      \
-                    libbrotli-dev       \
-                    libcap-dev          \
-                    libcli11-dev        \
-                    libgmp-dev          \
-                    libtbb-dev          \
-                    libzstd-dev
-
             - name: Build compiler
-              working-directory: compiler
               run: |
                 cmake -S . -B build                                 \
                   -G Ninja                                          \
@@ -102,53 +63,18 @@ jobs:
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build
 
-            - name: Run tests
-              working-directory: compiler
+            - name: Run unit tests
               run: |
-                ctest                     \
-                  --test-dir build        \
-                  --verbose
-
-            - name: Build EVMC tools
-              working-directory: evmc
-              run: |
-                cmake -S . -B build \
-                  -DEVMC_TESTING=On
-                cmake --build build
+                build/src/test/unit-tests
 
             - name: Run compatibility tests
               run: |
-                evmc/build/bin/evmc-vmtester compiler/build/src/vm/libmonad-compiler-vm.so
-
-            - name: Build Monad client
-              working-directory: monad
-              env:
-                CC: ${{ matrix.compiler.CC }}
-                CXX: ${{ matrix.compiler.CXX }}
-                CMAKE_BUILD_TYPE: ${{ matrix.CMAKE_BUILD_TYPE }}
-                CFLAGS: "-march=haswell"
-                CXXFLAGS: "-march=haswell"
-                ASMFLAGS: "-march=haswell"
-              run: |
-                ./scripts/configure.sh
-                VERBOSE=1 \
-                cmake \
-                  --build build \
-                  --config RelWithDebInfo \
-                  --target monad-ethereum-test
-
-            - name: Run Ethereum tests with Monad client
-              env:
-                MONAD_COMPILER_VM: compiler/build/src/vm/libmonad-compiler-vm.so
-              run: |
-                FILTER=$(cat compiler/.github/workflows/monad-test-whitelist.txt | tr '\n' ':')
-                monad/build/test/ethereum_test/monad-ethereum-test \
-                  --gtest_filter="${FILTER}"
+                build/bin/evmc-vmtester build/src/vm/libmonad-compiler-vm.so
 
             - name: Run Ethereum tests
               run: |
-                FILTER=$(cat compiler/.github/workflows/test-whitelist.txt | tr '\n' ':')
-                compiler/build/src/test/blockchain-tests \
+                FILTER=$(cat .github/workflows/test-whitelist.txt | tr '\n' ':')
+                build/src/test/blockchain-tests \
                   --gtest_filter="${FILTER}"
 
     code-quality:
