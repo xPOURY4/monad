@@ -1,3 +1,5 @@
+include(GoogleTest)
+
 add_subdirectory(utils)
 
 add_executable(unit-tests
@@ -35,9 +37,8 @@ target_link_libraries(unit-tests
     evmc::mocked_host
 )
 
-add_test(
-    NAME "Unit Tests"
-    COMMAND unit-tests
+gtest_discover_tests(unit-tests
+    TEST_PREFIX "Compiler.Unit."
 )
 
 add_executable(blockchain-tests)
