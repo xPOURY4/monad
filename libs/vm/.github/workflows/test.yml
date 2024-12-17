@@ -65,17 +65,17 @@ jobs:
 
             - name: Run unit tests
               run: |
-                build/src/test/unit-tests
-
-            - name: Run compatibility tests
-              run: |
-                build/bin/evmc-vmtester build/src/vm/libmonad-compiler-vm.so
+                ctest                   \
+                  --test-dir build      \
+                  --tests-regex 'Unit'  \
+                  --output-on-failure
 
             - name: Run Ethereum tests
               run: |
-                FILTER=$(cat .github/workflows/test-whitelist.txt | tr '\n' ':')
-                build/src/test/blockchain-tests \
-                  --gtest_filter="${FILTER}"
+                ctest                         \
+                  --test-dir build            \
+                  --tests-regex 'Blockchain'  \
+                  --output-on-failure
 
     code-quality:
         name: Code quality checks
