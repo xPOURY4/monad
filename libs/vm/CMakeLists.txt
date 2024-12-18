@@ -45,7 +45,6 @@ endif()
 add_subdirectory(third_party/asmjit)
 
 add_subdirectory(src/compiler)
-add_subdirectory(src/monad-evmc)
 add_subdirectory(src/runtime)
 add_subdirectory(src/test)
 add_subdirectory(src/utils)
