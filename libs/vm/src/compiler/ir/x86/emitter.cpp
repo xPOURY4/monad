@@ -542,6 +542,11 @@ namespace monad::compiler::native
         as_.call(x86::qword_ptr(fn_lbl));
     }
 
+    void Emitter::breakpoint()
+    {
+        as_.int3();
+    }
+
     void Emitter::asm_comment(std::string const &msg)
     {
         if (debug_logger_.file()) {
