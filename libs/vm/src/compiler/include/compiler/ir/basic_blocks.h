@@ -5,6 +5,8 @@
 #include <compiler/types.h>
 #include <utils/assert.h>
 
+#include <evmc/evmc.h>
+
 #include <limits>
 #include <unordered_map>
 #include <utility>
@@ -105,6 +107,7 @@ namespace monad::compiler::basic_blocks
     /**
      * Base gas usage for a given terminator.
      */
+    template <evmc_revision Rev>
     constexpr std::uint16_t terminator_static_gas(Terminator t)
     {
         using enum Terminator;
@@ -117,8 +120,14 @@ namespace monad::compiler::basic_blocks
             return 0;
         case Jump:
             return 8;
-        case SelfDestruct:
-            return 5000;
+        case SelfDestruct: {
+            if constexpr (Rev < EVMC_TANGERINE_WHISTLE) {
+                return 0;
+            }
+            else {
+                return 5000;
+            }
+        }
         case Stop:
             return 0;
         case FallThrough:

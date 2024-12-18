@@ -26,13 +26,15 @@ namespace
         bool dynamic_gas;
     };
 
+    template <evmc_revision Rev>
     int32_t block_base_gas(Block const &block)
     {
         int32_t base_gas = 0;
         for (auto const &instr : block.instrs) {
             base_gas += instr.static_gas_cost();
         }
-        auto term_gas = basic_blocks::terminator_static_gas(block.terminator);
+        auto term_gas =
+            basic_blocks::terminator_static_gas<Rev>(block.terminator);
         // This is also correct for fall through and invalid instruction:
         return base_gas + term_gas;
     }
@@ -399,7 +401,7 @@ namespace
         for (Block const &block : ir.blocks()) {
             bool const can_enter_block = emit.begin_new_block(block);
             if (can_enter_block) {
-                int32_t const base_gas = block_base_gas(block);
+                int32_t const base_gas = block_base_gas<rev>(block);
                 emit_gas_decrement(
                     emit, ir, block, base_gas, &accumulated_base_gas);
                 emit_instrs<rev>(emit, block, base_gas);
