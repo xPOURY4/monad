@@ -164,6 +164,7 @@ namespace monad::compiler::native
 
         ////////// Debug functionality //////////
 
+        bool is_debug_enabled();
         void runtime_print_gas_remaining(std::string const &msg);
         void breakpoint();
         void asm_comment(std::string const &msg);

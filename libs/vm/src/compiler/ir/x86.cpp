@@ -9,6 +9,7 @@
 #include <asmjit/core/jitruntime.h>
 
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <optional>
 #include <span>
@@ -460,7 +461,7 @@ namespace monad::compiler::native
             }
         }
         catch (Emitter::Error const &e) {
-            (void)e;
+            std::cerr << "X86 emitter error: " << e.what() << std::endl;
             return std::nullopt;
         }
     }

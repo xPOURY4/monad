@@ -21,7 +21,7 @@ namespace monad::compiler
 
         std::optional<native::entrypoint_t> compile(
             evmc_revision, uint8_t const *code, size_t code_size,
-            char const *asm_log);
+            char const *asm_log_file_path);
 
         evmc_result execute(
             native::entrypoint_t contract_main, evmc_host_interface const *host,
@@ -40,9 +40,12 @@ namespace monad::compiler
     };
 }
 
-extern "C" void *monad_compiler_compile(
+extern "C" void *monad_compiler_compile_debug(
     evmc_vm *, evmc_revision, uint8_t const *code, size_t code_size,
-    char const *asm_log);
+    char const *asm_log_file_path);
+
+extern "C" void *monad_compiler_compile(
+    evmc_vm *, evmc_revision, uint8_t const *code, size_t code_size);
 
 extern "C" evmc_result monad_compiler_execute(
     evmc_vm *, void *contract_main, evmc_host_interface const *host,

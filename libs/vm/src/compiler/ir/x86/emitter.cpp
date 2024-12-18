@@ -528,6 +528,11 @@ namespace monad::compiler::native
 
     ////////// Debug functionality //////////
 
+    bool Emitter::is_debug_enabled()
+    {
+        return debug_logger_.file() != nullptr;
+    }
+
     void Emitter::runtime_print_gas_remaining(std::string const &msg)
     {
         auto msg_lbl = as_.newLabel();
@@ -671,7 +676,10 @@ namespace monad::compiler::native
             as_.bind(it->second);
         }
 
-        // runtime_print_gas_remaining(std::format("Block 0x{:02x}", b.offset));
+        if (is_debug_enabled()) {
+            runtime_print_gas_remaining(
+                std::format("Block 0x{:02x}", b.offset));
+        }
 
         auto const min_delta = stack_->min_delta();
         auto const max_delta = stack_->max_delta();
