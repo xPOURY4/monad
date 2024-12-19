@@ -208,11 +208,12 @@ namespace
             emit.call_runtime(remaining_base_gas, monad::runtime::basefee<rev>);
             break;
         case BlobHash:
-            // TODO - missing implementation
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::blobhash<rev>);
             break;
         case BlobBaseFee:
-            emit.push(0);
-            // TODO - missing implementation
+            emit.call_runtime(
+                remaining_base_gas, monad::runtime::blobbasefee<rev>);
             break;
         case Pop:
             emit.pop();

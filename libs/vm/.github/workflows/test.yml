@@ -64,18 +64,10 @@ jobs:
                 cmake --build build
 
             - name: Run unit tests
-              run: |
-                ctest                   \
-                  --test-dir build      \
-                  --tests-regex 'Unit'  \
-                  --output-on-failure
+              run: ./build/src/test/unit-tests
 
             - name: Run Ethereum tests
-              run: |
-                ctest                         \
-                  --test-dir build            \
-                  --tests-regex 'Blockchain'  \
-                  --output-on-failure
+              run: ./build/src/test/blockchain/blockchain-tests
 
     code-quality:
         name: Code quality checks

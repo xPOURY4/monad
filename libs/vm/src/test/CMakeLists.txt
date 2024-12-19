@@ -37,7 +37,3 @@ target_link_libraries(unit-tests
     GTest::gtest_main
     evmc::mocked_host
 )
-
-gtest_discover_tests(unit-tests
-    TEST_PREFIX "Unit."
-)

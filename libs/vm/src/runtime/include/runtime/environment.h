@@ -98,4 +98,22 @@ namespace monad::runtime
         *result_ptr =
             uint256_from_bytes32(ctx->get_tx_context().block_base_fee);
     }
+
+    template <evmc_revision Rev>
+    void blobhash(
+        Context *ctx, utils::uint256_t *result_ptr,
+        utils::uint256_t const *index)
+    {
+        auto const &c = ctx->get_tx_context();
+        *result_ptr = (*index < c.blob_hashes_count)
+                          ? uint256_from_bytes32(
+                                c.blob_hashes[static_cast<size_t>(*index)])
+                          : 0;
+    }
+
+    template <evmc_revision Rev>
+    void blobbasefee(Context *ctx, utils::uint256_t *result_ptr)
+    {
+        *result_ptr = uint256_from_bytes32(ctx->get_tx_context().blob_base_fee);
+    }
 }

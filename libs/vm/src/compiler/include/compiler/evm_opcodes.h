@@ -259,10 +259,7 @@ namespace monad::compiler
      * revisions and become valid in later ones).
      */
     template <evmc_revision Rev>
-    consteval std::array<OpCodeInfo, 256> opcode_table()
-    {
-        return opcode_table<previous_evm_revision(Rev)>();
-    }
+    consteval std::array<OpCodeInfo, 256> opcode_table() = delete;
 
     consteval inline void add_opcode(
         std::uint8_t opcode, std::array<OpCodeInfo, 256> &table,
@@ -551,6 +548,14 @@ namespace monad::compiler
     }
 
     template <>
+    consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_HOMESTEAD>()
+    {
+        auto table = opcode_table<previous_evm_revision(EVMC_HOMESTEAD)>();
+        table[DELEGATECALL].min_gas = 40;
+        return table;
+    }
+
+    template <>
     consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_TANGERINE_WHISTLE>()
     {
         auto table =
@@ -567,6 +572,12 @@ namespace monad::compiler
         table[SELFDESTRUCT].min_gas = 5000;
 
         return table;
+    }
+
+    template <>
+    consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_SPURIOUS_DRAGON>()
+    {
+        return opcode_table<previous_evm_revision(EVMC_SPURIOUS_DRAGON)>();
     }
 
     template <>

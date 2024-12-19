@@ -46,9 +46,11 @@ add_subdirectory(third_party/asmjit)
 
 add_subdirectory(src/compiler)
 add_subdirectory(src/runtime)
-add_subdirectory(src/test)
 add_subdirectory(src/utils)
 add_subdirectory(src/vm)
+if(MONAD_COMPILER_STANDALONE)
+    add_subdirectory(src/test)
+endif()
 
 option(FUZZ_TESTING "Build fuzzing binaries" OFF)
 
