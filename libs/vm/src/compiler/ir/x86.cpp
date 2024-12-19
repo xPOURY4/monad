@@ -385,7 +385,7 @@ namespace
     }
 
     template <evmc_revision rev>
-    entrypoint_t compile_local_stacks(
+    entrypoint_t compile_basic_blocks(
         asmjit::JitRuntime &rt, BasicBlocksIR const &ir, char const *asm_log)
     {
         Emitter emit{rt, ir.codesize, asm_log};
@@ -412,7 +412,7 @@ namespace
         char const *asm_log)
     {
         auto ir = BasicBlocksIR(basic_blocks::make_ir<Rev>(contract));
-        return compile_local_stacks<Rev>(rt, ir, asm_log);
+        return compile_basic_blocks<Rev>(rt, ir, asm_log);
     }
 }
 
