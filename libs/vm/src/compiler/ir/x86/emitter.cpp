@@ -541,6 +541,7 @@ namespace monad::compiler::native
         external_functions_.emplace_back(
             fn_lbl, reinterpret_cast<void *>(runtime_print_gas_remaining_impl));
 
+        discharge_deferred_comparison();
         spill_all_caller_save_regs();
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_context);
