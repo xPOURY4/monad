@@ -532,7 +532,7 @@ namespace monad::compiler
             OpCodeInfo{"CALL", 0, 7, true, true, 40, 0}, // 0xF1,
             OpCodeInfo{"CALLCODE", 0, 7, true, true, 40, 0}, // 0xF2,
             OpCodeInfo{"RETURN", 0, 2, false, true, 0, 0}, // 0xF3,
-            OpCodeInfo{"DELEGATECALL", 0, 6, true, true, 40, 0}, // 0xF4,
+            unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -551,7 +551,8 @@ namespace monad::compiler
     consteval std::array<OpCodeInfo, 256> opcode_table<EVMC_HOMESTEAD>()
     {
         auto table = opcode_table<previous_evm_revision(EVMC_HOMESTEAD)>();
-        table[DELEGATECALL].min_gas = 40;
+        add_opcode(0xF4, table, {"DELEGATECALL", 0, 6, true, true, 40, 0});
+
         return table;
     }
 
