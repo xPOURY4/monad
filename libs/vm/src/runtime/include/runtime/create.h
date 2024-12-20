@@ -93,8 +93,8 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void create(
         Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t *const value_ptr, utils::uint256_t *const offset_ptr,
-        utils::uint256_t *const size_ptr, std::int64_t remaining_block_base_gas)
+        utils::uint256_t const *value_ptr, utils::uint256_t const *offset_ptr,
+        utils::uint256_t const *size_ptr, std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
             ctx,
@@ -109,8 +109,8 @@ namespace monad::runtime
     template <evmc_revision Rev>
     void create2(
         Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t *const value_ptr, utils::uint256_t *const offset_ptr,
-        utils::uint256_t *const size_ptr, utils::uint256_t *const salt_ptr,
+        utils::uint256_t const *value_ptr, utils::uint256_t const *offset_ptr,
+        utils::uint256_t const *size_ptr, utils::uint256_t const *salt_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
