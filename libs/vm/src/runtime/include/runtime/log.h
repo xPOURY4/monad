@@ -16,23 +16,20 @@ namespace monad::runtime
             ctx->exit(StatusCode::StaticModeViolation);
         }
 
-        std::uint32_t offset;
+        Memory::Offset offset;
         auto size = ctx->get_memory_offset(size_word);
 
-        if (size > 0) {
+        if (*size > 0) {
             offset = ctx->get_memory_offset(offset_word);
             ctx->expand_memory(offset + size);
-            ctx->deduct_gas(size * 8);
-        }
-        else {
-            offset = 0;
+            ctx->deduct_gas(size * bin<8>);
         }
 
         ctx->host->emit_log(
             ctx->context,
             &ctx->env.recipient,
-            ctx->memory.data + offset,
-            size,
+            ctx->memory.data + *offset,
+            *size,
             topics.data(),
             topics.size());
     }

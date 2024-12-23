@@ -122,13 +122,20 @@ namespace monad::runtime
         return std::bit_cast<utils::uint256_t>(ret);
     }
 
-    template <typename To, typename From>
+    template <std::uint8_t N>
+        requires(N < 64)
     [[gnu::always_inline]]
-    constexpr To clamp_cast(From const &x) noexcept
+    constexpr bool is_bounded_by_bits(utils::uint256_t const &x)
     {
-        if (x > std::numeric_limits<To>::max()) {
-            return std::numeric_limits<To>::max();
-        }
-        return static_cast<To>(x);
+        return ((x[0] >> N) | x[1] | x[2] | x[3]) == 0;
+    }
+
+    template <typename T>
+    [[gnu::always_inline]]
+    constexpr T clamp_cast(utils::uint256_t const &x) noexcept
+    {
+        return is_bounded_by_bits<std::numeric_limits<T>::digits>(x)
+                   ? static_cast<T>(x)
+                   : std::numeric_limits<T>::max();
     }
 }

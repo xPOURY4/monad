@@ -19,15 +19,15 @@ namespace monad::runtime
         ctx->env.clear_return_data();
 
         auto args_size = ctx->get_memory_offset(args_size_word);
-        auto args_offset =
-            (args_size > 0) ? ctx->get_memory_offset(args_offset_word) : 0;
+        auto args_offset = (*args_size > 0)
+                               ? ctx->get_memory_offset(args_offset_word)
+                               : bin<0>;
 
         auto ret_size = ctx->get_memory_offset(ret_size_word);
         auto ret_offset =
-            (ret_size > 0) ? ctx->get_memory_offset(ret_offset_word) : 0;
+            (*ret_size > 0) ? ctx->get_memory_offset(ret_offset_word) : bin<0>;
 
-        ctx->expand_memory(
-            std::max(args_offset + args_size, ret_offset + ret_size));
+        ctx->expand_memory(max(args_offset + args_size, ret_offset + ret_size));
 
         auto code_address = address_from_uint256(address);
 
@@ -102,8 +102,8 @@ namespace monad::runtime
             .recipient = recipient,
             .sender = sender,
             .input_data =
-                (args_size > 0) ? ctx->memory.data + args_offset : nullptr,
-            .input_size = args_size,
+                (*args_size > 0) ? ctx->memory.data + *args_offset : nullptr,
+            .input_size = *args_size,
             .value = value,
             .create2_salt = ctx->env.create2_salt,
             .code_address = code_address,
@@ -118,14 +118,9 @@ namespace monad::runtime
         ctx->env.set_return_data(result.output_data, result.output_size);
 
         auto copy_size =
-            std::min(static_cast<std::size_t>(ret_size), result.output_size);
-
-        if (copy_size > 0) {
-            std::copy(
-                result.output_data,
-                result.output_data + copy_size,
-                ctx->memory.data + ret_offset);
-        }
+            std::min(static_cast<std::size_t>(*ret_size), result.output_size);
+        std::copy_n(
+            result.output_data, copy_size, ctx->memory.data + *ret_offset);
 
         return (result.status_code == EVMC_SUCCESS) ? 1 : 0;
     }

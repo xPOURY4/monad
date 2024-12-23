@@ -8,14 +8,14 @@
 
 namespace monad::runtime
 {
-    consteval std::int64_t create_code_word_cost(evmc_revision rev)
+    consteval Bin<2> create_code_word_cost(evmc_revision rev)
     {
-        return (rev >= EVMC_SHANGHAI) ? 2 : 0;
+        return (rev >= EVMC_SHANGHAI) ? bin<2> : bin<0>;
     }
 
-    consteval std::int64_t create2_code_word_cost(evmc_revision rev)
+    consteval Bin<4> create2_code_word_cost(evmc_revision rev)
     {
-        return (rev >= EVMC_SHANGHAI) ? 8 : 6;
+        return (rev >= EVMC_SHANGHAI) ? bin<8> : bin<6>;
     }
 
     template <evmc_revision Rev>
@@ -31,24 +31,21 @@ namespace monad::runtime
 
         ctx->env.clear_return_data();
 
-        std::uint32_t offset;
+        Memory::Offset offset;
         auto size = ctx->get_memory_offset(size_word);
 
-        if (size > 0) {
+        if (*size > 0) {
             offset = ctx->get_memory_offset(offset_word);
             ctx->expand_memory(offset + size);
         }
-        else {
-            offset = 0;
-        }
 
         if constexpr (Rev >= EVMC_SHANGHAI) {
-            if (MONAD_COMPILER_UNLIKELY(size > 0xC000)) {
+            if (MONAD_COMPILER_UNLIKELY(*size > 0xC000)) {
                 ctx->exit(StatusCode::OutOfGas);
             }
         }
 
-        auto min_words = (size + 31) / 32;
+        auto min_words = shr_ceil<5>(size);
         auto word_cost = (kind == EVMC_CREATE2) ? create2_code_word_cost(Rev)
                                                 : create_code_word_cost(Rev);
 
@@ -70,8 +67,8 @@ namespace monad::runtime
             .gas = gas,
             .recipient = evmc::address{},
             .sender = ctx->env.recipient,
-            .input_data = (size > 0) ? ctx->memory.data + offset : nullptr,
-            .input_size = size,
+            .input_data = (*size > 0) ? ctx->memory.data + *offset : nullptr,
+            .input_size = *size,
             .value = bytes32_from_uint256(value),
             .create2_salt = bytes32_from_uint256(salt_word),
             .code_address = evmc::address{},

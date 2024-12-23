@@ -1,4 +1,5 @@
 #include "fixture.h"
+#include "runtime/types.h"
 
 #include <algorithm>
 #include <evmc/evmc.h>
@@ -118,7 +119,7 @@ TEST_F(RuntimeTest, ExpandMemory)
 {
     ctx_.gas_remaining = 1'000'000;
 
-    ctx_.expand_memory(Memory::initial_capacity + 1);
+    ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity + 1));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 32);
     ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity * 2);
     ASSERT_TRUE(std::all_of(
@@ -126,7 +127,7 @@ TEST_F(RuntimeTest, ExpandMemory)
             return b == 0;
         }));
 
-    ctx_.expand_memory(Memory::initial_capacity + 90);
+    ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity + 90));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 96);
     ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity * 2);
     ASSERT_TRUE(std::all_of(
@@ -134,7 +135,7 @@ TEST_F(RuntimeTest, ExpandMemory)
             return b == 0;
         }));
 
-    ctx_.expand_memory(Memory::initial_capacity * 2);
+    ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity * 2));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity * 2);
     ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity * 2);
     ASSERT_TRUE(std::all_of(
@@ -142,7 +143,7 @@ TEST_F(RuntimeTest, ExpandMemory)
             return b == 0;
         }));
 
-    ctx_.expand_memory(Memory::initial_capacity * 4 + 1);
+    ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity * 4 + 1));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity * 4 + 32);
     ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity * 4 + 32);
     ASSERT_TRUE(std::all_of(

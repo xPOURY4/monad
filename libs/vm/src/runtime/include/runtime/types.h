@@ -1,5 +1,8 @@
 #pragma once
 
+#include <runtime/bin.h>
+#include <runtime/transmute.h>
+
 #include <utils/assert.h>
 #include <utils/uint256.h>
 
@@ -70,6 +73,10 @@ namespace monad::runtime
 
         static constexpr auto initial_capacity = 4096;
 
+        static constexpr auto offset_bits = 28;
+
+        using Offset = Bin<offset_bits>;
+
         Memory()
             : size{}
             , capacity{initial_capacity}
@@ -134,15 +141,6 @@ namespace monad::runtime
 
     struct Context
     {
-        static constexpr std::size_t max_memory_offset_bits = 24;
-        // Make sure that `max_memory_offset` is sufficiently small,
-        // so that the following does not overflow `std::uint32_t`:
-        // * `a + b` and
-        // * `(a + 1) * 32`,
-        // for `a <= max_memory_offset` and `b <= max_memory_offset`.
-        static constexpr std::size_t max_memory_offset =
-            (1 << max_memory_offset_bits) - 1;
-
         evmc_host_interface const *host;
         evmc_host_context *context;
 
@@ -167,23 +165,32 @@ namespace monad::runtime
         }
 
         [[gnu::always_inline]]
-        static int64_t memory_cost_from_word_count(std::uint32_t word_count)
+        void deduct_gas(Bin<32> gas)
         {
-            auto c = static_cast<int64_t>(word_count);
-            return (c * c) / 512 + (3 * c);
+            return deduct_gas(*gas);
         }
 
-        void expand_memory(std::uint32_t min_size)
+        [[gnu::always_inline]]
+        static int64_t memory_cost_from_word_count(Bin<32> word_count)
         {
-            if (memory.size < min_size) {
-                auto wsize = (min_size + 31) / 32;
-                auto new_size = wsize * 32;
-                auto new_cost = memory_cost_from_word_count(wsize);
-                auto expansion_cost = new_cost - memory.cost;
-                // Must perform gas check before expanding:
+            auto c = static_cast<uint64_t>(*word_count);
+            return static_cast<int64_t>((c * c) / 512 + (3 * c));
+        }
+
+        void expand_memory(Bin<30> min_size)
+        {
+            if (memory.size < *min_size) {
+                auto wsize = shr_ceil<5>(min_size);
+                std::int64_t new_cost = memory_cost_from_word_count(wsize);
+                Bin<31> new_size = shl<5>(wsize);
+                MONAD_COMPILER_DEBUG_ASSERT(new_cost >= memory.cost);
+                std::int64_t expansion_cost = new_cost - memory.cost;
+                // Gas check before expanding:
                 deduct_gas(expansion_cost);
-                if (memory.capacity < new_size) {
-                    memory.capacity = std::max(memory.capacity * 2, new_size);
+                if (memory.capacity < *new_size) {
+                    // The `memory.capacity * 2` will not overflow
+                    // `std::uint32_t`, because `new_size` is `Bin<31>`.
+                    memory.capacity = std::max(memory.capacity * 2, *new_size);
                     MONAD_COMPILER_DEBUG_ASSERT((memory.capacity & 31) == 0);
                     std::uint8_t *new_data = Memory::alloc(memory.capacity);
                     std::memcpy(new_data, memory.data, memory.size);
@@ -194,18 +201,19 @@ namespace monad::runtime
                     Memory::dealloc(memory.data);
                     memory.data = new_data;
                 }
-                memory.size = new_size;
+                memory.size = *new_size;
                 memory.cost = new_cost;
             }
         }
 
         [[gnu::always_inline]]
-        std::uint32_t get_memory_offset(utils::uint256_t const &offset)
+        Memory::Offset get_memory_offset(utils::uint256_t const &offset)
         {
-            if (MONAD_COMPILER_UNLIKELY(offset > max_memory_offset)) {
+            if (MONAD_COMPILER_UNLIKELY(
+                    !is_bounded_by_bits<Memory::offset_bits>(offset))) {
                 exit(StatusCode::OutOfGas);
             }
-            return static_cast<uint32_t>(offset);
+            return Memory::Offset::unsafe_from(static_cast<uint32_t>(offset));
         }
 
         [[gnu::always_inline]]

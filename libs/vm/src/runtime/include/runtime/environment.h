@@ -33,7 +33,7 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *block_number_ptr)
     {
-        if (*block_number_ptr > std::numeric_limits<std::uint64_t>::max()) {
+        if (!is_bounded_by_bits<63>(*block_number_ptr)) {
             *result_ptr = 0;
             return;
         }

@@ -1,12 +1,12 @@
+#include <bit>
 #include <compiler/ir/x86.h>
 #include <cstring>
 #include <optional>
+#include <runtime/transmute.h>
 #include <runtime/types.h>
 #include <utils/assert.h>
 #include <utils/uint256.h>
 #include <vm/vm.h>
-
-#include <intx/intx.hpp>
 
 #include <evmc/evmc.h>
 
@@ -42,42 +42,47 @@ namespace
         if (ctx.gas_remaining < 0) {
             return EVMC_OUT_OF_GAS;
         }
-        auto size_word = intx::le::load<utils::uint256_t>(ctx.result.size);
-        if (size_word > runtime::Context::max_memory_offset) {
+        auto size_word = std::bit_cast<utils::uint256_t>(ctx.result.size);
+        if (!runtime::is_bounded_by_bits<runtime::Memory::offset_bits>(
+                size_word)) {
             return EVMC_OUT_OF_GAS;
         }
-        auto size = static_cast<uint32_t>(size_word);
-        if (size == 0) {
+        auto size = runtime::Memory::Offset::unsafe_from(
+            static_cast<uint32_t>(size_word));
+        if (*size == 0) {
             return std::span<std::uint8_t const>({});
         }
-        auto offset_word = intx::le::load<utils::uint256_t>(ctx.result.offset);
-        if (offset_word > runtime::Context::max_memory_offset) {
+        auto offset_word = std::bit_cast<utils::uint256_t>(ctx.result.offset);
+        if (!runtime::is_bounded_by_bits<runtime::Memory::offset_bits>(
+                offset_word)) {
             return EVMC_OUT_OF_GAS;
         }
-        auto offset = static_cast<uint32_t>(offset_word);
+        auto offset = runtime::Memory::Offset::unsafe_from(
+            static_cast<uint32_t>(offset_word));
 
         auto memory_end = offset + size;
-        auto *output_buf = new std::uint8_t[size];
-        if (memory_end <= ctx.memory.size) {
-            std::memcpy(output_buf, ctx.memory.data + offset, size);
+        auto *output_buf = new std::uint8_t[*size];
+        if (*memory_end <= ctx.memory.size) {
+            std::memcpy(output_buf, ctx.memory.data + *offset, *size);
         }
         else {
             auto memory_cost = runtime::Context::memory_cost_from_word_count(
-                (memory_end + 31) / 32);
+                shr_ceil<5>(memory_end));
             ctx.gas_remaining -= memory_cost - ctx.memory.cost;
             if (ctx.gas_remaining < 0) {
+                delete[] output_buf;
                 return EVMC_OUT_OF_GAS;
             }
-            if (offset < ctx.memory.size) {
-                auto n = ctx.memory.size - offset;
-                std::memcpy(output_buf, ctx.memory.data + offset, n);
-                std::memset(output_buf + n, 0, memory_end - ctx.memory.size);
+            if (*offset < ctx.memory.size) {
+                auto n = ctx.memory.size - *offset;
+                std::memcpy(output_buf, ctx.memory.data + *offset, n);
+                std::memset(output_buf + n, 0, *memory_end - ctx.memory.size);
             }
             else {
-                std::memset(output_buf, 0, size);
+                std::memset(output_buf, 0, *size);
             }
         }
-        return std::span{output_buf, size};
+        return std::span{output_buf, *size};
     }
 
     void release_result(evmc_result const *result)

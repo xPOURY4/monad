@@ -34,7 +34,7 @@ namespace monad::runtime
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *i_ptr)
     {
-        if (*i_ptr > std::numeric_limits<std::uint32_t>::max()) {
+        if (!is_bounded_by_bits<32>(*i_ptr)) {
             *result_ptr = 0;
             return;
         }
@@ -57,7 +57,7 @@ namespace monad::runtime
         std::uint8_t const *source, std::uint32_t len)
     {
         auto size = ctx->get_memory_offset(size_word);
-        if (size == 0) {
+        if (*size == 0) {
             return;
         }
 
@@ -65,31 +65,18 @@ namespace monad::runtime
 
         ctx->expand_memory(dest_offset + size);
 
-        auto size_in_words = (size + 31) / 32;
-        ctx->deduct_gas(size_in_words * 3);
+        auto size_in_words = shr_ceil<5>(size);
+        ctx->deduct_gas(size_in_words * bin<3>);
 
-        auto start = [&] {
-            if (offset_word > std::numeric_limits<std::uint32_t>::max()) {
-                return len;
-            }
-            else {
-                return std::min(static_cast<std::uint32_t>(offset_word), len);
-            }
-        }();
+        std::uint32_t start =
+            is_bounded_by_bits<32>(offset_word)
+                ? std::min(static_cast<std::uint32_t>(offset_word), len)
+                : len;
 
-        auto copy_size = std::min(size, len - start);
-
-        if (copy_size > 0) {
-            auto begin = source + start;
-            std::copy_n(begin, copy_size, ctx->memory.data + dest_offset);
-        }
-
-        auto size_diff = size - copy_size;
-
-        if (size_diff > 0) {
-            auto begin = ctx->memory.data + dest_offset + copy_size;
-            std::fill_n(begin, size_diff, 0);
-        }
+        auto copy_size = std::min(*size, len - start);
+        auto dest_ptr = ctx->memory.data + *dest_offset;
+        std::copy_n(source + start, copy_size, dest_ptr);
+        std::fill_n(dest_ptr + copy_size, *size - copy_size, 0);
     }
 
     template <evmc_revision Rev>
@@ -127,18 +114,15 @@ namespace monad::runtime
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
         auto size = ctx->get_memory_offset(*size_ptr);
-        uint32_t dest_offset;
+        Memory::Offset dest_offset;
 
-        if (size > 0) {
+        if (*size > 0) {
             dest_offset = ctx->get_memory_offset(*dest_offset_ptr);
 
             ctx->expand_memory(dest_offset + size);
 
-            auto size_in_words = (size + 31) / 32;
-            ctx->deduct_gas(size_in_words * 3);
-        }
-        else {
-            dest_offset = 0;
+            auto size_in_words = shr_ceil<5>(size);
+            ctx->deduct_gas(size_in_words * bin<3>);
         }
 
         auto address = address_from_uint256(*address_ptr);
@@ -152,19 +136,15 @@ namespace monad::runtime
             }
         }
 
-        if (size > 0) {
+        if (*size > 0) {
             auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
+            auto dest_ptr = ctx->memory.data + *dest_offset;
             auto n = ctx->host->copy_code(
-                ctx->context,
-                &address,
-                offset,
-                ctx->memory.data + dest_offset,
-                size);
+                ctx->context, &address, offset, dest_ptr, *size);
 
-            auto begin =
-                ctx->memory.data + dest_offset + static_cast<std::uint32_t>(n);
-            auto end = ctx->memory.data + dest_offset + size;
+            auto begin = dest_ptr + static_cast<std::uint32_t>(n);
+            auto end = dest_ptr + *size;
 
             std::fill(begin, end, 0);
         }
@@ -180,23 +160,23 @@ namespace monad::runtime
 
         std::uint32_t end;
         if (MONAD_COMPILER_UNLIKELY(
-                __builtin_add_overflow(offset, size, &end) ||
+                __builtin_add_overflow(offset, *size, &end) ||
                 end > ctx->env.return_data_size)) {
             ctx->exit(StatusCode::InvalidMemoryAccess);
         }
 
-        if (size > 0) {
+        if (*size > 0) {
             auto dest_offset = ctx->get_memory_offset(*dest_offset_ptr);
 
             ctx->expand_memory(dest_offset + size);
 
-            auto size_in_words = (size + 31) / 32;
-            ctx->deduct_gas(size_in_words * 3);
+            auto size_in_words = shr_ceil<5>(size);
+            ctx->deduct_gas(size_in_words * bin<3>);
 
             std::copy_n(
-                &ctx->env.return_data[offset],
-                size,
-                ctx->memory.data + dest_offset);
+                ctx->env.return_data + offset,
+                *size,
+                ctx->memory.data + *dest_offset);
         }
     }
 
