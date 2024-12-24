@@ -199,6 +199,13 @@ The documentation is then accessible from `http://localhost:8000` locally.
 [jit]: https://github.com/monad-crypto/monad-jit
 [hunter]: https://github.com/ethereum/evmc/pull/169
 
+## Coverage
+To enable coverage statistics set `-DCOVERAGE=ON` when configuring, e.g.
+```console
+$ cmake -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON -S . -B build -G Ninja
+```
+After running the desired executable, use `gcovr .` to gather coverage statistics.
+
 ## Linting & Formatting
 
 To run the linter, call:

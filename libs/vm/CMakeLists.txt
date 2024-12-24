@@ -10,6 +10,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
 
+option(COVERAGE "Build with coverage" OFF)
+
 include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)

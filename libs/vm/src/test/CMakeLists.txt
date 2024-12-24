@@ -29,6 +29,11 @@ add_executable(unit-tests
     runtime/data_tests.cpp
 )
 
+if(COVERAGE)
+target_compile_options(unit-tests PRIVATE -coverage)
+target_link_options(unit-tests PRIVATE -coverage)
+endif()
+
 monad_compile_options(unit-tests)
 target_link_libraries(unit-tests
     monad-compiler
