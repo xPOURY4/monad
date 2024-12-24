@@ -160,7 +160,7 @@ namespace
 
     void destroy(evmc_vm *vm)
     {
-        reinterpret_cast<BlockchainTestVM *>(vm)->~BlockchainTestVM();
+        delete reinterpret_cast<BlockchainTestVM *>(vm);
     }
 
     evmc_result execute(

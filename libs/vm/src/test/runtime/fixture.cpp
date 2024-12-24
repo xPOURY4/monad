@@ -1,5 +1,7 @@
 #include "fixture.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <runtime/transmute.h>
 
 #include <evmc/evmc.h>
@@ -10,6 +12,7 @@
 #include <cstdint>
 #include <limits>
 #include <numeric>
+#include <string_view>
 
 using namespace monad::runtime;
 
@@ -72,12 +75,13 @@ namespace monad::compiler::test
     evmc_result
     RuntimeTest::success_result(std::int64_t gas_left, std::int64_t gas_refund)
     {
+        auto output_data = result_data();
         return {
             .status_code = EVMC_SUCCESS,
             .gas_left = gas_left,
             .gas_refund = gas_refund,
-            .output_data = &call_return_data_[0],
-            .output_size = call_return_data_.size(),
+            .output_data = output_data.data(),
+            .output_size = output_data.size(),
             .release = nullptr,
             .create_address = {},
             .padding = {},
@@ -86,12 +90,13 @@ namespace monad::compiler::test
 
     evmc_result RuntimeTest::failure_result(evmc_status_code sc)
     {
+        auto output_data = result_data();
         return {
             .status_code = sc,
             .gas_left = 0,
             .gas_refund = 0,
-            .output_data = &call_return_data_[0],
-            .output_size = call_return_data_.size(),
+            .output_data = output_data.data(),
+            .output_size = output_data.size(),
             .release = nullptr,
             .create_address = {},
             .padding = {},
@@ -103,5 +108,14 @@ namespace monad::compiler::test
     {
         host_.accounts[address_from_uint256(addr)].balance =
             bytes32_from_uint256(balance);
+    }
+
+    std::basic_string_view<uint8_t> RuntimeTest::result_data()
+    {
+        auto output_size = call_return_data_.size();
+        auto *output_data =
+            reinterpret_cast<std::uint8_t *>(std::malloc(output_size));
+        std::memcpy(output_data, call_return_data_.data(), output_size);
+        return {output_data, output_size};
     }
 }

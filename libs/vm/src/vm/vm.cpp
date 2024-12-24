@@ -61,7 +61,7 @@ namespace
             static_cast<uint32_t>(offset_word));
 
         auto memory_end = offset + size;
-        auto *output_buf = new std::uint8_t[*size];
+        auto *output_buf = reinterpret_cast<std::uint8_t *>(std::malloc(*size));
         if (*memory_end <= ctx.memory.size) {
             std::memcpy(output_buf, ctx.memory.data + *offset, *size);
         }
@@ -70,7 +70,7 @@ namespace
                 shr_ceil<5>(memory_end));
             ctx.gas_remaining -= memory_cost - ctx.memory.cost;
             if (ctx.gas_remaining < 0) {
-                delete[] output_buf;
+                std::free(output_buf);
                 return EVMC_OUT_OF_GAS;
             }
             if (*offset < ctx.memory.size) {
@@ -88,16 +88,12 @@ namespace
     void release_result(evmc_result const *result)
     {
         MONAD_COMPILER_DEBUG_ASSERT(result);
-
-        if (result->output_size > 0) {
-            MONAD_COMPILER_DEBUG_ASSERT(result->output_data);
-            delete[] result->output_data;
-        }
+        std::free(const_cast<std::uint8_t *>(result->output_data));
     }
 
     void destroy(evmc_vm *vm)
     {
-        reinterpret_cast<monad::compiler::VM *>(vm)->~VM();
+        delete reinterpret_cast<monad::compiler::VM *>(vm);
     }
 
     evmc_result execute(

@@ -118,5 +118,7 @@ namespace monad::compiler::test
         }
 
         void set_balance(utils::uint256_t addr, utils::uint256_t balance);
+
+        std::basic_string_view<uint8_t> result_data();
     };
 }

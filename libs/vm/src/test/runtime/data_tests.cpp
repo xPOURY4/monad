@@ -295,8 +295,9 @@ TEST_F(RuntimeTest, ExtCodeHash)
 
 TEST_F(RuntimeTest, ReturnDataSize)
 {
-    ctx_.env.return_data = &call_return_data_[0];
-    ctx_.env.return_data_size = sizeof(call_return_data_);
+    auto return_data = result_data();
+    ctx_.env.return_data = return_data.data();
+    ctx_.env.return_data_size = return_data.size();
 
     ctx_.gas_remaining = 0;
 
@@ -309,8 +310,9 @@ TEST_F(RuntimeTest, ReturnDataCopyAll)
     constexpr auto rev = EVMC_CANCUN;
     auto copy = wrap(returndatacopy<rev>);
 
-    ctx_.env.return_data = &call_return_data_[0];
-    ctx_.env.return_data_size = sizeof(call_return_data_);
+    auto return_data = result_data();
+    ctx_.env.return_data = return_data.data();
+    ctx_.env.return_data_size = return_data.size();
     ctx_.gas_remaining = 24;
     copy(0, 0, 128);
 

@@ -48,6 +48,11 @@ namespace monad::runtime
         std::uint32_t code_size;
         std::size_t return_data_size;
 
+        ~Environment()
+        {
+            std::free(const_cast<uint8_t *>(return_data));
+        }
+
         [[gnu::always_inline]]
         void set_return_data(
             std::uint8_t const *output_data, std::size_t output_size)
@@ -60,6 +65,8 @@ namespace monad::runtime
         [[gnu::always_inline]]
         void clear_return_data()
         {
+            std::free(const_cast<uint8_t *>(return_data));
+            return_data = nullptr;
             return_data_size = 0;
         }
     };
