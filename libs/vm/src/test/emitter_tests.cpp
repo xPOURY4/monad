@@ -2150,3 +2150,67 @@ TEST(Emitter, block_epilogue)
         }
     }
 }
+
+TEST(Emitter, SpillGeneralRegister)
+{
+    std::vector<uint8_t> bytecode;
+    for (size_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
+        bytecode.push_back(ADDRESS);
+    }
+    auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+    asmjit::JitRuntime const rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+
+    Stack &stack = emit.get_stack();
+
+    for (int32_t i = 0; i < GENERAL_REG_COUNT; ++i) {
+        emit.address();
+        ASSERT_TRUE(stack.get(i)->general_reg().has_value());
+    }
+
+    emit.address();
+    ASSERT_TRUE(stack.get(GENERAL_REG_COUNT)->general_reg().has_value());
+
+    size_t reg_count = 0;
+    for (int32_t i = 0; i <= GENERAL_REG_COUNT; ++i) {
+        reg_count += stack.get(i)->general_reg().has_value();
+        if (!stack.get(i)->general_reg().has_value()) {
+            ASSERT_TRUE(stack.get(i)->stack_offset().has_value());
+        }
+    }
+    ASSERT_EQ(reg_count, GENERAL_REG_COUNT);
+}
+
+TEST(Emitter, SpillAvxRegister)
+{
+    std::vector<uint8_t> bytecode;
+    for (size_t i = 0; i <= AVX_REG_COUNT; ++i) {
+        bytecode.push_back(CALLVALUE);
+    }
+    auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+    asmjit::JitRuntime const rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+
+    Stack &stack = emit.get_stack();
+
+    for (int32_t i = 0; i < AVX_REG_COUNT; ++i) {
+        emit.callvalue();
+        ASSERT_TRUE(stack.get(i)->avx_reg().has_value());
+    }
+
+    emit.callvalue();
+    ASSERT_TRUE(stack.get(AVX_REG_COUNT)->avx_reg().has_value());
+
+    size_t avx_count = 0;
+    for (int32_t i = 0; i <= AVX_REG_COUNT; ++i) {
+        avx_count += stack.get(i)->avx_reg().has_value();
+        if (!stack.get(i)->avx_reg().has_value()) {
+            ASSERT_TRUE(stack.get(i)->stack_offset().has_value());
+        }
+    }
+    ASSERT_EQ(avx_count, AVX_REG_COUNT);
+}

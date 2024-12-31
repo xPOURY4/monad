@@ -15,7 +15,7 @@
 
 namespace monad::compiler::native
 {
-    constexpr std::uint8_t AVX_REG_COUNT = 32;
+    constexpr std::uint8_t AVX_REG_COUNT = 16;
     constexpr std::uint8_t GENERAL_REG_COUNT = 3;
     constexpr std::uint8_t CALLEE_SAVE_GENERAL_REG_ID = 0;
 
