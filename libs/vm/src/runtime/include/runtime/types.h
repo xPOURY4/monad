@@ -48,6 +48,8 @@ namespace monad::runtime
         std::uint32_t code_size;
         std::size_t return_data_size;
 
+        evmc_tx_context tx_context;
+
         ~Environment()
         {
             std::free(const_cast<uint8_t *>(return_data));

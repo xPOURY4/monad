@@ -21,7 +21,29 @@ using namespace intx;
 namespace monad::compiler::test
 {
     RuntimeTest::RuntimeTest()
+        : blob_hashes_{bytes32_from_uint256(1), bytes32_from_uint256(2)}
     {
+        host_.block_hash = bytes32_from_uint256(
+            0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
+
+        host_.tx_context = evmc_tx_context{
+            .tx_gas_price = bytes32_from_uint256(56762),
+            .tx_origin = 0x000000000000000000000000000000005CA1AB1E_address,
+            .block_coinbase =
+                0x00000000000000000000000000000000BA5EBA11_address,
+            .block_number = 23784,
+            .block_timestamp = 1733494490,
+            .block_gas_limit = 30000000,
+            .block_prev_randao = bytes32_from_uint256(89273),
+            .chain_id = bytes32_from_uint256(2342),
+            .block_base_fee = bytes32_from_uint256(389),
+            .blob_base_fee = bytes32_from_uint256(98988),
+            .blob_hashes = blob_hashes_.data(),
+            .blob_hashes_count = blob_hashes_.size(),
+            .initcodes = nullptr,
+            .initcodes_count = 0,
+        };
+
         ctx_ = Context{
             .host = &host_.get_interface(),
             .context = host_.to_context(),
@@ -43,29 +65,9 @@ namespace monad::compiler::test
                     .input_data_size = sizeof(call_data_),
                     .code_size = sizeof(code_),
                     .return_data_size = 0,
+                    .tx_context = host_.tx_context,
                 },
         };
-
-        host_.tx_context = evmc_tx_context{
-            .tx_gas_price = bytes32_from_uint256(56762),
-            .tx_origin = 0x000000000000000000000000000000005CA1AB1E_address,
-            .block_coinbase =
-                0x00000000000000000000000000000000BA5EBA11_address,
-            .block_number = 23784,
-            .block_timestamp = 1733494490,
-            .block_gas_limit = 30000000,
-            .block_prev_randao = bytes32_from_uint256(89273),
-            .chain_id = bytes32_from_uint256(2342),
-            .block_base_fee = bytes32_from_uint256(389),
-            .blob_base_fee = bytes32_from_uint256(98988),
-            .blob_hashes = nullptr,
-            .blob_hashes_count = 0,
-            .initcodes = nullptr,
-            .initcodes_count = 0,
-        };
-
-        host_.block_hash = bytes32_from_uint256(
-            0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
 
         std::iota(code_.rbegin(), code_.rend(), 0);
         std::iota(call_data_.begin(), call_data_.end(), 0);

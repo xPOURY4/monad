@@ -10,6 +10,7 @@
 #include "compiler/ir/x86.h"
 #include "compiler/ir/x86/virtual_stack.h"
 #include "compiler/types.h"
+#include "evmc/evmc.h"
 #include "intx/intx.hpp"
 #include "runtime/types.h"
 #include "utils/assert.h"
@@ -56,6 +57,46 @@ constexpr auto context_offset_env_input_data_size =
 constexpr auto context_offset_env_return_data_size =
     offsetof(runtime::Context, env) +
     offsetof(runtime::Environment, return_data_size);
+constexpr auto context_offset_env_tx_context_origin =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, tx_origin);
+constexpr auto context_offset_env_tx_context_tx_gas_price =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, tx_gas_price);
+constexpr auto context_offset_env_tx_context_block_gas_limit =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_gas_limit);
+constexpr auto context_offset_env_tx_context_block_coinbase =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_coinbase);
+constexpr auto context_offset_env_tx_context_block_timestamp =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_timestamp);
+constexpr auto context_offset_env_tx_context_block_number =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_number);
+constexpr auto context_offset_env_tx_context_block_prev_randao =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_prev_randao);
+constexpr auto context_offset_env_tx_context_chain_id =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, chain_id);
+constexpr auto context_offset_env_tx_context_block_base_fee =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, block_base_fee);
+constexpr auto context_offset_env_tx_context_blob_base_fee =
+    offsetof(runtime::Context, env) +
+    offsetof(runtime::Environment, tx_context) +
+    offsetof(evmc_tx_context, blob_base_fee);
 constexpr auto context_offset_memory_size =
     offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
 constexpr auto context_offset_result_offset =
@@ -1825,6 +1866,68 @@ namespace monad::compiler::native
         stack_->push_literal(bytecode_size_);
     }
 
+    // No discharge
+    void Emitter::origin()
+    {
+        read_context_address(context_offset_env_tx_context_origin);
+    }
+
+    // No discharge
+    void Emitter::gasprice()
+    {
+        read_context_word(context_offset_env_tx_context_tx_gas_price);
+    }
+
+    // No discharge
+    void Emitter::gaslimit()
+    {
+        read_context_uint64_to_word(
+            context_offset_env_tx_context_block_gas_limit);
+    }
+
+    // No discharge
+    void Emitter::coinbase()
+    {
+        read_context_address(context_offset_env_tx_context_block_coinbase);
+    }
+
+    // No discharge
+    void Emitter::timestamp()
+    {
+        read_context_uint64_to_word(
+            context_offset_env_tx_context_block_timestamp);
+    }
+
+    // No discharge
+    void Emitter::number()
+    {
+        read_context_uint64_to_word(context_offset_env_tx_context_block_number);
+    }
+
+    // No discharge
+    void Emitter::prevrandao()
+    {
+        read_context_word(context_offset_env_tx_context_block_prev_randao);
+    }
+
+    // No discharge
+    void Emitter::chainid()
+    {
+        read_context_word(context_offset_env_tx_context_chain_id);
+    }
+
+    // No discharge
+    void Emitter::basefee()
+    {
+        read_context_word(context_offset_env_tx_context_block_base_fee);
+    }
+
+    // No discharge
+    void Emitter::blobbasefee()
+    {
+        read_context_word(context_offset_env_tx_context_blob_base_fee);
+    }
+
     // Discharge
     void Emitter::call_runtime_impl(RuntimeImpl &rt)
     {
@@ -2204,6 +2307,22 @@ namespace monad::compiler::native
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
         as_.mov(gpq[0].r32(), x86::dword_ptr(reg_context, offset));
+        if (stack_->has_deferred_comparison()) {
+            as_.mov(gpq[1], 0);
+        }
+        else {
+            as_.xor_(gpq[1], gpq[1]);
+        }
+        as_.mov(gpq[2], gpq[1]);
+        as_.mov(gpq[3], gpq[1]);
+        stack_->push(std::move(dst));
+    }
+
+    void Emitter::read_context_uint64_to_word(int32_t offset)
+    {
+        auto [dst, _] = alloc_general_reg();
+        Gpq256 const &gpq = general_reg_to_gpq256(dst->general_reg().value());
+        as_.mov(gpq[0], x86::qword_ptr(reg_context, offset));
         if (stack_->has_deferred_comparison()) {
             as_.mov(gpq[1], 0);
         }

@@ -125,7 +125,7 @@ namespace
             emit.call_runtime(remaining_base_gas, monad::runtime::balance<rev>);
             break;
         case Origin:
-            emit.call_runtime(remaining_base_gas, monad::runtime::origin<rev>);
+            emit.origin();
             break;
         case Caller:
             emit.caller();
@@ -152,8 +152,7 @@ namespace
                 remaining_base_gas, monad::runtime::codecopy<rev>);
             break;
         case GasPrice:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::gasprice<rev>);
+            emit.gasprice();
             break;
         case ExtCodeSize:
             emit.call_runtime(
@@ -179,41 +178,36 @@ namespace
                 remaining_base_gas, monad::runtime::blockhash<rev>);
             break;
         case Coinbase:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::coinbase<rev>);
+            emit.coinbase();
             break;
         case Timestamp:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::timestamp<rev>);
+            emit.timestamp();
             break;
         case Number:
-            emit.call_runtime(remaining_base_gas, monad::runtime::number<rev>);
+            emit.number();
             break;
         case Difficulty:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::prevrandao<rev>);
+            emit.prevrandao();
             break;
         case GasLimit:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::gaslimit<rev>);
+            emit.gaslimit();
             break;
         case ChainId:
-            emit.call_runtime(remaining_base_gas, monad::runtime::chainid<rev>);
+            emit.chainid();
             break;
         case SelfBalance:
             emit.call_runtime(
                 remaining_base_gas, monad::runtime::selfbalance<rev>);
             break;
         case BaseFee:
-            emit.call_runtime(remaining_base_gas, monad::runtime::basefee<rev>);
+            emit.basefee();
             break;
         case BlobHash:
             emit.call_runtime(
                 remaining_base_gas, monad::runtime::blobhash<rev>);
             break;
         case BlobBaseFee:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::blobbasefee<rev>);
+            emit.blobbasefee();
             break;
         case Pop:
             emit.pop();

@@ -133,6 +133,7 @@ namespace monad::compiler
                         static_cast<std::uint32_t>(msg->input_size),
                     .code_size = static_cast<std::uint32_t>(code_size),
                     .return_data_size = 0,
+                    .tx_context = host->get_tx_context(context),
                 },
             .result = {},
             .memory = {},

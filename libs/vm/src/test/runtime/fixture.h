@@ -23,6 +23,7 @@ namespace monad::compiler::test
 
         evmc::MockedHost host_;
 
+        std::array<evmc_bytes32, 2> blob_hashes_;
         runtime::Context ctx_;
 
         evmc_result

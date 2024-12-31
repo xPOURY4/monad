@@ -227,6 +227,16 @@ namespace monad::compiler::native
         void returndatasize();
         void msize();
         void codesize();
+        void origin();
+        void gasprice();
+        void gaslimit();
+        void coinbase();
+        void timestamp();
+        void number();
+        void prevrandao();
+        void chainid();
+        void basefee();
+        void blobbasefee();
 
         template <typename... Args>
         void call_runtime(int32_t remaining_base_gas, void (*f)(Args...))
@@ -354,6 +364,7 @@ namespace monad::compiler::native
         void read_context_address(int32_t offset);
         void read_context_word(int32_t offset);
         void read_context_uint32_to_word(int32_t offset);
+        void read_context_uint64_to_word(int32_t offset);
 
         void lt(StackElemRef dst, StackElemRef src);
         void slt(StackElemRef dst, StackElemRef src);

@@ -73,6 +73,7 @@ namespace
                     .input_data_size = 0,
                     .code_size = 0,
                     .return_data_size = 0,
+                    .tx_context = {},
                 },
             .result = test_result(),
             .memory = {},
@@ -1871,6 +1872,236 @@ TEST(Emitter, address)
 
     ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
     ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+}
+
+TEST(Emitter, origin)
+{
+    auto ir = basic_blocks::BasicBlocksIR({ORIGIN, ORIGIN});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.origin();
+    emit.origin();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.tx_origin.bytes[18] = 2;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x200);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x200);
+}
+
+TEST(Emitter, gasprice)
+{
+    auto ir = basic_blocks::BasicBlocksIR({GASPRICE, GASPRICE});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.gasprice();
+    emit.gasprice();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.tx_gas_price.bytes[30] = 3;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x300);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x300);
+}
+
+TEST(Emitter, gaslimit)
+{
+    auto ir = basic_blocks::BasicBlocksIR({GASLIMIT, GASLIMIT});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.gaslimit();
+    emit.gaslimit();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_gas_limit = 4;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 4);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 4);
+}
+
+TEST(Emitter, coinbase)
+{
+    auto ir = basic_blocks::BasicBlocksIR({COINBASE, COINBASE});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.coinbase();
+    emit.coinbase();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_coinbase.bytes[18] = 5;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x500);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x500);
+}
+
+TEST(Emitter, timestamp)
+{
+    auto ir = basic_blocks::BasicBlocksIR({TIMESTAMP, TIMESTAMP});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.timestamp();
+    emit.timestamp();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_timestamp = 6;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 6);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 6);
+}
+
+TEST(Emitter, number)
+{
+    auto ir = basic_blocks::BasicBlocksIR({NUMBER, NUMBER});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.number();
+    emit.number();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_number = 7;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 7);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 7);
+}
+
+TEST(Emitter, prevrandao)
+{
+    auto ir = basic_blocks::BasicBlocksIR({DIFFICULTY, DIFFICULTY});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.prevrandao();
+    emit.prevrandao();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_prev_randao.bytes[30] = 8;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x800);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x800);
+}
+
+TEST(Emitter, chainid)
+{
+    auto ir = basic_blocks::BasicBlocksIR({CHAINID, CHAINID});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.chainid();
+    emit.chainid();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.chain_id.bytes[30] = 9;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x900);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x900);
+}
+
+TEST(Emitter, basefee)
+{
+    auto ir = basic_blocks::BasicBlocksIR({BASEFEE, BASEFEE});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.basefee();
+    emit.basefee();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.block_base_fee.bytes[30] = 0xa;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xa00);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xa00);
+}
+
+TEST(Emitter, blobbasefee)
+{
+    auto ir = basic_blocks::BasicBlocksIR({BLOBBASEFEE, BLOBBASEFEE});
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks()[0]);
+    emit.blobbasefee();
+    emit.blobbasefee();
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+
+    ctx.env.tx_context.blob_base_fee.bytes[30] = 0xb;
+
+    entry(&ctx, nullptr);
+
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xb00);
+    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xb00);
 }
 
 TEST(Emitter, caller)
