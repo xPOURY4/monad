@@ -1,9 +1,9 @@
 #include "fixture.h"
+#include "intx/intx.hpp"
 
-#include <runtime/storage.h>
-#include <runtime/transmute.h>
 #include <runtime/create.h>
 #include <runtime/memory.h>
+#include <runtime/transmute.h>
 #include <utils/uint256.h>
 
 #include <evmc/evmc.h>
@@ -28,7 +28,7 @@ TEST_F(RuntimeTest, CreateFrontier)
 
   auto do_create = wrap(create<rev>);
 
-  utils::uint256_t addr = do_create(0,19,13);
+  utils::uint256_t const addr = do_create(0, 19, 13);
 
   ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -47,7 +47,7 @@ TEST_F(RuntimeTest, CreateFrontierShanghai)
 
   auto do_create = wrap(create<rev>);
 
-  utils::uint256_t addr = do_create(0,19,13);
+  utils::uint256_t const addr = do_create(0, 19, 13);
 
   ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -66,7 +66,7 @@ TEST_F(RuntimeTest, CreateFrontierTangerineWhistle)
 
   auto do_create = wrap(create<rev>);
 
-  utils::uint256_t addr = do_create(0,19,13);
+  utils::uint256_t const addr = do_create(0, 19, 13);
 
   ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -83,7 +83,7 @@ TEST_F(RuntimeTest, CreateFrontierSizeIsZero)
 
   auto do_create = wrap(create<rev>);
 
-  utils::uint256_t addr = do_create(0,0,0);
+  utils::uint256_t const addr = do_create(0, 0, 0);
 
   ASSERT_EQ(addr, uint256_from_address(result_addr));
   ASSERT_EQ(ctx_.gas_remaining, 900000);
@@ -97,7 +97,7 @@ TEST_F(RuntimeTest, CreateFrontierFailure)
 
   auto do_create = wrap(create<rev>);
 
-  utils::uint256_t addr = do_create(0,0,0);
+  utils::uint256_t const addr = do_create(0, 0, 0);
 
   ASSERT_EQ(addr, 0);
 }
@@ -113,7 +113,7 @@ TEST_F(RuntimeTest, Create2Constantinople)
 
   auto do_create2 = wrap(create2<rev>);
 
-  utils::uint256_t addr = do_create2(0,19,13,0x99);
+  utils::uint256_t const addr = do_create2(0, 19, 13, 0x99);
 
   ASSERT_EQ(addr, uint256_from_address(result_addr));
 
