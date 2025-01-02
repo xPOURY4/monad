@@ -27,6 +27,7 @@ add_executable(unit-tests
     runtime/storage_tests.cpp
     runtime/call_tests.cpp
     runtime/data_tests.cpp
+    runtime/create_tests.cpp
 )
 
 if(MONAD_COMPILER_COVERAGE)

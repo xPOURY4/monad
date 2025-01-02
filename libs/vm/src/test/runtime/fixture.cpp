@@ -90,6 +90,21 @@ namespace monad::compiler::test
         };
     }
 
+    evmc_result
+    RuntimeTest::create_result(evmc_address prog_addr, std::int64_t gas_left, std::int64_t gas_refund)
+    {
+        return {
+            .status_code = EVMC_SUCCESS,
+            .gas_left = gas_left,
+            .gas_refund = gas_refund,
+            .output_data = &call_return_data_[0],
+            .output_size = call_return_data_.size(),
+            .release = nullptr,
+            .create_address = prog_addr,
+            .padding = {},
+        };
+    }
+
     evmc_result RuntimeTest::failure_result(evmc_status_code sc)
     {
         auto output_data = result_data();

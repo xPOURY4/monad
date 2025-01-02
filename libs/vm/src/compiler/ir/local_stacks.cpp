@@ -259,6 +259,7 @@ namespace monad::compiler::local_stacks
                 data <= uint256_t{std::numeric_limits<size_t>::max()});
             param = data[0];
         default:
+            // do nothing
             break;
         }
     };
