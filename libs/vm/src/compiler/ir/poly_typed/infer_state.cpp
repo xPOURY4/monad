@@ -26,7 +26,7 @@ namespace
     {
         auto d = state.get_jumpdest(value);
         if (d.has_value()) {
-            dest.push_back(d.value());
+            dest.push_back(*d);
         }
     }
 

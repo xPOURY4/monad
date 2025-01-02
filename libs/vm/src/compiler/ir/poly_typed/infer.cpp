@@ -137,14 +137,14 @@ namespace
             return;
         }
         if (jumpix != std::numeric_limits<size_t>::max() &&
-            component.contains(b.value())) {
+            component.contains(*b)) {
             // Recursive is assumed to be word if it appears as argument to a
             // continuation (parameter).
             front.push_back(std::move(k));
             return;
         }
         front.push_back(
-            literal_var(state.fresh_literal_var(), state.get_type(b.value())));
+            literal_var(state.fresh_literal_var(), state.get_type(*b)));
     }
 
     void push_param_output(
@@ -417,8 +417,7 @@ namespace
             // Invalid jump destination. Unify will always succeed.
             return;
         }
-        unify(
-            state.subst_map, state.get_type(did.value()), std::move(out_kind));
+        unify(state.subst_map, state.get_type(*did), std::move(out_kind));
     }
 
     void infer_block_jump_param(
@@ -487,7 +486,7 @@ namespace
         auto const &block = state.pre_blocks[bts.bid];
         for (size_t oix = offset; oix < block.output.size(); ++oix) {
             auto b = state.get_jumpdest(block.output[oix]);
-            if (!b.has_value() || !component.contains(b.value())) {
+            if (!b.has_value() || !component.contains(*b)) {
                 continue;
             }
             size_t const fix = oix - offset;
@@ -497,7 +496,7 @@ namespace
             }
             unify(
                 state.subst_map,
-                state.get_type(b.value()),
+                state.get_type(*b),
                 std::get<LiteralVar>(*k).cont);
         }
     }

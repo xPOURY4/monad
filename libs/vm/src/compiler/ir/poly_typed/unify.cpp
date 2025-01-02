@@ -34,7 +34,7 @@ namespace
                 break;
             }
             increment_kind_ticks(ticks, 1);
-            kind = new_k.value();
+            kind = *new_k;
         }
         return std::visit(
             Cases{
@@ -63,7 +63,7 @@ namespace
                             return word;
                         }
                     }
-                    switch (t.value()) {
+                    switch (*t) {
                     case LiteralType::Cont:
                         increment_kind_ticks(ticks, 1);
                         return cont(find_subst_cont2(
@@ -107,12 +107,10 @@ namespace
                 }
                 break;
             }
-            increment_kind_ticks(ticks, 1 + copt.value()->front.size());
+            increment_kind_ticks(ticks, 1 + (*copt)->front.size());
             kinds.insert(
-                kinds.end(),
-                copt.value()->front.begin(),
-                copt.value()->front.end());
-            t = copt.value()->tail;
+                kinds.end(), (*copt)->front.begin(), (*copt)->front.end());
+            t = (*copt)->tail;
         }
         for (auto &kind : kinds) {
             kind = find_subst_kind2(su, var, is_kind_var, kind, depth, ticks);
@@ -133,7 +131,7 @@ namespace
                 return kind;
             }
             increment_kind_ticks(ticks, 1);
-            kind = new_k.value();
+            kind = *new_k;
         }
         return find_subst_kind2(su, var, true, kind, depth, ticks);
     }
@@ -153,7 +151,7 @@ namespace
                 return cont;
             }
             increment_kind_ticks(ticks, 1);
-            cont = copt.value();
+            cont = *copt;
         }
         return find_subst_cont2(su, var, false, cont, depth, ticks);
     }
@@ -204,17 +202,15 @@ namespace
             return;
         }
         if (!t2.has_value()) {
-            return unify_literal_var_to_type(
-                su, lv2, lv1, t1.value(), depth, ticks);
+            return unify_literal_var_to_type(su, lv2, lv1, *t1, depth, ticks);
         }
         if (!t1.has_value()) {
-            return unify_literal_var_to_type(
-                su, lv1, lv2, t2.value(), depth, ticks);
+            return unify_literal_var_to_type(su, lv1, lv2, *t2, depth, ticks);
         }
-        if (t1.value() != t2.value()) {
+        if (*t1 != *t2) {
             throw UnificationException{};
         }
-        if (t1.value() != LiteralType::Word) {
+        if (*t1 != LiteralType::Word) {
             unify(su, lv1.cont, lv2.cont, depth, ticks);
         }
     }
@@ -228,7 +224,7 @@ namespace
                 break;
             }
             increment_kind_ticks(ticks, 1);
-            k1 = new_k.value();
+            k1 = *new_k;
         }
         while (std::holds_alternative<KindVar>(*k2)) {
             auto new_k = su.get_kind(std::get<KindVar>(*k2).var);
@@ -236,7 +232,7 @@ namespace
                 break;
             }
             increment_kind_ticks(ticks, 1);
-            k2 = new_k.value();
+            k2 = *new_k;
         }
         if (!std::holds_alternative<KindVar>(*k1)) {
             if (std::holds_alternative<KindVar>(*k2) ||
@@ -259,7 +255,7 @@ namespace
                 [&su, &k2, depth, &ticks](KindVar const &kv1) {
                     auto kopt2 = find_subst_kind(su, kv1.var, k2, depth, ticks);
                     if (kopt2.has_value()) {
-                        su.insert_kind(kv1.var, kopt2.value());
+                        su.insert_kind(kv1.var, *kopt2);
                     }
                 },
                 [&su, &k2, depth, &ticks](LiteralVar const &lv1) {
@@ -352,7 +348,7 @@ namespace
                         break;
                     }
                     index1 = 0;
-                    c1 = c.value();
+                    c1 = *c;
                     increment_kind_ticks(ticks, 1 + c1->front.size());
                     continue;
                 }
@@ -367,7 +363,7 @@ namespace
                         break;
                     }
                     index2 = 0;
-                    c2 = c.value();
+                    c2 = *c;
                     increment_kind_ticks(ticks, 1 + c2->front.size());
                     continue;
                 }
@@ -395,7 +391,7 @@ namespace
                     auto kopt = find_subst_cont(
                         su, cv1.var, cont_kind(n, c2->tail), depth, ticks);
                     if (kopt.has_value()) {
-                        su.insert_cont(cv1.var, kopt.value());
+                        su.insert_cont(cv1.var, *kopt);
                     }
                 },
                 [&su, &c2, depth, &ticks, &index2](ContWords const &) {
@@ -411,7 +407,7 @@ namespace
                             break;
                         }
                         index2 = 0;
-                        c2 = c.value();
+                        c2 = *c;
                         increment_kind_ticks(ticks, 1 + c2->front.size());
                     }
                     if (std::holds_alternative<ContVar>(c2->tail)) {

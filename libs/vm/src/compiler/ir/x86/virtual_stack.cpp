@@ -150,7 +150,7 @@ namespace monad::compiler::native
     void StackElem::free_avx_reg()
     {
         MONAD_COMPILER_ASSERT(avx_reg_.has_value());
-        stack_.free_avx_regs_.push(avx_reg_.value());
+        stack_.free_avx_regs_.push(*avx_reg_);
         auto reg = avx_reg_->reg;
         MONAD_COMPILER_ASSERT(stack_.avx_reg_stack_elems_[reg] == this);
         stack_.avx_reg_stack_elems_[reg] = nullptr;
@@ -159,7 +159,7 @@ namespace monad::compiler::native
     void StackElem::free_general_reg()
     {
         MONAD_COMPILER_ASSERT(general_reg_.has_value());
-        stack_.free_general_regs_.push(general_reg_.value());
+        stack_.free_general_regs_.push(*general_reg_);
         auto reg = general_reg_->reg;
         MONAD_COMPILER_ASSERT(stack_.general_reg_stack_elems_[reg] != nullptr);
         stack_.general_reg_stack_elems_[reg] = nullptr;
@@ -552,7 +552,7 @@ namespace monad::compiler::native
                 continue;
             }
             MONAD_COMPILER_ASSERT(e->reserve_general_reg_count_ == 0);
-            GeneralReg const reg = e->general_reg_.value();
+            GeneralReg const reg = *e->general_reg_;
             e->remove_general_reg();
             if (!e->stack_offset_.has_value() && !e->avx_reg_.has_value() &&
                 !e->literal_.has_value()) {
@@ -575,7 +575,7 @@ namespace monad::compiler::native
                 continue;
             }
             MONAD_COMPILER_ASSERT(e->reserve_avx_reg_count_ == 0);
-            AvxReg const reg = e->avx_reg_.value();
+            AvxReg const reg = *e->avx_reg_;
             e->remove_avx_reg();
             if (!e->stack_offset_.has_value() && !e->general_reg_.has_value() &&
                 !e->literal_.has_value()) {
@@ -684,7 +684,7 @@ namespace monad::compiler::native
     StackElemRef Stack::release_avx_reg(StackElemRef elem)
     {
         auto dst = std::make_shared<StackElem>(this);
-        AvxReg const reg = elem->avx_reg_.value();
+        AvxReg const reg = *elem->avx_reg_;
         dst->avx_reg_ = reg;
         elem->avx_reg_ = std::nullopt;
         avx_reg_stack_elems_[reg.reg] = dst.get();
@@ -694,7 +694,7 @@ namespace monad::compiler::native
     StackElemRef Stack::release_general_reg(StackElemRef elem)
     {
         auto dst = std::make_shared<StackElem>(this);
-        GeneralReg const reg = elem->general_reg_.value();
+        GeneralReg const reg = *elem->general_reg_;
         dst->general_reg_ = reg;
         elem->general_reg_ = std::nullopt;
         general_reg_stack_elems_[reg.reg] = dst.get();

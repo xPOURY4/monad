@@ -335,8 +335,8 @@ namespace monad::compiler::native
             std::array<StackElemRef, sizeof...(Args)> elems;
             ((std::get<Is>(elems) = stack_->pop()), ...);
             if ((... && std::get<Is>(elems)->literal())) {
-                auto args = std::make_tuple(
-                    &std::get<Is>(elems)->literal().value().value...);
+                auto args =
+                    std::make_tuple(&std::get<Is>(elems)->literal()->value...);
                 push(std::apply(
                     [&rt](Args... args) { return rt.static_call(args...); },
                     args));

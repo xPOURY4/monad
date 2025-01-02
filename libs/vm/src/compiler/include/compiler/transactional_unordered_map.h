@@ -137,7 +137,7 @@ namespace monad::compiler
                 auto &entry = journal.back();
                 if (entry.prev_value.has_value()) {
                     current.insert_or_assign(
-                        entry.key, std::move(entry.prev_value.value()));
+                        entry.key, std::move(*entry.prev_value));
                 }
                 else {
                     current.erase(entry.key);
