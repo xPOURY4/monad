@@ -30,6 +30,10 @@ jobs:
                 permissions: >-
                   {"contents": "read"}
 
+            - name: Tell git to do submodules in parallel
+              run: |
+                git config --global submodule.fetchJobs "$(nproc)"
+
             - uses: actions/checkout@v4
               with:
                 token: ${{ steps.generate_token.outputs.token }}
@@ -83,6 +87,10 @@ jobs:
                 # configured in the app settings as well).
                 permissions: >-
                   {"contents": "read"}
+
+            - name: Tell git to do submodules in parallel
+              run: |
+                git config --global submodule.fetchJobs "$(nproc)"
 
             - uses: actions/checkout@v4
               with:
