@@ -29,8 +29,9 @@ namespace monad::compiler::test
         evmc_result
         success_result(std::int64_t gas_left, std::int64_t gas_refund = 0);
 
-        evmc_result
-        create_result(evmc_address prog_addr, std::int64_t gas_left, std::int64_t gas_refund = 0);
+        evmc_result create_result(
+            evmc_address prog_addr, std::int64_t gas_left,
+            std::int64_t gas_refund = 0);
 
         evmc_result failure_result(evmc_status_code = EVMC_INTERNAL_ERROR);
 
