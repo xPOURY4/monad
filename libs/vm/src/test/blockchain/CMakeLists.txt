@@ -9,9 +9,9 @@ target_include_directories(blockchain-tests
 )
 monad_compile_options(blockchain-tests)
 
-if(COVERAGE)
-target_compile_options(blockchain-tests PRIVATE -coverage)
-target_link_options(blockchain-tests PRIVATE -coverage)
+if(MONAD_COMPILER_COVERAGE)
+    target_compile_options(blockchain-tests PRIVATE -coverage)
+    target_link_options(blockchain-tests PRIVATE -coverage)
 endif()
 
 target_link_libraries(blockchain-tests
