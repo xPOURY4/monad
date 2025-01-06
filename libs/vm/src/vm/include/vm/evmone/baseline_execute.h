@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/evmone/code_analysis.h>
+#include <vm/evmone/code_analysis.h>
 
 #include <evmc/evmc.hpp>
 

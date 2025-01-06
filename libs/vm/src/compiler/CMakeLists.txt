@@ -11,7 +11,6 @@ add_library(monad-compiler
     ir/x86.cpp
     ir/x86/emitter.cpp
     ir/x86/virtual_stack.cpp
-    evmone/baseline_execute.cpp
 )
 
 monad_compile_options(monad-compiler)

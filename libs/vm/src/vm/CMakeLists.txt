@@ -1,5 +1,6 @@
 add_library(monad-compiler-vm SHARED
     vm.cpp
+    evmone/baseline_execute.cpp
 )
 
 monad_compile_options(monad-compiler-vm)

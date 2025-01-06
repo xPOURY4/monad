@@ -1,7 +1,7 @@
 #include "evm_fixture.h"
 
-#include <compiler/evmone/baseline_execute.h>
-#include <compiler/evmone/code_analysis.h>
+#include <vm/evmone/baseline_execute.h>
+#include <vm/evmone/code_analysis.h>
 
 #include <utils/assert.h>
 
