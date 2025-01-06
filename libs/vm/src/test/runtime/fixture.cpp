@@ -93,12 +93,13 @@ namespace monad::compiler::test
     evmc_result RuntimeTest::create_result(
         evmc_address prog_addr, std::int64_t gas_left, std::int64_t gas_refund)
     {
+        auto output_data = result_data();
         return {
             .status_code = EVMC_SUCCESS,
             .gas_left = gas_left,
             .gas_refund = gas_refund,
-            .output_data = &call_return_data_[0],
-            .output_size = call_return_data_.size(),
+            .output_data = output_data.data(),
+            .output_size = output_data.size(),
             .release = nullptr,
             .create_address = prog_addr,
             .padding = {},

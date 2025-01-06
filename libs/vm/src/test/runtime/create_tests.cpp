@@ -36,7 +36,7 @@ TEST_F(RuntimeTest, CreateFrontier)
     ASSERT_EQ(ctx_.gas_refund, 10);
 }
 
-TEST_F(RuntimeTest, CreateFrontierShanghai)
+TEST_F(RuntimeTest, CreateShanghai)
 {
     constexpr auto rev = EVMC_SHANGHAI;
     call(mstore<rev>, 0, prog);
@@ -55,7 +55,7 @@ TEST_F(RuntimeTest, CreateFrontierShanghai)
     ASSERT_EQ(ctx_.gas_refund, 10);
 }
 
-TEST_F(RuntimeTest, CreateFrontierTangerineWhistle)
+TEST_F(RuntimeTest, CreateTangerineWhistle)
 {
     constexpr auto rev = EVMC_TANGERINE_WHISTLE;
     call(mstore<rev>, 0, prog);
