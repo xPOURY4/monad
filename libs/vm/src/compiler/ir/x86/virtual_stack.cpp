@@ -2,17 +2,17 @@
 #include <compiler/ir/instruction.h>
 #include <compiler/ir/x86/virtual_stack.h>
 #include <compiler/types.h>
-
-#include <memory>
-#include <set>
-#include <tuple>
 #include <utils/assert.h>
+#include <utils/rc_ptr.h>
 
 #include <algorithm>
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -47,6 +47,29 @@ namespace monad::compiler::native
     {
         return a.reg == b.reg;
     }
+
+    static_assert(AVX_REG_COUNT == 16);
+    std::array<AvxReg, AVX_REG_COUNT> ALL_AVX_REGS = {
+        AvxReg(0),
+        AvxReg(1),
+        AvxReg(2),
+        AvxReg(3),
+        AvxReg(4),
+        AvxReg(5),
+        AvxReg(6),
+        AvxReg(7),
+        AvxReg(8),
+        AvxReg(9),
+        AvxReg(10),
+        AvxReg(11),
+        AvxReg(12),
+        AvxReg(13),
+        AvxReg(14),
+        AvxReg(15)};
+
+    static_assert(GENERAL_REG_COUNT == 3);
+    std::array<GeneralReg, GENERAL_REG_COUNT> ALL_GENERAL_REGS = {
+        GeneralReg(0), GeneralReg(1), GeneralReg(2)};
 
     StackElem::StackElem(Stack *s)
         : stack_{*s}
@@ -216,24 +239,50 @@ namespace monad::compiler::native
     }
 
     Stack::Stack()
-        : top_index_{-1}
-        , min_delta_{0}
-        , max_delta_{0}
-        , delta_{0}
+        : free_rc_objects_{}
     {
-        avx_reg_stack_elems_.fill(nullptr);
-        general_reg_stack_elems_.fill(nullptr);
-        for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
-            free_avx_regs_.emplace(i);
-        }
-        for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
-            free_general_regs_.emplace(i);
-        }
     }
 
     Stack::Stack(basic_blocks::Block const &block)
         : Stack()
     {
+        begin_new_block(block);
+    }
+
+    Stack::~Stack()
+    {
+        // Clear to free stack elements on the stack before
+        // loading `free_rc_objects_`:
+        negative_elems_.clear();
+        positive_elems_.clear();
+        auto *rco = free_rc_objects_;
+        if (rco) {
+            do {
+                utils::RcObject<StackElem> *x = rco;
+                static_assert(sizeof(std::size_t) == sizeof(void *));
+                rco = reinterpret_cast<decltype(x)>(x->ref_count);
+                utils::RcObject<StackElem>::default_deallocate(x);
+            }
+            while (rco);
+        }
+    }
+
+    void Stack::begin_new_block(basic_blocks::Block const &block)
+    {
+        positive_elems_.clear();
+        negative_elems_.clear();
+        deferred_comparison_ = DeferredComparison{};
+        general_reg_stack_elems_.fill(nullptr);
+        avx_reg_stack_elems_.fill(nullptr);
+        free_general_regs_ =
+            GeneralRegQueue{ALL_GENERAL_REGS.begin(), ALL_GENERAL_REGS.end()};
+        free_avx_regs_ = AvxRegQueue{ALL_AVX_REGS.begin(), ALL_AVX_REGS.end()};
+        available_stack_offsets_.clear();
+        delta_ = 0;
+        max_delta_ = 0;
+        min_delta_ = 0;
+        top_index_ = -1;
+
         for (auto const &instr : block.instrs) {
             delta_ -= instr.stack_args();
             min_delta_ = std::min(delta_, min_delta_);
@@ -252,20 +301,41 @@ namespace monad::compiler::native
             max_delta_ = std::max(delta_, max_delta_);
         }
 
-        delta_ -= static_cast<int32_t>(
+        delta_ -= static_cast<std::int32_t>(
             basic_blocks::terminator_inputs(block.terminator));
         min_delta_ = std::min(delta_, min_delta_);
 
+        negative_elems_.reserve(static_cast<std::size_t>(-min_delta_));
         for (auto i = -1; i >= min_delta_; --i) {
-            StackElemRef e = std::make_shared<StackElem>(this);
+            StackElemRef e = new_stack_elem();
             e->stack_offset_ = StackOffset{i};
             e->stack_indices_.insert(i);
             negative_elems_.push_back(std::move(e));
         }
-        positive_elems_.resize(static_cast<size_t>(max_delta_));
+        positive_elems_.resize(static_cast<std::size_t>(max_delta_));
+        auto it = available_stack_offsets_.end();
         for (auto i = 0; i < max_delta_; ++i) {
-            available_stack_offsets_.insert(i);
+            it = available_stack_offsets_.insert(it, i);
         }
+    }
+
+    StackElemRef Stack::new_stack_elem()
+    {
+        return StackElemRef::allocate(
+            [this]() {
+                if (free_rc_objects_) {
+                    utils::RcObject<StackElem> *x = free_rc_objects_;
+                    static_assert(sizeof(std::size_t) == sizeof(void *));
+                    free_rc_objects_ =
+                        reinterpret_cast<decltype(x)>(x->ref_count);
+                    return x;
+                }
+                else {
+                    auto *x = utils::RcObject<StackElem>::default_allocate();
+                    return x;
+                }
+            },
+            this);
     }
 
     StackElemRef Stack::get(std::int32_t index)
@@ -298,7 +368,7 @@ namespace monad::compiler::native
         auto &e = at(top_index_);
 
         auto rem = e->stack_indices_.erase(top_index_);
-        MONAD_COMPILER_ASSERT(rem == 1);
+        MONAD_COMPILER_DEBUG_ASSERT(rem == 1);
 
         // Note that it's valid for stack indices to become negative here.
         top_index_ -= 1;
@@ -310,14 +380,14 @@ namespace monad::compiler::native
     {
         top_index_ += 1;
         auto [_, ins] = e->stack_indices_.insert(top_index_);
-        MONAD_COMPILER_ASSERT(ins);
+        MONAD_COMPILER_DEBUG_ASSERT(ins);
         at(top_index_) = std::move(e);
     }
 
     void Stack::push_deferred_comparison(Comparison c)
     {
         top_index_ += 1;
-        auto e = std::make_shared<StackElem>(this);
+        auto e = new_stack_elem();
         e->stack_indices_.insert(top_index_);
         e->deferred_comparison(c);
         at(top_index_) = std::move(e);
@@ -336,7 +406,7 @@ namespace monad::compiler::native
                 push(at(*i));
             }
             else {
-                auto d = std::make_shared<StackElem>(this);
+                auto d = new_stack_elem();
                 d->negated_deferred_comparison();
                 push(std::move(d));
             }
@@ -351,7 +421,7 @@ namespace monad::compiler::native
                 push(at(*i));
             }
             else {
-                auto d = std::make_shared<StackElem>(this);
+                auto d = new_stack_elem();
                 d->deferred_comparison();
                 push(std::move(d));
             }
@@ -382,16 +452,16 @@ namespace monad::compiler::native
         auto &e = at(swap_index);
 
         auto rem_t = t->stack_indices_.erase(top_index_);
-        MONAD_COMPILER_ASSERT(rem_t == 1);
+        MONAD_COMPILER_DEBUG_ASSERT(rem_t == 1);
 
         auto rem_e = e->stack_indices_.erase(swap_index);
-        MONAD_COMPILER_ASSERT(rem_e == 1);
+        MONAD_COMPILER_DEBUG_ASSERT(rem_e == 1);
 
         auto ins_t = t->stack_indices_.insert(swap_index);
-        MONAD_COMPILER_ASSERT(ins_t.second);
+        MONAD_COMPILER_DEBUG_ASSERT(ins_t.second);
 
         auto ins_e = e->stack_indices_.insert(top_index_);
-        MONAD_COMPILER_ASSERT(ins_e.second);
+        MONAD_COMPILER_DEBUG_ASSERT(ins_e.second);
 
         at(top_index_) = std::move(e);
         e = std::move(t);
@@ -645,14 +715,14 @@ namespace monad::compiler::native
 
     StackElemRef Stack::alloc_literal(Literal lit)
     {
-        auto e = std::make_shared<StackElem>(this);
+        auto e = new_stack_elem();
         e->insert_literal(lit);
         return e;
     }
 
     StackElemRef Stack::alloc_stack_offset(std::int32_t preferred)
     {
-        auto e = std::make_shared<StackElem>(this);
+        auto e = new_stack_elem();
         insert_stack_offset(e, preferred);
         return e;
     }
@@ -660,7 +730,7 @@ namespace monad::compiler::native
     std::tuple<StackElemRef, AvxRegReserv, std::optional<StackOffset>>
     Stack::alloc_avx_reg()
     {
-        auto e = std::make_shared<StackElem>(this);
+        auto e = new_stack_elem();
         auto [reserv, spill] = insert_avx_reg(e);
         return {std::move(e), reserv, spill};
     }
@@ -668,14 +738,14 @@ namespace monad::compiler::native
     std::tuple<StackElemRef, GeneralRegReserv, std::optional<StackOffset>>
     Stack::alloc_general_reg()
     {
-        auto e = std::make_shared<StackElem>(this);
+        auto e = new_stack_elem();
         auto [reserv, spill] = insert_general_reg(e);
         return {std::move(e), reserv, spill};
     }
 
     StackElemRef Stack::release_stack_offset(StackElemRef elem)
     {
-        auto dst = std::make_shared<StackElem>(this);
+        auto dst = new_stack_elem();
         dst->stack_offset_ = elem->stack_offset_;
         elem->stack_offset_ = std::nullopt;
         return dst;
@@ -683,7 +753,7 @@ namespace monad::compiler::native
 
     StackElemRef Stack::release_avx_reg(StackElemRef elem)
     {
-        auto dst = std::make_shared<StackElem>(this);
+        auto dst = new_stack_elem();
         AvxReg const reg = *elem->avx_reg_;
         dst->avx_reg_ = reg;
         elem->avx_reg_ = std::nullopt;
@@ -693,7 +763,7 @@ namespace monad::compiler::native
 
     StackElemRef Stack::release_general_reg(StackElemRef elem)
     {
-        auto dst = std::make_shared<StackElem>(this);
+        auto dst = new_stack_elem();
         GeneralReg const reg = *elem->general_reg_;
         dst->general_reg_ = reg;
         elem->general_reg_ = std::nullopt;
@@ -705,25 +775,5 @@ namespace monad::compiler::native
     {
         auto *e = general_reg_stack_elems_[reg.reg];
         return e != nullptr && e->is_on_stack();
-    }
-
-    std::int32_t Stack::min_delta() const
-    {
-        return min_delta_;
-    }
-
-    std::int32_t Stack::max_delta() const
-    {
-        return max_delta_;
-    }
-
-    std::int32_t Stack::delta() const
-    {
-        return delta_;
-    }
-
-    std::int32_t Stack::top_index() const
-    {
-        return top_index_;
     }
 }

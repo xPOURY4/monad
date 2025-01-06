@@ -159,7 +159,8 @@ namespace monad::compiler
         , increases_stack_(increases_stack)
         , dynamic_gas_(dynamic_gas)
     {
-        MONAD_COMPILER_ASSERT(immediate_value == 0 || opcode() == OpCode::Push);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            immediate_value == 0 || opcode() == OpCode::Push);
     }
 
     constexpr utils::uint256_t const &

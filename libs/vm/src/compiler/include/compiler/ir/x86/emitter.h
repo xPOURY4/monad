@@ -333,7 +333,7 @@ namespace monad::compiler::native
             Runtime<uint256_t *, Args...> &rt, std::index_sequence<Is...>)
         {
             std::array<StackElemRef, sizeof...(Args)> elems;
-            ((std::get<Is>(elems) = stack_->pop()), ...);
+            ((std::get<Is>(elems) = stack_.pop()), ...);
             if ((... && std::get<Is>(elems)->literal())) {
                 auto args =
                     std::make_tuple(&std::get<Is>(elems)->literal()->value...);
@@ -453,7 +453,7 @@ namespace monad::compiler::native
         asmjit::Label out_of_bounds_label_;
         asmjit::Label invalid_instruction_label_;
         asmjit::Label jump_table_label_;
-        std::unique_ptr<Stack> stack_;
+        Stack stack_;
         std::array<Gpq256, 3> gpq256_regs_;
         GeneralReg rcx_general_reg;
         uint8_t rcx_general_reg_index;

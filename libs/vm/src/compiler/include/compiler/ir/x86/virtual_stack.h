@@ -1,12 +1,12 @@
 #pragma once
 
 #include <compiler/ir/basic_blocks.h>
+#include <utils/rc_ptr.h>
 
 #include <evmc/evmc.hpp>
 
 #include <compare>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <queue>
 #include <set>
@@ -51,10 +51,14 @@ namespace monad::compiler::native
 
     bool operator==(GeneralReg const &a, GeneralReg const &b);
 
+    extern std::array<AvxReg, AVX_REG_COUNT> ALL_AVX_REGS;
+    extern std::array<GeneralReg, GENERAL_REG_COUNT> ALL_GENERAL_REGS;
+
     class Stack;
     class StackElem;
 
-    using StackElemRef = std::shared_ptr<StackElem>;
+    // Custom memory management of reference counted `StackElem`:
+    struct FreeStackElem;
 
     enum class Comparison
     {
@@ -107,6 +111,9 @@ namespace monad::compiler::native
         {
         }
 
+        DeferredComparison(DeferredComparison const &) = default;
+        DeferredComparison &operator=(DeferredComparison const &) = default;
+
         StackElem *stack_elem;
         StackElem *negated_stack_elem;
         Comparison comparison;
@@ -129,6 +136,7 @@ namespace monad::compiler::native
         friend class Stack;
         friend class AvxRegReserv;
         friend class GeneralRegReserv;
+        friend struct FreeStackElem;
 
     public:
         StackElem(Stack *);
@@ -218,6 +226,8 @@ namespace monad::compiler::native
         std::optional<GeneralReg> general_reg_;
         std::optional<Literal> literal_;
     };
+
+    using StackElemRef = utils::RcPtr<StackElem, FreeStackElem>;
 
     /**
      * An AVX register reservation. Can be used to ensure that the optional
@@ -330,16 +340,26 @@ namespace monad::compiler::native
     class Stack
     {
         friend class StackElem;
+        friend struct FreeStackElem;
 
     public:
-        /**
-         * Initialise a stack for the given basic block.
-         *
-         * No actual stack manipulations are performed in the constructor; this
-         * is because the calling code must inspect each instruction to perform
-         * code generation while also updating the stack.
+        /*
+         * A fresh stack. Need to call `begin_new_block` before the
+         * the stack is ready to generate code for a basic block.
+         */
+        Stack();
+
+        /*
+         * A stack prepared for code generation of given basic block.
          */
         Stack(basic_blocks::Block const &);
+
+        ~Stack();
+
+        /**
+         * Prepare stack for code generation of the given block.
+         */
+        void begin_new_block(basic_blocks::Block const &);
 
         /**
          * Obtain a reference to an item on the stack. Negative indices
@@ -578,36 +598,41 @@ namespace monad::compiler::native
          * The relative size of the stack at the *lowest* point during execution
          * of a block.
          */
-        std::int32_t min_delta() const;
+        std::int32_t min_delta() const
+        {
+            return min_delta_;
+        }
 
         /**
          * The relative size of the stack at the *highest* point during
          * execution of a block.
          */
-        std::int32_t max_delta() const;
+        std::int32_t max_delta() const
+        {
+            return max_delta_;
+        }
 
         /**
          * The difference between the final and initial stack sizes during
          * execution of a block.
          */
-        std::int32_t delta() const;
+        std::int32_t delta() const
+        {
+            return delta_;
+        }
 
         /**
-         * Index of the top elements on the stack. The returned value is only
+         * Index of the top element on the stack. The returned value is only
          * a valid index if the stack is not empty.
          */
-        std::int32_t top_index() const;
+        std::int32_t top_index() const
+        {
+            return top_index_;
+        }
 
     private:
-        /**
-         * Initialize an empty stack.
-         *
-         * This method is private as an empty stack is not useful to consume
-         * from an external perspective; a basic block needs to have been
-         * ingested for the offsets and computed values in the stack to be
-         * useful.
-         */
-        Stack();
+        /** Allocate a new stack element. */
+        StackElemRef new_stack_elem();
 
         /**
          * Obtain a mutable reference to an item on the stack, correctly
@@ -638,6 +663,9 @@ namespace monad::compiler::native
          */
         void insert_stack_offset(StackElem *);
 
+        // Linked list of stack element RC objects, using `ref_count`
+        // for "next" pointer:
+        utils::RcObject<StackElem> *free_rc_objects_;
         std::int32_t top_index_;
         std::int32_t min_delta_;
         std::int32_t max_delta_;
@@ -658,5 +686,18 @@ namespace monad::compiler::native
         // destructor will destroy them last.
         std::vector<StackElemRef> negative_elems_;
         std::vector<StackElemRef> positive_elems_;
+    };
+
+    struct FreeStackElem
+    {
+        void operator()(utils::RcObject<StackElem> *x)
+        {
+            // The stack element object `x->object` has been destructed,
+            // but the `stack_` field is still valid.
+            static_assert(sizeof(std::size_t) == sizeof(void *));
+            x->ref_count = reinterpret_cast<std::size_t>(
+                x->object.stack_.free_rc_objects_);
+            x->object.stack_.free_rc_objects_ = x;
+        }
     };
 }

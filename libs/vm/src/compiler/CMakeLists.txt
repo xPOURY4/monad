@@ -1,4 +1,4 @@
-add_library(monad-compiler
+add_library(monad-compiler STATIC
     ir/basic_blocks.cpp
     ir/local_stacks.cpp
     ir/poly_typed/strongly_connected_components.cpp
@@ -14,10 +14,6 @@ add_library(monad-compiler
 )
 
 monad_compile_options(monad-compiler)
-
-set_property(TARGET monad-compiler
-    PROPERTY POSITION_INDEPENDENT_CODE ON
-)
 
 target_include_directories(monad-compiler
     PUBLIC include

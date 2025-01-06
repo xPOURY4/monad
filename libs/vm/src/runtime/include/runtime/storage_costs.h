@@ -31,7 +31,7 @@ namespace monad::runtime
                 return ca.gas_cost < cb.gas_cost;
             })->gas_cost;
         static_assert(
-            compiler::opcode_table<Rev>()[compiler::SSTORE].min_gas == min_gas);
+            compiler::opcode_table<Rev>[compiler::SSTORE].min_gas == min_gas);
         return min_gas;
     }
 

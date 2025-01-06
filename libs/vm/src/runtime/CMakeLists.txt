@@ -1,11 +1,10 @@
 enable_language(C ASM)
-add_library(runtime
+add_library(runtime STATIC
     exit.S
     exit.cpp)
 
 monad_compile_options(runtime)
 
-set_property(TARGET runtime PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(runtime
     PUBLIC evmc::evmc
     PUBLIC ethash::keccak

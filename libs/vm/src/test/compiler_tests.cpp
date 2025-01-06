@@ -22,7 +22,7 @@ template <
     evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
 Instruction i(std::uint32_t pc, Op evm_opcode, Args &&...args)
 {
-    auto info = opcode_table<Rev>()[evm_opcode];
+    auto info = opcode_table<Rev>[evm_opcode];
     return Instruction(
         pc,
         basic_blocks::evm_op_to_opcode(evm_opcode),

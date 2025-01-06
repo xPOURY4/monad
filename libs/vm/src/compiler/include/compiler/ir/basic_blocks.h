@@ -45,33 +45,6 @@ namespace monad::compiler::basic_blocks
         std::uint32_t pc;
     };
 
-    template <evmc_revision Rev>
-    constexpr Terminator evm_op_to_terminator(std::uint8_t evm_op)
-    {
-        using enum Terminator;
-
-        if (is_unknown_opcode<Rev>(evm_op)) {
-            return InvalidInstruction;
-        }
-
-        switch (evm_op) {
-        case JUMPI:
-            return JumpI;
-        case JUMP:
-            return Jump;
-        case RETURN:
-            return Return;
-        case STOP:
-            return Stop;
-        case REVERT:
-            return Revert;
-        case SELFDESTRUCT:
-            return SelfDestruct;
-        default:
-            MONAD_COMPILER_ASSERT(false);
-        }
-    }
-
     constexpr OpCode evm_op_to_opcode(std::uint8_t op)
     {
         using enum OpCode;
@@ -240,8 +213,15 @@ namespace monad::compiler::basic_blocks
          * Blocks have an implicit integer identifier based on the order in
          * which they appear in this vector.
          */
-        std::vector<Block> const &blocks() const;
-        std::vector<Block> &blocks();
+        std::vector<Block> const &blocks() const
+        {
+            return blocks_;
+        }
+
+        std::vector<Block> &blocks()
+        {
+            return blocks_;
+        }
 
         /// Size of bytecode
         uint64_t codesize;
@@ -249,14 +229,24 @@ namespace monad::compiler::basic_blocks
         /**
          * Retrieve a block by its identifier.
          */
-        Block const &block(block_id id) const;
+        Block const &block(block_id id) const
+        {
+            return blocks_.at(id);
+        }
 
         /**
          * A table mapping byte offsets into the original EVM code onto block
          * identifiers.
          */
-        std::unordered_map<byte_offset, block_id> const &jump_dests() const;
-        std::unordered_map<byte_offset, block_id> &jump_dests();
+        std::unordered_map<byte_offset, block_id> const &jump_dests() const
+        {
+            return jump_dests_;
+        }
+
+        std::unordered_map<byte_offset, block_id> &jump_dests()
+        {
+            return jump_dests_;
+        }
 
         /**
          * A program in this representation is valid if:
@@ -276,19 +266,29 @@ namespace monad::compiler::basic_blocks
         /**
          * During construction, the ID of the block currently being built.
          */
-        block_id curr_block_id() const;
+        block_id curr_block_id() const
+        {
+            return blocks_.size() - 1;
+        }
 
         /**
          * During construction, the byte offset of the block currently being
          * built.
          */
-        byte_offset curr_block_offset() const;
+        byte_offset curr_block_offset() const
+        {
+            return blocks_.back().offset;
+        }
 
         /**
          * During construction, add a new entry to the jump destination table
          * when a `JUMPDEST` instruction is parsed.
          */
-        void add_jump_dest();
+        void add_jump_dest()
+        {
+            MONAD_COMPILER_DEBUG_ASSERT(blocks_.back().instrs.empty());
+            jump_dests_.emplace(curr_block_offset(), curr_block_id());
+        }
 
         /**
          * During construction, begin building a new block.
@@ -319,24 +319,41 @@ namespace monad::compiler::basic_blocks
         auto opcode = bytes[current_offset];
         auto opcode_offset = current_offset;
 
-        auto info = opcode_table<Rev>()[opcode];
+        auto const &info = opcode_table<Rev>[opcode];
         current_offset++;
 
-        if (is_control_flow_opcode<Rev>(opcode)) {
-            return evm_op_to_terminator<Rev>(opcode);
+        if (is_unknown_opcode_info<Rev>(info)) {
+            return Terminator::InvalidInstruction;
         }
 
-        if (opcode == JUMPDEST) {
+        switch (opcode) {
+        case JUMPI:
+            return Terminator::JumpI;
+        case JUMP:
+            return Terminator::Jump;
+        case RETURN:
+            return Terminator::Return;
+        case STOP:
+            return Terminator::Stop;
+        case REVERT:
+            return Terminator::Revert;
+        case SELFDESTRUCT:
+            return Terminator::SelfDestruct;
+        case JUMPDEST:
             return JumpDest{opcode_offset};
+        default:
+            break;
         }
-
-        MONAD_COMPILER_ASSERT(info != unknown_opcode_info);
 
         auto imm_size = info.num_args;
-        auto imm_value = utils::from_bytes(
-            imm_size, bytes.size() - current_offset, &bytes[current_offset]);
-
-        current_offset += imm_size;
+        uint256_t imm_value{0};
+        if (imm_size) {
+            imm_value = utils::from_bytes(
+                imm_size,
+                bytes.size() - current_offset,
+                &bytes[current_offset]);
+            current_offset += imm_size;
+        }
 
         return Instruction(
             opcode_offset,
@@ -367,7 +384,8 @@ namespace monad::compiler::basic_blocks
         auto current_offset = std::uint32_t{0};
         auto first = true;
 
-        while (current_offset < bytes.size()) {
+        auto const byte_count = bytes.size();
+        while (current_offset < byte_count) {
             auto inst = scan_from<Rev>(bytes, current_offset);
 
             if (first && std::holds_alternative<JumpDest>(inst)) {
@@ -398,7 +416,7 @@ namespace monad::compiler::basic_blocks
                         // case we don't want to immediately FallThrough
                         // again, but instead just advance tok and mark
                         // the block as being a jumpdest
-                        if (current_offset < bytes.size()) {
+                        if (current_offset < byte_count) {
                             auto next_offset = current_offset;
                             auto next_inst = scan_from<Rev>(bytes, next_offset);
                             if (std::holds_alternative<JumpDest>(next_inst)) {
@@ -417,7 +435,7 @@ namespace monad::compiler::basic_blocks
                     Cases{
                         handle_terminator,
 
-                        [&](Instruction i) {
+                        [&](Instruction const &i) {
                             blocks_.back().instrs.push_back(i);
                         },
 

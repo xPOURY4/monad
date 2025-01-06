@@ -1,4 +1,4 @@
-add_library(monad-compiler-vm SHARED
+add_library(monad-compiler-vm STATIC
     vm.cpp
     evmone/baseline_execute.cpp
 )
