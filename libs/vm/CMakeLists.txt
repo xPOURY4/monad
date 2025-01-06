@@ -42,6 +42,7 @@ if(MONAD_COMPILER_STANDALONE)
     target_link_libraries(evmone-state PUBLIC ethash::keccak intx::intx nlohmann_json::nlohmann_json)
     target_link_libraries(evmone-statetestutils PUBLIC nlohmann_json::nlohmann_json)
     target_link_libraries(evmone PUBLIC ethash::keccak intx::intx)
+    target_include_directories(evmone PUBLIC "third_party/evmone/lib")
 endif()
 
 add_subdirectory(third_party/asmjit)

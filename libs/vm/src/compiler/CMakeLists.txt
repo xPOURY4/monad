@@ -11,6 +11,7 @@ add_library(monad-compiler
     ir/x86.cpp
     ir/x86/emitter.cpp
     ir/x86/virtual_stack.cpp
+    evmone/baseline_execute.cpp
 )
 
 monad_compile_options(monad-compiler)
@@ -28,6 +29,7 @@ target_link_libraries(
     PUBLIC intx::intx
     PUBLIC asmjit::asmjit
     PUBLIC evmc::evmc
+    PUBLIC evmone
     PUBLIC runtime
     PUBLIC utils
 )
