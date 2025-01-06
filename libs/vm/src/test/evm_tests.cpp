@@ -62,3 +62,8 @@ TEST_F(EvmTest, BeaconRootRegression_138)
 
     ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
 }
+
+TEST_F(EvmTest, PushSeveralCompare)
+{
+    execute_and_compare(10, {PUSH1, 0x01, PUSH2, 0x20, 0x20, PUSH0});
+}

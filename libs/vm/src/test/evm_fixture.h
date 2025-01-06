@@ -15,6 +15,12 @@ namespace monad::compiler::test
     class EvmTest : public testing::Test
     {
     protected:
+        enum Implementation
+        {
+            Compiler,
+            Evmone,
+        };
+
         EvmTest() noexcept = default;
 
         monad::compiler::VM vm_ = {};
@@ -29,20 +35,32 @@ namespace monad::compiler::test
 
         std::span<uint8_t const> output_data_ = {};
 
+        void pre_execute(
+            std::int64_t gas_limit,
+            std::span<std::uint8_t const> calldata) noexcept;
+
         void execute(
             std::int64_t gas_limit, std::span<std::uint8_t const> code,
-            std::span<std::uint8_t const> calldata = {}) noexcept;
+            std::span<std::uint8_t const> calldata = {},
+            Implementation impl = Compiler) noexcept;
 
         void execute(
             std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
-            std::span<std::uint8_t const> calldata = {}) noexcept;
+            std::span<std::uint8_t const> calldata = {},
+            Implementation impl = Compiler) noexcept;
 
         void execute(
             std::span<std::uint8_t const> code,
-            std::span<std::uint8_t const> calldata = {}) noexcept;
+            std::span<std::uint8_t const> calldata = {},
+            Implementation impl = Compiler) noexcept;
 
         void execute(
             std::initializer_list<std::uint8_t> code,
+            std::span<std::uint8_t const> calldata = {},
+            Implementation impl = Compiler) noexcept;
+
+        void execute_and_compare(
+            std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
             std::span<std::uint8_t const> calldata = {}) noexcept;
     };
 }
