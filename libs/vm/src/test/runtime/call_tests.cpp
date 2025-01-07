@@ -119,3 +119,19 @@ TEST_F(RuntimeTest, StaticCallByzantium)
     ASSERT_EQ(ctx_.memory.size, 960);
     ASSERT_EQ(ctx_.gas_remaining, 91909);
 }
+
+TEST_F(RuntimeTest, CallTooDeep)
+{
+    constexpr auto rev = EVMC_CANCUN;
+    auto do_call = wrap(monad::runtime::call<rev>);
+
+    ctx_.env.depth = 1024;
+    ctx_.gas_remaining = 100000;
+    host_.call_result = success_result(2000);
+
+    auto res = do_call(10000, 0, 1, 0, 0, 0, 0);
+
+    ASSERT_EQ(res, 0);
+    ASSERT_EQ(ctx_.memory.size, 0);
+    ASSERT_EQ(ctx_.gas_remaining, 65800);
+}
