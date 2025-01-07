@@ -17,7 +17,9 @@ install the following dependencies via `apt`:
 build-essential
 cmake
 llvm-18-dev
+libbenchmark-dev
 libcli11-dev
+libgmock-dev
 libgtest-dev
 ```
 
