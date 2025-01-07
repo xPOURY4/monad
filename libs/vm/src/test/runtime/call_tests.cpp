@@ -127,7 +127,6 @@ TEST_F(RuntimeTest, CallTooDeep)
 
     ctx_.env.depth = 1024;
     ctx_.gas_remaining = 100000;
-    host_.call_result = success_result(2000);
 
     auto res = do_call(10000, 0, 1, 0, 0, 0, 0);
 
