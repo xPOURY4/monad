@@ -16,6 +16,7 @@ include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
+find_package(benchmark REQUIRED)
 
 set(THIRD_PARTY_DIR "${PROJECT_SOURCE_DIR}/third_party")
 configure_file(cmake/test_resource_data.h.in test/test_resource_data.h @ONLY)
