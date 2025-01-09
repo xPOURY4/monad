@@ -1526,6 +1526,35 @@ TEST(Emitter, byte)
     pure_bin_instr_test(BYTE, &Emitter::byte, 32, {-1, -1, -1, -1}, 0);
 }
 
+TEST(Emitter, signextend)
+{
+    pure_bin_instr_test(
+        SIGNEXTEND, &Emitter::signextend, 0, 255, {-1, -1, -1, -1});
+    pure_bin_instr_test(
+        SIGNEXTEND,
+        &Emitter::signextend,
+        1,
+        0x8000,
+        {-1 & ~0x7fff, -1, -1, -1});
+    pure_bin_instr_test(SIGNEXTEND, &Emitter::signextend, 1, 0x7000, 0x7000);
+    pure_bin_instr_test(
+        SIGNEXTEND,
+        &Emitter::signextend,
+        25,
+        {0, 0, 0, 0xff00},
+        {0, 0, 0, ~0xff});
+    pure_bin_instr_test(
+        SIGNEXTEND,
+        &Emitter::signextend,
+        25,
+        {0, 0, 0, 0x7f00},
+        {0, 0, 0, 0x7f00});
+    pure_bin_instr_test(
+        SIGNEXTEND, &Emitter::signextend, 31, {0, 0, 0, -1}, {0, 0, 0, -1});
+    pure_bin_instr_test(
+        SIGNEXTEND, &Emitter::signextend, 32, {0, 0, 0, -1}, {0, 0, 0, -1});
+}
+
 TEST(Emitter, shl)
 {
     pure_bin_instr_test(

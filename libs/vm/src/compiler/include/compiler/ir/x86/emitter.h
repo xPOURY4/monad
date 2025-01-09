@@ -206,6 +206,7 @@ namespace monad::compiler::native
         void sub();
         void add();
         void byte();
+        void signextend();
         void shl();
         void shr();
         void sar();
@@ -375,6 +376,11 @@ namespace monad::compiler::native
         void
         byte_general_reg_or_stack_offset_ix(StackElemRef ix, StackOffset src);
 
+        bool cmp_stack_elem_to_int32(StackElemRef, int32_t, asmjit::x86::Mem);
+
+        void signextend_literal_ix(uint256_t const &ix, StackElemRef src);
+        void signextend_stack_elem_ix(StackElemRef ix, StackElemRef src);
+
         enum class ShiftType
         {
             SHL,
@@ -463,8 +469,6 @@ namespace monad::compiler::native
         std::vector<std::pair<asmjit::Label, void *>> external_functions_;
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
-        std::vector<std::tuple<asmjit::Label, Operand, asmjit::Label>>
-            shift_out_of_bounds_handlers_;
         std::vector<std::pair<asmjit::Label, std::string>> debug_messages_;
     };
 }

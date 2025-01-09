@@ -116,12 +116,4 @@ namespace monad::runtime
 
         *result_ptr = intx::exp(*a_ptr, *exponent_ptr);
     }
-
-    template <evmc_revision Rev>
-    void signextend(
-        utils::uint256_t *result_ptr, utils::uint256_t const *b_ptr,
-        utils::uint256_t const *x_ptr)
-    {
-        *result_ptr = utils::signextend(*b_ptr, *x_ptr);
-    }
 }

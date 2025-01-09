@@ -225,12 +225,6 @@ namespace monad::runtime
             return Memory::Offset::unsafe_from(static_cast<uint32_t>(offset));
         }
 
-        [[gnu::always_inline]]
-        evmc_tx_context get_tx_context() const
-        {
-            return host->get_tx_context(context);
-        }
-
         void exit [[noreturn]] (StatusCode code) noexcept;
     };
 }

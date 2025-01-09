@@ -70,8 +70,7 @@ namespace
             emit.call_runtime(remaining_base_gas, monad::runtime::exp<rev>);
             break;
         case SignExtend:
-            emit.call_runtime(
-                remaining_base_gas, monad::runtime::signextend<rev>);
+            emit.signextend();
             break;
         case Lt:
             emit.lt();

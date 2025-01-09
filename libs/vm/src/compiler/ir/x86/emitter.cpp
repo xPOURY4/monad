@@ -427,18 +427,6 @@ namespace monad::compiler::native
     {
         contract_epilogue();
 
-        for (auto const &[lbl, op, back] : shift_out_of_bounds_handlers_) {
-            as_.align(asmjit::AlignMode::kCode, 16);
-            as_.bind(lbl);
-            if (std::holds_alternative<Gpq256>(op)) {
-                as_.mov(std::get<Gpq256>(op)[0], 256);
-            }
-            else {
-                as_.mov(std::get<x86::Mem>(op), 256);
-            }
-            as_.jmp(back);
-        }
-
         for (auto const &[lbl, rpq, back] : byte_out_of_bounds_handlers_) {
             as_.align(asmjit::AlignMode::kCode, 16);
             as_.bind(lbl);
@@ -1533,6 +1521,36 @@ namespace monad::compiler::native
             std::move(ix), *src->stack_offset());
     }
 
+    // Discharge indirectly
+    void Emitter::signextend()
+    {
+        auto ix = stack_.pop();
+        auto src = stack_.pop();
+
+        if (ix->literal() && src->literal()) {
+            auto const &i = ix->literal()->value;
+            auto const &x = src->literal()->value;
+            push(monad::utils::signextend(i, x));
+            return;
+        }
+
+        RegReserv const ix_reserv{ix};
+        RegReserv const src_reserv{src};
+
+        if (ix->literal()) {
+            signextend_literal_ix(ix->literal()->value, src);
+            return;
+        }
+        if (ix->general_reg()) {
+            signextend_stack_elem_ix(std::move(ix), src);
+            return;
+        }
+        if (!ix->stack_offset()) {
+            mov_avx_reg_to_stack_offset(ix);
+        }
+        signextend_stack_elem_ix(std::move(ix), src);
+    }
+
     // Discharge through `shift_by_stack_elem`
     void Emitter::shl()
     {
@@ -2414,6 +2432,142 @@ namespace monad::compiler::native
         stack_.push(std::move(dst));
     }
 
+    bool
+    Emitter::cmp_stack_elem_to_int32(StackElemRef e, int32_t i, x86::Mem flag)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!e->literal().has_value());
+        flag.setSize(4);
+        if (e->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*e->general_reg());
+            as_.cmp(gpq[0], i);
+            if (!e->is_on_stack()) {
+                for (size_t i = 1; i < 4; ++i) {
+                    as_.sbb(gpq[i], 0);
+                }
+                return true;
+            }
+            else {
+                as_.mov(x86::rax, gpq[1]);
+                as_.cmovnb(x86::rax, flag);
+                as_.or_(x86::rax, gpq[2]);
+                as_.or_(x86::rax, gpq[3]);
+                return false;
+            }
+        }
+        else {
+            if (!e->stack_offset()) {
+                mov_avx_reg_to_stack_offset(e);
+            }
+            x86::Mem mem = stack_offset_to_mem(*e->stack_offset());
+            as_.cmp(mem, i);
+            if (!e->is_on_stack()) {
+                for (size_t i = 1; i < 4; ++i) {
+                    mem.addOffset(8);
+                    as_.sbb(mem, 0);
+                }
+                return true;
+            }
+            else {
+                mem.addOffset(8);
+                as_.mov(x86::rax, mem);
+                as_.cmovnb(x86::eax, flag);
+                mem.addOffset(8);
+                as_.or_(x86::rax, mem);
+                mem.addOffset(8);
+                as_.or_(x86::rax, mem);
+                return false;
+            }
+        }
+    }
+
+    void Emitter::signextend_literal_ix(uint256_t const &ix, StackElemRef src)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!src->literal().has_value());
+
+        if (ix >= 31) {
+            return stack_.push(std::move(src));
+        }
+
+        discharge_deferred_comparison();
+
+        int32_t const byte_ix = static_cast<int32_t>(ix);
+        int32_t const stack_ix = -byte_ix - 33;
+
+        mov_stack_elem_to_unaligned_mem(src, x86::ptr(x86::rsp, stack_ix));
+
+        auto [dst, dst_reserv] = alloc_avx_reg();
+        auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
+
+        // Broadcast sign byte to all bytes in `dst_ymm`:
+        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, -33));
+        // Shift arithmetic right to fill `dst_ymm` with sign bit:
+        as_.vpsraw(dst_ymm, dst_ymm, 15);
+        // Override most significant bytes of `src` on the stack:
+        as_.vmovups(x86::ptr(x86::rsp, -32), dst_ymm);
+        // Load the result:
+        as_.vmovups(dst_ymm, x86::ptr(x86::rsp, stack_ix));
+
+        stack_.push(std::move(dst));
+    }
+
+    void Emitter::signextend_stack_elem_ix(StackElemRef ix, StackElemRef src)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!ix->literal().has_value());
+
+        discharge_deferred_comparison();
+
+        auto const &bound_lbl = append_literal(Literal{31});
+        auto bound_mem = x86::qword_ptr(bound_lbl);
+        bool const nb = cmp_stack_elem_to_int32(ix, 32, bound_mem);
+
+        x86::Mem stack_mem;
+        if (ix->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*ix->general_reg());
+            auto byte_ix = gpq[0];
+            if (nb) {
+                as_.cmovnb(byte_ix, bound_mem);
+            }
+            else {
+                as_.cmovnz(byte_ix, bound_mem);
+            }
+            if (ix->is_on_stack()) {
+                as_.mov(x86::rax, -33);
+                as_.sub(x86::rax, byte_ix);
+                stack_mem = x86::qword_ptr(x86::rsp, x86::rax);
+            }
+            else {
+                as_.neg(byte_ix);
+                stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, -33);
+            }
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(ix->stack_offset().has_value());
+            auto mem = stack_offset_to_mem(*ix->stack_offset());
+            as_.mov(x86::eax, mem);
+            if (nb) {
+                as_.cmovnb(x86::eax, bound_mem);
+            }
+            else {
+                as_.cmovnz(x86::eax, bound_mem);
+            }
+            as_.neg(x86::rax);
+            stack_mem = x86::qword_ptr(x86::rsp, x86::rax, 0, -33);
+        }
+
+        mov_stack_elem_to_unaligned_mem(src, stack_mem);
+
+        auto [dst, dst_reserv] = alloc_avx_reg();
+        auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
+
+        // See `signextend_literal_ix`
+        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, -33));
+        as_.vpsraw(dst_ymm, dst_ymm, 15);
+        as_.vmovups(x86::ptr(x86::rsp, -32), dst_ymm);
+        as_.vmovups(dst_ymm, stack_mem);
+
+        stack_.push(std::move(dst));
+    }
+
     template <Emitter::ShiftType shift_type>
     void Emitter::shift_by_stack_elem(StackElemRef shift, StackElemRef value)
     {
@@ -2486,7 +2640,7 @@ namespace monad::compiler::native
 
         discharge_deferred_comparison();
 
-        setup_shift_stack<shift_type>(value);
+        setup_shift_stack<shift_type>(std::move(value));
 
         int32_t const s = static_cast<int32_t>(shift[0]);
         int8_t const c = static_cast<int8_t>(s & 7);
@@ -2547,164 +2701,119 @@ namespace monad::compiler::native
             }
         }
         discharge_deferred_comparison();
+
+        setup_shift_stack<shift_type>(std::move(value));
+
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
-        Operand shift_op{dst_gpq};
-        if (shift->general_reg()) {
-            if (!shift->is_on_stack()) {
-                shift_op = general_reg_to_gpq256(*shift->general_reg());
-            }
-            else {
-                Gpq256 const &shift_gpq =
-                    general_reg_to_gpq256(*shift->general_reg());
-                for (size_t i = 0; i < 4; ++i) {
-                    as_.mov(dst_gpq[i], shift_gpq[i]);
-                }
-            }
-        }
-        else {
-            if (!shift->is_on_stack()) {
-                shift_op = stack_offset_to_mem(*shift->stack_offset());
-            }
-            else {
-                x86::Mem shift_mem =
-                    stack_offset_to_mem(*shift->stack_offset());
-                for (size_t i = 0; i < 4; ++i) {
-                    as_.mov(dst_gpq[i], shift_mem);
-                    shift_mem.addOffset(8);
-                }
-            }
-        }
 
-        if (std::holds_alternative<Gpq256>(shift_op)) {
-            Gpq256 shift_gpq = std::get<Gpq256>(shift_op);
-            as_.cmp(shift_gpq[0], 257);
-            for (size_t i = 1; i < 4; ++i) {
-                as_.sbb(shift_gpq[i], 0);
-            }
-        }
-        else {
-            x86::Mem shift_mem = std::get<x86::Mem>(shift_op);
-            as_.cmp(shift_mem, 257);
-            for (size_t i = 1; i < 4; ++i) {
-                shift_mem.addOffset(8);
-                as_.sbb(shift_mem, 0);
-            }
-        }
-
-        auto shift_out_of_bounds_lbl = as_.newLabel();
-        auto shift_resume_lbl = as_.newLabel();
-
-        as_.jnb(shift_out_of_bounds_lbl);
-        as_.bind(shift_resume_lbl);
-
-        setup_shift_stack<shift_type>(value);
-
-        bool preserve_cx = stack_.is_general_reg_on_stack(rcx_general_reg);
-        if (preserve_cx &&
+        bool preserve_rcx = stack_.is_general_reg_on_stack(rcx_general_reg);
+        if (preserve_rcx &&
             dst->general_reg()->reg != CALLEE_SAVE_GENERAL_REG_ID) {
             MONAD_COMPILER_DEBUG_ASSERT(*dst->general_reg() != rcx_general_reg);
             as_.mov(dst_gpq[rcx_general_reg_index], x86::rcx);
+            static_assert(CALLEE_SAVE_GENERAL_REG_ID == 0);
             std::swap(
                 gpq256_regs_[1][rcx_general_reg_index],
                 gpq256_regs_[2][rcx_general_reg_index]);
-            preserve_cx = false;
+            preserve_rcx = false;
         }
 
-        if (preserve_cx) {
-            as_.mov(x86::ax, x86::cx);
+        if (preserve_rcx) {
+            MONAD_COMPILER_DEBUG_ASSERT(
+                dst->general_reg()->reg == CALLEE_SAVE_GENERAL_REG_ID);
+            as_.mov(x86::rax, x86::rcx);
         }
 
         bool const dst_has_rcx = dst_gpq[rcx_general_reg_index] == x86::rcx;
 
-        uint8_t dst_i;
-        if constexpr (shift_type == ShiftType::SHL) {
-            dst_i = 0;
-        }
-        else {
-            dst_i = 3;
-        }
-
+        uint8_t const last_i = [&] {
+            if constexpr (shift_type == ShiftType::SHL) {
+                return 0;
+            }
+            return 3;
+        }();
         if (dst_has_rcx) {
-            std::swap(dst_gpq[dst_i], dst_gpq[rcx_general_reg_index]);
-            rcx_general_reg_index = dst_i;
+            std::swap(dst_gpq[last_i], dst_gpq[rcx_general_reg_index]);
+            rcx_general_reg_index = last_i;
         }
 
-        x86::Gpq const &scratch_reg =
-            std::holds_alternative<Gpq256>(shift_op) && !shift->is_on_stack()
-                ? std::get<Gpq256>(shift_op)[0]
-                : x86::rax;
-        x86::Gpq const &ireg = dst_has_rcx ? scratch_reg : dst_gpq[dst_i];
+        auto const &bound_lbl = append_literal(Literal{256});
+        bool const nb =
+            cmp_stack_elem_to_int32(shift, 257, x86::qword_ptr(bound_lbl));
 
-        if (std::holds_alternative<Gpq256>(shift_op)) {
-            auto const &r = std::get<Gpq256>(shift_op)[0];
-            if (r != ireg) {
-                as_.mov(ireg, r);
-            }
-            if (r != x86::rcx && ireg != x86::rcx) {
-                as_.mov(x86::cx, ireg.r16());
-            }
-        }
-        else {
-            as_.mov(ireg, std::get<x86::Mem>(shift_op));
-            if (ireg != x86::rcx) {
-                as_.mov(x86::cx, ireg.r16());
-            }
-        }
-
-        as_.and_(x86::cl, 7);
-        as_.shr(ireg.r16(), 3);
-
-        if constexpr (shift_type == ShiftType::SHL) {
-            as_.neg(ireg);
-            as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, ireg, 0, -8));
-            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, ireg, 0, -16));
-            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, ireg, 0, -24));
-            as_.mov(ireg, x86::qword_ptr(x86::rsp, ireg, 0, -32));
-            as_.shld(dst_gpq[3], dst_gpq[2], x86::cl);
-            as_.shld(dst_gpq[2], dst_gpq[1], x86::cl);
-            as_.shld(dst_gpq[1], ireg, x86::cl);
-            if (dst_has_rcx) {
-                as_.shlx(dst_gpq[0], ireg, x86::cl);
+        auto cmp_reg = x86::rcx;
+        if (shift->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*shift->general_reg());
+            if (shift->is_on_stack()) {
+                as_.mov(cmp_reg, gpq[0]);
             }
             else {
-                MONAD_COMPILER_DEBUG_ASSERT(ireg == dst_gpq[0]);
-                as_.shl(dst_gpq[0], x86::cl);
+                cmp_reg = gpq[0];
             }
         }
         else {
-            as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, ireg, 0, -64));
-            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, ireg, 0, -56));
-            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, ireg, 0, -48));
-            as_.mov(ireg, x86::qword_ptr(x86::rsp, ireg, 0, -40));
+            auto mem = stack_offset_to_mem(*shift->stack_offset());
+            as_.mov(cmp_reg, mem);
+        }
+        if (nb) {
+            as_.cmovnb(cmp_reg, x86::qword_ptr(bound_lbl));
+        }
+        else {
+            as_.cmovnz(cmp_reg, x86::qword_ptr(bound_lbl));
+        }
+
+        x86::Gpq offset_reg;
+        if (cmp_reg != x86::rcx) {
+            MONAD_COMPILER_DEBUG_ASSERT(!shift->is_on_stack());
+            offset_reg = cmp_reg;
+            as_.mov(x86::cl, cmp_reg.r8Lo());
+        }
+        else {
+            if (dst_has_rcx) {
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    dst->general_reg()->reg != CALLEE_SAVE_GENERAL_REG_ID);
+                offset_reg = x86::rax;
+            }
+            else {
+                offset_reg = dst_gpq[last_i];
+            }
+            as_.mov(offset_reg, x86::rcx);
+        }
+        as_.shr(offset_reg.r16(), 3);
+        as_.and_(x86::cl, 7);
+
+        if constexpr (shift_type == ShiftType::SHL) {
+            as_.neg(offset_reg);
+            as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, offset_reg, 0, -8));
+            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, offset_reg, 0, -16));
+            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, offset_reg, 0, -24));
+            as_.mov(offset_reg, x86::qword_ptr(x86::rsp, offset_reg, 0, -32));
+            as_.shld(dst_gpq[3], dst_gpq[2], x86::cl);
+            as_.shld(dst_gpq[2], dst_gpq[1], x86::cl);
+            as_.shld(dst_gpq[1], offset_reg, x86::cl);
+            as_.shlx(dst_gpq[0], offset_reg, x86::cl);
+        }
+        else {
+            as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, offset_reg, 0, -64));
+            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, offset_reg, 0, -56));
+            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, offset_reg, 0, -48));
+            as_.mov(offset_reg, x86::qword_ptr(x86::rsp, offset_reg, 0, -40));
             as_.shrd(dst_gpq[0], dst_gpq[1], x86::cl);
             as_.shrd(dst_gpq[1], dst_gpq[2], x86::cl);
-            as_.shrd(dst_gpq[2], ireg, x86::cl);
+            as_.shrd(dst_gpq[2], offset_reg, x86::cl);
             if constexpr (shift_type == ShiftType::SHR) {
-                if (dst_has_rcx) {
-                    as_.shrx(dst_gpq[3], ireg, x86::cl);
-                }
-                else {
-                    as_.shr(dst_gpq[3], x86::cl);
-                }
+                as_.shrx(dst_gpq[3], offset_reg, x86::cl);
             }
             else {
                 static_assert(shift_type == ShiftType::SAR);
-                if (dst_has_rcx) {
-                    as_.sarx(dst_gpq[3], ireg, x86::cl);
-                }
-                else {
-                    as_.sar(dst_gpq[3], x86::cl);
-                }
+                as_.sarx(dst_gpq[3], offset_reg, x86::cl);
             }
         }
 
-        if (preserve_cx) {
-            as_.mov(x86::cx, x86::ax);
+        if (preserve_rcx) {
+            as_.mov(x86::rcx, x86::rax);
         }
-
-        shift_out_of_bounds_handlers_.emplace_back(
-            shift_out_of_bounds_lbl, shift_op, shift_resume_lbl);
 
         stack_.push(std::move(dst));
     }
