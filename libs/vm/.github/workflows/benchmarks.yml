@@ -96,8 +96,8 @@ jobs:
               run: |
                 # Can't run yet as benchmarks aren't in main
                 # base-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
-                  --benchmark_out=base_runtime_benchmarks.json                      \
-                  --benchmark_out_format=json
+                #  --benchmark_out=base_runtime_benchmarks.json                      \
+                #  --benchmark_out_format=json
                 head-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
                   --benchmark_out=head_runtime_benchmarks.json                      \
                   --benchmark_out_format=json
