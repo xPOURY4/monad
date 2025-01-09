@@ -11,6 +11,8 @@ jobs:
     build:
         name: Benchmark compiler
         runs-on: ubuntu-24.04
+        permissions:
+          pull-requests: write
         strategy:
           matrix:
             compiler: [{CXX: g++-13, CC: gcc-13}, {CXX: clang++-18, CC: clang-18}]
@@ -110,9 +112,33 @@ jobs:
                   --benchmark_out_format=json
 
             - name: Compare benchmarks
+              id: compare-benchmarks
+              env:
+                BASE: ${{ github.event.pull_request.base.sha }}
+                HEAD: ${{ github.event.pull_request.head.sha }}
+                COMPILER: ${{ matrix.compiler.CXX }}
               run: |
-                uv run                                                    \
-                  --directory head-compiler/scripts/benchmark-analysis    \
-                  compare-benchmarks                                      \
-                  --before $GITHUB_WORKSPACE/base_runtime_benchmarks.json \
-                  --after $GITHUB_WORKSPACE/head_runtime_benchmarks.json
+                {
+                  echo 'BENCHMARK_MD<<EOF'
+                  echo "## Benchmark Results (\`$COMPILER\`)"
+                  echo "- Old commit: $BASE"
+                  echo "- New commit: $HEAD"
+                  echo ""
+                  uv run                                                    \
+                    --directory head-compiler/scripts/benchmark-analysis    \
+                    compare-benchmarks                                      \
+                    --before $GITHUB_WORKSPACE/base_runtime_benchmarks.json \
+                    --after $GITHUB_WORKSPACE/head_runtime_benchmarks.json
+                  echo EOF
+                } >> "$GITHUB_ENV"
+
+            - name: Post summary comment
+              uses: actions/github-script@v7
+              with:
+                script: |
+                  github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: process.env.BENCHMARK_MD
+                  })
