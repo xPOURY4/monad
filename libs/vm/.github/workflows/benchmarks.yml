@@ -2,6 +2,10 @@ name: Compiler Benchmarks
 
 on:
   pull_request:
+     ignore-paths:
+       - 'README.md'
+       - '.gitignore'
+       - 'LICENSE'
 
 jobs:
     build:
