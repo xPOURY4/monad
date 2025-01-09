@@ -53,6 +53,14 @@ jobs:
                 path: head-compiler
                 submodules: recursive
 
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version-file: head-compiler/scripts/benchmark-analysis/.python-version
+
             - name: Install dependencies
               run: |
                 sudo apt install -y     \
@@ -100,4 +108,11 @@ jobs:
                 head-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
                   --benchmark_out=head_runtime_benchmarks.json                      \
                   --benchmark_out_format=json
-                cat *.json
+
+            - name: Compare benchmarks
+              run: |
+                uv run                                                    \
+                  --directory head-compiler/scripts/benchmark-analysis    \
+                  compare-benchmarks                                      \
+                  --before $GITHUB_WORKSPACE/base_runtime_benchmarks.json \
+                  --after $GITHUB_WORKSPACE/head_runtime_benchmarks.json
