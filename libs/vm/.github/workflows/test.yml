@@ -124,6 +124,26 @@ jobs:
                   exit 1
                 fi
 
+    python-code-quality:
+        name: Python code quality checks
+        runs-on: ubuntu-24.04
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                submodules: false
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                python-version-file: scripts/benchmark-analysis/.python-version
+
+            - name: Check Python code
+              working-directory: scripts/benchmark-analysis
+              run: make check
+
     documentation:
         name: Build documentation
         runs-on: ubuntu-24.04
