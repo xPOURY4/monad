@@ -293,20 +293,16 @@ namespace monad::compiler::native
         if (remaining_gas_arg_.has_value()) {
             mov_arg(*remaining_gas_arg_, remaining_base_gas_);
         }
-        StackElemRef result = nullptr;
         if (result_arg_.has_value()) {
-            result =
+            auto result =
                 em_->stack_.alloc_stack_offset(em_->stack_.top_index() + 1);
             mov_arg(*result_arg_, stack_offset_to_mem(*result->stack_offset()));
+            em_->stack_.push(std::move(result));
         }
 
         em_->as_.vzeroupper();
         auto lbl = em_->append_external_function(runtime_fun_);
         em_->as_.call(x86::qword_ptr(lbl));
-
-        if (result) {
-            em_->stack_.push(std::move(result));
-        }
     }
 
     size_t Emitter::RuntimeImpl::implicit_arg_count()
@@ -3437,7 +3433,6 @@ namespace monad::compiler::native
         }
         else {
             MONAD_COMPILER_DEBUG_ASSERT(dst_loc == LocationType::AvxReg);
-            StackElemRef const new_dst;
             if (dst->is_on_stack()) {
                 if (!src->is_on_stack() && src_loc == LocationType::AvxReg) {
                     auto n = stack_.release_avx_reg(src);

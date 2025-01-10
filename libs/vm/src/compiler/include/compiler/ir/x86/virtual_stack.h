@@ -58,7 +58,7 @@ namespace monad::compiler::native
     class StackElem;
 
     // Custom memory management of reference counted `StackElem`:
-    struct FreeStackElem;
+    struct StackElemDeleter;
 
     enum class Comparison
     {
@@ -136,7 +136,7 @@ namespace monad::compiler::native
         friend class Stack;
         friend class AvxRegReserv;
         friend class GeneralRegReserv;
-        friend struct FreeStackElem;
+        friend struct StackElemDeleter;
 
     public:
         StackElem(Stack *);
@@ -227,7 +227,7 @@ namespace monad::compiler::native
         std::optional<Literal> literal_;
     };
 
-    using StackElemRef = utils::RcPtr<StackElem, FreeStackElem>;
+    using StackElemRef = utils::RcPtr<StackElem, StackElemDeleter>;
 
     /**
      * An AVX register reservation. Can be used to ensure that the optional
@@ -340,7 +340,7 @@ namespace monad::compiler::native
     class Stack
     {
         friend class StackElem;
-        friend struct FreeStackElem;
+        friend struct StackElemDeleter;
 
     public:
         /*
@@ -688,16 +688,19 @@ namespace monad::compiler::native
         std::vector<StackElemRef> positive_elems_;
     };
 
-    struct FreeStackElem
+    struct StackElemDeleter
     {
-        void operator()(utils::RcObject<StackElem> *x)
+        static void destroy(utils::RcObject<StackElem> *x)
         {
-            // The stack element object `x->object` has been destructed,
-            // but the `stack_` field is still valid.
             static_assert(sizeof(std::size_t) == sizeof(void *));
             x->ref_count = reinterpret_cast<std::size_t>(
                 x->object.stack_.free_rc_objects_);
             x->object.stack_.free_rc_objects_ = x;
+        }
+
+        static void deallocate(utils::RcObject<StackElem> *)
+        {
+            // nop
         }
     };
 }

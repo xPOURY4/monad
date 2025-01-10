@@ -321,7 +321,7 @@ namespace monad::compiler::native
 
     StackElemRef Stack::new_stack_elem()
     {
-        return StackElemRef::allocate(
+        return StackElemRef::make(
             [this]() {
                 if (free_rc_objects_) {
                     utils::RcObject<StackElem> *x = free_rc_objects_;

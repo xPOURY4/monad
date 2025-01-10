@@ -25,15 +25,20 @@ namespace
         }
     };
 
-    using TestIntRcPtr = RcPtr<TestInt, RcObject<TestInt>::DefaultDeallocate>;
+    using TestIntRcPtr = RcPtr<TestInt, RcObject<TestInt>::DefaultDeleter>;
 
     TestIntRcPtr make_test_int(int *ptr)
     {
-        return TestIntRcPtr::allocate(RcObject<TestInt>::default_allocate, ptr);
+        return TestIntRcPtr::make(RcObject<TestInt>::default_allocate, ptr);
+    }
+
+    void assign_test_int(TestIntRcPtr &x, TestIntRcPtr const &y)
+    {
+        x = y;
     }
 };
 
-TEST(RcPtr, make_and_destructor)
+TEST(RcPtr, make)
 {
     int int_value = 1;
     {
@@ -120,6 +125,18 @@ TEST(RcPtr, move_assignment)
             ASSERT_EQ(int_value, 2);
         }
         ASSERT_EQ(int_value, 1);
+    }
+    ASSERT_EQ(int_value, 1);
+}
+
+TEST(RcPtr, self_assignment)
+{
+    int int_value = 1;
+    {
+        auto test_int = make_test_int(&int_value);
+        assign_test_int(test_int, test_int);
+        ASSERT_EQ(test_int->value, 1);
+        ASSERT_EQ(int_value, 2);
     }
     ASSERT_EQ(int_value, 1);
 }

@@ -21,21 +21,26 @@ namespace monad::utils
             std::allocator<RcObject<T>>().deallocate(rco, 1);
         }
 
-        struct DefaultDeallocate
+        struct DefaultDeleter
         {
-            void operator()(RcObject<T> *rco)
+            static void destroy(RcObject<T> *)
+            {
+                // nop
+            }
+
+            static void deallocate(RcObject<T> *rco)
             {
                 default_deallocate(rco);
             }
         };
     };
 
-    template <typename T, typename Deallocate>
+    template <typename T, typename Deleter>
     class RcPtr
     {
     public:
         template <typename Allocator, typename... Args>
-        static RcPtr allocate(Allocator const &allocate, Args &&...args)
+        static RcPtr make(Allocator const &allocate, Args &&...args)
         {
             RcPtr p{allocate()};
             p.rc_object->ref_count = 1;
@@ -48,15 +53,12 @@ namespace monad::utils
         {
         }
 
-        RcPtr(std::nullptr_t)
-            : rc_object{nullptr}
-        {
-        }
-
         RcPtr(RcPtr const &x)
             : rc_object{x.rc_object}
         {
-            ++rc_object->ref_count;
+            if (x.rc_object) {
+                ++x.rc_object->ref_count;
+            }
         }
 
         RcPtr(RcPtr &&x)
@@ -67,15 +69,17 @@ namespace monad::utils
 
         RcPtr &operator=(RcPtr const &x)
         {
-            this->~RcPtr();
+            if (x.rc_object) {
+                ++x.rc_object->ref_count;
+            }
+            release();
             rc_object = x.rc_object;
-            ++rc_object->ref_count;
             return *this;
         }
 
         RcPtr &operator=(RcPtr &&x)
         {
-            this->~RcPtr();
+            release();
             rc_object = x.rc_object;
             x.rc_object = nullptr;
             return *this;
@@ -83,7 +87,7 @@ namespace monad::utils
 
         void reset()
         {
-            this->~RcPtr();
+            release();
             rc_object = nullptr;
         }
 
@@ -95,10 +99,7 @@ namespace monad::utils
 
         ~RcPtr()
         {
-            if (rc_object && !--rc_object->ref_count) {
-                rc_object->object.~T();
-                Deallocate()(rc_object);
-            }
+            release();
         }
 
         T &operator*() const
@@ -119,6 +120,7 @@ namespace monad::utils
         // Note: undefined when RcPtr is nullptr.
         T *get() const
         {
+            MONAD_COMPILER_DEBUG_ASSERT(rc_object != nullptr);
             return &rc_object->object;
         }
 
@@ -131,6 +133,15 @@ namespace monad::utils
         RcPtr(RcObject<T> *rco)
             : rc_object{rco}
         {
+        }
+
+        void release()
+        {
+            if (rc_object && !--rc_object->ref_count) {
+                Deleter::destroy(rc_object);
+                rc_object->object.~T();
+                Deleter::deallocate(rc_object);
+            }
         }
 
         RcObject<T> *rc_object;
