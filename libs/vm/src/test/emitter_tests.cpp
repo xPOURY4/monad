@@ -1754,22 +1754,14 @@ TEST(Emitter, sar_max)
 TEST(Emitter, call_runtime_pure)
 {
     pure_bin_instr_test(
-        DIV,
-        [](Emitter &emit) {
-            emit.call_runtime(0, runtime::udiv<EVMC_FRONTIER>);
-        },
-        1000,
-        4,
-        250);
+        DIV, [](Emitter &emit) { emit.udiv<EVMC_FRONTIER>(0); }, 1000, 4, 250);
 }
 
 TEST(Emitter, call_runtime_impl)
 {
     pure_bin_instr_test(
         EXP,
-        [](Emitter &emit) {
-            emit.call_runtime(0, runtime::exp<EVMC_FRONTIER>);
-        },
+        [](Emitter &emit) { emit.exp<EVMC_FRONTIER>(0); },
         10,
         20,
         100000000000000000000_u256);
