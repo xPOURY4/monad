@@ -56,8 +56,3 @@ if(MONAD_COMPILER_STANDALONE)
     add_subdirectory(src/test)
 endif()
 
-option(FUZZ_TESTING "Build fuzzing binaries" OFF)
-
-if(FUZZ_TESTING)
-    add_subdirectory(src/test/fuzz/inference)
-endif()
