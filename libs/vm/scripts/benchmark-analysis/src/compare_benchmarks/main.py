@@ -28,6 +28,8 @@ def load_single_results(path: pathlib.Path, label: str) -> pd.DataFrame:
         json_data = json.load(f)
 
     df = pd.json_normalize(json_data['benchmarks'])
+    df = df[df.name.str.endswith('_mean')]
+    df.name = df.name.str.removesuffix('_mean')
     df = df.drop(
         [
             'family_index',
@@ -35,12 +37,12 @@ def load_single_results(path: pathlib.Path, label: str) -> pd.DataFrame:
             'run_name',
             'run_type',
             'cpu_time',
-            'repetition_index',
             'repetitions',
             'threads',
         ],
         axis='columns',
     )
+
     df['version'] = label
     df[['name', 'implementation']] = df.apply(split_benchmark_impl, axis='columns', result_type='expand')
     df = df[df.implementation == 'compiled']
