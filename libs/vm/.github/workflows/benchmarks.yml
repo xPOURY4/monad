@@ -90,7 +90,7 @@ jobs:
                   -DCMAKE_BUILD_TYPE=Release                        \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build
+                cmake --build build -t blockchain-test-benchmarks
 
             - name: Build head compiler
               working-directory: head-compiler
@@ -100,7 +100,7 @@ jobs:
                   -DCMAKE_BUILD_TYPE=Release                        \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build
+                cmake --build build -t blockchain-test-benchmarks
 
             - name: Run benchmarks
               run: |
