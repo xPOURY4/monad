@@ -59,7 +59,7 @@ namespace
         };
     }
 
-    void register_benchmarks()
+    void register_benchmarks(bool with_evmone)
     {
         for (auto const &test : benchmark_tests()) {
             auto stem = test.stem();
@@ -69,17 +69,19 @@ namespace
                 run_benchmark<true>,
                 test);
 
-            benchmark::RegisterBenchmark(
-                std::format("{}/evmone", stem.string()),
-                run_benchmark<false>,
-                test);
+            if (with_evmone) {
+                benchmark::RegisterBenchmark(
+                    std::format("{}/evmone", stem.string()),
+                    run_benchmark<false>,
+                    test);
+            }
         }
     }
 }
 
 int main(int argc, char **argv)
 {
-    register_benchmarks();
+    register_benchmarks(false);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();
