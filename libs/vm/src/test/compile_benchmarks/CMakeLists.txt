@@ -1,0 +1,11 @@
+add_executable(compile-benchmarks)
+target_sources(compile-benchmarks
+    PRIVATE
+        compile_benchmarks.cpp
+)
+monad_compile_options(compile-benchmarks)
+
+target_link_libraries(compile-benchmarks
+    benchmark::benchmark
+    monad-compiler
+)
