@@ -104,7 +104,8 @@ jobs:
 
             - name: Run benchmarks
               run: |
-                base-compiler/scripts/report-benchmarks.sh                            \
+                # Script doesn't exist in the base compiler yet
+                head-compiler/scripts/report-benchmarks.sh                            \
                   base-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
                   base_runtime_benchmarks.json
                 head-compiler/scripts/report-benchmarks.sh                            \
