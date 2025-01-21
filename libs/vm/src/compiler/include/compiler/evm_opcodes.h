@@ -762,7 +762,8 @@ namespace monad::compiler
     constexpr uint8_t get_dup_opcode_index(uint8_t const opcode)
     {
         MONAD_COMPILER_DEBUG_ASSERT(is_dup_opcode(opcode));
-        return opcode - DUP1 + 1;
+        uint8_t const diff = opcode - DUP1;
+        return diff + 1;
     }
 
     /**
@@ -772,7 +773,8 @@ namespace monad::compiler
     constexpr uint8_t get_swap_opcode_index(uint8_t const opcode)
     {
         MONAD_COMPILER_DEBUG_ASSERT(is_swap_opcode(opcode));
-        return opcode - SWAP1 + 1;
+        uint8_t const diff = opcode - SWAP1;
+        return diff + 1;
     }
 
     /**
