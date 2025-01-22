@@ -13,7 +13,7 @@ namespace monad::utils
     /**
      * Parse a range of hexadecimal characters into a vector of bytes.
      */
-    template <typename It>
+    template <std::random_access_iterator It>
     std::vector<uint8_t> parse_hex_program(It begin, It end)
     {
         auto hex_size = std::distance(begin, end);

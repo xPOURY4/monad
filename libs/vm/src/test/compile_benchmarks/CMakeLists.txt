@@ -9,3 +9,8 @@ target_link_libraries(compile-benchmarks
     benchmark::benchmark
     monad-compiler
 )
+
+target_include_directories(compile-benchmarks
+    PRIVATE
+        "${TOP_CURRENT_BINARY_DIR}/test"
+)

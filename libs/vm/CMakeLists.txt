@@ -18,7 +18,7 @@ find_package(CLI11 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(benchmark REQUIRED)
 
-set(THIRD_PARTY_DIR "${PROJECT_SOURCE_DIR}/third_party")
+set(ROOT_DIRECTORY "${PROJECT_SOURCE_DIR}")
 configure_file(cmake/test_resource_data.h.in test/test_resource_data.h @ONLY)
 set(TOP_CURRENT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 

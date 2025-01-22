@@ -4,7 +4,11 @@
 
 namespace test_resource
 {
-    inline std::filesystem::path const third_party_dir = "@THIRD_PARTY_DIR@";
+    inline std::filesystem::path const root_dir = "@ROOT_DIRECTORY@";
+
+    inline auto const third_party_dir = root_dir / "third_party";
+    inline auto const data_dir = root_dir / "data";
 
     inline auto const ethereum_tests_dir = third_party_dir / "ethereum-tests";
+    inline auto const compile_benchmarks_dir = data_dir / "compile_benchmarks";
 }
