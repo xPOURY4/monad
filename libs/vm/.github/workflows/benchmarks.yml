@@ -90,7 +90,9 @@ jobs:
                   -DCMAKE_BUILD_TYPE=Release                        \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build -t blockchain-test-benchmarks
+                cmake --build build             \
+                  -t blockchain-test-benchmarks \
+                  -t compile-benchmarks
 
             - name: Build head compiler
               working-directory: head-compiler
@@ -100,7 +102,9 @@ jobs:
                   -DCMAKE_BUILD_TYPE=Release                        \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build -t blockchain-test-benchmarks
+                cmake --build build             \
+                  -t blockchain-test-benchmarks \
+                  -t compile-benchmarks
 
             - name: Run benchmarks
               run: |
@@ -112,6 +116,16 @@ jobs:
                   head-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
                   head_runtime_benchmarks.json
 
+            - name: Run compile benchmarks
+              run: |
+                # Script doesn't exist in the base compiler yet
+                head-compiler/scripts/report-benchmarks.sh                                  \
+                  base-compiler/build/src/test/compile_benchmarks/compile-benchmarks  \
+                  base_compile_benchmarks.json
+                head-compiler/scripts/report-benchmarks.sh                                  \
+                  head-compiler/build/src/test/compile_benchmarks/compile-benchmarks  \
+                  head_compile_benchmarks.json
+
             - name: Compare benchmarks
               id: compare-benchmarks
               env:
@@ -122,14 +136,25 @@ jobs:
                 {
                   echo 'BENCHMARK_MD<<EOF'
                   echo "## Benchmark Results (\`$COMPILER\`)"
+
                   echo "- Old commit: $BASE"
                   echo "- New commit: $HEAD"
-                  echo ""
+
+                  echo "### Run Time"
                   uv run                                                    \
                     --directory head-compiler/scripts/benchmark-analysis    \
                     compare-benchmarks                                      \
+                    --type run                                              \
                     --before $GITHUB_WORKSPACE/base_runtime_benchmarks.json \
                     --after $GITHUB_WORKSPACE/head_runtime_benchmarks.json
+
+                  echo "### Compile Time"
+                  uv run                                                    \
+                    --directory head-compiler/scripts/benchmark-analysis    \
+                    compare-benchmarks                                      \
+                    --type compile                                          \
+                    --before $GITHUB_WORKSPACE/base_compile_benchmarks.json \
+                    --after $GITHUB_WORKSPACE/head_compile_benchmarks.json
                   echo EOF
                 } >> "$GITHUB_ENV"
 
