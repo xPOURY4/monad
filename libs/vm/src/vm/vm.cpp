@@ -153,6 +153,8 @@ namespace monad::compiler
             return error_result(EVMC_STACK_OVERFLOW);
         case StackUnderflow:
             return error_result(EVMC_STACK_UNDERFLOW);
+        case BadJumpDest:
+            return error_result(EVMC_BAD_JUMP_DESTINATION);
         case StaticModeViolation:
             return error_result(EVMC_STATIC_MODE_VIOLATION);
         case InvalidMemoryAccess:

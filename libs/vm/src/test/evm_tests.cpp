@@ -70,6 +70,13 @@ TEST_F(EvmTest, UnderflowRegression_190)
     ASSERT_EQ(result_.status_code, EVMC_STACK_UNDERFLOW);
 }
 
+// https://github.com/category-labs/monad-compiler/issues/192
+TEST_F(EvmTest, BadJumpRegression_192)
+{
+    execute({PUSH0, JUMP});
+    ASSERT_EQ(result_.status_code, EVMC_BAD_JUMP_DESTINATION);
+}
+
 TEST_F(EvmTest, PushSeveralCompare)
 {
     execute_and_compare(10, {PUSH1, 0x01, PUSH2, 0x20, 0x20, PUSH0});

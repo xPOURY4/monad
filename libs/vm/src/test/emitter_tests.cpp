@@ -2310,7 +2310,7 @@ TEST(Emitter, jump)
     }
 }
 
-TEST(Emitter, jump_invalid)
+TEST(Emitter, jump_bad_jumpdest)
 {
     auto ir = basic_blocks::BasicBlocksIR({PUSH0, JUMP});
 
@@ -2326,7 +2326,7 @@ TEST(Emitter, jump_invalid)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
+    ASSERT_EQ(ret.status, runtime::StatusCode::BadJumpDest);
 }
 
 TEST(Emitter, jumpi)
@@ -2357,7 +2357,7 @@ TEST(Emitter, jumpi)
     }
 }
 
-TEST(Emitter, jumpi_invalid)
+TEST(Emitter, jumpi_bad_jumpdest)
 {
     auto ir = basic_blocks::BasicBlocksIR({PUSH0, PUSH0, JUMPI});
 
@@ -2374,7 +2374,7 @@ TEST(Emitter, jumpi_invalid)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
+    ASSERT_EQ(ret.status, runtime::StatusCode::BadJumpDest);
 }
 
 TEST(Emitter, block_epilogue)

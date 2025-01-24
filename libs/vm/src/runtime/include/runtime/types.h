@@ -20,6 +20,7 @@ namespace monad::runtime
         OutOfGas,
         StackOverflow,
         StackUnderflow,
+        BadJumpDest,
         StaticModeViolation,
         InvalidMemoryAccess,
         InvalidInstruction,

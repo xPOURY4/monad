@@ -402,6 +402,7 @@ namespace monad::compiler::native
         , out_of_gas_label_{as_.newNamedLabel("OutOfGas")}
         , overflow_label_{as_.newNamedLabel("Overflow")}
         , underflow_label_{as_.newNamedLabel("Underflow")}
+        , bad_jumpdest_label_{as_.newNamedLabel("BadJumpDest")}
         , invalid_instruction_label_{as_.newNamedLabel("InvalidInstruction")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
@@ -437,6 +438,7 @@ namespace monad::compiler::native
         error_block(out_of_gas_label_, runtime::StatusCode::OutOfGas);
         error_block(overflow_label_, runtime::StatusCode::StackOverflow);
         error_block(underflow_label_, runtime::StatusCode::StackUnderflow);
+        error_block(bad_jumpdest_label_, runtime::StatusCode::BadJumpDest);
         error_block(
             invalid_instruction_label_,
             runtime::StatusCode::InvalidInstruction);
@@ -484,8 +486,8 @@ namespace monad::compiler::native
                     // as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
                 }
                 else {
-                    as_.embedLabel(invalid_instruction_label_);
-                    // as_.embedLabelDelta(invalid_instruction_label_,
+                    as_.embedLabel(bad_jumpdest_label_);
+                    // as_.embedLabelDelta(bad_jumpdest_label_,
                     // jump_table_label_, 4);
                 }
             }
@@ -2056,7 +2058,7 @@ namespace monad::compiler::native
         as_.jmp(epilogue_label_);
     }
 
-    // Not discharge
+    // No discharge
     void Emitter::invalid_instruction()
     {
         as_.jmp(invalid_instruction_label_);
@@ -2129,12 +2131,12 @@ namespace monad::compiler::native
     asmjit::Label const &Emitter::jump_dest_label(uint256_t const &dest)
     {
         if (dest >= bytecode_size_) {
-            return invalid_instruction_label_;
+            return bad_jumpdest_label_;
         }
         else {
             auto it = jump_dests_.find(dest[0]);
             if (it == jump_dests_.end()) {
-                return invalid_instruction_label_;
+                return bad_jumpdest_label_;
             }
             else {
                 return it->second;
@@ -2202,7 +2204,7 @@ namespace monad::compiler::native
             as_.sbb(gpq[1], 0);
             as_.sbb(gpq[2], 0);
             as_.sbb(gpq[3], 0);
-            as_.jnb(invalid_instruction_label_);
+            as_.jnb(bad_jumpdest_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.jmp(x86::ptr(x86::rax, gpq[0], 3));
         }
@@ -2220,7 +2222,7 @@ namespace monad::compiler::native
                 m.addOffset(8);
                 as_.sbb(m, 0);
             }
-            as_.jnb(invalid_instruction_label_);
+            as_.jnb(bad_jumpdest_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.jmp(x86::ptr(x86::rax, x86::rcx, 3));
         }

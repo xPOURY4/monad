@@ -703,6 +703,7 @@ namespace monad::compiler::native
         asmjit::Label out_of_gas_label_;
         asmjit::Label overflow_label_;
         asmjit::Label underflow_label_;
+        asmjit::Label bad_jumpdest_label_;
         asmjit::Label invalid_instruction_label_;
         asmjit::Label jump_table_label_;
         Stack stack_;
