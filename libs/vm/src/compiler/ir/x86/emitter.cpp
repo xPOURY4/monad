@@ -444,6 +444,13 @@ namespace monad::compiler::native
         static auto const ro_section_name_len = 2;
         static auto const ro_section_index = 1;
 
+        // Inside asmjit, if a section is emitted with no actual data in it, a
+        // call to memcpy with a null source is made. This is technically UB,
+        // and will get flagged by ubsan as such, even if it is technically
+        // harmless in practice. The only way that we can emit an empty section
+        // is if the compiled contract is completely empty: if there are any
+        // code bytes at all, the ro section will have some data in it and the
+        // UB won't occur.
         if (bytecode_size_ > 0) {
             asmjit::Section *ro_section;
             code_holder_.newSection(
