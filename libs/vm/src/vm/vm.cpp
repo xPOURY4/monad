@@ -149,8 +149,10 @@ namespace monad::compiler
         switch (ctx.result.status) {
         case OutOfGas:
             return error_result(EVMC_OUT_OF_GAS);
-        case StackOutOfBounds:
+        case StackOverflow:
             return error_result(EVMC_STACK_OVERFLOW);
+        case StackUnderflow:
+            return error_result(EVMC_STACK_UNDERFLOW);
         case StaticModeViolation:
             return error_result(EVMC_STATIC_MODE_VIOLATION);
         case InvalidMemoryAccess:

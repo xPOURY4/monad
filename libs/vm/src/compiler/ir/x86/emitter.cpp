@@ -400,7 +400,8 @@ namespace monad::compiler::native
         : as_{init_code_holder(rt, log_path)}
         , epilogue_label_{as_.newNamedLabel("ContractEpilogue")}
         , out_of_gas_label_{as_.newNamedLabel("OutOfGas")}
-        , out_of_bounds_label_{as_.newNamedLabel("OutOfBounds")}
+        , overflow_label_{as_.newNamedLabel("Overflow")}
+        , underflow_label_{as_.newNamedLabel("Underflow")}
         , invalid_instruction_label_{as_.newNamedLabel("InvalidInstruction")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
@@ -434,8 +435,8 @@ namespace monad::compiler::native
         }
 
         error_block(out_of_gas_label_, runtime::StatusCode::OutOfGas);
-        error_block(
-            out_of_bounds_label_, runtime::StatusCode::StackOutOfBounds);
+        error_block(overflow_label_, runtime::StatusCode::StackOverflow);
+        error_block(underflow_label_, runtime::StatusCode::StackUnderflow);
         error_block(
             invalid_instruction_label_,
             runtime::StatusCode::InvalidInstruction);
@@ -711,18 +712,22 @@ namespace monad::compiler::native
 
         auto const min_delta = stack_.min_delta();
         auto const max_delta = stack_.max_delta();
-        if (min_delta < -1024 || max_delta > 1024) {
-            as_.jmp(out_of_bounds_label_);
+        if (min_delta < -1024) {
+            as_.jmp(underflow_label_);
+            return false;
+        }
+        if (max_delta > 1024) {
+            as_.jmp(overflow_label_);
             return false;
         }
         auto const size_mem = x86::qword_ptr(x86::rsp, sp_offset_stack_size);
         if (min_delta < 0) {
             as_.cmp(size_mem, -min_delta);
-            as_.jb(out_of_bounds_label_);
+            as_.jb(underflow_label_);
         }
         if (max_delta > 0) {
             as_.cmp(size_mem, 1024 - max_delta);
-            as_.ja(out_of_bounds_label_);
+            as_.ja(overflow_label_);
         }
         auto const delta = stack_.delta();
         if (delta != 0) {
