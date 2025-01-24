@@ -444,46 +444,48 @@ namespace monad::compiler::native
         static auto const ro_section_name_len = 2;
         static auto const ro_section_index = 1;
 
-        asmjit::Section *ro_section;
-        code_holder_.newSection(
-            &ro_section,
-            ro_section_name,
-            ro_section_name_len,
-            asmjit::SectionFlags::kReadOnly,
-            32,
-            ro_section_index);
+        if (bytecode_size_ > 0) {
+            asmjit::Section *ro_section;
+            code_holder_.newSection(
+                &ro_section,
+                ro_section_name,
+                ro_section_name_len,
+                asmjit::SectionFlags::kReadOnly,
+                32,
+                ro_section_index);
 
-        as_.section(ro_section);
-        as_.align(asmjit::AlignMode::kData, 32);
-        for (auto [lbl, lit] : literals_) {
-            as_.bind(lbl);
-            as_.embed(&lit.value[0], 32);
-        }
-
-        for (auto [lbl, f] : external_functions_) {
-            as_.bind(lbl);
-            static_assert(sizeof(void *) == sizeof(uint64_t));
-            as_.embedUInt64(reinterpret_cast<uint64_t>(f));
-        }
-
-        // We are 8 byte aligned.
-        as_.bind(jump_table_label_);
-        for (size_t bid = 0; bid < bytecode_size_; ++bid) {
-            auto lbl = jump_dests_.find(bid);
-            if (lbl != jump_dests_.end()) {
-                as_.embedLabel(lbl->second);
-                // as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
+            as_.section(ro_section);
+            as_.align(asmjit::AlignMode::kData, 32);
+            for (auto [lbl, lit] : literals_) {
+                as_.bind(lbl);
+                as_.embed(&lit.value[0], 32);
             }
-            else {
-                as_.embedLabel(invalid_instruction_label_);
-                // as_.embedLabelDelta(invalid_instruction_label_,
-                // jump_table_label_, 4);
-            }
-        }
 
-        for (auto const &[lbl, msg] : debug_messages_) {
-            as_.bind(lbl);
-            as_.embed(msg.c_str(), msg.size() + 1);
+            for (auto [lbl, f] : external_functions_) {
+                as_.bind(lbl);
+                static_assert(sizeof(void *) == sizeof(uint64_t));
+                as_.embedUInt64(reinterpret_cast<uint64_t>(f));
+            }
+
+            // We are 8 byte aligned.
+            as_.bind(jump_table_label_);
+            for (size_t bid = 0; bid < bytecode_size_; ++bid) {
+                auto lbl = jump_dests_.find(bid);
+                if (lbl != jump_dests_.end()) {
+                    as_.embedLabel(lbl->second);
+                    // as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
+                }
+                else {
+                    as_.embedLabel(invalid_instruction_label_);
+                    // as_.embedLabelDelta(invalid_instruction_label_,
+                    // jump_table_label_, 4);
+                }
+            }
+
+            for (auto const &[lbl, msg] : debug_messages_) {
+                as_.bind(lbl);
+                as_.embed(msg.c_str(), msg.size() + 1);
+            }
         }
 
         entrypoint_t contract_main;
