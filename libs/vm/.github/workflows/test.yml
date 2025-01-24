@@ -64,18 +64,25 @@ jobs:
 
             - name: Build compiler
               run: |
-                cmake -S . -B build                                 \
-                  -G Ninja                                          \
-                  -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }} \
-                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
+                cmake -S . -B build                                       \
+                  -G Ninja                                                \
+                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-asan.cmake  \
+                  -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }}       \
+                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}            \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build
 
             - name: Run unit tests
+              env:
+                UBSAN_OPTIONS: "halt_on_error=1"
               run: ./build/src/test/unit-tests
 
             - name: Run Ethereum tests
-              run: ./build/src/test/blockchain/blockchain-tests
+              env:
+                UBSAN_OPTIONS: "halt_on_error=1"
+              run: |
+                ulimit -s 32768
+                ./build/src/test/blockchain/blockchain-tests
 
     code-quality:
         name: Code quality checks
