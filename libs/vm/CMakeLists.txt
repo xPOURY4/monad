@@ -29,6 +29,7 @@ if(MONAD_COMPILER_STANDALONE)
     add_subdirectory(third_party/intx)
     add_subdirectory(third_party/nlohmann_json)
 
+    set(BUILD_SHARED_LIBS OFF)
     set(EVMONE_TESTING YES)
     set(EVMONE_RUN_TESTS NO)
     set(EVMC_TESTING NO)
