@@ -63,6 +63,13 @@ TEST_F(EvmTest, BeaconRootRegression_138)
     ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
 }
 
+// https://github.com/category-labs/monad-compiler/issues/190
+TEST_F(EvmTest, UnderflowRegression_190)
+{
+    execute({POP});
+    ASSERT_EQ(result_.status_code, EVMC_STACK_UNDERFLOW);
+}
+
 TEST_F(EvmTest, PushSeveralCompare)
 {
     execute_and_compare(10, {PUSH1, 0x01, PUSH2, 0x20, 0x20, PUSH0});
