@@ -166,6 +166,8 @@ namespace monad::compiler::native
 
         bool is_debug_enabled();
         void runtime_print_gas_remaining(std::string const &msg);
+        void runtime_print_input_stack(std::string const &msg);
+        void runtime_print_top2(std::string const &msg);
         void breakpoint();
         void asm_comment(std::string const &msg);
 
@@ -513,6 +515,14 @@ namespace monad::compiler::native
 
         ////////// Private core emit functionality //////////
 
+        template <typename... LiveSet, size_t... Is>
+        bool is_live(
+            StackElemRef, std::tuple<LiveSet...> const &,
+            std::index_sequence<Is...>);
+
+        template <typename... LiveSet>
+        bool is_live(StackElemRef, std::tuple<LiveSet...> const &);
+
         bool block_prologue(basic_blocks::Block const &);
         int32_t block_epilogue();
         void write_to_final_stack_offsets();
@@ -528,7 +538,7 @@ namespace monad::compiler::native
         ////////// Private move functionality //////////
 
         template <bool assume_aligned>
-        void mov_literal_to_mem(Literal, asmjit::x86::Mem const &);
+        void mov_literal_to_mem(Literal const &, asmjit::x86::Mem const &);
 
         void mov_general_reg_to_mem(GeneralReg, asmjit::x86::Mem const &);
         void
@@ -538,6 +548,11 @@ namespace monad::compiler::native
             StackOffset, asmjit::x86::Mem const &);
         void
         mov_stack_elem_to_unaligned_mem(StackElemRef, asmjit::x86::Mem const &);
+
+        void mov_general_reg_to_gpq256(GeneralReg, Gpq256 const &);
+        void mov_literal_to_gpq256(Literal const &, Gpq256 const &);
+        void mov_stack_offset_to_gpq256(StackOffset, Gpq256 const &);
+        void mov_stack_elem_to_gpq256(StackElemRef, Gpq256 const &);
 
         void mov_literal_to_ymm(Literal const &, asmjit::x86::Ymm const &);
 
@@ -599,11 +614,15 @@ namespace monad::compiler::native
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
         void return_with_status_code(monad::runtime::StatusCode);
 
-        void jump_stack_elem_dest(StackElemRef &&);
+        template <typename... LiveSet>
+        void
+        jump_stack_elem_dest(StackElemRef &&, std::tuple<LiveSet...> const &);
         uint256_t literal_jump_dest_operand(StackElemRef &&);
         asmjit::Label const &jump_dest_label(uint256_t const &);
         void jump_literal_dest(uint256_t const &);
-        Operand non_literal_jump_dest_operand(StackElemRef const &);
+        template <typename... LiveSet>
+        Operand non_literal_jump_dest_operand(
+            StackElemRef const &, std::tuple<LiveSet...> const &);
         void jump_non_literal_dest(Operand const &, int32_t stack_adjustment);
         void conditional_jmp(asmjit::Label const &, Comparison);
 
@@ -621,10 +640,15 @@ namespace monad::compiler::native
         void
         byte_general_reg_or_stack_offset_ix(StackElemRef ix, StackOffset src);
 
-        bool cmp_stack_elem_to_int32(StackElemRef, int32_t, asmjit::x86::Mem);
+        template <typename... LiveSet>
+        bool cmp_stack_elem_to_int32(
+            StackElemRef, int32_t, asmjit::x86::Mem,
+            std::tuple<LiveSet...> const &);
 
         void signextend_literal_ix(uint256_t const &ix, StackElemRef src);
-        void signextend_stack_elem_ix(StackElemRef ix, StackElemRef src);
+        template <typename... LiveSet>
+        void signextend_stack_elem_ix(
+            StackElemRef ix, StackElemRef src, std::tuple<LiveSet...> const &);
 
         enum class ShiftType
         {
@@ -633,18 +657,20 @@ namespace monad::compiler::native
             SAR
         };
 
-        template <ShiftType shift_type>
-        void shift_by_stack_elem(StackElemRef shift, StackElemRef);
+        template <ShiftType shift_type, typename... LiveSet>
+        void shift_by_stack_elem(
+            StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
-        template <ShiftType shift_type>
-        void setup_shift_stack(StackElemRef);
+        template <ShiftType shift_type, typename... LiveSet>
+        void setup_shift_stack(StackElemRef, std::tuple<LiveSet...> const &);
 
-        template <ShiftType shift_type>
-        void shift_by_literal(uint256_t shift, StackElemRef);
+        template <ShiftType shift_type, typename... LiveSet>
+        void shift_by_literal(
+            uint256_t shift, StackElemRef, std::tuple<LiveSet...> const &);
 
-        template <ShiftType shift_type>
-        void
-        shift_by_general_reg_or_stack_offset(StackElemRef shift, StackElemRef);
+        template <ShiftType shift_type, typename... LiveSet>
+        void shift_by_general_reg_or_stack_offset(
+            StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
         template <bool commutative>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
@@ -652,11 +678,11 @@ namespace monad::compiler::native
             StackElemRef dst, std::optional<int32_t> dst_stack_index,
             StackElemRef src);
 
-        template <bool commutative>
+        template <bool commutative, typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         get_general_dest_and_source(
             StackElemRef dst, std::optional<int32_t> dst_stack_index,
-            StackElemRef src);
+            StackElemRef src, std::tuple<LiveSet...> const &);
 
         Operand get_operand(
             StackElemRef, LocationType, bool always_append_literal = false);
@@ -669,18 +695,22 @@ namespace monad::compiler::native
             GeneralBinInstr<asmjit::x86::Mem, asmjit::Imm> MI>
         void general_bin_instr(Operand const &dst_op, Operand const &src_op);
 
+        template <typename... LiveSet>
         std::tuple<StackElemRef, StackElemRef, LocationType> get_una_arguments(
-            StackElemRef dst, std::optional<int32_t> dst_stack_index);
+            StackElemRef dst, std::optional<int32_t> dst_stack_index,
+            std::tuple<LiveSet...> const &);
 
+        template <typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         prepare_avx_or_general_arguments_commutative(
-            StackElemRef dst, StackElemRef src);
+            StackElemRef dst, StackElemRef src, std::tuple<LiveSet...> const &);
 
+        template <typename... LiveSet>
         std::tuple<
             StackElemRef, StackElemRef, LocationType, StackElemRef,
             LocationType>
         get_avx_or_general_arguments_commutative(
-            StackElemRef dst, StackElemRef src);
+            StackElemRef dst, StackElemRef src, std::tuple<LiveSet...> const &);
 
         template <
             GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,

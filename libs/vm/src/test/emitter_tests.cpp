@@ -1557,6 +1557,7 @@ TEST(Emitter, signextend)
 
 TEST(Emitter, shl)
 {
+    pure_bin_instr_test(SHL, &Emitter::shl, 3, 1, 1 << 3);
     pure_bin_instr_test(
         SHL, &Emitter::shl, 255, 1, {0, 0, 0, static_cast<uint64_t>(1) << 63});
     pure_bin_instr_test(
@@ -1662,6 +1663,7 @@ TEST(Emitter, shr_0)
 
 TEST(Emitter, sar)
 {
+    pure_bin_instr_test(SAR, &Emitter::sar, 1, 2, 1);
     pure_bin_instr_test(
         SAR,
         &Emitter::sar,

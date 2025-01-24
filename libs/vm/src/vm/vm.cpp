@@ -200,35 +200,13 @@ namespace monad::compiler
         if (!f) {
             return error_result(EVMC_INTERNAL_ERROR);
         }
-        return execute(*f, host, context, msg, code, code_size);
+        auto r = execute(*f, host, context, msg, code, code_size);
+        runtime_.release(*f);
+        return r;
     }
-}
 
-extern "C" void *monad_compiler_compile_debug(
-    evmc_vm *vm, evmc_revision rev, uint8_t const *code, size_t code_size,
-    char const *asm_log)
-{
-    auto contract_main = reinterpret_cast<monad::compiler::VM *>(vm)->compile(
-        rev, code, code_size, asm_log);
-    return contract_main ? reinterpret_cast<void *>(*contract_main) : nullptr;
-}
-
-extern "C" void *monad_compiler_compile(
-    evmc_vm *vm, evmc_revision rev, uint8_t const *code, size_t code_size)
-{
-    return monad_compiler_compile_debug(vm, rev, code, code_size, nullptr);
-}
-
-extern "C" evmc_result monad_compiler_execute(
-    evmc_vm *vm, void *contract_main, evmc_host_interface const *host,
-    evmc_host_context *context, evmc_message const *msg, uint8_t const *code,
-    size_t code_size)
-{
-    return reinterpret_cast<monad::compiler::VM *>(vm)->execute(
-        reinterpret_cast<native::entrypoint_t>(contract_main),
-        host,
-        context,
-        msg,
-        code,
-        code_size);
+    void VM::release(native::entrypoint_t f)
+    {
+        runtime_.release(f);
+    }
 }
