@@ -6,8 +6,8 @@
 #include "compiler/types.h"
 #include "utils/assert.h"
 
-#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <unordered_map>
@@ -30,12 +30,15 @@ namespace
         }
     }
 
+    template <std::input_iterator It>
+        requires(std::is_same_v<
+                 typename std::iterator_traits<It>::value_type, Value>)
     void push_static_jumpdests(
-        std::vector<block_id> &dest, InferState const &state, Value const *tail,
-        size_t tail_size)
+        std::vector<block_id> &dest, InferState const &state, It tail_begin,
+        It tail_end)
     {
-        for (size_t i = 0; i < tail_size; ++i) {
-            push_static_jumpdest(dest, state, tail[i]);
+        for (auto it = tail_begin; it != tail_end; ++it) {
+            push_static_jumpdest(dest, state, *it);
         }
     }
 
@@ -156,19 +159,19 @@ namespace monad::compiler::poly_typed
         case basic_blocks::Terminator::FallThrough:
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdests(
-                ret, *this, &block.output[0], block.output.size());
+                ret, *this, block.output.begin(), block.output.end());
             break;
         case basic_blocks::Terminator::JumpI:
             MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 2);
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdest(ret, *this, block.output[0]);
             push_static_jumpdests(
-                ret, *this, &block.output[2], block.output.size() - 2);
+                ret, *this, block.output.begin() + 2, block.output.end());
             break;
         case basic_blocks::Terminator::Jump:
             MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 1);
             push_static_jumpdests(
-                ret, *this, &block.output[0], block.output.size());
+                ret, *this, block.output.begin(), block.output.end());
             break;
         default:
             break;
