@@ -27,22 +27,16 @@ namespace monad
     {
         std::unique_ptr<evmc_vm, VMDeleter> const vm{evmc_create_evmone()};
 
-        if (code_analysis.executable_code.empty()) {
+        if (code_analysis.executable_code().empty()) {
             return evmc::Result{EVMC_SUCCESS, msg.gas};
         }
 
-        auto const execution_state = std::make_unique<evmone::ExecutionState>(
-            msg,
-            rev,
-            host->get_interface(),
-            host->to_context(),
-            code_analysis.executable_code,
-            evmc::bytes_view{});
-
         auto const result = evmone::baseline::execute(
             *static_cast<evmone::VM *>(vm.get()),
-            msg.gas,
-            *execution_state,
+            host->get_interface(),
+            host->to_context(),
+            rev,
+            msg,
             code_analysis);
 
         return evmc::Result{result};
