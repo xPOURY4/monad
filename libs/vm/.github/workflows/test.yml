@@ -13,8 +13,16 @@ jobs:
         runs-on: ubuntu-24.04
         strategy:
           matrix:
-            CMAKE_BUILD_TYPE: [RelWithDebInfo, Debug]
-            compiler: [{CXX: g++-13, CC: gcc-13}, {CXX: clang++-18, CC: clang-18}]
+            build:
+              - CMAKE_BUILD_TYPE: RelWithDebInfo
+                TOOLCHAIN: gcc-avx2
+              - CMAKE_BUILD_TYPE: Debug
+                TOOLCHAIN: gcc-asan
+            compiler:
+              - CXX: g++-13
+                CC: gcc-13
+              - CXX: clang++-18
+                CC: clang-18
 
         steps:
             - name: Generate token
@@ -64,11 +72,11 @@ jobs:
 
             - name: Build compiler
               run: |
-                cmake -S . -B build                                       \
-                  -G Ninja                                                \
-                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-asan.cmake  \
-                  -DCMAKE_BUILD_TYPE=${{ matrix.CMAKE_BUILD_TYPE }}       \
-                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}            \
+                cmake -S . -B build                                                           \
+                  -G Ninja                                                                    \
+                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/${{ matrix.build.TOOLCHAIN }}.cmake \
+                  -DCMAKE_BUILD_TYPE=${{ matrix.build.CMAKE_BUILD_TYPE }}                     \
+                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}                                \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build
 
