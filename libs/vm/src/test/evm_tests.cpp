@@ -1,12 +1,18 @@
 #include "evm_fixture.h"
+#include "test_resource_data.h"
 
 #include <compiler/evm_opcodes.h>
 
+#include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
 #include <cstdint>
-#include <evmc/evmc.h>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <vector>
+
+namespace fs = std::filesystem;
 
 using namespace monad::compiler;
 using namespace monad::compiler::test;
@@ -77,7 +83,20 @@ TEST_F(EvmTest, BadJumpRegression_192)
     ASSERT_EQ(result_.status_code, EVMC_BAD_JUMP_DESTINATION);
 }
 
-TEST_F(EvmTest, PushSeveralCompare)
+TEST_P(EvmFile, RegressionFile)
 {
-    execute_and_compare(10, {PUSH1, 0x01, PUSH2, 0x20, 0x20, PUSH0});
+    auto const entry = GetParam();
+    auto file = std::ifstream{entry.path(), std::ifstream::binary};
+
+    ASSERT_TRUE(file.good());
+
+    std::vector<uint8_t> code(std::istreambuf_iterator<char>{file}, {});
+
+    execute_and_compare(30'000'000, code);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    EvmTest, EvmFile,
+    ::testing::ValuesIn(std::vector<fs::directory_entry>{
+        fs::directory_iterator(test_resource::regression_tests_dir), {}}),
+    [](auto const &info) { return info.param.path().stem().string(); });

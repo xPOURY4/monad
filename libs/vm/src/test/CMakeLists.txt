@@ -45,3 +45,8 @@ target_link_libraries(unit-tests
     GTest::gtest_main
     evmc::mocked_host
 )
+
+target_include_directories(unit-tests
+    PRIVATE
+        "${TOP_CURRENT_BINARY_DIR}/test"
+)

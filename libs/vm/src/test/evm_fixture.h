@@ -8,7 +8,10 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <span>
+
+namespace fs = std::filesystem;
 
 namespace monad::compiler::test
 {
@@ -60,7 +63,17 @@ namespace monad::compiler::test
             Implementation impl = Compiler) noexcept;
 
         void execute_and_compare(
+            std::int64_t gas_limit, std::span<std::uint8_t const> code,
+            std::span<std::uint8_t const> calldata = {}) noexcept;
+
+        void execute_and_compare(
             std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
             std::span<std::uint8_t const> calldata = {}) noexcept;
+    };
+
+    class EvmFile
+        : public EvmTest
+        , public testing::WithParamInterface<fs::directory_entry>
+    {
     };
 }

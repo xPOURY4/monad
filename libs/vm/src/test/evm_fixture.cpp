@@ -78,25 +78,45 @@ namespace monad::compiler::test
     }
 
     void EvmTest::execute_and_compare(
-        std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
+        std::int64_t gas_limit, std::span<std::uint8_t const> code,
         std::span<std::uint8_t const> calldata) noexcept
     {
         execute(gas_limit, code, calldata, Compiler);
-        auto compiler_result = std::move(result_);
+        auto actual = std::move(result_);
 
         execute(gas_limit, code, calldata, Evmone);
-        auto evmone_result = std::move(result_);
+        auto expected = std::move(result_);
 
-        ASSERT_EQ(compiler_result.status_code, evmone_result.status_code);
-        ASSERT_EQ(compiler_result.gas_left, evmone_result.gas_left);
-        ASSERT_EQ(compiler_result.gas_refund, evmone_result.gas_refund);
-        ASSERT_EQ(compiler_result.output_size, evmone_result.output_size);
+        switch (expected.status_code) {
+        case EVMC_SUCCESS:
+        case EVMC_REVERT:
+            ASSERT_EQ(actual.status_code, expected.status_code);
+            break;
+        default:
+            ASSERT_NE(actual.status_code, EVMC_SUCCESS);
+            ASSERT_NE(actual.status_code, EVMC_REVERT);
+            break;
+        }
+
+        ASSERT_EQ(actual.gas_left, expected.gas_left);
+        ASSERT_EQ(actual.gas_refund, expected.gas_refund);
+        ASSERT_EQ(actual.output_size, expected.output_size);
+
         ASSERT_TRUE(std::equal(
-            compiler_result.output_data,
-            compiler_result.output_data + compiler_result.output_size,
-            evmone_result.output_data));
+            actual.output_data,
+            actual.output_data + actual.output_size,
+            expected.output_data));
+
         ASSERT_EQ(
-            evmc::address(compiler_result.create_address),
-            evmc::address(evmone_result.create_address));
+            evmc::address(actual.create_address),
+            evmc::address(expected.create_address));
     }
+
+    void EvmTest::execute_and_compare(
+        std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
+        std::span<std::uint8_t const> calldata) noexcept
+    {
+        execute_and_compare(gas_limit, std::span{code}, calldata);
+    }
+
 }

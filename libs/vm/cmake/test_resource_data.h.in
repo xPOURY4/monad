@@ -11,4 +11,5 @@ namespace test_resource
 
     inline auto const ethereum_tests_dir = third_party_dir / "ethereum-tests";
     inline auto const compile_benchmarks_dir = data_dir / "compile_benchmarks";
+    inline auto const regression_tests_dir = data_dir / "regression_tests";
 }
