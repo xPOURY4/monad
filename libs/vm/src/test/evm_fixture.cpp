@@ -1,5 +1,6 @@
 #include "evm_fixture.h"
 
+#include <compiler/types.h>
 #include <vm/evmone/baseline_execute.h>
 #include <vm/evmone/code_analysis.h>
 
@@ -7,6 +8,9 @@
 
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
+
+#include <intx/intx.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -22,6 +26,9 @@ namespace monad::compiler::test
     {
         result_ = evmc::Result();
         output_data_ = {};
+
+        host_.accounts[msg_.sender].balance = intx::be::store<evmc::bytes32>(
+            std::numeric_limits<uint256_t>::max());
 
         msg_.gas = gas_limit;
         msg_.input_data = calldata.data();
