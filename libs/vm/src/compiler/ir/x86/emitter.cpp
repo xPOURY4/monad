@@ -2686,21 +2686,18 @@ namespace monad::compiler::native
         if (ix->general_reg()) {
             auto const &gpq = general_reg_to_gpq256(*ix->general_reg());
             auto byte_ix = gpq[0];
+            if (is_live(ix, std::tuple_cat(std::make_tuple(src), live))) {
+                byte_ix = x86::rax;
+                as_.mov(byte_ix, gpq[0]);
+            }
             if (nb) {
                 as_.cmovnb(byte_ix, bound_mem);
             }
             else {
                 as_.cmovnz(byte_ix, bound_mem);
             }
-            if (is_live(ix, std::tuple_cat(std::make_tuple(src), live))) {
-                as_.mov(x86::rax, -33);
-                as_.sub(x86::rax, byte_ix);
-                stack_mem = x86::qword_ptr(x86::rsp, x86::rax);
-            }
-            else {
-                as_.neg(byte_ix);
-                stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, -33);
-            }
+            as_.neg(byte_ix);
+            stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, -33);
         }
         else {
             MONAD_COMPILER_DEBUG_ASSERT(ix->stack_offset().has_value());

@@ -194,9 +194,9 @@ namespace monad::compiler
     evmc_result VM::compile_and_execute(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-        size_t code_size)
+        size_t code_size, char const *asm_log)
     {
-        auto f = compile(rev, code, code_size, nullptr);
+        auto f = compile(rev, code, code_size, asm_log);
         if (!f) {
             return error_result(EVMC_INTERNAL_ERROR);
         }

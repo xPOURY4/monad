@@ -2,9 +2,12 @@
 #include "test_resource_data.h"
 
 #include <compiler/evm_opcodes.h>
+#include <compiler/types.h>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
+
+#include <intx/intx.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -93,6 +96,15 @@ TEST_P(EvmFile, RegressionFile)
     std::vector<uint8_t> code(std::istreambuf_iterator<char>{file}, {});
 
     execute_and_compare(30'000'000, code);
+}
+
+TEST_F(EvmTest, SignextendLiveIndexBug)
+{
+    execute(
+        100, {GAS, DUP1, SIGNEXTEND, PUSH0, MSTORE, PUSH1, 32, PUSH0, RETURN});
+    ASSERT_EQ(result_.output_size, 32);
+    ASSERT_EQ(
+        intx::be::unsafe::load<uint256_t>(result_.output_data), uint256_t{98});
 }
 
 INSTANTIATE_TEST_SUITE_P(
