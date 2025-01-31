@@ -2635,7 +2635,7 @@ namespace monad::compiler::native
             else {
                 mem.addOffset(8);
                 as_.mov(x86::rax, mem);
-                as_.cmovnb(x86::eax, flag);
+                as_.cmovnb(x86::rax, flag);
                 mem.addOffset(8);
                 as_.or_(x86::rax, mem);
                 mem.addOffset(8);

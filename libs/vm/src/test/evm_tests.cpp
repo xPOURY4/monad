@@ -125,6 +125,24 @@ TEST_F(EvmTest, JumpiLiveDestDeferredComparisonBug)
     ASSERT_EQ(result_.status_code, EVMC_OUT_OF_GAS);
 }
 
+TEST_F(EvmTest, Cmov32BitBug)
+{
+    execute(
+        1000,
+        {PUSH1,
+         0x60,
+         PUSH1,
+         0x02,
+         EXP,
+         PUSH1,
+         0x30,
+         DUP2,
+         SAR,
+         ADDRESS,
+         JUMPI});
+    ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
+}
+
 INSTANTIATE_TEST_SUITE_P(
     EvmTest, EvmFile,
     ::testing::ValuesIn(std::vector<fs::directory_entry>{
