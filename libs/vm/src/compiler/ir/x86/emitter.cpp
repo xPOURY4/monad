@@ -2125,11 +2125,13 @@ namespace monad::compiler::native
         }
 
         auto dc = stack_.discharge_deferred_comparison();
-        if (dc.stack_elem && !dc.stack_elem->stack_indices().empty()) {
+        if (dc.stack_elem && (dc.stack_elem == dest.get() ||
+                              !dc.stack_elem->stack_indices().empty())) {
             discharge_deferred_comparison(dc.stack_elem, dc.comparison);
         }
         if (dc.negated_stack_elem &&
-            !dc.negated_stack_elem->stack_indices().empty()) {
+            (dc.negated_stack_elem == dest.get() ||
+             !dc.negated_stack_elem->stack_indices().empty())) {
             discharge_deferred_comparison(
                 dc.negated_stack_elem, negate_comparison(dc.comparison));
         }

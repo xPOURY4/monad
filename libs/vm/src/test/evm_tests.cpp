@@ -107,6 +107,24 @@ TEST_F(EvmTest, SignextendLiveIndexBug)
         intx::be::unsafe::load<uint256_t>(result_.output_data), uint256_t{98});
 }
 
+TEST_F(EvmTest, JumpiLiveDestDeferredComparisonBug)
+{
+    execute(
+        1000,
+        {JUMPDEST,
+         GAS,
+         ADDRESS,
+         ADD,
+         PUSH1,
+         0xf9,
+         SHL,
+         ADDRESS,
+         ADDRESS,
+         SLT,
+         JUMPI});
+    ASSERT_EQ(result_.status_code, EVMC_OUT_OF_GAS);
+}
+
 INSTANTIATE_TEST_SUITE_P(
     EvmTest, EvmFile,
     ::testing::ValuesIn(std::vector<fs::directory_entry>{
