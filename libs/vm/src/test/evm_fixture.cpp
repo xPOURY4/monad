@@ -91,6 +91,12 @@ namespace monad::compiler::test
         execute(gas_limit, code, calldata, Compiler);
         auto actual = std::move(result_);
 
+        // We need to reset the host between executions; otherwise the state
+        // maintained will produce inconsistent results (e.g. an account is
+        // touched by the first run, then is subsequently warm for the second
+        // one).
+        host_ = {};
+
         execute(gas_limit, code, calldata, Evmone);
         auto expected = std::move(result_);
 
