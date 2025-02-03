@@ -31,37 +31,37 @@ if(MONAD_COMPILER_STANDALONE)
 
     add_subdirectory(third_party/intx)
     add_subdirectory(third_party/nlohmann_json)
+endif()
 
-    # evmone
-    set(BUILD_SHARED_LIBS OFF)
-    set(EVMONE_TESTING "${MONAD_COMPILER_TESTING}")
-    set(EVMONE_RUN_TESTS NO)
-    set(EVMC_TESTING NO)
+# evmone
+set(BUILD_SHARED_LIBS OFF)
+set(EVMONE_TESTING "${MONAD_COMPILER_TESTING}")
+set(EVMONE_RUN_TESTS NO)
+set(EVMC_TESTING NO)
 
-    set(ethash_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
-    set(intx_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
-    set(nlohmann_json_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
-    add_subdirectory(third_party/evmone)
-    unset(ethash_DIR)
-    unset(intx_DIR)
-    unset(nlohmann_json_DIR)
+set(ethash_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
+set(intx_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
+set(nlohmann_json_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
+add_subdirectory(third_party/evmone)
+unset(ethash_DIR)
+unset(intx_DIR)
+unset(nlohmann_json_DIR)
 
-    target_link_libraries(evmone_precompiles PUBLIC ethash::keccak)
-    target_link_libraries(evmone PUBLIC ethash::keccak intx::intx)
-    target_include_directories(evmone PUBLIC "third_party/evmone/lib")
+target_link_libraries(evmone_precompiles PUBLIC ethash::keccak)
+target_link_libraries(evmone PUBLIC ethash::keccak intx::intx)
+target_include_directories(evmone PUBLIC "third_party/evmone/lib")
 
-    # always compile baseline with optimization due to stack size of dispatch_cgoto
-    set_source_files_properties(
-        third_party/evmone/lib/evmone/baseline.cpp
-        TARGET_DIRECTORY evmone
-        PROPERTIES
-            COMPILE_OPTIONS -O2
-    )
+# always compile baseline with optimization due to stack size of dispatch_cgoto
+set_source_files_properties(
+    third_party/evmone/lib/evmone/baseline.cpp
+    TARGET_DIRECTORY evmone
+    PROPERTIES
+        COMPILE_OPTIONS -O2
+)
 
-    if(MONAD_COMPILER_TESTING)
-        target_link_libraries(evmone-state PUBLIC ethash::keccak intx::intx nlohmann_json::nlohmann_json)
-        target_link_libraries(evmone-statetestutils PUBLIC nlohmann_json::nlohmann_json)
-    endif()
+if(MONAD_COMPILER_TESTING)
+    target_link_libraries(evmone-state PUBLIC ethash::keccak intx::intx nlohmann_json::nlohmann_json)
+    target_link_libraries(evmone-statetestutils PUBLIC nlohmann_json::nlohmann_json)
 endif()
 
 # asmjit
