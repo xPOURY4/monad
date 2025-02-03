@@ -653,13 +653,6 @@ namespace monad::compiler::native
         as_.int3();
     }
 
-    void Emitter::asm_comment(std::string const &msg)
-    {
-        if (debug_logger_.file()) {
-            unsafe_asm_comment(msg);
-        }
-    }
-
     ////////// Core emit functionality //////////
 
     Stack &Emitter::get_stack()
@@ -679,8 +672,8 @@ namespace monad::compiler::native
 
     bool Emitter::begin_new_block(basic_blocks::Block const &b)
     {
-        if (debug_logger_.file()) {
-            unsafe_asm_comment(std::format("{}", b));
+        if (is_debug_enabled()) {
+            debug_comment(std::format("{}", b));
         }
         stack_.begin_new_block(b);
         return block_prologue(b);
@@ -832,7 +825,7 @@ namespace monad::compiler::native
         // leaving basic block. If stack element `e` is currently at
         // stack indices `0`, `1` and only located in an AVX register,
         // then we need to move the AVX register to both stack offsets
-        // `0` and `2`.
+        // `0` and `1`.
 
         MONAD_COMPILER_ASSERT(!stack_.has_deferred_comparison());
 
@@ -844,13 +837,14 @@ namespace monad::compiler::native
         }
 
         // Reserve an AVX register which we will use for temporary values
-        auto [temp1, temp1_reserv] = alloc_avx_reg();
-        auto temp_yx1 = avx_reg_to_ymm(*temp1->avx_reg());
+        auto [init1, init1_reserv] = alloc_avx_reg();
+        auto init_yx1 = avx_reg_to_ymm(*init1->avx_reg());
+        auto yx1 = init_yx1;
 
         // Definition. Stack element `e` depends on stack element `d` if
-        //   * `d` is located on stack offset `i` and
-        //   * `d` is not located in AVX register and
+        //   * `d` is located on some stack offset `i` and
         //   * `i` is element of `e.stack_indices()` and
+        //   * `d` is not located in AVX register and
         //   * `e != d`.
         //
         // Such a dependency means that `d` is occupying a final stack offset
@@ -882,7 +876,6 @@ namespace monad::compiler::native
                 continue;
             }
             if (d->avx_reg().has_value()) {
-                stack_.spill_stack_offset(d);
                 continue;
             }
             ++dep_counts[e];
@@ -914,7 +907,6 @@ namespace monad::compiler::native
                 // Stack element d is already located on the final stack offset.
                 continue;
             }
-            auto yx1 = temp_yx1;
             if (!d->avx_reg()) {
                 // Put stack element d in the `yx1` AVX register.
                 if (d->stack_offset()) {
@@ -940,9 +932,6 @@ namespace monad::compiler::native
                 // Stack element d is already located in an AVX register,
                 // which we can use.
                 yx1 = avx_reg_to_ymm(*d->avx_reg());
-                // Remove the AVX register from d, since d will not need it
-                // anymore, and we will need an AVX register later.
-                stack_.unsafe_drop_avx_reg(d);
             }
             // Move to remaining final stack offsets:
             for (; it != is.end(); ++it) {
@@ -952,7 +941,7 @@ namespace monad::compiler::native
             }
             // Decrease dependency count of the stack element which depends on
             // `d`, if such stack element exists.
-            if (d->stack_offset().has_value()) {
+            if (!d->avx_reg() && d->stack_offset()) {
                 int32_t const i = d->stack_offset()->offset;
                 if (i > stack_.top_index()) {
                     continue;
@@ -974,12 +963,18 @@ namespace monad::compiler::native
         // still have dependency count 1. It is not possible for a stack
         // element to have dependency count more than 1 at this point.
 
-        // Reserve another AVX register, which we can use as temporary.
-        auto [temp2, temp2_reserv, temp2_offset] = stack_.alloc_avx_reg();
-        MONAD_COMPILER_DEBUG_ASSERT(!temp2_offset.has_value());
-
-        auto yx1 = temp_yx1;
-        auto yx2 = avx_reg_to_ymm(*temp2->avx_reg());
+        // Later we will need two available AVX registers `yx2` and `yx1`.
+        auto yx2 = yx1;
+        // If there is a free avx register, then we can use it for `yx2`.
+        // Otherwise we have necessarily updated `yx1` in the prior loop,
+        // so the current value of `yx1` will work for `yx2`.
+        if (stack_.has_free_avx_reg()) {
+            auto [y, _, spill] = stack_.alloc_avx_reg();
+            MONAD_COMPILER_DEBUG_ASSERT(!spill);
+            yx2 = avx_reg_to_ymm(*y->avx_reg());
+        }
+        yx1 = init_yx1;
+        MONAD_COMPILER_DEBUG_ASSERT(yx1 != yx2);
 
         // Write the remaining stack elements in cycles to their final stack
         // offsets.
@@ -992,6 +987,7 @@ namespace monad::compiler::native
             }
 
             std::vector<StackElem *> cycle;
+            cycle.reserve(2);
             StackElem *d = e;
             do {
                 MONAD_COMPILER_DEBUG_ASSERT(dep_counts[d] == 1);
@@ -1045,8 +1041,9 @@ namespace monad::compiler::native
 
     ////////// Private debug functionality //////////
 
-    void Emitter::unsafe_asm_comment(std::string const &msg)
+    void Emitter::debug_comment(std::string const &msg)
     {
+        MONAD_COMPILER_ASSERT(is_debug_enabled());
         std::stringstream ss{msg};
         std::string line;
         while (std::getline(ss, line, '\n')) {
@@ -2307,28 +2304,24 @@ namespace monad::compiler::native
                 op = stack_offset_to_mem(*dest->stack_offset());
             }
         }
-        if (dest->avx_reg()) {
-            if (!dest->general_reg() && !dest->stack_offset()) {
-                auto const &available = stack_.available_stack_offsets();
-                auto const upper = available.upper_bound(stack_.top_index());
-                if (upper != available.end()) {
-                    int32_t const i = *upper;
-                    mov_avx_reg_to_stack_offset(dest, i);
-                    MONAD_COMPILER_ASSERT(dest->stack_offset()->offset == i);
-                    op = stack_offset_to_mem(StackOffset{i});
-                }
-                else {
-                    x86::Mem const m = x86::qword_ptr(x86::rsp, -32);
-                    mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
-                    op = m;
-                }
-            }
-            if (!is_live(dest, live)) {
-                stack_.unsafe_drop_avx_reg(dest.get());
-            }
-        }
         if (dest->general_reg()) {
-            op = general_reg_to_gpq256(*dest->general_reg());
+            return general_reg_to_gpq256(*dest->general_reg());
+        }
+        if (!dest->stack_offset()) {
+            MONAD_COMPILER_DEBUG_ASSERT(dest->avx_reg().has_value());
+            auto const &available = stack_.available_stack_offsets();
+            auto const upper = available.upper_bound(stack_.top_index());
+            if (upper != available.end()) {
+                int32_t const i = *upper;
+                mov_avx_reg_to_stack_offset(dest, i);
+                MONAD_COMPILER_ASSERT(dest->stack_offset()->offset == i);
+                op = stack_offset_to_mem(StackOffset{i});
+            }
+            else {
+                x86::Mem const m = x86::qword_ptr(x86::rsp, -32);
+                mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
+                op = m;
+            }
         }
         return op;
     }

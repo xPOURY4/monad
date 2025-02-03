@@ -541,11 +541,6 @@ namespace monad::compiler::native
         return offset;
     }
 
-    void Stack::unsafe_drop_avx_reg(StackElem *e)
-    {
-        e->remove_avx_reg();
-    }
-
     void Stack::spill_stack_offset(StackElemRef e)
     {
         MONAD_COMPILER_ASSERT(

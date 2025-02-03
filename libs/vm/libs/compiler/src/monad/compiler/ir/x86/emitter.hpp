@@ -169,7 +169,6 @@ namespace monad::compiler::native
         void runtime_print_input_stack(std::string const &msg);
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
-        void asm_comment(std::string const &msg);
 
         ////////// Core emit functionality //////////
 
@@ -511,7 +510,7 @@ namespace monad::compiler::native
 
         ////////// Private debug functionality //////////
 
-        void unsafe_asm_comment(std::string const &msg);
+        void debug_comment(std::string const &msg);
 
         ////////// Private core emit functionality //////////
 
