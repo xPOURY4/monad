@@ -116,20 +116,20 @@ jobs:
               run: |
                 # Script doesn't exist in the base compiler yet
                 head-compiler/scripts/report-benchmarks.sh                            \
-                  base-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
+                  base-compiler/build/test/blockchain/blockchain-test-benchmarks  \
                   base_runtime_benchmarks.json
                 head-compiler/scripts/report-benchmarks.sh                            \
-                  head-compiler/build/src/test/blockchain/blockchain-test-benchmarks  \
+                  head-compiler/build/test/blockchain/blockchain-test-benchmarks  \
                   head_runtime_benchmarks.json
 
             - name: Run compile benchmarks
               run: |
                 # Script doesn't exist in the base compiler yet
                 head-compiler/scripts/report-benchmarks.sh                                  \
-                  base-compiler/build/src/test/compile_benchmarks/compile-benchmarks  \
+                  base-compiler/build/test/compile_benchmarks/compile-benchmarks  \
                   base_compile_benchmarks.json
                 head-compiler/scripts/report-benchmarks.sh                                  \
-                  head-compiler/build/src/test/compile_benchmarks/compile-benchmarks  \
+                  head-compiler/build/test/compile_benchmarks/compile-benchmarks  \
                   head_compile_benchmarks.json
 
             - name: Compare benchmarks

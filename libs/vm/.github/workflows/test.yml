@@ -83,14 +83,14 @@ jobs:
             - name: Run unit tests
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
-              run: ./build/src/test/unit-tests
+              run: ./build/test/unit-tests
 
             - name: Run Ethereum tests
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
               run: |
                 ulimit -s 32768
-                ./build/src/test/blockchain/blockchain-tests
+                ./build/test/blockchain/blockchain-tests
 
     code-quality:
         name: Code quality checks

@@ -64,11 +64,11 @@ endif()
 # asmjit
 add_subdirectory(third_party/asmjit)
 
-add_subdirectory(src/compiler)
-add_subdirectory(src/runtime)
-add_subdirectory(src/utils)
-add_subdirectory(src/vm)
+add_subdirectory(libs/compiler)
+add_subdirectory(libs/runtime)
+add_subdirectory(libs/utils)
+add_subdirectory(libs/vm)
 
 if(MONAD_COMPILER_TESTING)
-    add_subdirectory(src/test)
+    add_subdirectory(test)
 endif()
