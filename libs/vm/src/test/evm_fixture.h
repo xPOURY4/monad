@@ -69,6 +69,8 @@ namespace monad::compiler::test
         void execute_and_compare(
             std::int64_t gas_limit, std::initializer_list<std::uint8_t> code,
             std::span<std::uint8_t const> calldata = {}) noexcept;
+
+        bool has_empty_state() const noexcept;
     };
 
     class EvmFile

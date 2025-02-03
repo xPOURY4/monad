@@ -88,6 +88,12 @@ namespace monad::compiler::test
         std::int64_t gas_limit, std::span<std::uint8_t const> code,
         std::span<std::uint8_t const> calldata) noexcept
     {
+        // This comparison shouldn't be called multiple times in one test; if
+        // any state has been recorded on this host before we begin a test, the
+        // test should fail and stop us from trying to make assertions about a
+        // broken state.
+        ASSERT_TRUE(has_empty_state());
+
         execute(gas_limit, code, calldata, Compiler);
         auto actual = std::move(result_);
 
@@ -132,4 +138,12 @@ namespace monad::compiler::test
         execute_and_compare(gas_limit, std::span{code}, calldata);
     }
 
+    bool EvmTest::has_empty_state() const noexcept
+    {
+        return host_.accounts.empty() &&
+               host_.recorded_account_accesses.empty() &&
+               host_.recorded_blockhashes.empty() &&
+               host_.recorded_calls.empty() && host_.recorded_logs.empty() &&
+               host_.recorded_selfdestructs.empty();
+    }
 }
