@@ -9,30 +9,20 @@
 #include <evmone/execution_state.hpp>
 #include <evmone/vm.hpp>
 
-#include <memory>
-
 namespace monad
 {
-    struct VMDeleter
-    {
-        static void operator()(evmc_vm *vm)
-        {
-            vm->destroy(vm);
-        }
-    };
-
     evmc::Result baseline_execute(
         evmc_message const &msg, evmc_revision const rev,
         evmc::Host *const host, CodeAnalysis const &code_analysis)
     {
-        std::unique_ptr<evmc_vm, VMDeleter> const vm{evmc_create_evmone()};
+        evmc::VM const vm{evmc_create_evmone()};
 
         if (code_analysis.executable_code().empty()) {
             return evmc::Result{EVMC_SUCCESS, msg.gas};
         }
 
         auto const result = evmone::baseline::execute(
-            *static_cast<evmone::VM *>(vm.get()),
+            *static_cast<evmone::VM *>(vm.get_raw_pointer()),
             host->get_interface(),
             host->to_context(),
             rev,
