@@ -31,10 +31,9 @@ namespace monad::runtime
 
         auto code_address = address_from_uint256(address);
 
-        auto access_status =
-            ctx->host->access_account(ctx->context, &code_address);
-
         if constexpr (Rev >= EVMC_BERLIN) {
+            auto access_status =
+                ctx->host->access_account(ctx->context, &code_address);
             if (access_status == EVMC_ACCESS_COLD) {
                 ctx->gas_remaining -= 2500;
             }

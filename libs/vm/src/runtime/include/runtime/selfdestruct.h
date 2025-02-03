@@ -18,23 +18,22 @@ namespace monad::runtime
         }
 
         auto address = address_from_uint256(*address_ptr);
-        auto access_status = ctx->host->access_account(ctx->context, &address);
 
         if constexpr (Rev >= EVMC_BERLIN) {
+            auto access_status =
+                ctx->host->access_account(ctx->context, &address);
             if (access_status == EVMC_ACCESS_COLD) {
                 ctx->deduct_gas(2600);
             }
         }
 
-        auto balance =
-            ctx->host->get_balance(ctx->context, &ctx->env.recipient);
-
         if constexpr (Rev >= EVMC_TANGERINE_WHISTLE) {
-            auto non_zero_transfer = [&balance] {
+            auto non_zero_transfer = [ctx] {
                 if constexpr (Rev == EVMC_TANGERINE_WHISTLE) {
                     return true;
                 }
-
+                auto balance =
+                    ctx->host->get_balance(ctx->context, &ctx->env.recipient);
                 return balance != evmc::bytes32{};
             }();
 
