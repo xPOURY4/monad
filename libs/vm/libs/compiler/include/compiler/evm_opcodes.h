@@ -1,6 +1,6 @@
 #pragma once
 
-#include <utils/assert.h>
+#include <monad/utils/assert.h>
 
 #include <evmc/evmc.hpp>
 

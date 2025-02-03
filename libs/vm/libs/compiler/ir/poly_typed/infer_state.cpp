@@ -4,7 +4,7 @@
 #include "compiler/ir/poly_typed/block.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
-#include "utils/assert.h"
+#include "monad/utils/assert.h"
 
 #include <cstdint>
 #include <iterator>

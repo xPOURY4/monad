@@ -1,7 +1,7 @@
 #include "test_vm.h"
 
 #include <compiler/ir/x86.h>
-#include <utils/assert.h>
+#include <monad/utils/assert.h>
 #include <vm/vm.h>
 
 #include <evmone/evmone.h>

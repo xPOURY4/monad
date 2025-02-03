@@ -4,7 +4,7 @@
 #include <vm/evmone/baseline_execute.h>
 #include <vm/evmone/code_analysis.h>
 
-#include <utils/assert.h>
+#include <monad/utils/assert.h>
 
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>

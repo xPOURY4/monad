@@ -4,7 +4,7 @@
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/ir/poly_typed/subst_map.h"
 #include "compiler/types.h"
-#include "utils/assert.h"
+#include "monad/utils/assert.h"
 
 #include <cstddef>
 #include <cstdint>

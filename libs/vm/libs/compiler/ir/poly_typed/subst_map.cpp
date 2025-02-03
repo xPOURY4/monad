@@ -3,7 +3,7 @@
 #include "compiler/ir/poly_typed/exceptions.h"
 #include "compiler/ir/poly_typed/kind.h"
 #include "compiler/types.h"
-#include "utils/assert.h"
+#include "monad/utils/assert.h"
 
 #include <algorithm>
 #include <cstddef>

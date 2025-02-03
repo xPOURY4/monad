@@ -3,7 +3,7 @@
 #include <compiler/evm_opcodes.h>
 #include <compiler/ir/instruction.h>
 #include <compiler/types.h>
-#include <utils/assert.h>
+#include <monad/utils/assert.h>
 
 #include <evmc/evmc.h>
 
