@@ -1,20 +1,25 @@
-add_library(monad-compiler-vm STATIC
-    vm.cpp
-    evmone/baseline_execute.cpp
+add_library(monad-compiler-vm STATIC)
+
+target_sources(monad-compiler-vm PRIVATE
+    "src/monad/vm/vm.h"
+    "src/monad/vm/vm.cpp"
+    # evmone wrappers
+    "src/monad/vm/evmone/baseline_execute.h"
+    "src/monad/vm/evmone/baseline_execute.cpp"
+    "src/monad/vm/evmone/code_analysis.h"
 )
 
 monad_compile_options(monad-compiler-vm)
 
-target_link_libraries(monad-compiler-vm
-    PUBLIC
-        intx::intx
-        evmc::evmc
-        runtime
-        asmjit::asmjit
-        utils
-        monad-compiler
+target_include_directories(monad-compiler-vm
+    PUBLIC src/
 )
 
-target_include_directories(monad-compiler-vm
-    PUBLIC include
+target_link_libraries(monad-compiler-vm
+    PUBLIC intx::intx
+    PUBLIC evmc::evmc
+    PUBLIC asmjit::asmjit
+    PUBLIC runtime
+    PUBLIC utils
+    PUBLIC monad-compiler
 )

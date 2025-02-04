@@ -5,12 +5,15 @@
 #include <monad/runtime/types.h>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.h>
+#include <monad/vm/vm.h>
 #include <optional>
-#include <vm/vm.h>
+#include <bit>
 
 #include <evmc/evmc.h>
 
+#include <cstring>
 #include <cstddef>
+#include <optional>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>

@@ -2,7 +2,7 @@
 
 #include <compiler/ir/x86.h>
 #include <monad/utils/assert.h>
-#include <vm/vm.h>
+#include <monad/vm/vm.h>
 
 #include <evmc/evmc.hpp>
 

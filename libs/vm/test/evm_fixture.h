@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vm/vm.h>
+#include <monad/vm/vm.h>
 
 #include <evmc/evmc.hpp>
 #include <evmc/mocked_host.hpp>
