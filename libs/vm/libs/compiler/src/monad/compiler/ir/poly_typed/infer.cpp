@@ -9,7 +9,7 @@
 #include <monad/compiler/ir/poly_typed/strongly_connected_components.hpp>
 #include <monad/compiler/ir/poly_typed/unify.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 
 #include <algorithm>
 #include <cstddef>

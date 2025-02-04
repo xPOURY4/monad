@@ -7,6 +7,7 @@ target_sources(monad-compiler PRIVATE
     # IR
     "src/monad/compiler/ir/basic_blocks.cpp"
     "src/monad/compiler/ir/basic_blocks.hpp"
+    "src/monad/compiler/ir/instruction.hpp"
     "src/monad/compiler/ir/local_stacks.cpp"
     "src/monad/compiler/ir/local_stacks.hpp"
     # polymorphic types
@@ -17,7 +18,7 @@ target_sources(monad-compiler PRIVATE
     "src/monad/compiler/ir/poly_typed/infer.cpp"
     "src/monad/compiler/ir/poly_typed/infer.hpp"
     "src/monad/compiler/ir/poly_typed/infer_state.cpp"
-    "src/monad/compiler/ir/poly_typed/infer_state.cpp"
+    "src/monad/compiler/ir/poly_typed/infer_state.hpp"
     "src/monad/compiler/ir/poly_typed/kind.cpp"
     "src/monad/compiler/ir/poly_typed/kind.hpp"
     "src/monad/compiler/ir/poly_typed/strongly_connected_components.cpp"

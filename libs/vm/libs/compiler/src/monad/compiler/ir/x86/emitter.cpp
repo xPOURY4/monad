@@ -4,7 +4,7 @@
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
 
 #include <evmc/evmc.h>

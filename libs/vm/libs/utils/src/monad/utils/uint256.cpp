@@ -1,4 +1,4 @@
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
 
 #include <intx/intx.hpp>

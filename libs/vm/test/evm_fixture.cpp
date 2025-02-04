@@ -1,7 +1,7 @@
 #include "evm_fixture.hpp"
 
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 #include <monad/vm/evmone/baseline_execute.hpp>
 #include <monad/vm/evmone/code_analysis.hpp>
 

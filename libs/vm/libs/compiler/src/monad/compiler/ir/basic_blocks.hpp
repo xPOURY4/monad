@@ -3,7 +3,7 @@
 #include <monad/compiler/evm_opcodes.hpp>
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 
 #include <evmc/evmc.h>
 

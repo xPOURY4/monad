@@ -1,4 +1,4 @@
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 
 #include <algorithm>
 #include <bit>

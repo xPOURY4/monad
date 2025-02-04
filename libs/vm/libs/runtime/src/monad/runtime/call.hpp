@@ -2,7 +2,7 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 
 namespace monad::runtime
 {

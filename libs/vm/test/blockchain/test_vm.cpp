@@ -1,7 +1,7 @@
 #include "test_vm.hpp"
 
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/assert.hpp>
+#include <monad/utils/assert.h>
 #include <monad/vm/vm.hpp>
 
 #include <evmone/evmone.h>
