@@ -2,10 +2,11 @@ name: Compiler Benchmarks
 
 on:
   pull_request:
-     paths-ignore:
-       - 'README.md'
-       - '.gitignore'
-       - 'LICENSE'
+    types: [synchronize, opened, reopened, ready_for_review, review_requested]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,6 +16,7 @@ jobs:
     build:
         name: Benchmark compiler
         runs-on: ubuntu-24.04
+        if: github.event.pull_request.draft == false
         permissions:
           pull-requests: write
         strategy:
