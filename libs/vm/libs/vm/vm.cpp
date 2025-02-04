@@ -1,11 +1,11 @@
 #include <bit>
 #include <compiler/ir/x86.h>
 #include <cstring>
+#include <monad/runtime/transmute.h>
+#include <monad/runtime/types.h>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.h>
 #include <optional>
-#include <runtime/transmute.h>
-#include <runtime/types.h>
 #include <vm/vm.h>
 
 #include <evmc/evmc.h>
@@ -43,7 +43,7 @@ namespace
             return EVMC_OUT_OF_GAS;
         }
         auto size_word = std::bit_cast<utils::uint256_t>(ctx.result.size);
-        if (!runtime::is_bounded_by_bits<runtime::Memory::offset_bits>(
+        if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
                 size_word)) {
             return EVMC_OUT_OF_GAS;
         }
@@ -53,7 +53,7 @@ namespace
             return std::span<std::uint8_t const>({});
         }
         auto offset_word = std::bit_cast<utils::uint256_t>(ctx.result.offset);
-        if (!runtime::is_bounded_by_bits<runtime::Memory::offset_bits>(
+        if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
                 offset_word)) {
             return EVMC_OUT_OF_GAS;
         }

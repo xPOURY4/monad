@@ -12,9 +12,9 @@
 #include "compiler/types.h"
 #include "evmc/evmc.h"
 #include "intx/intx.hpp"
+#include "monad/runtime/types.h"
 #include "monad/utils/assert.h"
 #include "monad/utils/uint256.h"
-#include "runtime/types.h"
 
 #include <cstddef>
 #include <cstdint>

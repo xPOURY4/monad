@@ -6,8 +6,8 @@
 #include "evmc/evmc.h"
 #include "evmc/evmc.hpp"
 #include "intx/intx.hpp"
-#include "runtime/math.h"
-#include "runtime/types.h"
+#include "monad/runtime/math.h"
+#include "monad/runtime/types.h"
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/emitter.h>
 

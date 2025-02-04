@@ -3,8 +3,8 @@
 #include "compiler/ir/basic_blocks.h"
 #include <compiler/ir/x86.h>
 #include <compiler/ir/x86/virtual_stack.h>
-#include <runtime/detail.h>
-#include <runtime/types.h>
+#include <monad/runtime/detail.h>
+#include <monad/runtime/types.h>
 
 #include <asmjit/x86.h>
 #include <asmjit/x86/x86assembler.h>
