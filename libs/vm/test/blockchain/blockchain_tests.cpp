@@ -1,4 +1,4 @@
-#include "test_vm.h"
+#include "test_vm.hpp"
 
 #include <test_resource_data.h>
 

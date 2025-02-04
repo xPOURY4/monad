@@ -1,12 +1,9 @@
-#include <bit>
-#include <cstring>
-#include <monad/compiler/ir/x86.h>
-#include <monad/runtime/transmute.h>
-#include <monad/runtime/types.h>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.h>
-#include <monad/vm/vm.h>
-#include <optional>
+#include <monad/compiler/ir/x86.hpp>
+#include <monad/runtime/transmute.hpp>
+#include <monad/runtime/types.hpp>
+#include <monad/utils/assert.hpp>
+#include <monad/utils/uint256.hpp>
+#include <monad/vm/vm.hpp>
 #include <bit>
 
 #include <evmc/evmc.h>

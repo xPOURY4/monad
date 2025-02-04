@@ -1,5 +1,5 @@
-#include <monad/vm/evmone/baseline_execute.h>
-#include <monad/vm/evmone/code_analysis.h>
+#include <monad/vm/evmone/baseline_execute.hpp>
+#include <monad/vm/evmone/code_analysis.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

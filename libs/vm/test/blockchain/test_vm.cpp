@@ -1,8 +1,8 @@
-#include "test_vm.h"
+#include "test_vm.hpp"
 
-#include <monad/compiler/ir/x86.h>
-#include <monad/utils/assert.h>
-#include <monad/vm/vm.h>
+#include <monad/compiler/ir/x86.hpp>
+#include <monad/utils/assert.hpp>
+#include <monad/vm/vm.hpp>
 
 #include <evmone/evmone.h>
 

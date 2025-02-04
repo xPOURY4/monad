@@ -1,9 +1,9 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/create.h>
-#include <monad/runtime/memory.h>
-#include <monad/runtime/transmute.h>
-#include <monad/utils/uint256.h>
+#include <monad/runtime/create.hpp>
+#include <monad/runtime/memory.hpp>
+#include <monad/runtime/transmute.hpp>
+#include <monad/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 

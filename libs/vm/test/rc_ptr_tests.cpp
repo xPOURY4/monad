@@ -1,4 +1,4 @@
-#include <monad/utils/rc_ptr.h>
+#include <monad/utils/rc_ptr.hpp>
 #include <utility>
 
 #include <gtest/gtest.h>

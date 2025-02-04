@@ -1,5 +1,5 @@
-#include <monad/compiler/ir/x86.h>
-#include <monad/utils/load_program.h>
+#include <monad/compiler/ir/x86.hpp>
+#include <monad/utils/load_program.hpp>
 
 #include <test_resource_data.h>
 

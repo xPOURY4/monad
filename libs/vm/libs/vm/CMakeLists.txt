@@ -1,12 +1,12 @@
 add_library(monad-compiler-vm STATIC)
 
 target_sources(monad-compiler-vm PRIVATE
-    "src/monad/vm/vm.h"
     "src/monad/vm/vm.cpp"
+    "src/monad/vm/vm.hpp"
     # evmone wrappers
-    "src/monad/vm/evmone/baseline_execute.h"
     "src/monad/vm/evmone/baseline_execute.cpp"
-    "src/monad/vm/evmone/code_analysis.h"
+    "src/monad/vm/evmone/baseline_execute.hpp"
+    "src/monad/vm/evmone/code_analysis.hpp"
 )
 
 monad_compile_options(monad-compiler-vm)

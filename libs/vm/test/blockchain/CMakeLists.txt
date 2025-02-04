@@ -1,7 +1,7 @@
 add_library(blockchain-test-vm STATIC)
 target_sources(blockchain-test-vm
     PRIVATE
-        test_vm.h
+        test_vm.hpp
         test_vm.cpp
 )
 target_link_libraries(blockchain-test-vm

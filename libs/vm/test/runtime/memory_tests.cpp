@@ -1,7 +1,7 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/memory.h>
-#include <monad/runtime/types.h>
+#include <monad/runtime/memory.hpp>
+#include <monad/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 

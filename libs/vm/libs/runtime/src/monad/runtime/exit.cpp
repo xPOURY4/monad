@@ -1,4 +1,4 @@
-#include <monad/runtime/types.h>
+#include <monad/runtime/types.hpp>
 
 extern "C" void monad_runtime_exit [[noreturn]] (void *);
 

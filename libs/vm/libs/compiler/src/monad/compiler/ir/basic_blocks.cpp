@@ -1,5 +1,5 @@
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/types.h>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/types.hpp>
 
 #include <algorithm>
 #include <tuple>

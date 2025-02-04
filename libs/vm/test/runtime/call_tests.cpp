@@ -1,8 +1,8 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/call.h>
-#include <monad/runtime/memory.h>
-#include <monad/runtime/transmute.h>
+#include <monad/runtime/call.hpp>
+#include <monad/runtime/memory.hpp>
+#include <monad/runtime/transmute.hpp>
 
 #include <evmc/evmc.h>
 

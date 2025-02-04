@@ -1,9 +1,9 @@
-#include <monad/compiler/evm_opcodes.h>
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/ir/local_stacks.h>
-#include <monad/compiler/ir/poly_typed/block.h>
-#include <monad/compiler/ir/poly_typed/infer.h>
-#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/evm_opcodes.hpp>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/ir/local_stacks.hpp>
+#include <monad/compiler/ir/poly_typed/block.hpp>
+#include <monad/compiler/ir/poly_typed/infer.hpp>
+#include <monad/compiler/ir/poly_typed/kind.hpp>
 
 #include <gtest/gtest.h>
 

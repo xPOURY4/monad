@@ -1,11 +1,11 @@
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/ir/x86.h>
-#include <monad/compiler/ir/x86/emitter.h>
-#include <monad/compiler/ir/x86/virtual_stack.h>
-#include <monad/compiler/types.h>
-#include <monad/runtime/types.h>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.h>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/ir/x86/virtual_stack.hpp>
+#include <monad/compiler/types.hpp>
+#include <monad/runtime/types.hpp>
+#include <monad/utils/assert.hpp>
+#include <monad/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 

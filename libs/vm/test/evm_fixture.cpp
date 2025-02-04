@@ -1,9 +1,9 @@
-#include "evm_fixture.h"
+#include "evm_fixture.hpp"
 
-#include <monad/compiler/types.h>
-#include <monad/utils/assert.h>
-#include <monad/vm/evmone/baseline_execute.h>
-#include <monad/vm/evmone/code_analysis.h>
+#include <monad/compiler/types.hpp>
+#include <monad/utils/assert.hpp>
+#include <monad/vm/evmone/baseline_execute.hpp>
+#include <monad/vm/evmone/code_analysis.hpp>
 
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>

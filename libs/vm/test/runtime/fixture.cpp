@@ -1,6 +1,6 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/transmute.h>
+#include <monad/runtime/transmute.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

@@ -1,15 +1,15 @@
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/ir/instruction.h>
-#include <monad/compiler/ir/local_stacks.h>
-#include <monad/compiler/ir/poly_typed/block.h>
-#include <monad/compiler/ir/poly_typed/exceptions.h>
-#include <monad/compiler/ir/poly_typed/infer.h>
-#include <monad/compiler/ir/poly_typed/infer_state.h>
-#include <monad/compiler/ir/poly_typed/kind.h>
-#include <monad/compiler/ir/poly_typed/strongly_connected_components.h>
-#include <monad/compiler/ir/poly_typed/unify.h>
-#include <monad/compiler/types.h>
-#include <monad/utils/assert.h>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/ir/instruction.hpp>
+#include <monad/compiler/ir/local_stacks.hpp>
+#include <monad/compiler/ir/poly_typed/block.hpp>
+#include <monad/compiler/ir/poly_typed/exceptions.hpp>
+#include <monad/compiler/ir/poly_typed/infer.hpp>
+#include <monad/compiler/ir/poly_typed/infer_state.hpp>
+#include <monad/compiler/ir/poly_typed/kind.hpp>
+#include <monad/compiler/ir/poly_typed/strongly_connected_components.hpp>
+#include <monad/compiler/ir/poly_typed/unify.hpp>
+#include <monad/compiler/types.hpp>
+#include <monad/utils/assert.hpp>
 
 #include <algorithm>
 #include <cstddef>

@@ -1,11 +1,11 @@
-#include <monad/compiler/evm_opcodes.h>
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/ir/x86.h>
-#include <monad/compiler/ir/x86/emitter.h>
-#include <monad/compiler/ir/x86/virtual_stack.h>
-#include <monad/compiler/types.h>
-#include <monad/runtime/math.h>
-#include <monad/runtime/types.h>
+#include <monad/compiler/evm_opcodes.hpp>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/ir/x86/virtual_stack.hpp>
+#include <monad/compiler/types.hpp>
+#include <monad/runtime/math.hpp>
+#include <monad/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

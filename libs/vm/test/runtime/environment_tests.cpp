@@ -1,6 +1,6 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/environment.h>
+#include <monad/runtime/environment.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

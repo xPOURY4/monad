@@ -1,7 +1,7 @@
-#include "fixture.h"
+#include "fixture.hpp"
 
-#include <monad/runtime/math.h>
-#include <monad/utils/uint256.h>
+#include <monad/runtime/math.hpp>
+#include <monad/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
 

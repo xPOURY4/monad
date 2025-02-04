@@ -1,9 +1,9 @@
-#include <monad/compiler/ir/basic_blocks.h>
-#include <monad/compiler/ir/local_stacks.h>
-#include <monad/compiler/ir/poly_typed/block.h>
-#include <monad/compiler/ir/poly_typed/infer_state.h>
-#include <monad/compiler/ir/poly_typed/strongly_connected_components.h>
-#include <monad/compiler/types.h>
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/compiler/ir/local_stacks.hpp>
+#include <monad/compiler/ir/poly_typed/block.hpp>
+#include <monad/compiler/ir/poly_typed/infer_state.hpp>
+#include <monad/compiler/ir/poly_typed/strongly_connected_components.hpp>
+#include <monad/compiler/types.hpp>
 
 #include <gtest/gtest.h>
 

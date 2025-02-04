@@ -1,4 +1,4 @@
-#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/ir/poly_typed/kind.hpp>
 
 #include <gtest/gtest.h>
 

@@ -1,6 +1,6 @@
-#include <monad/compiler/ir/poly_typed/kind.h>
-#include <monad/compiler/types.h>
-#include <monad/utils/assert.h>
+#include <monad/compiler/ir/poly_typed/kind.hpp>
+#include <monad/compiler/types.hpp>
+#include <monad/utils/assert.hpp>
 
 #include <algorithm>
 #include <cstddef>
