@@ -1,7 +1,7 @@
-#include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/ir/x86.h>
-#include <compiler/ir/x86/emitter.h>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/instruction.h>
+#include <monad/compiler/ir/x86.h>
+#include <monad/compiler/ir/x86/emitter.h>
 #include <monad/utils/assert.h>
 
 #include <evmc/evmc.h>

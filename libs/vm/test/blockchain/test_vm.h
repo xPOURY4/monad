@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/x86.h>
+#include <monad/compiler/ir/x86.h>
 #include <monad/utils/assert.h>
 #include <monad/vm/vm.h>
 

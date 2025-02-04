@@ -1,6 +1,6 @@
 #include <bit>
-#include <compiler/ir/x86.h>
 #include <cstring>
+#include <monad/compiler/ir/x86.h>
 #include <monad/runtime/transmute.h>
 #include <monad/runtime/types.h>
 #include <monad/utils/assert.h>

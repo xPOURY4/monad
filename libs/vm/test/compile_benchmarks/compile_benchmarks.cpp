@@ -1,4 +1,4 @@
-#include <compiler/ir/x86.h>
+#include <monad/compiler/ir/x86.h>
 #include <monad/utils/load_program.h>
 
 #include <test_resource_data.h>

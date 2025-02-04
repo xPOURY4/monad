@@ -1,8 +1,8 @@
 #include "evm_fixture.h"
 #include "test_resource_data.h"
 
-#include <compiler/evm_opcodes.h>
-#include <compiler/types.h>
+#include <monad/compiler/evm_opcodes.h>
+#include <monad/compiler/types.h>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

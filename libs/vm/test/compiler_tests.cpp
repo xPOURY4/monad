@@ -1,8 +1,8 @@
-#include <compiler/evm_opcodes.h>
-#include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/ir/local_stacks.h>
-#include <compiler/types.h>
+#include <monad/compiler/evm_opcodes.h>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/instruction.h>
+#include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/types.h>
 
 #include <evmc/evmc.h>
 

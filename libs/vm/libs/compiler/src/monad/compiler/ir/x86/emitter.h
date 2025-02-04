@@ -1,8 +1,8 @@
 #pragma once
 
-#include "compiler/ir/basic_blocks.h"
-#include <compiler/ir/x86.h>
-#include <compiler/ir/x86/virtual_stack.h>
+#include "monad/compiler/ir/basic_blocks.h"
+#include <monad/compiler/ir/x86.h>
+#include <monad/compiler/ir/x86/virtual_stack.h>
 #include <monad/runtime/detail.h>
 #include <monad/runtime/types.h>
 

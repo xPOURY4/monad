@@ -1,8 +1,8 @@
 #pragma once
 
-#include <compiler/evm_opcodes.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/types.h>
+#include <monad/compiler/evm_opcodes.h>
+#include <monad/compiler/ir/instruction.h>
+#include <monad/compiler/types.h>
 #include <monad/utils/assert.h>
 
 #include <evmc/evmc.h>

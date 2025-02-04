@@ -1,5 +1,5 @@
-#include "compiler/ir/poly_typed/kind.h"
-#include "compiler/types.h"
+#include "monad/compiler/ir/poly_typed/kind.h"
+#include "monad/compiler/types.h"
 #include "monad/utils/assert.h"
 
 #include <algorithm>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/local_stacks.h>
 #include <monad/runtime/runtime.h>
 
 #include <asmjit/x86.h>

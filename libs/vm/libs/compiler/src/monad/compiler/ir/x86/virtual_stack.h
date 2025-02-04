@@ -1,6 +1,6 @@
 #pragma once
 
-#include <compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/basic_blocks.h>
 #include <monad/utils/rc_ptr.h>
 
 #include <evmc/evmc.hpp>

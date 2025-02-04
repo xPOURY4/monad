@@ -1,7 +1,7 @@
-#include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/instruction.h>
-#include <compiler/ir/x86/virtual_stack.h>
-#include <compiler/types.h>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/instruction.h>
+#include <monad/compiler/ir/x86/virtual_stack.h>
+#include <monad/compiler/types.h>
 #include <monad/utils/assert.h>
 #include <monad/utils/rc_ptr.h>
 

@@ -2,7 +2,7 @@
 
 #include "kind.h"
 
-#include <compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/local_stacks.h>
 
 namespace monad::compiler::poly_typed
 {

@@ -1,6 +1,6 @@
-#include <compiler/ir/basic_blocks.h>
-#include <compiler/ir/local_stacks.h>
-#include <compiler/ir/poly_typed.h>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/poly_typed.h>
 
 #include <chrono>
 #include <cstdint>
