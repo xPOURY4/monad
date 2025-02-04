@@ -1,7 +1,7 @@
-#include "monad/compiler/ir/poly_typed/strongly_connected_components.h"
-#include "monad/compiler/ir/poly_typed/infer_state.h"
-#include "monad/compiler/types.h"
-#include "monad/utils/assert.h"
+#include <monad/compiler/ir/poly_typed/infer_state.h>
+#include <monad/compiler/ir/poly_typed/strongly_connected_components.h>
+#include <monad/compiler/types.h>
+#include <monad/utils/assert.h>
 
 #include <algorithm>
 #include <utility>

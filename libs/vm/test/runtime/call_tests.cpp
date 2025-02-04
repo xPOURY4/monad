@@ -1,7 +1,5 @@
 #include "fixture.h"
 
-#include <cstdint>
-#include <limits>
 #include <monad/runtime/call.h>
 #include <monad/runtime/memory.h>
 #include <monad/runtime/transmute.h>
@@ -9,6 +7,9 @@
 #include <evmc/evmc.h>
 
 #include <gtest/gtest.h>
+
+#include <cstdint>
+#include <limits>
 
 using namespace monad::runtime;
 using namespace monad::compiler::test;

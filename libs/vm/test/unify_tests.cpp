@@ -1,10 +1,11 @@
-#include "monad/compiler/ir/poly_typed/exceptions.h"
-#include "monad/compiler/ir/poly_typed/kind.h"
-#include "monad/compiler/ir/poly_typed/subst_map.h"
-#include "monad/compiler/ir/poly_typed/unify.h"
+#include <monad/compiler/ir/poly_typed/exceptions.h>
+#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/ir/poly_typed/subst_map.h>
+#include <monad/compiler/ir/poly_typed/unify.h>
+
+#include <gtest/gtest.h>
 
 #include <cstddef>
-#include <gtest/gtest.h>
 #include <variant>
 #include <vector>
 

@@ -1,12 +1,13 @@
 #include "fixture.h"
-#include "monad/runtime/types.h"
 
-#include <algorithm>
+#include <monad/runtime/memory.h>
+#include <monad/runtime/types.h>
+
 #include <evmc/evmc.h>
 
 #include <intx/intx.hpp>
 
-#include <monad/runtime/memory.h>
+#include <algorithm>
 
 using namespace monad::runtime;
 using namespace monad::compiler::test;

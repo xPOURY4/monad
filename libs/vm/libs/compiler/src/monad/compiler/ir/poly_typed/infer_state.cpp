@@ -1,10 +1,10 @@
-#include "monad/compiler/ir/poly_typed/infer_state.h"
-#include "monad/compiler/ir/basic_blocks.h"
-#include "monad/compiler/ir/local_stacks.h"
-#include "monad/compiler/ir/poly_typed/block.h"
-#include "monad/compiler/ir/poly_typed/kind.h"
-#include "monad/compiler/types.h"
-#include "monad/utils/assert.h"
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/poly_typed/block.h>
+#include <monad/compiler/ir/poly_typed/infer_state.h>
+#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/types.h>
+#include <monad/utils/assert.h>
 
 #include <cstdint>
 #include <iterator>

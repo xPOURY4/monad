@@ -1,7 +1,6 @@
 #pragma once
 
-#include "block.h"
-
+#include <monad/compiler/ir/poly_typed/block.h>
 #include <monad/compiler/transactional_unordered_map.h>
 
 #include <unordered_set>

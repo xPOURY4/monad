@@ -1,8 +1,8 @@
-#include "monad/compiler/evm_opcodes.h"
-#include "monad/compiler/ir/basic_blocks.h"
-#include "monad/compiler/ir/local_stacks.h"
-#include "monad/compiler/ir/poly_typed.h"
-#include "monad/compiler/ir/poly_typed/kind.h"
+#include <monad/compiler/evm_opcodes.h>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/poly_typed.h>
+#include <monad/compiler/ir/poly_typed/kind.h>
 
 #include <gtest/gtest.h>
 

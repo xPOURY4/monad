@@ -1,9 +1,10 @@
-#include "monad/compiler/evm_opcodes.h"
-#include "monad/compiler/ir/basic_blocks.h"
+#include <monad/compiler/evm_opcodes.h>
+#include <monad/compiler/ir/basic_blocks.h>
 #include <monad/compiler/ir/x86/virtual_stack.h>
 
-#include <cstdint>
 #include <gtest/gtest.h>
+
+#include <cstdint>
 #include <optional>
 #include <set>
 #include <utility>

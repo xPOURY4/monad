@@ -1,6 +1,6 @@
 #pragma once
 
-#include "monad/compiler/ir/basic_blocks.h"
+#include <monad/compiler/ir/basic_blocks.h>
 #include <monad/compiler/ir/x86.h>
 #include <monad/compiler/ir/x86/virtual_stack.h>
 #include <monad/runtime/detail.h>

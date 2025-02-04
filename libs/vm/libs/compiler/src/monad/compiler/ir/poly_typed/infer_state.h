@@ -1,6 +1,6 @@
 #pragma once
 
-#include "subst_map.h"
+#include <monad/compiler/ir/poly_typed/subst_map.h>
 
 #include <optional>
 #include <unordered_map>

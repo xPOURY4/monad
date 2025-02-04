@@ -1,5 +1,4 @@
 #include "fixture.h"
-#include "intx/intx.hpp"
 
 #include <monad/runtime/create.h>
 #include <monad/runtime/memory.h>
@@ -7,6 +6,8 @@
 #include <monad/utils/uint256.h>
 
 #include <evmc/evmc.h>
+
+#include <intx/intx.hpp>
 
 using namespace monad;
 using namespace monad::runtime;

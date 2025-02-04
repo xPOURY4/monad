@@ -1,6 +1,6 @@
 #pragma once
 
-#include "infer_state.h"
+#include <monad/compiler/ir/poly_typed/infer_state.h>
 
 namespace monad::compiler::poly_typed
 {

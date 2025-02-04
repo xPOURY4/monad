@@ -1,8 +1,7 @@
 #pragma once
 
-#include "kind.h"
-
 #include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/poly_typed/kind.h>
 
 namespace monad::compiler::poly_typed
 {

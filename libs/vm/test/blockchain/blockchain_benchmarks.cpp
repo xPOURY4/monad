@@ -1,10 +1,10 @@
-#include "blockchaintest.hpp"
 #include "test_vm.h"
 
 #include <test_resource_data.h>
 
 #include <evmc/evmc.hpp>
 
+#include <blockchaintest.hpp>
 #include <evmone/evmone.h>
 
 #include <benchmark/benchmark.h>

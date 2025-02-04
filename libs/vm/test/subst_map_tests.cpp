@@ -1,7 +1,8 @@
-#include "monad/compiler/ir/poly_typed/kind.h"
-#include "monad/compiler/ir/poly_typed/subst_map.h"
+#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/ir/poly_typed/subst_map.h>
 
 #include <gtest/gtest.h>
+
 #include <vector>
 
 using namespace monad::compiler;

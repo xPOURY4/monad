@@ -1,7 +1,8 @@
-#include "blockchaintest.hpp"
 #include "test_vm.h"
 
 #include <test_resource_data.h>
+
+#include <blockchaintest.hpp>
 
 #include <evmc/evmc.hpp>
 

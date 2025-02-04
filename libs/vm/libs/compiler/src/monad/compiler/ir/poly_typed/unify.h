@@ -1,7 +1,7 @@
 #pragma once
 
-#include "strongly_connected_components.h"
-#include "subst_map.h"
+#include <monad/compiler/ir/poly_typed/strongly_connected_components.h>
+#include <monad/compiler/ir/poly_typed/subst_map.h>
 
 namespace monad::compiler::poly_typed
 {

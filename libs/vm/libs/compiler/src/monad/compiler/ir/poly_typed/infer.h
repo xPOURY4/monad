@@ -1,6 +1,6 @@
 #pragma once
 
-#include "unify.h"
+#include <monad/compiler/ir/poly_typed/unify.h>
 
 namespace monad::compiler::poly_typed
 {

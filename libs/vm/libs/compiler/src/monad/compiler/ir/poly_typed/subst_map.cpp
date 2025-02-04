@@ -1,9 +1,8 @@
-#include "monad/compiler/ir/poly_typed/subst_map.h"
-
-#include "monad/compiler/ir/poly_typed/exceptions.h"
-#include "monad/compiler/ir/poly_typed/kind.h"
-#include "monad/compiler/types.h"
-#include "monad/utils/assert.h"
+#include <monad/compiler/ir/poly_typed/exceptions.h>
+#include <monad/compiler/ir/poly_typed/kind.h>
+#include <monad/compiler/ir/poly_typed/subst_map.h>
+#include <monad/compiler/types.h>
+#include <monad/utils/assert.h>
 
 #include <algorithm>
 #include <cstddef>

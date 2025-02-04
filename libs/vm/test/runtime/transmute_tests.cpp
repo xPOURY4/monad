@@ -1,12 +1,14 @@
-#include "evmc/evmc.hpp"
 #include "fixture.h"
-#include "intx/intx.hpp"
-#include "monad/utils/uint256.h"
 
-#include <cstdint>
 #include <monad/runtime/transmute.h>
+#include <monad/utils/uint256.h>
+
+#include <evmc/evmc.hpp>
+#include <intx/intx.hpp>
 
 #include <gtest/gtest.h>
+
+#include <cstdint>
 
 using namespace monad;
 using namespace monad::runtime;

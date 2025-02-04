@@ -1,6 +1,7 @@
-#include "monad/compiler/ir/poly_typed/kind.h"
+#include <monad/compiler/ir/poly_typed/kind.h>
 
 #include <gtest/gtest.h>
+
 #include <vector>
 
 using namespace monad::compiler;

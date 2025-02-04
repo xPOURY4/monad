@@ -1,13 +1,14 @@
-#include "monad/compiler/ir/basic_blocks.h"
-#include "monad/compiler/ir/local_stacks.h"
-#include "monad/compiler/ir/poly_typed/block.h"
-#include "monad/compiler/ir/poly_typed/infer_state.h"
-#include "monad/compiler/ir/poly_typed/strongly_connected_components.h"
-#include "monad/compiler/types.h"
-#include <cstddef>
-#include <iostream>
+#include <monad/compiler/ir/basic_blocks.h>
+#include <monad/compiler/ir/local_stacks.h>
+#include <monad/compiler/ir/poly_typed/block.h>
+#include <monad/compiler/ir/poly_typed/infer_state.h>
+#include <monad/compiler/ir/poly_typed/strongly_connected_components.h>
+#include <monad/compiler/types.h>
 
 #include <gtest/gtest.h>
+
+#include <cstddef>
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 

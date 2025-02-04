@@ -1,6 +1,6 @@
 #pragma once
 
-#include "poly_typed/block.h"
+#include <monad/compiler/ir/poly_typed/block.h>
 
 namespace monad::compiler::poly_typed
 {
