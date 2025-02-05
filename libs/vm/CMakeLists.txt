@@ -15,8 +15,11 @@ option(MONAD_COMPILER_TESTING "Build compiler tests" ON)
 include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)
-find_package(GTest REQUIRED)
-find_package(benchmark REQUIRED)
+
+if(MONAD_COMPILER_TESTING)
+    find_package(GTest REQUIRED)
+    find_package(benchmark REQUIRED)
+endif()
 
 set(ROOT_DIRECTORY "${PROJECT_SOURCE_DIR}")
 configure_file(cmake/test_resource_data.h.in test/test_resource_data.h @ONLY)
