@@ -10,6 +10,6 @@ namespace monad
 
     inline CodeAnalysis analyze(evmc::bytes_view const &code)
     {
-        return evmone::baseline::analyze(code, false);
+        return evmone::baseline::analyze(code, false); // TODO eof
     }
 }
