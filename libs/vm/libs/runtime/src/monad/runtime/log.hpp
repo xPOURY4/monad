@@ -13,7 +13,7 @@ namespace monad::runtime
         std::span<evmc::bytes32 const> topics)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
-            ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::Error);
         }
 
         Memory::Offset offset;

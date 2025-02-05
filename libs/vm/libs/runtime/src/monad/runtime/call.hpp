@@ -53,7 +53,7 @@ namespace monad::runtime
         if (call_kind == EVMC_CALL) {
             if (MONAD_COMPILER_UNLIKELY(
                     has_value && ctx->env.evmc_flags == EVMC_STATIC)) {
-                ctx->exit(StatusCode::StaticModeViolation);
+                ctx->exit(StatusCode::Error);
             }
 
             auto has_empty_cost = true;
@@ -69,7 +69,7 @@ namespace monad::runtime
         auto gas_left_here = ctx->gas_remaining + remaining_block_base_gas;
 
         if (MONAD_COMPILER_UNLIKELY(gas_left_here < 0)) {
-            ctx->exit(StatusCode::OutOfGas);
+            ctx->exit(StatusCode::Error);
         }
 
         auto gas = clamp_cast<std::int64_t>(gas_word);
@@ -79,7 +79,7 @@ namespace monad::runtime
         }
         else {
             if (MONAD_COMPILER_UNLIKELY(gas > gas_left_here)) {
-                ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::Error);
             }
         }
 

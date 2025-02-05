@@ -26,7 +26,7 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         if (MONAD_COMPILER_UNLIKELY(ctx->env.evmc_flags == EVMC_STATIC)) {
-            ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::Error);
         }
 
         ctx->env.clear_return_data();
@@ -41,7 +41,7 @@ namespace monad::runtime
 
         if constexpr (Rev >= EVMC_SHANGHAI) {
             if (MONAD_COMPILER_UNLIKELY(*size > 0xC000)) {
-                ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::Error);
             }
         }
 

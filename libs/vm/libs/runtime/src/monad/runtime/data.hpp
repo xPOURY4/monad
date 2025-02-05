@@ -162,7 +162,7 @@ namespace monad::runtime
         if (MONAD_COMPILER_UNLIKELY(
                 __builtin_add_overflow(offset, *size, &end) ||
                 end > ctx->env.return_data_size)) {
-            ctx->exit(StatusCode::InvalidMemoryAccess);
+            ctx->exit(StatusCode::Error);
         }
 
         if (*size > 0) {

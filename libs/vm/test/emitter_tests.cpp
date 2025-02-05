@@ -776,7 +776,7 @@ TEST(Emitter, invalid_instruction)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::InvalidInstruction);
+    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
 }
 
 TEST(Emitter, gas_decrement_no_check_1)
@@ -821,7 +821,7 @@ TEST(Emitter, gas_decrement_check_non_negative_1)
     entry(&ctx, nullptr);
 
     ASSERT_EQ(ctx.gas_remaining, -1);
-    ASSERT_EQ(ret.status, runtime::StatusCode::OutOfGas);
+    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
 }
 
 TEST(Emitter, gas_decrement_check_non_negative_2)
@@ -1868,7 +1868,7 @@ TEST(Emitter, runtime_exit)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::OutOfGas);
+    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
 }
 
 TEST(Emitter, address)
@@ -2332,7 +2332,7 @@ TEST(Emitter, jump_bad_jumpdest)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::BadJumpDest);
+    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
 }
 
 TEST(Emitter, jumpi)
@@ -2380,7 +2380,7 @@ TEST(Emitter, jumpi_bad_jumpdest)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::BadJumpDest);
+    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
 }
 
 TEST(Emitter, block_epilogue)

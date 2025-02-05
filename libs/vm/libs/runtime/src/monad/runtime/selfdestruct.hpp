@@ -14,7 +14,7 @@ namespace monad::runtime
         [[noreturn]] (Context *ctx, utils::uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
-            ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::Error);
         }
 
         auto address = address_from_uint256(*address_ptr);

@@ -77,14 +77,14 @@ TEST_F(EvmTest, BeaconRootRegression_138)
 TEST_F(EvmTest, UnderflowRegression_190)
 {
     execute({POP});
-    ASSERT_EQ(result_.status_code, EVMC_STACK_UNDERFLOW);
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
 }
 
 // https://github.com/category-labs/monad-compiler/issues/192
 TEST_F(EvmTest, BadJumpRegression_192)
 {
     execute({PUSH0, JUMP});
-    ASSERT_EQ(result_.status_code, EVMC_BAD_JUMP_DESTINATION);
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
 }
 
 TEST_P(EvmFile, RegressionFile)
@@ -123,7 +123,7 @@ TEST_F(EvmTest, JumpiLiveDestDeferredComparisonBug)
          ADDRESS,
          SLT,
          JUMPI});
-    ASSERT_EQ(result_.status_code, EVMC_OUT_OF_GAS);
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
 }
 
 TEST_F(EvmTest, Cmov32BitBug)

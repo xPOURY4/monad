@@ -41,7 +41,7 @@ namespace monad::runtime
         std::int64_t remaining_block_base_gas)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
-            ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::Error);
         }
 
         constexpr auto min_gas = minimum_store_gas<Rev>();
@@ -50,7 +50,7 @@ namespace monad::runtime
         if constexpr (Rev >= EVMC_ISTANBUL) {
             if (ctx->gas_remaining + remaining_block_base_gas + min_gas <=
                 2300) {
-                ctx->exit(StatusCode::OutOfGas);
+                ctx->exit(StatusCode::Error);
             }
         }
 
@@ -104,7 +104,7 @@ namespace monad::runtime
         MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
 
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
-            ctx->exit(StatusCode::StaticModeViolation);
+            ctx->exit(StatusCode::Error);
         }
 
         auto key = bytes32_from_uint256(*key_ptr);

@@ -146,26 +146,11 @@ namespace monad::compiler
 
         std::free(stack_ptr);
 
-        switch (ctx.result.status) {
-        case OutOfGas:
-            return error_result(EVMC_OUT_OF_GAS);
-        case StackOverflow:
-            return error_result(EVMC_STACK_OVERFLOW);
-        case StackUnderflow:
-            return error_result(EVMC_STACK_UNDERFLOW);
-        case BadJumpDest:
-            return error_result(EVMC_BAD_JUMP_DESTINATION);
-        case StaticModeViolation:
-            return error_result(EVMC_STATIC_MODE_VIOLATION);
-        case InvalidMemoryAccess:
-            return error_result(EVMC_INVALID_MEMORY_ACCESS);
-        case InvalidInstruction:
-            return error_result(EVMC_UNDEFINED_INSTRUCTION);
-        case Success:
-            break;
-        case Revert:
-            break;
+        if (ctx.result.status == Error) {
+            return error_result(EVMC_FAILURE);
         }
+        MONAD_COMPILER_DEBUG_ASSERT(
+            ctx.result.status == Success || ctx.result.status == Revert);
 
         auto maybe_output = copy_result_data(ctx);
         if (auto *ec = std::get_if<evmc_status_code>(&maybe_output)) {

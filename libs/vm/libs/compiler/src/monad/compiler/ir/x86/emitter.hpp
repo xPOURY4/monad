@@ -730,11 +730,7 @@ namespace monad::compiler::native
         asmjit::FileLogger debug_logger_;
         asmjit::x86::Assembler as_;
         asmjit::Label epilogue_label_;
-        asmjit::Label out_of_gas_label_;
-        asmjit::Label overflow_label_;
-        asmjit::Label underflow_label_;
-        asmjit::Label bad_jumpdest_label_;
-        asmjit::Label invalid_instruction_label_;
+        asmjit::Label error_label_;
         asmjit::Label jump_table_label_;
         Stack stack_;
         std::array<Gpq256, 3> gpq256_regs_;
