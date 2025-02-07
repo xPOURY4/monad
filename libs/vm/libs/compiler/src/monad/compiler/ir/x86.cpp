@@ -2,6 +2,7 @@
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/types.hpp>
 #include <monad/utils/assert.h>
 
 #include <evmc/evmc.h>
@@ -299,7 +300,8 @@ namespace
     }
 
     template <evmc_revision rev>
-    void emit_terminator(Emitter &emit, Block const &block)
+    void
+    emit_terminator(Emitter &emit, BasicBlocksIR const &ir, Block const &block)
     {
         // Remaining block base gas is zero for terminator instruction,
         // because there are no more instructions left in the block.
@@ -310,7 +312,9 @@ namespace
             emit.fallthrough();
             break;
         case JumpI:
-            emit.jumpi();
+            MONAD_COMPILER_DEBUG_ASSERT(
+                block.fallthrough_dest != INVALID_BLOCK_ID);
+            emit.jumpi(ir.blocks()[block.fallthrough_dest].offset);
             break;
         case Jump:
             emit.jump();
@@ -375,7 +379,7 @@ namespace
                 emit_gas_decrement(
                     emit, ir, block, base_gas, &accumulated_base_gas);
                 emit_instrs<rev>(emit, block, base_gas);
-                emit_terminator<rev>(emit, block);
+                emit_terminator<rev>(emit, ir, block);
             }
         }
         return emit.finish_contract(rt);

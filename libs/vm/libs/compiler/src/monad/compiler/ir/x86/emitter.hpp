@@ -493,7 +493,7 @@ namespace monad::compiler::native
 
         // Terminators invalidate emitter until `begin_new_block` is called.
         void jump();
-        void jumpi();
+        void jumpi(uint256_t const &fallthrough_offset);
         void fallthrough();
         void stop();
         void invalid_instruction();
@@ -523,10 +523,9 @@ namespace monad::compiler::native
         bool is_live(StackElemRef, std::tuple<LiveSet...> const &);
 
         bool block_prologue(basic_blocks::Block const &);
-        int32_t block_epilogue();
+        void adjust_by_stack_delta();
         void write_to_final_stack_offsets();
 
-        void discharge_deferred_comparison(DeferredComparison const &);
         void discharge_deferred_comparison(StackElem *, Comparison);
 
         asmjit::Label const &append_literal(Literal);
@@ -583,6 +582,7 @@ namespace monad::compiler::native
         void mov_avx_reg_to_general_reg(StackElemRef, int32_t preferred_offset);
         void mov_literal_to_general_reg(StackElemRef);
         void mov_stack_offset_to_general_reg(StackElemRef);
+        StackElem *revertible_mov_stack_offset_to_general_reg(StackElemRef);
 
         ////////// Private EVM instruction utilities //////////
 
@@ -620,10 +620,15 @@ namespace monad::compiler::native
         asmjit::Label const &jump_dest_label(uint256_t const &);
         void jump_literal_dest(uint256_t const &);
         template <typename... LiveSet>
-        Operand non_literal_jump_dest_operand(
+        std::pair<Operand, std::optional<StackElem *>>
+        non_literal_jump_dest_operand(
             StackElemRef const &, std::tuple<LiveSet...> const &);
-        void jump_non_literal_dest(Operand const &, int32_t stack_adjustment);
+        void jump_non_literal_dest(
+            StackElemRef, Operand const &, std::optional<StackElem *>);
         void conditional_jmp(asmjit::Label const &, Comparison);
+        Comparison jumpi_comparison(StackElemRef &&cond, StackElemRef dest);
+        void jumpi_spill_fallthrough_stack();
+        void jumpi_keep_fallthrough_stack();
 
         void read_context_address(int32_t offset);
         void read_context_word(int32_t offset);
@@ -732,6 +737,7 @@ namespace monad::compiler::native
         asmjit::Label error_label_;
         asmjit::Label jump_table_label_;
         Stack stack_;
+        bool keep_stack_in_next_block_;
         std::array<Gpq256, 3> gpq256_regs_;
         GeneralReg rcx_general_reg;
         uint8_t rcx_general_reg_index;

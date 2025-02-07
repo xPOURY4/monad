@@ -435,119 +435,77 @@ namespace
         ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
     }
 
-    basic_blocks::BasicBlocksIR
-    get_jumpi_ir(bool deferred_comparison, bool swap, bool dup)
+    basic_blocks::BasicBlocksIR get_jumpi_ir(
+        bool deferred_comparison, bool swap, bool dup,
+        bool jumpdest_fallthrough)
     {
+        std::vector<uint8_t> bytecode;
         if (deferred_comparison && swap) {
             if (dup) {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     DUP2,
-                     ISZERO,
-                     DUP2,
-                     SWAP2,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, DUP2, ISZERO, DUP2, SWAP2, JUMPI};
             }
             else {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     PUSH0,
-                     ISZERO,
-                     PUSH0,
-                     SWAP2,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, PUSH0, ISZERO, PUSH0, SWAP2, JUMPI};
             }
         }
-        if (deferred_comparison) {
+        else if (deferred_comparison) {
             if (dup) {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     DUP2,
-                     ISZERO,
-                     DUP2,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, DUP2, ISZERO, DUP2, JUMPI};
             }
             else {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     PUSH0,
-                     ISZERO,
-                     PUSH0,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, PUSH0, ISZERO, PUSH0, JUMPI};
             }
         }
-        if (swap) {
+        else if (swap) {
             if (dup) {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     DUP2,
-                     DUP2,
-                     SWAP2,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, DUP2, DUP2, SWAP2, JUMPI};
             }
             else {
-                return basic_blocks::BasicBlocksIR(
-                    {PUSH0,
-                     PUSH0,
-                     PUSH0,
-                     PUSH0,
-                     SWAP2,
-                     JUMPI,
-                     RETURN,
-                     JUMPDEST,
-                     REVERT});
+                bytecode = {PUSH0, PUSH0, PUSH0, PUSH0, SWAP2, JUMPI};
             }
         }
-        if (dup) {
-            return basic_blocks::BasicBlocksIR(
-                {PUSH0, PUSH0, DUP2, DUP2, JUMPI, RETURN, JUMPDEST, REVERT});
+        else if (dup) {
+            bytecode = {PUSH0, PUSH0, DUP2, DUP2, JUMPI};
         }
         else {
-            return basic_blocks::BasicBlocksIR(
-                {PUSH0, PUSH0, PUSH0, PUSH0, JUMPI, RETURN, JUMPDEST, REVERT});
+            bytecode = {PUSH0, PUSH0, PUSH0, PUSH0, JUMPI};
         }
+
+        if (jumpdest_fallthrough) {
+            bytecode.push_back(JUMPDEST);
+        }
+
+        bytecode.push_back(RETURN);
+        bytecode.push_back(JUMPDEST);
+        bytecode.push_back(REVERT);
+
+        return basic_blocks::BasicBlocksIR(std::move(bytecode));
     }
 
     void jumpi_test(
         Emitter::LocationType loc1, Emitter::LocationType loc2,
         Emitter::LocationType loc_cond, Emitter::LocationType loc_dest,
-        bool take_jump, bool deferred_comparison, bool swap, bool dup)
+        bool take_jump, bool deferred_comparison, bool swap, bool dup,
+        bool jumpdest_fallthrough)
     {
 #if 0
-        if (!take_jump || !deferred_comparison || !swap || !dup || loc1 != Emitter::LocationType::Literal || loc2 != Emitter::LocationType::Literal || loc_cond != Emitter::LocationType::Literal || loc_dest != Emitter::LocationType::StackOffset) {
+        if (!take_jump || deferred_comparison || swap || dup || !jumpdest_fallthrough || loc1 != Emitter::LocationType::GeneralReg || loc2 != Emitter::LocationType::GeneralReg || loc_cond != Emitter::LocationType::GeneralReg || loc_dest != Emitter::LocationType::StackOffset) {
             return;
         }
-#endif
-#if 0
         std::cout <<
-            std::format("LOC1 {}  and  LOC2 {}  and  LOC_COND {}  and  LOC_DEST {}",
+            std::format("LOC1 {}  and  LOC2 {}  and  LOC_COND {}  and  LOC_DEST {} and take_jump {} and deferred_comparison {} and swap {} and dup {}",
                     Emitter::location_type_to_string(loc1),
                     Emitter::location_type_to_string(loc2),
                     Emitter::location_type_to_string(loc_cond),
-                    Emitter::location_type_to_string(loc_dest)) << std::endl;
+                    Emitter::location_type_to_string(loc_dest),
+                    take_jump,
+                    deferred_comparison,
+                    swap,
+                    dup) << std::endl;
 #endif
 
-        auto ir = get_jumpi_ir(deferred_comparison, swap, dup);
+        auto ir =
+            get_jumpi_ir(deferred_comparison, swap, dup, jumpdest_fallthrough);
 
         asmjit::JitRuntime rt;
         Emitter emit{rt, ir.codesize};
@@ -557,7 +515,8 @@ namespace
         }
 
         uint256_t const cond = (take_jump + deferred_comparison) & 1;
-        uint256_t const dest = 6 + swap + deferred_comparison;
+        uint256_t const dest =
+            6 + swap + deferred_comparison + jumpdest_fallthrough;
 
         (void)emit.begin_new_block(ir.blocks()[0]);
 
@@ -600,7 +559,7 @@ namespace
         if (swap) {
             emit.swap(2);
         }
-        emit.jumpi();
+        emit.jumpi(ir.blocks()[1].offset);
 
         (void)emit.begin_new_block(ir.blocks()[1]);
         emit.return_();
@@ -2346,7 +2305,7 @@ TEST(Emitter, jumpi)
         for (auto loc2 : locs) {
             for (auto loc_cond : locs) {
                 for (auto loc_dest : locs) {
-                    for (int8_t i = 0; i < 16; ++i) {
+                    for (int8_t i = 0; i < 32; ++i) {
                         jumpi_test(
                             loc1,
                             loc2,
@@ -2355,7 +2314,8 @@ TEST(Emitter, jumpi)
                             i & 1,
                             i & 2,
                             i & 4,
-                            i & 8);
+                            i & 8,
+                            i & 16);
                     }
                 }
             }
@@ -2372,7 +2332,7 @@ TEST(Emitter, jumpi_bad_jumpdest)
     (void)emit.begin_new_block(ir.blocks()[0]);
     emit.push(1);
     emit.push(1);
-    emit.jumpi();
+    emit.jumpi(ir.blocks().at(1).offset);
 
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();

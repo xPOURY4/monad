@@ -16,6 +16,43 @@
 #include <utility>
 #include <vector>
 
+using namespace monad::compiler;
+
+namespace
+{
+    std::tuple<std::int32_t, std::int32_t, std::int32_t>
+    block_stack_deltas(basic_blocks::Block const &block)
+    {
+        std::int32_t min_delta = 0;
+        std::int32_t delta = 0;
+        std::int32_t max_delta = 0;
+
+        for (auto const &instr : block.instrs) {
+            delta -= instr.stack_args();
+            min_delta = std::min(delta, min_delta);
+
+            // We need to treat SWAP and DUP slightly differently to other
+            // instructions; they require that the minimum delta is adjusted to
+            // ensure a big enough input stack, but because they don't actually
+            // consume these elements, this change shouldn't be reflected in the
+            // net delta.
+            if (instr.opcode() == OpCode::Swap ||
+                instr.opcode() == OpCode::Dup) {
+                delta += instr.stack_args();
+            }
+
+            delta += instr.increases_stack();
+            max_delta = std::max(delta, max_delta);
+        }
+
+        delta -= static_cast<std::int32_t>(
+            basic_blocks::terminator_inputs(block.terminator));
+        min_delta = std::min(delta, min_delta);
+
+        return {min_delta, delta, max_delta};
+    }
+}
+
 namespace monad::compiler::native
 {
     bool operator==(Literal const &a, Literal const &b)
@@ -161,13 +198,18 @@ namespace monad::compiler::native
 
     void StackElem::insert_general_reg()
     {
-        MONAD_COMPILER_ASSERT(!general_reg_.has_value());
         auto x = stack_.free_general_regs_.top();
-        general_reg_ = x;
         stack_.free_general_regs_.pop();
+        insert_general_reg(x);
+    }
+
+    void StackElem::insert_general_reg(GeneralReg reg)
+    {
+        MONAD_COMPILER_ASSERT(!general_reg_.has_value());
         MONAD_COMPILER_ASSERT(
-            stack_.general_reg_stack_elems_[x.reg] == nullptr);
-        stack_.general_reg_stack_elems_[x.reg] = this;
+            stack_.general_reg_stack_elems_[reg.reg] == nullptr);
+        general_reg_ = reg;
+        stack_.general_reg_stack_elems_[reg.reg] = this;
     }
 
     void StackElem::free_avx_reg()
@@ -278,45 +320,58 @@ namespace monad::compiler::native
             GeneralRegQueue{ALL_GENERAL_REGS.begin(), ALL_GENERAL_REGS.end()};
         free_avx_regs_ = AvxRegQueue{ALL_AVX_REGS.begin(), ALL_AVX_REGS.end()};
         available_stack_offsets_.clear();
-        delta_ = 0;
-        max_delta_ = 0;
-        min_delta_ = 0;
         top_index_ = -1;
 
-        for (auto const &instr : block.instrs) {
-            delta_ -= instr.stack_args();
-            min_delta_ = std::min(delta_, min_delta_);
+        auto const [new_min_delta, new_delta, new_max_delta] =
+            block_stack_deltas(block);
 
-            // We need to treat SWAP and DUP slightly differently to other
-            // instructions; they require that the minimum delta is adjusted to
-            // ensure a big enough input stack, but because they don't actually
-            // consume these elements, this change shouldn't be reflected in the
-            // net delta.
-            if (instr.opcode() == OpCode::Swap ||
-                instr.opcode() == OpCode::Dup) {
-                delta_ += instr.stack_args();
-            }
-
-            delta_ += instr.increases_stack();
-            max_delta_ = std::max(delta_, max_delta_);
-        }
-
-        delta_ -= static_cast<std::int32_t>(
-            basic_blocks::terminator_inputs(block.terminator));
-        min_delta_ = std::min(delta_, min_delta_);
-
-        negative_elems_.reserve(static_cast<std::size_t>(-min_delta_));
-        for (auto i = -1; i >= min_delta_; --i) {
+        negative_elems_.reserve(static_cast<std::size_t>(-new_min_delta));
+        for (auto i = -1; i >= new_min_delta; --i) {
             StackElemRef e = new_stack_elem();
             e->stack_offset_ = StackOffset{i};
             e->stack_indices_.insert(i);
             negative_elems_.push_back(std::move(e));
         }
-        positive_elems_.resize(static_cast<std::size_t>(max_delta_));
+        positive_elems_.resize(static_cast<std::size_t>(new_max_delta));
         auto it = available_stack_offsets_.end();
-        for (auto i = 0; i < max_delta_; ++i) {
+        for (auto i = 0; i < new_max_delta; ++i) {
             it = available_stack_offsets_.insert(it, i);
         }
+
+        did_min_delta_decrease_ = new_min_delta < 0;
+        did_max_delta_increase_ = new_max_delta > 0;
+        min_delta_ = new_min_delta;
+        delta_ = new_delta;
+        max_delta_ = new_max_delta;
+    }
+
+    void Stack::continue_block(basic_blocks::Block const &block)
+    {
+        auto const [pre_min_delta, pre_delta, pre_max_delta] =
+            block_stack_deltas(block);
+        auto new_min_delta = std::min(delta_ + pre_min_delta, min_delta_);
+        auto new_delta = delta_ + pre_delta;
+        auto new_max_delta = std::max(delta_ + pre_max_delta, max_delta_);
+
+        negative_elems_.reserve(static_cast<std::size_t>(-new_min_delta));
+        for (auto i = min_delta_ - 1; i >= new_min_delta; --i) {
+            StackElemRef e = new_stack_elem();
+            e->stack_offset_ = StackOffset{i};
+            e->stack_indices_.insert(i);
+            negative_elems_.push_back(std::move(e));
+        }
+
+        positive_elems_.resize(static_cast<std::size_t>(new_max_delta));
+        auto it = available_stack_offsets_.end();
+        for (auto i = max_delta_; i < new_max_delta; ++i) {
+            it = available_stack_offsets_.insert(it, i);
+        }
+
+        did_min_delta_decrease_ = new_min_delta < min_delta_;
+        did_max_delta_increase_ = new_max_delta > max_delta_;
+        min_delta_ = new_min_delta;
+        delta_ = new_delta;
+        max_delta_ = new_max_delta;
     }
 
     StackElemRef Stack::new_stack_elem()
@@ -510,7 +565,7 @@ namespace monad::compiler::native
         return {*available_stack_offsets_.begin()};
     }
 
-    std::optional<StackOffset> Stack::spill_avx_reg()
+    StackElem *Stack::spill_avx_reg()
     {
         MONAD_COMPILER_ASSERT(free_avx_regs_.empty());
         for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
@@ -523,22 +578,22 @@ namespace monad::compiler::native
         MONAD_COMPILER_ASSERT(false);
     }
 
-    std::optional<StackOffset> Stack::spill_avx_reg(StackElemRef e)
+    StackElem *Stack::spill_avx_reg(StackElemRef e)
     {
         return spill_avx_reg(e.get());
     }
 
-    std::optional<StackOffset> Stack::spill_avx_reg(StackElem *e)
+    StackElem *Stack::spill_avx_reg(StackElem *e)
     {
         e->remove_avx_reg();
         if (e->stack_offset_.has_value() || e->general_reg_.has_value() ||
             e->literal_.has_value()) {
-            return std::nullopt;
+            return nullptr;
         }
         std::int32_t const preferred = e->preferred_stack_offset();
-        StackOffset offset = find_available_stack_offset(preferred);
+        StackOffset const offset = find_available_stack_offset(preferred);
         e->insert_stack_offset(offset);
-        return offset;
+        return e;
     }
 
     void Stack::spill_stack_offset(StackElemRef e)
@@ -557,7 +612,7 @@ namespace monad::compiler::native
         e->remove_literal();
     }
 
-    std::optional<StackOffset> Stack::spill_general_reg()
+    StackElem *Stack::spill_general_reg()
     {
         MONAD_COMPILER_ASSERT(free_general_regs_.empty());
         std::uint8_t best_index = 0;
@@ -588,22 +643,22 @@ namespace monad::compiler::native
         return spill_general_reg(general_reg_stack_elems_[best_index]);
     }
 
-    std::optional<StackOffset> Stack::spill_general_reg(StackElemRef e)
+    StackElem *Stack::spill_general_reg(StackElemRef e)
     {
         return spill_general_reg(e.get());
     }
 
-    std::optional<StackOffset> Stack::spill_general_reg(StackElem *e)
+    StackElem *Stack::spill_general_reg(StackElem *e)
     {
         e->remove_general_reg();
         if (e->stack_offset_.has_value() || e->avx_reg_.has_value() ||
             e->literal_.has_value()) {
-            return std::nullopt;
+            return nullptr;
         }
         std::int32_t const preferred = e->preferred_stack_offset();
-        StackOffset offset = find_available_stack_offset(preferred);
+        StackOffset const offset = find_available_stack_offset(preferred);
         e->insert_stack_offset(offset);
-        return offset;
+        return e;
     }
 
     std::vector<std::pair<GeneralReg, StackOffset>>
@@ -690,8 +745,10 @@ namespace monad::compiler::native
         if (e->avx_reg_.has_value()) {
             return {AvxRegReserv{e}, std::nullopt};
         }
+        StackElem *spill_elem =
+            free_avx_regs_.empty() ? spill_avx_reg() : nullptr;
         std::optional<StackOffset> const spill_offset =
-            free_avx_regs_.empty() ? spill_avx_reg() : std::nullopt;
+            spill_elem ? spill_elem->stack_offset_ : std::nullopt;
         e->insert_avx_reg();
         return {AvxRegReserv{e}, spill_offset};
     }
@@ -702,8 +759,10 @@ namespace monad::compiler::native
         if (e->general_reg_.has_value()) {
             return {GeneralRegReserv{e}, std::nullopt};
         }
+        StackElem *spill_elem =
+            free_general_regs_.empty() ? spill_general_reg() : nullptr;
         std::optional<StackOffset> const spill_offset =
-            free_general_regs_.empty() ? spill_general_reg() : std::nullopt;
+            spill_elem ? spill_elem->stack_offset_ : std::nullopt;
         e->insert_general_reg();
         return {GeneralRegReserv{e}, spill_offset};
     }
@@ -764,6 +823,20 @@ namespace monad::compiler::native
         elem->general_reg_ = std::nullopt;
         general_reg_stack_elems_[reg.reg] = dst.get();
         return dst;
+    }
+
+    void Stack::unsafe_move_general_reg(StackElem &src, StackElem &dst)
+    {
+        MONAD_COMPILER_ASSERT(src.general_reg_.has_value());
+        auto reg = *src.general_reg_;
+        src.remove_general_reg();
+        dst.insert_general_reg(reg);
+    }
+
+    void Stack::unsafe_remove_general_reg(StackElem &e)
+    {
+        MONAD_COMPILER_ASSERT(e.general_reg_.has_value());
+        e.remove_general_reg();
     }
 
     bool Stack::is_general_reg_on_stack(GeneralReg reg)

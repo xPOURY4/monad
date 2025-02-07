@@ -187,6 +187,7 @@ namespace monad::compiler::native
         void insert_stack_offset(StackOffset);
         void insert_avx_reg();
         void insert_general_reg();
+        void insert_general_reg(GeneralReg);
 
         void free_avx_reg();
         void free_general_reg();
@@ -357,9 +358,16 @@ namespace monad::compiler::native
         ~Stack();
 
         /**
-         * Prepare stack for code generation of the given block.
+         * Prepare stack for code generation of the given block
+         * with an initial stack state for the block.
          */
         void begin_new_block(basic_blocks::Block const &);
+
+        /**
+         * Prepare stack for code generation of the given block
+         * and adapt the current stack state for the block.
+         */
+        void continue_block(basic_blocks::Block const &);
 
         /**
          * Obtain a reference to an item on the stack. Negative indices
@@ -429,14 +437,19 @@ namespace monad::compiler::native
         DeferredComparison discharge_deferred_comparison();
 
         /**
-         * Whether there is a deferred comparison stack element.
+         * Get current deferred comparison. Same warning here as
+         * `discharge_deferred_comparison`.
          */
-        bool has_deferred_comparison() const;
+        DeferredComparison peek_deferred_comparison()
+        {
+            return deferred_comparison_;
+        }
 
         /**
-         * Whether there is a deferred comparison at the given stack index.
+         * Whether there is a deferred comparison stack element.
          */
         bool has_deferred_comparison_at(std::int32_t stack_index) const;
+        bool has_deferred_comparison() const;
 
         /**
          * Build a stack element with the given literal.
@@ -496,23 +509,38 @@ namespace monad::compiler::native
 
         /**
          * Find an AVX register from the stack and spill it by adding it to
-         * the set `free_avx_regs_`. It is assumed that `free_avx_regs_` is
-         * empty before calling this function.
-         * If the optional StackOffset has a value, then make sure
-         * to emit mov instruction from the AVX register to stack offset.
+         * the set `free_avx_regs_`.
+         * If a non-null stack element is returnen, then make sure to emit
+         * mov instruction from the spilled AVX register to the stack element's
+         * stack offset. The stack offset which is guaranteed to be a location
+         * of the stack element.
          */
         [[nodiscard]]
-        std::optional<StackOffset> spill_avx_reg();
+        StackElem *spill_avx_reg();
         [[nodiscard]]
-        std::optional<StackOffset> spill_avx_reg(StackElemRef);
+        StackElem *spill_avx_reg(StackElemRef);
         [[nodiscard]]
-        std::optional<StackOffset> spill_avx_reg(StackElem *);
+        StackElem *spill_avx_reg(StackElem *);
 
         /**
          * Remove general register from `elem` and return a new stack element
          * containing the general register.
          */
         StackElemRef release_general_reg(StackElemRef elem);
+
+        /**
+         * Move the general register in `src` to `dst`. Unsafe because
+         * it is assumed that `src` does not need to spill its value to another
+         * location, even if general register is the only location.
+         */
+        void unsafe_move_general_reg(StackElem &src, StackElem &dst);
+
+        /**
+         * Remove the general register in `src`. Unsafe because it is assumed
+         * that the `StackElem` does not need to spill its value to another
+         * location, even if general register is the only location.
+         */
+        void unsafe_remove_general_reg(StackElem &);
 
         /**
          * Remove stack offset location from the given stack element. It is
@@ -530,17 +558,18 @@ namespace monad::compiler::native
 
         /**
          * Find an general register from the stack and spill it by adding it to
-         * the set `free_general_regs_`. It is assumed that `free_general_regs_`
-         * is empty before calling this function.
-         * If the optional StackOffset has a value, then make sure
-         * to emit mov instruction from the general register to stack offset.
+         * the set `free_general_regs_`.
+         * If a non-null stack element is returnen, then make sure to emit mov
+         * instruction from the spilled general register to the stack element's
+         * stack offset. The stack offset which is guaranteed to be a location
+         * of the stack element.
          */
         [[nodiscard]]
-        std::optional<StackOffset> spill_general_reg();
+        StackElem *spill_general_reg();
         [[nodiscard]]
-        std::optional<StackOffset> spill_general_reg(StackElemRef);
+        StackElem *spill_general_reg(StackElemRef);
         [[nodiscard]]
-        std::optional<StackOffset> spill_general_reg(StackElem *);
+        StackElem *spill_general_reg(StackElem *);
 
         /**
          * Find a general register for the given stack element.
@@ -592,6 +621,12 @@ namespace monad::compiler::native
             return !free_avx_regs_.empty();
         }
 
+        /** Whether there is a free general register. */
+        bool has_free_general_reg()
+        {
+            return !free_general_regs_.empty();
+        }
+
         /** Whether the given general register is currently on the stack. */
         bool is_general_reg_on_stack(GeneralReg);
 
@@ -620,6 +655,24 @@ namespace monad::compiler::native
         std::int32_t delta() const
         {
             return delta_;
+        }
+
+        /**
+         * Whether `min_delta` decreased after last call to one of
+         * `begin_new_block` or `continue_block`.
+         */
+        bool did_min_delta_decrease() const
+        {
+            return did_min_delta_decrease_;
+        }
+
+        /**
+         * Whether `max_delta` increased after last call to one of
+         * `begin_new_block` or `continue_block`.
+         */
+        bool did_max_delta_increase() const
+        {
+            return did_max_delta_increase_;
         }
 
         /**
@@ -671,6 +724,8 @@ namespace monad::compiler::native
         std::int32_t min_delta_;
         std::int32_t max_delta_;
         std::int32_t delta_;
+        bool did_min_delta_decrease_;
+        bool did_max_delta_increase_;
         std::set<std::int32_t> available_stack_offsets_;
         AvxRegQueue free_avx_regs_;
         GeneralRegQueue free_general_regs_;

@@ -423,6 +423,7 @@ namespace monad::compiler::native
         , epilogue_label_{as_.newNamedLabel("ContractEpilogue")}
         , error_label_{as_.newNamedLabel("Error")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
+        , keep_stack_in_next_block_{}
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
         , rcx_general_reg{2}
         , rcx_general_reg_index{}
@@ -675,7 +676,12 @@ namespace monad::compiler::native
         if (is_debug_enabled()) {
             debug_comment(std::format("{}", b));
         }
-        stack_.begin_new_block(b);
+        if (keep_stack_in_next_block_) {
+            stack_.continue_block(b);
+        }
+        else {
+            stack_.begin_new_block(b);
+        }
         return block_prologue(b);
     }
 
@@ -776,12 +782,15 @@ namespace monad::compiler::native
 
     bool Emitter::block_prologue(basic_blocks::Block const &b)
     {
+        bool const keep_stack = keep_stack_in_next_block_;
+        keep_stack_in_next_block_ = false;
+
         auto it = jump_dests_.find(b.offset);
         if (it != jump_dests_.end()) {
             as_.bind(it->second);
         }
 
-        if (is_debug_enabled()) {
+        if (!keep_stack && is_debug_enabled()) {
             runtime_print_gas_remaining(
                 std::format("Block 0x{:02x}", b.offset));
         }
@@ -793,32 +802,27 @@ namespace monad::compiler::native
             return false;
         }
         auto const size_mem = x86::qword_ptr(x86::rsp, sp_offset_stack_size);
-        if (min_delta < 0) {
+        if (stack_.did_min_delta_decrease()) {
             as_.cmp(size_mem, -min_delta);
             as_.jb(error_label_);
         }
-        if (max_delta > 0) {
+        if (stack_.did_max_delta_increase()) {
             as_.cmp(size_mem, 1024 - max_delta);
             as_.ja(error_label_);
-        }
-        auto const delta = stack_.delta();
-        if (delta != 0) {
-            as_.add(size_mem, delta);
         }
         return true;
     }
 
-    int32_t Emitter::block_epilogue()
+    void Emitter::adjust_by_stack_delta()
     {
-        write_to_final_stack_offsets();
-        // Update stack pointer. Use `lea` to avoid updating eflags.
         auto const delta = stack_.delta();
         if (delta != 0) {
-            as_.lea(x86::rbp, ptr(x86::rbp, delta * 32));
+            as_.add(x86::qword_ptr(x86::rsp, sp_offset_stack_size), delta);
+            as_.add(x86::rbp, delta * 32);
         }
-        return -(delta * 32);
     }
 
+    // Does not update eflags
     void Emitter::write_to_final_stack_offsets()
     {
         // Write stack elements to their final stack offsets before
@@ -1481,11 +1485,35 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
         insert_general_reg(elem);
-        x86::Mem temp{stack_offset_to_mem(*elem->stack_offset())};
-        for (auto r : general_reg_to_gpq256(*elem->general_reg())) {
-            as_.mov(r, temp);
-            temp.addOffset(8);
+        mov_stack_offset_to_gpq256(
+            *elem->stack_offset(), general_reg_to_gpq256(*elem->general_reg()));
+    }
+
+    StackElem *
+    Emitter::revertible_mov_stack_offset_to_general_reg(StackElemRef elem)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
+        StackElem *spill_elem = stack_.has_free_general_reg()
+                                    ? nullptr
+                                    : stack_.spill_general_reg();
+
+        auto reg_elem = [this] {
+            auto [x, _, spill] = stack_.alloc_general_reg();
+            MONAD_COMPILER_DEBUG_ASSERT(!spill.has_value());
+            return x;
+        };
+        stack_.unsafe_move_general_reg(*reg_elem(), *elem);
+
+        if (spill_elem != nullptr) {
+            MONAD_COMPILER_DEBUG_ASSERT(spill_elem->stack_offset().has_value());
+            mov_general_reg_to_mem(
+                *elem->general_reg(),
+                stack_offset_to_mem(*spill_elem->stack_offset()));
         }
+        mov_stack_offset_to_gpq256(
+            *elem->stack_offset(), general_reg_to_gpq256(*elem->general_reg()));
+
+        return spill_elem;
     }
 
     ////////// EVM instructions //////////
@@ -2088,91 +2116,15 @@ namespace monad::compiler::native
         jump_stack_elem_dest(stack_.pop(), {});
     }
 
-    // Discharge
-    void Emitter::jumpi()
+    // Discharge indirectly with `jumpi_comparison`
+    void Emitter::jumpi(uint256_t const &fallthrough)
     {
-        auto dest = stack_.pop();
-        auto cond = stack_.pop();
-        if (cond->literal()) {
-            discharge_deferred_comparison();
-            if (cond->literal()->value == 0) {
-                // Clear to remove locations, if not on stack:
-                cond = nullptr;
-                dest = nullptr;
-                block_epilogue();
-                return;
-            }
-            else {
-                // Clear to remove locations, if not on stack:
-                cond = nullptr;
-                jump_stack_elem_dest(std::move(dest), {});
-                return;
-            }
-        }
-
-        auto dc = stack_.discharge_deferred_comparison();
-        if (dc.stack_elem && (dc.stack_elem == dest.get() ||
-                              !dc.stack_elem->stack_indices().empty())) {
-            discharge_deferred_comparison(dc.stack_elem, dc.comparison);
-        }
-        if (dc.negated_stack_elem &&
-            (dc.negated_stack_elem == dest.get() ||
-             !dc.negated_stack_elem->stack_indices().empty())) {
-            discharge_deferred_comparison(
-                dc.negated_stack_elem, negate_comparison(dc.comparison));
-        }
-
-        Comparison comp;
-        if (cond.get() == dc.stack_elem) {
-            comp = dc.comparison;
-        }
-        else if (cond.get() == dc.negated_stack_elem) {
-            comp = negate_comparison(dc.comparison);
+        MONAD_COMPILER_DEBUG_ASSERT(fallthrough <= bytecode_size_);
+        if (jump_dests_.count(static_cast<byte_offset>(fallthrough))) {
+            jumpi_spill_fallthrough_stack();
         }
         else {
-            comp = Comparison::NotEqual;
-            if (cond->stack_offset() && !cond->avx_reg()) {
-                mov_stack_offset_to_avx_reg(cond);
-            }
-            if (cond->avx_reg()) {
-                auto y = avx_reg_to_ymm(*cond->avx_reg());
-                as_.vptest(y, y);
-            }
-            else {
-                MONAD_COMPILER_DEBUG_ASSERT(cond->general_reg().has_value());
-                Gpq256 const &gpq = general_reg_to_gpq256(*cond->general_reg());
-                if (!is_live(cond, std::make_tuple(dest))) {
-                    as_.or_(gpq[1], gpq[0]);
-                    as_.or_(gpq[2], gpq[1]);
-                    as_.or_(gpq[3], gpq[2]);
-                }
-                else {
-                    as_.mov(x86::rax, gpq[0]);
-                    as_.or_(x86::rax, gpq[1]);
-                    as_.or_(x86::rax, gpq[2]);
-                    as_.or_(x86::rax, gpq[3]);
-                }
-            }
-        }
-
-        // Clear to remove locations, if not on stack:
-        cond = nullptr;
-
-        if (dest->literal()) {
-            auto lit = literal_jump_dest_operand(std::move(dest));
-            block_epilogue();
-            conditional_jmp(jump_dest_label(lit), comp);
-        }
-        else {
-            // Note that `cond` is not live here.
-            auto op = non_literal_jump_dest_operand(dest, {});
-            // Need to keep `dest` alive during block epilogue, to prevent
-            // using the stack offset potentially occupied by `dest`.
-            auto stack_adjustment = block_epilogue();
-            asmjit::Label const lbl = as_.newLabel();
-            conditional_jmp(lbl, negate_comparison(comp));
-            jump_non_literal_dest(op, stack_adjustment);
-            as_.bind(lbl);
+            jumpi_keep_fallthrough_stack();
         }
     }
 
@@ -2180,7 +2132,8 @@ namespace monad::compiler::native
     void Emitter::fallthrough()
     {
         discharge_deferred_comparison();
-        block_epilogue();
+        write_to_final_stack_offsets();
+        adjust_by_stack_delta();
     }
 
     // No discharge
@@ -2245,15 +2198,15 @@ namespace monad::compiler::native
     {
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
-            block_epilogue();
+            write_to_final_stack_offsets();
+            adjust_by_stack_delta();
             jump_literal_dest(lit);
         }
         else {
-            auto op = non_literal_jump_dest_operand(dest, live);
-            // Need to keep `dest` alive during block epilogue, to prevent
-            // using the stack offset, optionally occupied by `dest`.
-            auto stack_adjustment = block_epilogue();
-            jump_non_literal_dest(op, stack_adjustment);
+            auto [op, spill_elem] = non_literal_jump_dest_operand(dest, live);
+            write_to_final_stack_offsets();
+            adjust_by_stack_delta();
+            jump_non_literal_dest(dest, op, spill_elem);
         }
     }
 
@@ -2284,53 +2237,58 @@ namespace monad::compiler::native
     }
 
     template <typename... LiveSet>
-    Emitter::Operand Emitter::non_literal_jump_dest_operand(
+    std::pair<Emitter::Operand, std::optional<StackElem *>>
+    Emitter::non_literal_jump_dest_operand(
         StackElemRef const &dest, std::tuple<LiveSet...> const &live)
     {
         Operand op;
+        std::optional<StackElem *> spill_elem;
         if (dest->stack_offset()) {
             if (is_live(dest, live)) {
                 if (!dest->general_reg()) {
-                    mov_stack_offset_to_general_reg(dest);
+                    spill_elem =
+                        revertible_mov_stack_offset_to_general_reg(dest);
                 }
             }
             else if (dest->stack_offset()->offset <= stack_.top_index()) {
                 if (!dest->general_reg()) {
-                    mov_stack_offset_to_general_reg(dest);
+                    spill_elem =
+                        revertible_mov_stack_offset_to_general_reg(dest);
                 }
-                stack_.spill_stack_offset(dest);
             }
-            else if (!dest->general_reg()) {
+            else {
                 op = stack_offset_to_mem(*dest->stack_offset());
             }
         }
         if (dest->general_reg()) {
-            return general_reg_to_gpq256(*dest->general_reg());
+            op = general_reg_to_gpq256(*dest->general_reg());
         }
-        if (!dest->stack_offset()) {
+        else if (!dest->stack_offset()) {
             MONAD_COMPILER_DEBUG_ASSERT(dest->avx_reg().has_value());
-            auto const &available = stack_.available_stack_offsets();
-            auto const upper = available.upper_bound(stack_.top_index());
-            if (upper != available.end()) {
-                int32_t const i = *upper;
-                mov_avx_reg_to_stack_offset(dest, i);
-                MONAD_COMPILER_ASSERT(dest->stack_offset()->offset == i);
-                op = stack_offset_to_mem(StackOffset{i});
-            }
-            else {
-                x86::Mem const m = x86::qword_ptr(x86::rsp, -32);
-                mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
-                op = m;
-            }
+            x86::Mem const m = x86::qword_ptr(x86::rsp, -32);
+            mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
+            op = m;
         }
-        return op;
+        return {op, spill_elem};
     }
 
     void Emitter::jump_non_literal_dest(
-        Operand const &dest, int32_t stack_adjustment)
+        StackElemRef dest, Operand const &dest_op,
+        std::optional<StackElem *> spill_elem)
     {
-        if (std::holds_alternative<Gpq256>(dest)) {
-            Gpq256 const &gpq = std::get<Gpq256>(dest);
+        if (spill_elem.has_value()) {
+            // Restore `stack_` back to the state before calling
+            // `non_literal_jump_dest_operand`.
+            auto *e = *spill_elem;
+            if (e != nullptr) {
+                stack_.unsafe_move_general_reg(*dest, *e);
+            }
+            else {
+                stack_.unsafe_remove_general_reg(*dest);
+            }
+        }
+        if (std::holds_alternative<Gpq256>(dest_op)) {
+            Gpq256 const &gpq = std::get<Gpq256>(dest_op);
             as_.cmp(gpq[0], bytecode_size_);
             as_.sbb(gpq[1], 0);
             as_.sbb(gpq[2], 0);
@@ -2340,10 +2298,13 @@ namespace monad::compiler::native
             as_.jmp(x86::ptr(x86::rax, gpq[0], 3));
         }
         else {
-            MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Mem>(dest));
-            x86::Mem m = std::get<x86::Mem>(dest);
+            MONAD_COMPILER_DEBUG_ASSERT(
+                std::holds_alternative<x86::Mem>(dest_op));
+            x86::Mem m = std::get<x86::Mem>(dest_op);
             if (m.baseReg() == x86::rbp) {
-                m.addOffset(stack_adjustment);
+                // Since `adjust_by_stack_delta` has been called before this
+                // function, we need to adjust when accessing EVM stack memory.
+                m.addOffset(-(stack_.delta() * 32));
             }
             // Register rcx is available, because `block_prologue` has
             // already written stack elements to their final stack offsets.
@@ -2393,6 +2354,123 @@ namespace monad::compiler::native
             as_.jne(lbl);
             break;
         }
+    }
+
+    Comparison Emitter::jumpi_comparison(StackElemRef &&cond, StackElemRef dest)
+    {
+        auto dc = stack_.discharge_deferred_comparison();
+        if (dc.stack_elem && (dc.stack_elem == dest.get() ||
+                              !dc.stack_elem->stack_indices().empty())) {
+            discharge_deferred_comparison(dc.stack_elem, dc.comparison);
+        }
+        if (dc.negated_stack_elem &&
+            (dc.negated_stack_elem == dest.get() ||
+             !dc.negated_stack_elem->stack_indices().empty())) {
+            discharge_deferred_comparison(
+                dc.negated_stack_elem, negate_comparison(dc.comparison));
+        }
+
+        Comparison comp;
+        if (cond.get() == dc.stack_elem) {
+            comp = dc.comparison;
+        }
+        else if (cond.get() == dc.negated_stack_elem) {
+            comp = negate_comparison(dc.comparison);
+        }
+        else {
+            comp = Comparison::NotEqual;
+            if (cond->stack_offset() && !cond->avx_reg()) {
+                mov_stack_offset_to_avx_reg(cond);
+            }
+            if (cond->avx_reg()) {
+                auto y = avx_reg_to_ymm(*cond->avx_reg());
+                as_.vptest(y, y);
+            }
+            else {
+                MONAD_COMPILER_DEBUG_ASSERT(cond->general_reg().has_value());
+                Gpq256 const &gpq = general_reg_to_gpq256(*cond->general_reg());
+                if (!is_live(cond, std::make_tuple(dest))) {
+                    as_.or_(gpq[1], gpq[0]);
+                    as_.or_(gpq[2], gpq[1]);
+                    as_.or_(gpq[3], gpq[2]);
+                }
+                else {
+                    as_.mov(x86::rax, gpq[0]);
+                    as_.or_(x86::rax, gpq[1]);
+                    as_.or_(x86::rax, gpq[2]);
+                    as_.or_(x86::rax, gpq[3]);
+                }
+            }
+        }
+        return comp;
+    }
+
+    void Emitter::jumpi_spill_fallthrough_stack()
+    {
+        auto dest = stack_.pop();
+        auto cond = stack_.pop();
+        if (cond->literal()) {
+            discharge_deferred_comparison();
+            if (cond->literal()->value == 0) {
+                // Clear to remove locations, if not on stack:
+                cond = nullptr;
+                dest = nullptr;
+                write_to_final_stack_offsets();
+                adjust_by_stack_delta();
+            }
+            else {
+                // Clear to remove locations, if not on stack:
+                cond = nullptr;
+                jump_stack_elem_dest(std::move(dest), {});
+            }
+            return;
+        }
+
+        Comparison const comp = jumpi_comparison(std::move(cond), dest);
+
+        auto fallthrough_lbl = as_.newLabel();
+        if (dest->literal()) {
+            auto lit = literal_jump_dest_operand(std::move(dest));
+            write_to_final_stack_offsets();
+            conditional_jmp(fallthrough_lbl, negate_comparison(comp));
+            adjust_by_stack_delta();
+            as_.jmp(jump_dest_label(lit));
+        }
+        else {
+            // Note that `cond` is not live here.
+            auto [op, spill_elem] = non_literal_jump_dest_operand(dest, {});
+            write_to_final_stack_offsets();
+            conditional_jmp(fallthrough_lbl, negate_comparison(comp));
+            adjust_by_stack_delta();
+            jump_non_literal_dest(dest, op, spill_elem);
+        }
+
+        as_.bind(fallthrough_lbl);
+        adjust_by_stack_delta();
+    }
+
+    void Emitter::jumpi_keep_fallthrough_stack()
+    {
+        keep_stack_in_next_block_ = true;
+
+        auto dest = stack_.pop();
+        auto cond = stack_.pop();
+
+        if (cond->literal()) {
+            if (cond->literal()->value != 0) {
+                discharge_deferred_comparison();
+                // Clear to remove locations, if not on stack:
+                cond = nullptr;
+                jump_stack_elem_dest(std::move(dest), {});
+            }
+            return;
+        }
+
+        asmjit::Label const fallthrough_lbl = as_.newLabel();
+        Comparison const comp = jumpi_comparison(std::move(cond), dest);
+        conditional_jmp(fallthrough_lbl, negate_comparison(comp));
+        jump_stack_elem_dest(std::move(dest), {});
+        as_.bind(fallthrough_lbl);
     }
 
     void Emitter::read_context_address(int32_t offset)
