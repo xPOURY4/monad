@@ -1,6 +1,7 @@
 add_library(monad-fuzzing STATIC)
 
 target_sources(monad-fuzzing PRIVATE
+  "src/monad/fuzzing/generator/choice.hpp"
   "src/monad/fuzzing/generator/generator.cpp"
   "src/monad/fuzzing/generator/generator.hpp"
 )
@@ -13,4 +14,5 @@ target_include_directories(monad-fuzzing
 
 target_link_libraries(monad-fuzzing
   PUBLIC monad-compiler
+  PUBLIC utils
 )
