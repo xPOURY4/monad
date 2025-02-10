@@ -448,9 +448,9 @@ namespace monad::compiler::native
             as_.align(asmjit::AlignMode::kCode, 16);
             as_.bind(lbl);
             as_.xor_(rpq[0], rpq[0]);
-            as_.mov(rpq[1], rpq[0]);
-            as_.mov(rpq[2], rpq[0]);
-            as_.mov(rpq[3], rpq[0]);
+            as_.xor_(rpq[1], rpq[1]);
+            as_.xor_(rpq[2], rpq[2]);
+            as_.xor_(rpq[3], rpq[3]);
             as_.jmp(back);
         }
 
@@ -1458,21 +1458,14 @@ namespace monad::compiler::native
         insert_general_reg(elem);
         auto const &rs = general_reg_to_gpq256(*elem->general_reg());
         auto lit = *elem->literal();
-        x86::Gpq const *zero_reg = nullptr;
         for (size_t i = 0; i < 4; ++i) {
             auto const &r = rs[i];
             if (lit.value[i] == 0) {
-                if (zero_reg) {
-                    as_.mov(r, *zero_reg);
+                if (!stack_.has_deferred_comparison()) {
+                    as_.xor_(r, r);
                 }
                 else {
-                    if (!stack_.has_deferred_comparison()) {
-                        as_.xor_(r, r);
-                    }
-                    else {
-                        as_.mov(r, 0);
-                    }
-                    zero_reg = &r;
+                    as_.mov(r, 0);
                 }
             }
             else {
@@ -1988,8 +1981,8 @@ namespace monad::compiler::native
             gpq[0], x86::qword_ptr(reg_context, context_offset_gas_remaining));
         as_.add(gpq[0], remaining_base_gas);
         as_.xor_(gpq[1], gpq[1]);
-        as_.mov(gpq[2], gpq[1]);
-        as_.mov(gpq[3], gpq[1]);
+        as_.xor_(gpq[2], gpq[2]);
+        as_.xor_(gpq[3], gpq[3]);
         stack_.push(std::move(dst));
     }
 
@@ -2527,12 +2520,14 @@ namespace monad::compiler::native
         as_.mov(gpq[0].r32(), x86::dword_ptr(reg_context, offset));
         if (stack_.has_deferred_comparison()) {
             as_.mov(gpq[1], 0);
+            as_.mov(gpq[2], 0);
+            as_.mov(gpq[3], 0);
         }
         else {
             as_.xor_(gpq[1], gpq[1]);
+            as_.xor_(gpq[2], gpq[2]);
+            as_.xor_(gpq[3], gpq[3]);
         }
-        as_.mov(gpq[2], gpq[1]);
-        as_.mov(gpq[3], gpq[1]);
         stack_.push(std::move(dst));
     }
 
@@ -2543,12 +2538,14 @@ namespace monad::compiler::native
         as_.mov(gpq[0], x86::qword_ptr(reg_context, offset));
         if (stack_.has_deferred_comparison()) {
             as_.mov(gpq[1], 0);
+            as_.mov(gpq[2], 0);
+            as_.mov(gpq[3], 0);
         }
         else {
             as_.xor_(gpq[1], gpq[1]);
+            as_.xor_(gpq[2], gpq[2]);
+            as_.xor_(gpq[3], gpq[3]);
         }
-        as_.mov(gpq[2], gpq[1]);
-        as_.mov(gpq[3], gpq[1]);
         stack_.push(std::move(dst));
     }
 
@@ -2604,9 +2601,9 @@ namespace monad::compiler::native
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
 
         as_.xor_(gpq[0], gpq[0]);
-        as_.mov(gpq[1], gpq[0]);
-        as_.mov(gpq[2], gpq[0]);
-        as_.mov(gpq[3], gpq[0]);
+        as_.xor_(gpq[1], gpq[1]);
+        as_.xor_(gpq[2], gpq[2]);
+        as_.xor_(gpq[3], gpq[3]);
         auto m = stack_offset_to_mem(src);
         m.addOffset(i);
         as_.mov(gpq[0].r8Lo(), m);
@@ -2623,8 +2620,8 @@ namespace monad::compiler::native
 
         as_.mov(dst_gpq[0], 31);
         as_.xor_(dst_gpq[1], dst_gpq[1]);
-        as_.mov(dst_gpq[2], dst_gpq[1]);
-        as_.mov(dst_gpq[3], dst_gpq[1]);
+        as_.xor_(dst_gpq[2], dst_gpq[2]);
+        as_.xor_(dst_gpq[3], dst_gpq[3]);
         if (ix->general_reg()) {
             Gpq256 const &ix_gpq = general_reg_to_gpq256(*ix->general_reg());
             as_.sub(dst_gpq[0], ix_gpq[0]);
@@ -2818,15 +2815,30 @@ namespace monad::compiler::native
 
     template <Emitter::ShiftType shift_type, typename... LiveSet>
     void Emitter::setup_shift_stack(
-        StackElemRef value, std::tuple<LiveSet...> const &live)
+        StackElemRef value, int32_t additional_byte_count,
+        std::tuple<LiveSet...> const &live)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(additional_byte_count <= 32);
+
         if constexpr (shift_type == ShiftType::SHL) {
-            mov_literal_to_unaligned_mem(Literal{0}, qword_ptr(x86::rsp, -64));
+            if (additional_byte_count <= 8) {
+                as_.mov(qword_ptr(x86::rsp, -40), 0);
+            }
+            else {
+                mov_literal_to_unaligned_mem(
+                    Literal{0}, qword_ptr(x86::rsp, -64));
+            }
             mov_stack_elem_to_unaligned_mem(value, qword_ptr(x86::rsp, -32));
         }
         else if constexpr (shift_type == ShiftType::SHR) {
             mov_stack_elem_to_unaligned_mem(value, qword_ptr(x86::rsp, -64));
-            mov_literal_to_unaligned_mem(Literal{0}, qword_ptr(x86::rsp, -32));
+            if (additional_byte_count <= 8) {
+                as_.mov(qword_ptr(x86::rsp, -32), 0);
+            }
+            else {
+                mov_literal_to_unaligned_mem(
+                    Literal{0}, qword_ptr(x86::rsp, -32));
+            }
         }
         else {
             static_assert(shift_type == ShiftType::SAR);
@@ -2845,10 +2857,11 @@ namespace monad::compiler::native
                 as_.mov(reg, qword_ptr(x86::rsp, -40));
             }
             as_.sar(reg, 63);
-            as_.mov(qword_ptr(x86::rsp, -32), reg);
-            as_.mov(qword_ptr(x86::rsp, -24), reg);
-            as_.mov(qword_ptr(x86::rsp, -16), reg);
-            as_.mov(qword_ptr(x86::rsp, -8), reg);
+            auto temp = x86::qword_ptr(x86::rsp, -32);
+            for (uint8_t i = 0; i < additional_byte_count; i += 8) {
+                as_.mov(temp, reg);
+                temp.addOffset(8);
+            }
         }
     }
 
@@ -2876,31 +2889,55 @@ namespace monad::compiler::native
         int32_t const d = s >> 3;
 
         if (d > 0) {
-            setup_shift_stack<shift_type>(std::move(value), live);
+            setup_shift_stack<shift_type>(std::move(value), d, live);
         }
 
-        auto [dst, dst_reserv] =
-            [&] -> std::pair<StackElemRef, GeneralRegReserv> {
+        // We do not need the register reservation for `dst`, because
+        // we do not allocate any registers below.
+        auto dst = [&] {
             if (d > 0) {
-                return alloc_general_reg();
-            }
-            else {
-                if (!is_live(value, live) && value->general_reg()) {
-                    auto r = stack_.release_general_reg(std::move(value));
-                    return {r, GeneralRegReserv{r}};
+                if (c > 0) {
+                    auto [r, _] = alloc_general_reg();
+                    return r;
                 }
                 else {
-                    auto [r, reserv] = alloc_general_reg();
+                    auto [r, _] = alloc_avx_reg();
+                    return r;
+                }
+            }
+            else {
+                MONAD_COMPILER_DEBUG_ASSERT(c > 0);
+                if (!is_live(value, live) && value->general_reg()) {
+                    auto r = stack_.release_general_reg(std::move(value));
+                    return r;
+                }
+                else {
+                    auto [r, _] = alloc_general_reg();
                     mov_stack_elem_to_gpq256(
                         std::move(value),
                         general_reg_to_gpq256(*r->general_reg()));
-                    return {r, reserv};
+                    return r;
                 }
             }
         }();
 
-        Gpq256 const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
+        if (c == 0) {
+            MONAD_COMPILER_DEBUG_ASSERT(d > 0);
+            MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
+            x86::Ymm const dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
+            if constexpr (shift_type == ShiftType::SHL) {
+                as_.vmovups(dst_ymm, x86::byte_ptr(x86::rsp, -32 - d));
+            }
+            else {
+                as_.vmovups(dst_ymm, x86::qword_ptr(x86::rsp, d - 64));
+            }
+            stack_.push(std::move(dst));
+            return;
+        }
 
+        MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg().has_value());
+
+        Gpq256 const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
         if constexpr (shift_type == ShiftType::SHL) {
             if (d > 0) {
                 as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, -8 - d));
@@ -2908,12 +2945,10 @@ namespace monad::compiler::native
                 as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, -24 - d));
                 as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, -32 - d));
             }
-            if (c > 0) {
-                as_.shld(dst_gpq[3], dst_gpq[2], c);
-                as_.shld(dst_gpq[2], dst_gpq[1], c);
-                as_.shld(dst_gpq[1], dst_gpq[0], c);
-                as_.shl(dst_gpq[0], c);
-            }
+            as_.shld(dst_gpq[3], dst_gpq[2], c);
+            as_.shld(dst_gpq[2], dst_gpq[1], c);
+            as_.shld(dst_gpq[1], dst_gpq[0], c);
+            as_.shl(dst_gpq[0], c);
         }
         else {
             if (d > 0) {
@@ -2922,17 +2957,15 @@ namespace monad::compiler::native
                 as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, d - 56));
                 as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, d - 64));
             }
-            if (c > 0) {
-                as_.shrd(dst_gpq[0], dst_gpq[1], c);
-                as_.shrd(dst_gpq[1], dst_gpq[2], c);
-                as_.shrd(dst_gpq[2], dst_gpq[3], c);
-                if constexpr (shift_type == ShiftType::SHR) {
-                    as_.shr(dst_gpq[3], c);
-                }
-                else {
-                    static_assert(shift_type == ShiftType::SAR);
-                    as_.sar(dst_gpq[3], c);
-                }
+            as_.shrd(dst_gpq[0], dst_gpq[1], c);
+            as_.shrd(dst_gpq[1], dst_gpq[2], c);
+            as_.shrd(dst_gpq[2], dst_gpq[3], c);
+            if constexpr (shift_type == ShiftType::SHR) {
+                as_.shr(dst_gpq[3], c);
+            }
+            else {
+                static_assert(shift_type == ShiftType::SAR);
+                as_.sar(dst_gpq[3], c);
             }
         }
 
@@ -2959,7 +2992,7 @@ namespace monad::compiler::native
         }
 
         setup_shift_stack<shift_type>(
-            std::move(value), std::tuple_cat(std::make_tuple(shift), live));
+            std::move(value), 32, std::tuple_cat(std::make_tuple(shift), live));
 
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
@@ -3084,12 +3117,13 @@ namespace monad::compiler::native
         stack_.push(std::move(dst));
     }
 
-    template <bool commutative>
+    template <bool commutative, typename... LiveSet>
     std::tuple<
         StackElemRef, Emitter::LocationType, StackElemRef,
         Emitter::LocationType>
     Emitter::prepare_general_dest_and_source(
-        StackElemRef dst, std::optional<int32_t> dst_ix, StackElemRef src)
+        StackElemRef dst, std::optional<int32_t> dst_ix, StackElemRef src,
+        std::tuple<LiveSet...> const &live)
     {
         RegReserv const dst_reserv{dst};
         RegReserv const src_reserv{src};
@@ -3119,7 +3153,7 @@ namespace monad::compiler::native
                 LocationType::GeneralReg};
         }
 
-        if (dst_ix && dst->stack_offset()) {
+        if (dst_ix && dst->stack_offset() && !is_live(dst, live)) {
             if (src->general_reg()) {
                 return {
                     std::move(dst),
@@ -3135,6 +3169,7 @@ namespace monad::compiler::native
                     LocationType::Literal};
             }
         }
+
         if (dst->general_reg()) {
             if (src->general_reg()) {
                 return {
@@ -3157,6 +3192,27 @@ namespace monad::compiler::native
                     std::move(src),
                     LocationType::Literal};
             }
+        }
+
+        if (dst->stack_offset()) {
+            if (src->general_reg()) {
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
+            if (src->literal() && is_literal_bounded(*src->literal())) {
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::Literal};
+            }
+        }
+
+        if (dst->general_reg()) {
+            MONAD_COMPILER_DEBUG_ASSERT(src->avx_reg().has_value());
             mov_avx_reg_to_stack_offset(src);
             return {
                 std::move(dst),
@@ -3164,6 +3220,9 @@ namespace monad::compiler::native
                 std::move(src),
                 LocationType::StackOffset};
         }
+
+        MONAD_COMPILER_DEBUG_ASSERT(!dst->general_reg().has_value());
+
         if (!dst->stack_offset()) {
             if (dst->literal()) {
                 mov_literal_to_general_reg(dst);
@@ -3205,6 +3264,7 @@ namespace monad::compiler::native
                 // fall through
             }
         }
+
         if (src->general_reg()) {
             return {
                 std::move(dst),
@@ -3220,27 +3280,50 @@ namespace monad::compiler::native
                 LocationType::Literal};
         }
         if (src->stack_offset()) {
-            mov_stack_offset_to_general_reg(src);
-            return {
-                std::move(dst),
-                LocationType::StackOffset,
-                std::move(src),
-                LocationType::GeneralReg};
+            if (is_live(dst, live) || !is_live(src, live)) {
+                mov_stack_offset_to_general_reg(dst);
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::StackOffset};
+            }
+            else {
+                mov_stack_offset_to_general_reg(src);
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
         }
+
         if (src->literal()) {
-            mov_literal_to_general_reg(src);
-            return {
-                std::move(dst),
-                LocationType::StackOffset,
-                std::move(src),
-                LocationType::GeneralReg};
+            if (is_live(dst, live) || !is_live(src, live)) {
+                mov_stack_offset_to_general_reg(dst);
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::Literal};
+            }
+            else {
+                mov_literal_to_general_reg(src);
+                return {
+                    std::move(dst),
+                    LocationType::StackOffset,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
         }
-        mov_avx_reg_to_general_reg(src);
+
+        mov_stack_offset_to_general_reg(dst);
+        mov_avx_reg_to_stack_offset(src);
         return {
             std::move(dst),
-            LocationType::StackOffset,
+            LocationType::GeneralReg,
             std::move(src),
-            LocationType::GeneralReg};
+            LocationType::StackOffset};
     }
 
     template <bool commutative, typename... LiveSet>
@@ -3253,7 +3336,7 @@ namespace monad::compiler::native
     {
         auto [dst, dst_loc, src, src_loc] =
             prepare_general_dest_and_source<commutative>(
-                std::move(dst_in), dst_ix, std::move(src_in));
+                std::move(dst_in), dst_ix, std::move(src_in), live);
         RegReserv const dst_reserv{dst};
         RegReserv const src_reserv{src};
 
@@ -3506,7 +3589,7 @@ namespace monad::compiler::native
             [&, this](StackElemRef &d, StackElemRef &s) -> OptResult {
             if (d->stack_offset()) {
                 if (s->stack_offset()) {
-                    if (is_live(d, live)) {
+                    if (is_live(s, live)) {
                         mov_stack_offset_to_avx_reg(s);
                         return priority_1(s, d);
                     }
@@ -3514,7 +3597,7 @@ namespace monad::compiler::native
                     return priority_1(d, s);
                 }
                 if (s->literal()) {
-                    if (is_live(d, live)) {
+                    if (is_live(s, live)) {
                         mov_literal_to_avx_reg(s);
                         return priority_1(s, d);
                     }

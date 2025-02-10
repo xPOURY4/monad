@@ -666,7 +666,9 @@ namespace monad::compiler::native
             StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
         template <ShiftType shift_type, typename... LiveSet>
-        void setup_shift_stack(StackElemRef, std::tuple<LiveSet...> const &);
+        void setup_shift_stack(
+            StackElemRef, int32_t additional_byte_count,
+            std::tuple<LiveSet...> const &);
 
         template <ShiftType shift_type, typename... LiveSet>
         void shift_by_literal(
@@ -676,11 +678,11 @@ namespace monad::compiler::native
         void shift_by_general_reg_or_stack_offset(
             StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
-        template <bool commutative>
+        template <bool commutative, typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         prepare_general_dest_and_source(
             StackElemRef dst, std::optional<int32_t> dst_stack_index,
-            StackElemRef src);
+            StackElemRef src, std::tuple<LiveSet...> const &);
 
         template <bool commutative, typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
