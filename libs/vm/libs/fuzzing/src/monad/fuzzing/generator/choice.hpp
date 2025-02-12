@@ -57,4 +57,26 @@ namespace monad::fuzzing
         MONAD_COMPILER_DEBUG_ASSERT(result.has_value());
         return *result;
     }
+
+    template <typename Engine, typename Action>
+    void
+    with_probability(Engine &eng, double const probability, Action &&action)
+    {
+        auto dist = std::uniform_real_distribution<double>(0.0, 1.0);
+        auto const cutoff = dist(eng);
+
+        if (probability >= cutoff) {
+            std::forward<Action>(action)(eng);
+        }
+    }
+
+    template <typename Engine, typename Container>
+    Container::value_type const &
+    uniform_sample(Engine &eng, Container const &in)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!in.empty());
+        auto dist =
+            std::uniform_int_distribution<std::size_t>(0, in.size() - 1);
+        return in[dist(eng)];
+    }
 }

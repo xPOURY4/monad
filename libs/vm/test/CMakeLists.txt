@@ -21,6 +21,7 @@ add_executable(unit-tests
     type_check_tests.cpp
     stack_tests.cpp
     emitter_tests.cpp
+    fuzzing_tests.cpp
     runtime/fixture.cpp
     runtime/transmute_tests.cpp
     runtime/math_tests.cpp
@@ -42,6 +43,7 @@ monad_compile_options(unit-tests)
 target_link_libraries(unit-tests
     monad-compiler
     monad-compiler-vm
+    monad-fuzzing
     utils
     GTest::gtest_main
     evmc::mocked_host

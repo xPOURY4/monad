@@ -1,0 +1,23 @@
+#include <monad/compiler/ir/basic_blocks.hpp>
+#include <monad/fuzzing/generator/generator.hpp>
+
+#include <gtest/gtest.h>
+
+#include <format>
+#include <iostream>
+
+using namespace monad::fuzzing;
+using namespace monad::compiler::basic_blocks;
+
+TEST(FuzzTest, Demo)
+{
+    auto p = generate_program();
+    auto bb = BasicBlocksIR(p);
+
+    std::cout << std::format("{}\n", bb);
+
+    for (auto b : p) {
+        std::cout << std::format("{:02X}", b);
+    }
+    std::cout << '\n';
+}
