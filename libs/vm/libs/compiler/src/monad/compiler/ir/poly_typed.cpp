@@ -19,6 +19,8 @@
 using namespace monad::compiler;
 using namespace monad::compiler::poly_typed;
 
+using monad::utils::Cases;
+
 namespace
 {
     struct TypeError

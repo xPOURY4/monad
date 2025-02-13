@@ -38,6 +38,8 @@
 namespace runtime = monad::runtime;
 namespace x86 = asmjit::x86;
 
+using monad::utils::Cases;
+
 static_assert(ASMJIT_ARCH_X86 == 64);
 
 constexpr auto reg_context = x86::rbx;

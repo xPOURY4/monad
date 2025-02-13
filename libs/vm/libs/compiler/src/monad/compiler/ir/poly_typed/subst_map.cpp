@@ -110,6 +110,8 @@ namespace monad::compiler::poly_typed
 
     Kind SubstMap::subst(Kind kind, size_t depth, size_t &ticks)
     {
+        using monad::utils::Cases;
+
         increment_kind_depth(depth, 1);
 
         while (std::holds_alternative<KindVar>(*kind)) {

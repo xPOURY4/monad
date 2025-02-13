@@ -26,6 +26,8 @@ namespace
         SubstMap &su, VarName var, bool is_kind_var, Kind kind, size_t depth,
         size_t &ticks)
     {
+        using monad::utils::Cases;
+
         increment_kind_depth(depth, 1);
         while (std::holds_alternative<KindVar>(*kind)) {
             auto new_k = su.get_kind(std::get<KindVar>(*kind).var);
@@ -216,6 +218,8 @@ namespace
 
     void unify(SubstMap &su, Kind k1, Kind k2, size_t depth, size_t &ticks)
     {
+        using monad::utils::Cases;
+
         increment_kind_depth(depth, 1);
         while (std::holds_alternative<KindVar>(*k1)) {
             auto new_k = su.get_kind(std::get<KindVar>(*k1).var);
@@ -334,6 +338,8 @@ namespace
     void
     unify(SubstMap &su, ContKind c1, ContKind c2, size_t depth, size_t &ticks)
     {
+        using monad::utils::Cases;
+
         increment_kind_depth(depth, 1);
 
         increment_kind_ticks(ticks, c2->front.size() + c1->front.size());
@@ -420,6 +426,8 @@ namespace
     void unify_param_var(
         SubstMap &su, VarName param_var, VarName new_param_var, size_t &ticks)
     {
+        using monad::utils::Cases;
+
         Kind const param = kind_var(param_var);
         Kind const new_param = kind_var(new_param_var);
         VarName v = su.subst_to_var(param);

@@ -46,6 +46,8 @@ namespace
 
     ContKind refresh(InferState &state, PolyVarSubstMap &su, ContKind cont)
     {
+        using monad::utils::Cases;
+
         std::vector<Kind> kinds;
         for (auto &k : cont->front) {
             kinds.push_back(refresh(state, su, k));
@@ -73,6 +75,8 @@ namespace
 
     Kind refresh(InferState &state, PolyVarSubstMap &su, Kind kind)
     {
+        using monad::utils::Cases;
+
         return std::visit(
             Cases{
                 [](Word const &) { return word; },

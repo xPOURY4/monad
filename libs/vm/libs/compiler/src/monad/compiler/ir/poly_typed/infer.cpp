@@ -30,6 +30,8 @@ namespace
 
     void subst_terminator(InferState &state, block_id bid)
     {
+        using monad::utils::Cases;
+
         auto new_term = std::visit(
             Cases{
                 [&state](FallThrough const &t) -> Terminator {

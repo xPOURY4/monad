@@ -4,6 +4,7 @@
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/utils/assert.h>
+#include <monad/utils/cases.hpp>
 
 #include <evmc/evmc.h>
 
@@ -371,6 +372,8 @@ namespace monad::compiler::basic_blocks
         std::span<std::uint8_t const> bytes, RevisionMarker<Rev>)
         : codesize(bytes.size())
     {
+        using monad::utils::Cases;
+
         enum class St
         {
             INSIDE_BLOCK,
