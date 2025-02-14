@@ -3,6 +3,7 @@ include(GoogleTest)
 add_subdirectory(blockchain)
 add_subdirectory(compile_benchmarks)
 add_subdirectory(fuzzer)
+add_subdirectory(fuzzer_benchmarks)
 add_subdirectory(utils)
 
 add_executable(unit-tests
