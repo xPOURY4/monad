@@ -124,12 +124,16 @@ namespace monad::fuzzing
 
         auto program = std::vector<Instruction>{};
 
-        constexpr auto total_non_term_prob = 0.98;
+        constexpr auto total_non_term_prob = 0.90;
         constexpr auto push_weight = (32.0 / 148.0);
         constexpr auto non_term_weight = 1.0 - push_weight;
 
         constexpr auto push_prob = total_non_term_prob * push_weight;
         constexpr auto non_term_prob = total_non_term_prob * non_term_weight;
+
+        constexpr auto random_byte_prob = 0.000001;
+        constexpr auto terminate_prob =
+            (1 - total_non_term_prob) - random_byte_prob;
 
         if (is_main) {
             constexpr auto main_initial_pushes = 24;
@@ -152,7 +156,7 @@ namespace monad::fuzzing
                     non_term_prob,
                     [](auto &g) { return generate_safe_non_terminator(g); }),
                 Choice(push_prob, [](auto &g) { return generate_push(g); }),
-                Choice(0.019999, [&](auto &g) {
+                Choice(terminate_prob, [&](auto &g) {
                     return generate_terminator(g, is_exit);
                 }));
 

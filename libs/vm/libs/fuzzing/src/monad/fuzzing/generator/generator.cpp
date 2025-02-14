@@ -114,6 +114,10 @@ namespace monad::fuzzing
         std::vector<std::size_t> const &jumpdest_patches,
         std::vector<std::uint32_t> const &valid_jumpdests)
     {
+        if (valid_jumpdests.empty()) {
+            return;
+        }
+
         for (auto const patch : jumpdest_patches) {
             MONAD_COMPILER_DEBUG_ASSERT(patch + 4 < program.size());
             MONAD_COMPILER_DEBUG_ASSERT(program[patch] == PUSH4);
@@ -137,8 +141,10 @@ namespace monad::fuzzing
 
         auto prog = std::vector<std::uint8_t>{};
 
-        constexpr auto n_blocks = 10;
-        constexpr auto exit_blocks = 5;
+        auto blocks_dist = std::geometric_distribution(0.1);
+        auto const n_blocks = blocks_dist(eng);
+
+        constexpr auto n_exit_blocks = 2;
 
         auto const valid_addresses = std::vector{
             0x000102030405060708090A0B0C0D0E0F10111213_address,
@@ -149,7 +155,7 @@ namespace monad::fuzzing
 
         for (auto i = 0; i < n_blocks; ++i) {
             auto const is_main = (i == 0);
-            auto const is_exit = !is_main && (i <= exit_blocks);
+            auto const is_exit = !is_main && (i <= n_exit_blocks);
 
             auto const block = generate_block(eng, is_exit, is_main);
 
