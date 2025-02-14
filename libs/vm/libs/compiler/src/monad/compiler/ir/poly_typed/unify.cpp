@@ -2,7 +2,6 @@
 #include <monad/compiler/ir/poly_typed/kind.hpp>
 #include <monad/compiler/ir/poly_typed/subst_map.hpp>
 #include <monad/compiler/ir/poly_typed/unify.hpp>
-#include <monad/compiler/types.hpp>
 #include <monad/utils/assert.h>
 
 #include <cstddef>

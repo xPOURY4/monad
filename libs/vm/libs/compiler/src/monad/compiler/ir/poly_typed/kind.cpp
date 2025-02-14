@@ -1,5 +1,4 @@
 #include <monad/compiler/ir/poly_typed/kind.hpp>
-#include <monad/compiler/types.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/cases.hpp>
 

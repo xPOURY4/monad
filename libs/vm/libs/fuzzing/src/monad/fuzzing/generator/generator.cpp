@@ -1,9 +1,16 @@
 #include <monad/fuzzing/generator/generator.hpp>
+#include <monad/fuzzing/generator/instruction_data.hpp>
+#include <monad/utils/assert.h>
 #include <monad/utils/cases.hpp>
 
 #include <evmc/evmc.hpp>
 
+#include <intx/intx.hpp>
+
+#include <cstddef>
+#include <cstdint>
 #include <random>
+#include <vector>
 
 using namespace evmc::literals;
 
@@ -40,7 +47,7 @@ namespace monad::fuzzing
                 [&](Constant const &c) {
                     program.push_back(PUSH32);
 
-                    auto *bs = intx::as_bytes(c.value);
+                    auto const *bs = intx::as_bytes(c.value);
                     for (auto i = 31; i >= 0; --i) {
                         program.push_back(bs[i]);
                     }
