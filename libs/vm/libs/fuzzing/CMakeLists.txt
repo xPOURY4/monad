@@ -4,6 +4,7 @@ target_sources(monad-fuzzing PRIVATE
   "src/monad/fuzzing/generator/choice.hpp"
   "src/monad/fuzzing/generator/generator.cpp"
   "src/monad/fuzzing/generator/generator.hpp"
+  "src/monad/fuzzing/generator/instruction_data.cpp"
   "src/monad/fuzzing/generator/instruction_data.hpp"
 )
 

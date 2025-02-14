@@ -61,6 +61,13 @@ namespace monad::fuzzing
             utils::uint256_t{dist(gen), dist(gen), dist(gen), dist(gen)}};
     }
 
+    template <typename Engine>
+    Constant memory_constant(Engine &gen)
+    {
+        auto dist = std::uniform_int_distribution<std::uint64_t>(0, 1 << 16);
+        return Constant{dist(gen)};
+    }
+
     using Push = std::variant<ValidAddress, ValidJumpDest, Constant>;
 
     template <typename Engine>

@@ -146,4 +146,9 @@ namespace monad::fuzzing
         JUMPI,
         JUMPDEST,
     };
+
+    std::vector<std::uint8_t> const &
+    memory_operands(std::uint8_t const opcode) noexcept;
+
+    bool uses_memory(std::uint8_t const opcode) noexcept;
 }

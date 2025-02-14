@@ -70,6 +70,27 @@ namespace monad::fuzzing
                     static_cast<std::uint32_t>(program.size()));
             }
 
+            for (auto mem_op : memory_operands(op)) {
+                with_probability(eng, 0.5, [&](auto &) {
+                    auto const safe_value = memory_constant(eng);
+
+                    auto const byte_size =
+                        intx::count_significant_bytes(safe_value.value);
+                    MONAD_COMPILER_DEBUG_ASSERT(byte_size <= 32);
+
+                    program.push_back(
+                        PUSH0 + static_cast<std::uint8_t>(byte_size));
+
+                    auto const *bs = intx::as_bytes(safe_value.value);
+                    for (auto i = 0u; i < byte_size; ++i) {
+                        program.push_back(bs[byte_size - 1 - i]);
+                    }
+
+                    program.push_back(SWAP1 + mem_op);
+                    program.push_back(POP);
+                });
+            }
+
             program.push_back(op);
         };
 
