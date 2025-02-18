@@ -3847,4 +3847,158 @@ namespace monad::compiler::native
             }
         }
     }
+
+    bool Emitter::mul_optimized()
+    {
+        auto const a_elem = stack_.get(stack_.top_index());
+        auto const b_elem = stack_.get(stack_.top_index() - 1);
+        if (!a_elem->literal() && !b_elem->literal()) {
+            return false;
+        }
+
+        if (a_elem->literal() && b_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            auto const &b = b_elem->literal()->value;
+            stack_.pop();
+            stack_.pop();
+            stack_.push_literal(a * b);
+            return true;
+        }
+
+        if (a_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            if (a == 0) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(0);
+                return true;
+            }
+            if (a == 1) {
+                stack_.pop();
+                return true;
+            }
+        }
+
+        if (b_elem->literal()) {
+            auto const &b = b_elem->literal()->value;
+            if (b == 0) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(0);
+                return true;
+            }
+            if (b == 1) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push(std::move(a_elem));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    template <bool is_sdiv>
+    bool Emitter::div_optimized()
+    {
+        auto const a_elem = stack_.get(stack_.top_index());
+        auto const b_elem = stack_.get(stack_.top_index() - 1);
+        if (!a_elem->literal() && !b_elem->literal()) {
+            return false;
+        }
+
+        if (a_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            if (a == 0) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(0);
+                return true;
+            }
+        }
+
+        if (b_elem->literal()) {
+            auto const &b = b_elem->literal()->value;
+            if (b == 0) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(0);
+                return true;
+            }
+            if (b == 1) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push(std::move(a_elem));
+                return true;
+            }
+        }
+
+        if (a_elem->literal() && b_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            auto const &b = b_elem->literal()->value;
+            stack_.pop();
+            stack_.pop();
+            if constexpr (is_sdiv) {
+                stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).quot);
+            }
+            else {
+                stack_.push_literal(b == 0 ? 0 : a / b);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    template bool Emitter::div_optimized<true>();
+    template bool Emitter::div_optimized<false>();
+
+    template <bool is_smod>
+    bool Emitter::mod_optimized()
+    {
+        auto const a_elem = stack_.get(stack_.top_index());
+        auto const b_elem = stack_.get(stack_.top_index() - 1);
+        if (!a_elem->literal() && !b_elem->literal()) {
+            return false;
+        }
+
+        if (a_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            if (a == 0) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push(std::move(a_elem));
+                return true;
+            }
+        }
+
+        if (b_elem->literal()) {
+            auto const &b = b_elem->literal()->value;
+            if (b == 0 || b == 1) {
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(0);
+                return true;
+            }
+        }
+
+        if (a_elem->literal() && b_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            auto const &b = b_elem->literal()->value;
+            stack_.pop();
+            stack_.pop();
+            if constexpr (is_smod) {
+                stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).rem);
+            }
+            else {
+                stack_.push_literal(b == 0 ? 0 : a % b);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    template bool Emitter::mod_optimized<true>();
+    template bool Emitter::mod_optimized<false>();
 }

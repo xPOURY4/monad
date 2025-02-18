@@ -240,34 +240,57 @@ namespace monad::compiler::native
         void basefee();
         void blobbasefee();
 
+    private:
+        bool mul_optimized();
+        template <bool is_sdiv>
+        bool div_optimized();
+        template <bool is_smod>
+        bool mod_optimized();
+
+    public:
         // Revision dependent instructions
         template <evmc_revision rev>
         void mul(int32_t remaining_base_gas)
         {
+            if (mul_optimized()) {
+                return;
+            }
             call_runtime(remaining_base_gas, monad::runtime::mul<rev>);
         }
 
         template <evmc_revision rev>
         void udiv(int32_t remaining_base_gas)
         {
+            if (div_optimized<false>()) {
+                return;
+            }
             call_runtime(remaining_base_gas, monad::runtime::udiv<rev>);
         }
 
         template <evmc_revision rev>
         void sdiv(int32_t remaining_base_gas)
         {
+            if (div_optimized<true>()) {
+                return;
+            }
             call_runtime(remaining_base_gas, monad::runtime::sdiv<rev>);
         }
 
         template <evmc_revision rev>
         void umod(int32_t remaining_base_gas)
         {
+            if (mod_optimized<false>()) {
+                return;
+            }
             call_runtime(remaining_base_gas, monad::runtime::umod<rev>);
         }
 
         template <evmc_revision rev>
         void smod(int32_t remaining_base_gas)
         {
+            if (mod_optimized<true>()) {
+                return;
+            }
             call_runtime(remaining_base_gas, monad::runtime::smod<rev>);
         }
 

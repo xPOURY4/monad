@@ -1337,6 +1337,121 @@ TEST(Emitter, add_identity_left)
     ASSERT_EQ(emit.get_stack().get(0), e);
 }
 
+TEST(Emitter, mul)
+{
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {0, 0},
+        {1, 1},
+        {2, 4},
+        {2, 0},
+        {0, 2},
+        {1, 5},
+        {5, 1},
+        {7, 8},
+        {2, std::numeric_limits<uint256_t>::max() - 1}};
+    for (auto const &[a, b] : inputs) {
+        auto const expected = a * b;
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.mul<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
+            },
+            a,
+            b,
+            expected);
+    }
+}
+
+TEST(Emitter, udiv)
+{
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {0, 0},
+        {1, 1},
+        {4, 0},
+        {4, 1},
+        {0, 4},
+        {std::numeric_limits<uint256_t>::max() - 1, 2}};
+    for (auto const &[a, b] : inputs) {
+        auto const expected = b == 0 ? 0 : a / b;
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.udiv<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
+            },
+            a,
+            b,
+            expected);
+    }
+}
+
+TEST(Emitter, sdiv)
+{
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {0, 0},
+        {1, 1},
+        {4, 0},
+        {4, 1},
+        {0, 4},
+        {std::numeric_limits<uint256_t>::max() - 1, 2}};
+    for (auto const &[a, b] : inputs) {
+        auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).quot;
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.sdiv<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
+            },
+            a,
+            b,
+            expected);
+    }
+}
+
+TEST(Emitter, umod)
+{
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {0, 0},
+        {1, 1},
+        {1, 0},
+        {0, 1},
+        {4, 3},
+        {3, 5},
+        {2, std::numeric_limits<uint256_t>::max() - 1}};
+    for (auto const &[a, b] : inputs) {
+        auto const expected = b == 0 ? 0 : a % b;
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.umod<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
+            },
+            a,
+            b,
+            expected);
+    }
+}
+
+TEST(Emitter, smod)
+{
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {0, 0},
+        {1, 1},
+        {1, 0},
+        {0, 1},
+        {4, 3},
+        {3, 5},
+        {2, std::numeric_limits<uint256_t>::max() - 1}};
+    for (auto const &[a, b] : inputs) {
+        auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).rem;
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.smod<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
+            },
+            a,
+            b,
+            expected);
+    }
+}
+
 TEST(Emitter, and_)
 {
     pure_bin_instr_test(AND, &Emitter::and_, 1, 3, 1);
