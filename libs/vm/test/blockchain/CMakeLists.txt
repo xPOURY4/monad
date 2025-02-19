@@ -5,10 +5,13 @@ target_sources(blockchain-test-vm
         test_vm.cpp
 )
 target_link_libraries(blockchain-test-vm
-    PRIVATE
+    PUBLIC
         evmc::evmc
         monad-compiler
         monad-compiler-vm
+)
+target_include_directories(blockchain-test-vm
+    PUBLIC .
 )
 monad_compile_options(blockchain-test-vm)
 
