@@ -27,12 +27,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <future>
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <pthread.h>
 #include <random>
 #include <span>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -41,11 +44,18 @@
 using namespace evmone::state;
 using namespace evmc::literals;
 using namespace monad;
+using namespace std::chrono_literals;
 
 using enum monad::compiler::EvmOpCode;
 
+constexpr auto FUZZER_TIMEOUT = EVMC_INSUFFICIENT_BALANCE + 1;
+
 constexpr std::string_view to_string(evmc_status_code const sc) noexcept
 {
+    if (sc == FUZZER_TIMEOUT) {
+        return "TIMEOUT";
+    }
+
     switch (sc) {
     case EVMC_SUCCESS:
         return "SUCCESS";
@@ -284,6 +294,14 @@ evmc::Result transition(
     return result;
 }
 
+// It's possible for the compiler and evmone to reach equivalent-but-not-equal
+// states after both executing. For example, the compiler may exit a block
+// containing an SSTORE early because of unconditional underflow later in the
+// block. Evmone will instead execute the SSTORE, then roll back the change.
+// Because of how rollback is implemented, this produces a state with a mapping
+// `K |-> 0` for some key `K`. This won't directly compare equal to the _empty_
+// state that the compiler has, and so we need to normalise the states after
+// execution to remove cold zero slots.
 void clean_storage(State &state)
 {
     for (auto &[addr, acc] : state.get_accounts()) {
@@ -301,7 +319,7 @@ void clean_storage(State &state)
     }
 }
 
-// TODO(BSC: fill in actual message generation
+// TODO(BSC): fill in actual message generation
 template <typename Engine>
 evmc_message generate_message(Engine &eng, evmc::address const &target) noexcept
 {
@@ -379,15 +397,91 @@ arguments parse_args(int const argc, char **const argv)
         std::exit(app.exit(e));
     }
 
+    args.set_random_seed_if_default();
     return args;
+}
+
+void fuzz_iteration(
+    evmc_message const &msg, evmc_revision const rev, State &evmone_state,
+    evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm,
+    std::promise<evmc_status_code> promise)
+{
+    auto const evmone_checkpoint = evmone_state.checkpoint();
+    auto const evmone_result =
+        transition(evmone_state, msg, rev, evmone_vm, block_gas_limit);
+
+    if (evmone_result.status_code != EVMC_SUCCESS) {
+        evmone_state.rollback(evmone_checkpoint);
+        clean_storage(evmone_state);
+    }
+
+    auto const compiler_checkpoint = compiler_state.checkpoint();
+    auto const compiler_result =
+        transition(compiler_state, msg, rev, compiler_vm, block_gas_limit);
+
+    if (compiler_result.status_code != EVMC_SUCCESS) {
+        compiler_state.rollback(compiler_checkpoint);
+        clean_storage(compiler_state);
+    }
+
+    assert_equal(evmone_state, compiler_state);
+    promise.set_value(evmone_result.status_code);
+}
+
+void log(
+    std::chrono::high_resolution_clock::time_point &start,
+    arguments const &args,
+    std::unordered_map<evmc_status_code, std::size_t> const &exit_code_stats,
+    std::int64_t const i, std::size_t const total_messages)
+{
+    using namespace std::chrono;
+
+    if (i > 0 && i % args.log_freq == 0) {
+        constexpr auto ns_factor = duration_cast<nanoseconds>(1s).count();
+
+        auto const end = high_resolution_clock::now();
+        auto const diff = (end - start).count();
+        auto const per_contract = diff / args.log_freq;
+
+        std::cerr << std::format(
+            "[{}]: {:.4f}s / iteration\n",
+            i,
+            static_cast<double>(per_contract) / ns_factor);
+
+        if (args.print_stats) {
+            for (auto const &[k, v] : exit_code_stats) {
+                auto const percentage = (static_cast<double>(v) /
+                                         static_cast<double>(total_messages)) *
+                                        100;
+                std::cerr << std::format(
+                    "  {:<21}: {:.2f}%\n", to_string(k), percentage);
+            }
+        }
+
+        start = end;
+    }
+}
+
+void handle_timeout(
+    std::future<evmc_status_code> &&future, std::jthread &&task,
+    std::unordered_map<evmc_status_code, std::size_t> &exit_code_stats)
+{
+    auto status = future.wait_for(0.5s);
+    if (status == std::future_status::ready) {
+        ++exit_code_stats[future.get()];
+    }
+    else {
+        MONAD_COMPILER_ASSERT(status == std::future_status::timeout);
+        ++exit_code_stats[static_cast<evmc_status_code>(FUZZER_TIMEOUT)];
+        pthread_cancel(task.native_handle());
+    }
 }
 
 int main(int argc, char **argv)
 {
     constexpr auto rev = EVMC_CANCUN;
 
-    auto args = parse_args(argc, argv);
-    args.set_random_seed_if_default();
+    auto const args = parse_args(argc, argv);
 
     std::cerr << std::format("Fuzzing with seed: {}\n", args.seed);
 
@@ -416,59 +510,25 @@ int main(int argc, char **argv)
         assert_equal(evmone_state, compiler_state);
 
         for (auto j = 0u; j < args.messages; ++j) {
+            auto promise = std::promise<evmc_status_code>{};
+            auto future = promise.get_future();
+
             auto const msg = generate_message(engine, a);
             ++total_messages;
 
-            auto const evmone_checkpoint = evmone_state.checkpoint();
-            auto const evmone_result =
-                transition(evmone_state, msg, rev, evmone_vm, block_gas_limit);
+            auto task = std::jthread(
+                fuzz_iteration,
+                std::ref(msg),
+                rev,
+                std::ref(evmone_state),
+                std::ref(evmone_vm),
+                std::ref(compiler_state),
+                std::ref(compiler_vm),
+                std::move(promise));
 
-            ++exit_code_stats[evmone_result.status_code];
-
-            if (evmone_result.status_code != EVMC_SUCCESS) {
-                evmone_state.rollback(evmone_checkpoint);
-                clean_storage(evmone_state);
-            }
-
-            auto const compiler_checkpoint = compiler_state.checkpoint();
-            auto const compiler_result = transition(
-                compiler_state, msg, rev, compiler_vm, block_gas_limit);
-
-            if (compiler_result.status_code != EVMC_SUCCESS) {
-                compiler_state.rollback(compiler_checkpoint);
-                clean_storage(compiler_state);
-            }
-
-            assert_equal(evmone_state, compiler_state);
+            handle_timeout(std::move(future), std::move(task), exit_code_stats);
         }
 
-        if (i > 0 && i % args.log_freq == 0) {
-            using namespace std::chrono;
-            using namespace std::chrono_literals;
-
-            constexpr auto ns_factor = duration_cast<nanoseconds>(1s).count();
-
-            auto const end = high_resolution_clock::now();
-            auto const diff = (end - last_start).count();
-            auto const per_contract = diff / args.log_freq;
-
-            std::cerr << std::format(
-                "[{}]: {:.4f}s / iteration\n",
-                i,
-                static_cast<double>(per_contract) / ns_factor);
-
-            if (args.print_stats) {
-                for (auto const &[k, v] : exit_code_stats) {
-                    auto const percentage =
-                        (static_cast<double>(v) /
-                         static_cast<double>(total_messages)) *
-                        100;
-                    std::cerr << std::format(
-                        "  {:<21}: {:.2f}%\n", to_string(k), percentage);
-                }
-            }
-
-            last_start = end;
-        }
+        log(last_start, args, exit_code_stats, i, total_messages);
     }
 }

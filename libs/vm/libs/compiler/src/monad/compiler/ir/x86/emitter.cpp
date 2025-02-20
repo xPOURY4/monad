@@ -793,7 +793,6 @@ namespace monad::compiler::native
 
     bool Emitter::block_prologue(basic_blocks::Block const &b)
     {
-
         bool const keep_stack = keep_stack_in_next_block_;
         keep_stack_in_next_block_ = false;
 
@@ -805,7 +804,6 @@ namespace monad::compiler::native
         if (!keep_stack && is_debug_enabled()) {
             runtime_print_gas_remaining(
                 std::format("Block 0x{:02x}", b.offset));
-            breakpoint();
         }
 
         auto const min_delta = stack_.min_delta();
