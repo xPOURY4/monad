@@ -306,7 +306,8 @@ namespace monad::fuzzing
     }
 
     template <typename Engine>
-    std::vector<std::uint8_t> generate_program(Engine &eng)
+    std::vector<std::uint8_t> generate_program(
+        Engine &eng, std::vector<evmc::address> const &valid_addresses)
     {
         auto prog = std::vector<std::uint8_t>{};
 
@@ -314,10 +315,6 @@ namespace monad::fuzzing
         auto const n_blocks = blocks_dist(eng);
 
         constexpr auto n_exit_blocks = 2;
-
-        auto const valid_addresses = std::vector{
-            0x000102030405060708090A0B0C0D0E0F10111213_address,
-        };
 
         auto valid_jumpdests = std::vector<std::uint32_t>{};
         auto jumpdest_patches = std::vector<std::size_t>{};

@@ -493,13 +493,16 @@ int main(int argc, char **argv)
     auto evmone_state = initial_state();
     auto compiler_state = initial_state();
 
+    auto contract_addresses = std::vector<evmc::address>{};
+
     auto exit_code_stats = std::unordered_map<evmc_status_code, std::size_t>{};
     auto total_messages = std::size_t{0};
 
     auto last_start = std::chrono::high_resolution_clock::now();
 
     for (auto i = 0u; i < args.iterations; ++i) {
-        auto const contract = monad::fuzzing::generate_program(engine);
+        auto const contract =
+            monad::fuzzing::generate_program(engine, contract_addresses);
 
         auto const a =
             deploy_contract(evmone_state, evmone_vm, genesis_address, contract);
@@ -509,11 +512,15 @@ int main(int argc, char **argv)
         MONAD_COMPILER_ASSERT(a == a1);
         assert_equal(evmone_state, compiler_state);
 
+        contract_addresses.push_back(a);
+
         for (auto j = 0u; j < args.messages; ++j) {
             auto promise = std::promise<evmc_status_code>{};
             auto future = promise.get_future();
 
-            auto const msg = generate_message(engine, a);
+            auto const target =
+                monad::fuzzing::uniform_sample(engine, contract_addresses);
+            auto const msg = generate_message(engine, target);
             ++total_messages;
 
             auto task = std::jthread(
