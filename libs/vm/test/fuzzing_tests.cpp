@@ -11,7 +11,10 @@ using namespace monad::compiler::basic_blocks;
 
 TEST(FuzzTest, Demo)
 {
-    auto p = generate_program();
+    auto rd = std::random_device();
+    auto eng = std::mt19937_64(rd());
+
+    auto p = generate_program(eng);
     auto bb = BasicBlocksIR(p);
 
     std::cout << std::format("{}\n", bb);

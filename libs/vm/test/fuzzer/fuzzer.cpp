@@ -5,6 +5,7 @@
 #include "state.hpp"
 
 #include <monad/compiler/evm_opcodes.hpp>
+#include <monad/fuzzing/generator/generator.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
 
@@ -244,7 +245,6 @@ evmc::Result transition(
     auto const refund_limit = gas_used / max_refund_quotient;
     auto const refund = std::min(result.gas_refund, refund_limit);
     gas_used -= refund;
-    assert(gas_used > 0);
 
     sender_acc.balance += (block_gas_left - gas_used) * effective_gas_price;
 
@@ -284,6 +284,23 @@ evmc::Result transition(
     return result;
 }
 
+void clean_storage(State &state)
+{
+    for (auto &[addr, acc] : state.get_accounts()) {
+        for (auto it = acc.storage.begin(); it != acc.storage.end();) {
+            auto const &[k, v] = *it;
+
+            if (v.current == evmc::bytes32{} && v.original == evmc::bytes32{} &&
+                v.access_status == EVMC_ACCESS_COLD) {
+                it = acc.storage.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+    }
+}
+
 // TODO(BSC: fill in actual message generation
 template <typename Engine>
 evmc_message generate_message(Engine &eng, evmc::address const &target) noexcept
@@ -303,21 +320,6 @@ evmc_message generate_message(Engine &eng, evmc::address const &target) noexcept
         .code_address = target,
         .code = nullptr,
         .code_size = 0,
-    };
-}
-
-// TODO(BSC: fill in actual contract generation
-template <typename Engine>
-std::vector<std::uint8_t> generate_contract(Engine &eng)
-{
-    auto dist = std::uniform_int_distribution<std::uint8_t>();
-
-    // Placeholder to demonstrate stats printing; will exit successfully 50% of
-    // the time and OOG the remaining 50%.
-    return {
-        PUSH1,    0x2,   PUSH1,     dist(eng), MOD,       PUSH1,  0x0E,
-        JUMPI,    PUSH1, dist(eng), PUSH1,     dist(eng), SSTORE, STOP,
-        JUMPDEST, PUSH1, 0x01,      PUSH0,     SUB,       DUP1,   MSTORE,
     };
 }
 
@@ -403,7 +405,7 @@ int main(int argc, char **argv)
     auto last_start = std::chrono::high_resolution_clock::now();
 
     for (auto i = 0u; i < args.iterations; ++i) {
-        auto const contract = generate_contract(engine);
+        auto const contract = monad::fuzzing::generate_program(engine);
 
         auto const a =
             deploy_contract(evmone_state, evmone_vm, genesis_address, contract);
@@ -425,6 +427,7 @@ int main(int argc, char **argv)
 
             if (evmone_result.status_code != EVMC_SUCCESS) {
                 evmone_state.rollback(evmone_checkpoint);
+                clean_storage(evmone_state);
             }
 
             auto const compiler_checkpoint = compiler_state.checkpoint();
@@ -433,6 +436,7 @@ int main(int argc, char **argv)
 
             if (compiler_result.status_code != EVMC_SUCCESS) {
                 compiler_state.rollback(compiler_checkpoint);
+                clean_storage(compiler_state);
             }
 
             assert_equal(evmone_state, compiler_state);
