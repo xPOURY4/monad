@@ -59,9 +59,11 @@ namespace monad::compiler::native
         public:
             template <typename... Args>
             RuntimeImpl(
-                Emitter *e, int32_t remaining_base_gas, void (*f)(Args...))
+                Emitter *e, int32_t remaining_base_gas, bool spill_avx,
+                void (*f)(Args...))
                 : em_{e}
                 , remaining_base_gas_{remaining_base_gas}
+                , spill_avx_{spill_avx}
                 , runtime_fun_{reinterpret_cast<void *>(f)}
                 , arg_count_{sizeof...(Args)}
                 , context_arg_{monad::runtime::detail::context_arg_t<
@@ -80,6 +82,7 @@ namespace monad::compiler::native
 
             size_t implicit_arg_count();
             size_t explicit_arg_count();
+            bool spill_avx_regs();
 
         protected:
             using RuntimeArg =
@@ -92,6 +95,7 @@ namespace monad::compiler::native
             Emitter *em_;
             std::vector<StackElemRef> explicit_args_;
             int32_t remaining_base_gas_;
+            bool spill_avx_;
             void *runtime_fun_;
             size_t arg_count_;
             std::optional<size_t> context_arg_;
@@ -103,17 +107,19 @@ namespace monad::compiler::native
         class Runtime : public RuntimeImpl
         {
         public:
-            Runtime(Emitter *e, int32_t remaining_base_gas, void (*f)(Args...))
-                : RuntimeImpl(e, remaining_base_gas, f)
+            Runtime(
+                Emitter *e, int32_t remaining_base_gas, bool spill_avx,
+                void (*f)(Args...))
+                : RuntimeImpl(e, remaining_base_gas, spill_avx, f)
             {
                 static_assert(
                     monad::runtime::detail::uses_context_v<Args...> ||
                     monad::runtime::detail::uses_remaining_gas_v<Args...>);
             }
 
-            void call(bool spill_avx)
+            void call()
             {
-                em_->call_runtime_impl(spill_avx, *this);
+                em_->call_runtime_impl(*this);
             }
         };
 
@@ -122,9 +128,9 @@ namespace monad::compiler::native
         {
         public:
             Runtime(
-                Emitter *e, int32_t remaining_base_gas,
+                Emitter *e, int32_t remaining_base_gas, bool spill_avx,
                 void (*f)(uint256_t *, Args...))
-                : RuntimeImpl(e, remaining_base_gas, f)
+                : RuntimeImpl(e, remaining_base_gas, spill_avx, f)
             {
                 static_assert(monad::runtime::detail::is_result_v<uint256_t *>);
                 static_assert(!monad::runtime::detail::uses_context_v<Args...>);
@@ -141,10 +147,10 @@ namespace monad::compiler::native
                 return result;
             }
 
-            void call(bool spill_avx)
+            void call()
             {
                 em_->call_runtime_pure(
-                    spill_avx, *this, std::index_sequence_for<Args...>{});
+                    *this, std::index_sequence_for<Args...>{});
             }
         };
 
@@ -178,7 +184,7 @@ namespace monad::compiler::native
         bool begin_new_block(basic_blocks::Block const &);
         void gas_decrement_no_check(int32_t);
         void gas_decrement_check_non_negative(int32_t);
-        void spill_all_caller_save_regs(bool spill_avx = true);
+        void spill_caller_save_regs(bool spill_avx);
         void spill_all_caller_save_general_regs();
         void spill_all_avx_regs();
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
@@ -255,7 +261,7 @@ namespace monad::compiler::native
             if (mul_optimized()) {
                 return;
             }
-            call_runtime(false, remaining_base_gas, monad::runtime::mul<rev>);
+            call_runtime(remaining_base_gas, false, monad::runtime::mul<rev>);
         }
 
         template <evmc_revision rev>
@@ -264,7 +270,7 @@ namespace monad::compiler::native
             if (div_optimized<false>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, monad::runtime::udiv<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::udiv<rev>);
         }
 
         template <evmc_revision rev>
@@ -273,7 +279,7 @@ namespace monad::compiler::native
             if (div_optimized<true>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, monad::runtime::sdiv<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sdiv<rev>);
         }
 
         template <evmc_revision rev>
@@ -282,7 +288,7 @@ namespace monad::compiler::native
             if (mod_optimized<false>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, monad::runtime::umod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::umod<rev>);
         }
 
         template <evmc_revision rev>
@@ -291,234 +297,241 @@ namespace monad::compiler::native
             if (mod_optimized<true>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, monad::runtime::smod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::smod<rev>);
         }
 
         template <evmc_revision rev>
         void addmod(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::addmod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::addmod<rev>);
         }
 
         template <evmc_revision rev>
         void mulmod(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::mulmod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mulmod<rev>);
         }
 
         template <evmc_revision rev>
         void exp(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::exp<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::exp<rev>);
         }
 
         template <evmc_revision rev>
         void sha3(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::sha3<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sha3<rev>);
         }
 
         template <evmc_revision rev>
         void balance(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::balance<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::balance<rev>);
         }
 
         template <evmc_revision rev>
         void calldataload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::calldataload<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::calldataload<rev>);
         }
 
         template <evmc_revision rev>
         void calldatacopy(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::calldatacopy<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::calldatacopy<rev>);
         }
 
         template <evmc_revision rev>
         void codecopy(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::codecopy<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::codecopy<rev>);
         }
 
         template <evmc_revision rev>
         void extcodesize(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::extcodesize<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::extcodesize<rev>);
         }
 
         template <evmc_revision rev>
         void extcodecopy(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::extcodecopy<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::extcodecopy<rev>);
         }
 
         template <evmc_revision rev>
         void returndatacopy(int32_t remaining_base_gas)
         {
             call_runtime(
-                remaining_base_gas, monad::runtime::returndatacopy<rev>);
+                remaining_base_gas, true, monad::runtime::returndatacopy<rev>);
         }
 
         template <evmc_revision rev>
         void extcodehash(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::extcodehash<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::extcodehash<rev>);
         }
 
         template <evmc_revision rev>
         void blockhash(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::blockhash<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::blockhash<rev>);
         }
 
         template <evmc_revision rev>
         void selfbalance(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::selfbalance<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::selfbalance<rev>);
         }
 
         template <evmc_revision rev>
         void blobhash(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::blobhash<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::blobhash<rev>);
         }
 
         template <evmc_revision rev>
         void mload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::mload<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mload<rev>);
         }
 
         template <evmc_revision rev>
         void mstore(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::mstore<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mstore<rev>);
         }
 
         template <evmc_revision rev>
         void mstore8(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::mstore8<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::mstore8<rev>);
         }
 
         template <evmc_revision rev>
         void sload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::sload<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sload<rev>);
         }
 
         template <evmc_revision rev>
         void sstore(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::sstore<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sstore<rev>);
         }
 
         template <evmc_revision rev>
         void tload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::tload<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::tload<rev>);
         }
 
         template <evmc_revision rev>
         void tstore(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::tstore<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::tstore<rev>);
         }
 
         template <evmc_revision rev>
         void mcopy(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::mcopy<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mcopy<rev>);
         }
 
         template <evmc_revision rev>
         void log0(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::log0<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log0<rev>);
         }
 
         template <evmc_revision rev>
         void log1(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::log1<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log1<rev>);
         }
 
         template <evmc_revision rev>
         void log2(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::log2<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log2<rev>);
         }
 
         template <evmc_revision rev>
         void log3(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::log3<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log3<rev>);
         }
 
         template <evmc_revision rev>
         void log4(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::log4<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log4<rev>);
         }
 
         template <evmc_revision rev>
         void create(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::create<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::create<rev>);
         }
 
         template <evmc_revision rev>
         void call(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::call<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::call<rev>);
         }
 
         template <evmc_revision rev>
         void callcode(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::callcode<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::callcode<rev>);
         }
 
         template <evmc_revision rev>
         void delegatecall(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::delegatecall<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::delegatecall<rev>);
         }
 
         template <evmc_revision rev>
         void create2(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::create2<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::create2<rev>);
         }
 
         template <evmc_revision rev>
         void staticcall(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::staticcall<rev>);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::staticcall<rev>);
         }
 
         template <evmc_revision rev>
         void selfdestruct(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, monad::runtime::selfdestruct<rev>);
-        }
-
-        // TODO(dhil): We'd like this function to be private. Though,
-        // currently we use this function in `emitter_tests.cpp` to
-        // call two handcrafted test functions.
-        template <typename... Args>
-        void call_runtime(int32_t remaining_base_gas, void (*f)(Args...))
-        {
-            Runtime<Args...>(this, remaining_base_gas, f).call(true);
+            call_runtime(
+                remaining_base_gas, true, monad::runtime::selfdestruct<rev>);
         }
 
         template <typename... Args>
         void call_runtime(
-            bool spill_avx, int32_t remaining_base_gas, void (*f)(Args...))
+            int32_t remaining_base_gas, bool spill_avx, void (*f)(Args...))
         {
-            Runtime<Args...>(this, remaining_base_gas, f).call(spill_avx);
+            Runtime<Args...>(this, remaining_base_gas, spill_avx, f).call();
         }
 
         // Terminators invalidate emitter until `begin_new_block` is called.
@@ -616,12 +629,11 @@ namespace monad::compiler::native
 
         ////////// Private EVM instruction utilities //////////
 
-        void call_runtime_impl(bool spill_avx, RuntimeImpl &rt);
+        void call_runtime_impl(RuntimeImpl &rt);
 
         template <typename... Args, size_t... Is>
         void call_runtime_pure(
-            bool spill_avx, Runtime<uint256_t *, Args...> &rt,
-            std::index_sequence<Is...>)
+            Runtime<uint256_t *, Args...> &rt, std::index_sequence<Is...>)
         {
             std::array<StackElemRef, sizeof...(Args)> elems;
             ((std::get<Is>(elems) = stack_.pop()), ...);
@@ -634,7 +646,7 @@ namespace monad::compiler::native
             }
             else {
                 discharge_deferred_comparison();
-                spill_all_caller_save_regs(spill_avx);
+                spill_caller_save_regs(rt.spill_avx_regs());
                 (rt.pass(std::move(std::get<Is>(elems))), ...);
                 rt.call_impl();
             }

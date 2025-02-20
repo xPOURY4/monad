@@ -2,14 +2,15 @@
 .globl monad_runtime_mul
 .type monad_runtime_mul, @function
 .align 16
-.intel_syntax noprefix 
+.intel_syntax noprefix
 monad_runtime_mul:
 .cfi_startproc
     push    r14
     push    rbx
-    mov     r10, qword ptr [rsi + 16]
     mov     r9, qword ptr [rsi]
     mov     r11, qword ptr [rsi + 8]
+    mov     r10, qword ptr [rsi + 16]
+    mov     rsi, qword ptr [rsi + 24]
     mov     rcx, qword ptr [rdx]
     mov     rax, qword ptr [rdx + 8]
     mov     rbx, qword ptr [rdx + 16]
@@ -23,7 +24,6 @@ monad_runtime_mul:
     mov     rdx, r10
     mulx    rdx, r8, rcx
     imul    r10, rax
-    mov     rsi, qword ptr [rsi + 24]
     imul    rsi, rcx
     add     rsi, r10
     add     rsi, rdx
@@ -45,7 +45,6 @@ monad_runtime_mul:
     movzx   eax, r9b
     add     rdx, r10
     adc     r11, rax
-    mov     rax, rdi
     add     rdx, r8
     adc     r11, rsi
     mov     qword ptr [rdi], rbx

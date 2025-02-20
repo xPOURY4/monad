@@ -322,7 +322,9 @@ namespace monad::compiler::native
             em_->stack_.push(std::move(result));
         }
 
-        em_->as_.vzeroupper();
+        if (spill_avx_) {
+            em_->as_.vzeroupper();
+        }
         auto lbl = em_->append_external_function(runtime_fun_);
         em_->as_.call(x86::qword_ptr(lbl));
     }
@@ -337,6 +339,11 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_DEBUG_ASSERT(arg_count_ >= implicit_arg_count());
         return arg_count_ - implicit_arg_count();
+    }
+
+    bool Emitter::RuntimeImpl::spill_avx_regs()
+    {
+        return spill_avx_;
     }
 
     void Emitter::RuntimeImpl::mov_arg(size_t arg_index, RuntimeArg &&arg)
@@ -589,7 +596,7 @@ namespace monad::compiler::native
             fn_lbl, reinterpret_cast<void *>(runtime_print_gas_remaining_impl));
 
         discharge_deferred_comparison();
-        spill_all_caller_save_regs();
+        spill_caller_save_regs(true);
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_context);
         as_.call(x86::qword_ptr(fn_lbl));
@@ -604,7 +611,7 @@ namespace monad::compiler::native
             fn_lbl, reinterpret_cast<void *>(runtime_print_input_stack_impl));
 
         discharge_deferred_comparison();
-        spill_all_caller_save_regs();
+        spill_caller_save_regs(true);
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_stack);
         as_.mov(x86::rdx, x86::qword_ptr(x86::rsp, sp_offset_stack_size));
@@ -620,7 +627,7 @@ namespace monad::compiler::native
             fn_lbl, reinterpret_cast<void *>(runtime_print_top2_impl));
 
         discharge_deferred_comparison();
-        spill_all_caller_save_regs();
+        spill_caller_save_regs(true);
 
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
 
@@ -696,7 +703,7 @@ namespace monad::compiler::native
         as_.jb(error_label_);
     }
 
-    void Emitter::spill_all_caller_save_regs(bool spill_avx)
+    void Emitter::spill_caller_save_regs(bool spill_avx)
     {
         // Spill general regs first, because if stack element is in both
         // general register and avx register then stack element will be
@@ -2093,10 +2100,10 @@ namespace monad::compiler::native
     }
 
     // Discharge
-    void Emitter::call_runtime_impl(bool spill_avx, RuntimeImpl &rt)
+    void Emitter::call_runtime_impl(RuntimeImpl &rt)
     {
         discharge_deferred_comparison();
-        spill_all_caller_save_regs(spill_avx);
+        spill_caller_save_regs(rt.spill_avx_regs());
         size_t const n = rt.explicit_arg_count();
         for (size_t i = 0; i < n; ++i) {
             rt.pass(stack_.pop());

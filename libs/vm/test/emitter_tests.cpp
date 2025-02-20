@@ -1871,7 +1871,7 @@ TEST(Emitter, call_runtime_12_arg_fun)
         emit.push(i);
         mov_literal_to_location_type(emit, i, Emitter::LocationType::AvxReg);
     }
-    emit.call_runtime(10, runtime_test_12_arg_fun);
+    emit.call_runtime(10, true, runtime_test_12_arg_fun);
     emit.return_();
 
     entrypoint_t entry = emit.finish_contract(rt);
@@ -1908,7 +1908,7 @@ TEST(Emitter, call_runtime_11_arg_fun)
         emit.push(i);
         mov_literal_to_location_type(emit, i, Emitter::LocationType::AvxReg);
     }
-    emit.call_runtime(9, runtime_test_11_arg_fun);
+    emit.call_runtime(9, true, runtime_test_11_arg_fun);
     emit.return_();
 
     entrypoint_t entry = emit.finish_contract(rt);
@@ -1932,7 +1932,7 @@ TEST(Emitter, runtime_exit)
     emit.push(0);
     emit.push(300);
     emit.push(10);
-    emit.call_runtime(9, runtime::exp<EVMC_SPURIOUS_DRAGON>);
+    emit.call_runtime(9, true, runtime::exp<EVMC_SPURIOUS_DRAGON>);
     emit.return_();
 
     entrypoint_t entry = emit.finish_contract(rt);

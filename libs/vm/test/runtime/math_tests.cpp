@@ -16,6 +16,7 @@ using namespace intx;
 
 TEST_F(RuntimeTest, Mul)
 {
+    // TODO Add mul tests here
     auto f = wrap(mul<EVMC_CANCUN>);
 
     ASSERT_EQ(f(10, 10), 100);
