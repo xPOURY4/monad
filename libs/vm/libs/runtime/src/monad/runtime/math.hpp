@@ -8,15 +8,15 @@
 
 #include <intx/intx.hpp>
 
+extern "C" void monad_runtime_mul(
+    ::intx::uint256 *, ::intx::uint256 const *, ::intx::uint256 const *);
+
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    void
-    mul(utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr)
-    {
-        *result_ptr = *a_ptr * *b_ptr;
-    }
+    constexpr void (*mul)(
+        utils::uint256_t *, utils::uint256_t const *,
+        utils::uint256_t const *) = monad_runtime_mul;
 
     template <evmc_revision Rev>
     void udiv(

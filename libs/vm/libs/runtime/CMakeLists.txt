@@ -11,6 +11,7 @@ target_sources(runtime PRIVATE
     "src/monad/runtime/environment.hpp"
     "src/monad/runtime/exit.S"
     "src/monad/runtime/exit.cpp"
+    "src/monad/runtime/math.S"
     "src/monad/runtime/keccak.hpp"
     "src/monad/runtime/log.hpp"
     "src/monad/runtime/math.hpp"

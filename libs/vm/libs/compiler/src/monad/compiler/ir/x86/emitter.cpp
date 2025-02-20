@@ -696,13 +696,15 @@ namespace monad::compiler::native
         as_.jb(error_label_);
     }
 
-    void Emitter::spill_all_caller_save_regs()
+    void Emitter::spill_all_caller_save_regs(bool spill_avx)
     {
         // Spill general regs first, because if stack element is in both
         // general register and avx register then stack element will be
         // moved to stack using avx register.
         spill_all_caller_save_general_regs();
-        spill_all_avx_regs();
+        if (spill_avx) {
+            spill_all_avx_regs();
+        }
     }
 
     void Emitter::spill_all_caller_save_general_regs()
@@ -2091,10 +2093,10 @@ namespace monad::compiler::native
     }
 
     // Discharge
-    void Emitter::call_runtime_impl(RuntimeImpl &rt)
+    void Emitter::call_runtime_impl(bool spill_avx, RuntimeImpl &rt)
     {
         discharge_deferred_comparison();
-        spill_all_caller_save_regs();
+        spill_all_caller_save_regs(spill_avx);
         size_t const n = rt.explicit_arg_count();
         for (size_t i = 0; i < n; ++i) {
             rt.pass(stack_.pop());

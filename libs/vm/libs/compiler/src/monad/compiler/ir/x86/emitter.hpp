@@ -111,9 +111,9 @@ namespace monad::compiler::native
                     monad::runtime::detail::uses_remaining_gas_v<Args...>);
             }
 
-            void call()
+            void call(bool spill_avx)
             {
-                em_->call_runtime_impl(*this);
+                em_->call_runtime_impl(spill_avx, *this);
             }
         };
 
@@ -141,10 +141,10 @@ namespace monad::compiler::native
                 return result;
             }
 
-            void call()
+            void call(bool spill_avx)
             {
                 em_->call_runtime_pure(
-                    *this, std::index_sequence_for<Args...>{});
+                    spill_avx, *this, std::index_sequence_for<Args...>{});
             }
         };
 
@@ -178,7 +178,7 @@ namespace monad::compiler::native
         bool begin_new_block(basic_blocks::Block const &);
         void gas_decrement_no_check(int32_t);
         void gas_decrement_check_non_negative(int32_t);
-        void spill_all_caller_save_regs();
+        void spill_all_caller_save_regs(bool spill_avx = true);
         void spill_all_caller_save_general_regs();
         void spill_all_avx_regs();
         std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
@@ -255,7 +255,7 @@ namespace monad::compiler::native
             if (mul_optimized()) {
                 return;
             }
-            call_runtime(remaining_base_gas, monad::runtime::mul<rev>);
+            call_runtime(false, remaining_base_gas, monad::runtime::mul<rev>);
         }
 
         template <evmc_revision rev>
@@ -511,7 +511,14 @@ namespace monad::compiler::native
         template <typename... Args>
         void call_runtime(int32_t remaining_base_gas, void (*f)(Args...))
         {
-            Runtime<Args...>(this, remaining_base_gas, f).call();
+            Runtime<Args...>(this, remaining_base_gas, f).call(true);
+        }
+
+        template <typename... Args>
+        void call_runtime(
+            bool spill_avx, int32_t remaining_base_gas, void (*f)(Args...))
+        {
+            Runtime<Args...>(this, remaining_base_gas, f).call(spill_avx);
         }
 
         // Terminators invalidate emitter until `begin_new_block` is called.
@@ -609,11 +616,12 @@ namespace monad::compiler::native
 
         ////////// Private EVM instruction utilities //////////
 
-        void call_runtime_impl(RuntimeImpl &rt);
+        void call_runtime_impl(bool spill_avx, RuntimeImpl &rt);
 
         template <typename... Args, size_t... Is>
         void call_runtime_pure(
-            Runtime<uint256_t *, Args...> &rt, std::index_sequence<Is...>)
+            bool spill_avx, Runtime<uint256_t *, Args...> &rt,
+            std::index_sequence<Is...>)
         {
             std::array<StackElemRef, sizeof...(Args)> elems;
             ((std::get<Is>(elems) = stack_.pop()), ...);
@@ -626,7 +634,7 @@ namespace monad::compiler::native
             }
             else {
                 discharge_deferred_comparison();
-                spill_all_caller_save_regs();
+                spill_all_caller_save_regs(spill_avx);
                 (rt.pass(std::move(std::get<Is>(elems))), ...);
                 rt.call_impl();
             }
