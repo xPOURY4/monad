@@ -1,6 +1,10 @@
 #include <monad/fuzzing/generator/generator.hpp>
 
+#include <evmc/evmc.hpp>
+
 #include <benchmark/benchmark.h>
+
+#include <random>
 
 using namespace evmc::literals;
 

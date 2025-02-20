@@ -5,6 +5,7 @@
 #include "state.hpp"
 
 #include <monad/compiler/evm_opcodes.hpp>
+#include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
@@ -23,10 +24,12 @@
 #include <bits/chrono.h>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <functional>
 #include <future>
 #include <iostream>
 #include <iterator>

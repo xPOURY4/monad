@@ -3,8 +3,11 @@
 
 #include <gtest/gtest.h>
 
+#include <evmc/evmc.hpp>
+
 #include <format>
 #include <iostream>
+#include <random>
 
 using namespace monad::fuzzing;
 using namespace monad::compiler::basic_blocks;
