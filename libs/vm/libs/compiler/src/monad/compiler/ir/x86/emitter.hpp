@@ -250,6 +250,7 @@ namespace monad::compiler::native
         bool mul_optimized();
         template <bool is_sdiv>
         bool div_optimized();
+        void negate_if_original_negative(StackElemRef original, StackElemRef&& value);
         template <bool is_smod>
         bool mod_optimized();
 

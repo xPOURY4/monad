@@ -1782,17 +1782,30 @@ namespace monad::compiler::native
                 push(x & y);
                 return;
             }
+            // a & 1...1 ==> a
             if (pre_dst->literal()->value ==
                 std::numeric_limits<uint256_t>::max()) {
                 stack_.push(std::move(pre_src));
                 return;
             }
+            // a & 0...0 ==> 0
+            if (pre_dst->literal()->value == 0) {
+                stack_.push_literal(0);
+                return;
+            }
         }
-        else if (
-            pre_src->literal() && pre_src->literal()->value ==
-                                      std::numeric_limits<uint256_t>::max()) {
-            stack_.push(std::move(pre_dst));
-            return;
+        else if (pre_src->literal()) {
+            // 1...1 & b ==> b
+            if (pre_src->literal()->value ==
+                std::numeric_limits<uint256_t>::max()) {
+                stack_.push(std::move(pre_dst));
+                return;
+            }
+            // 0...0 & b ==> 0
+            if (pre_src->literal()->value == 0) {
+                stack_.push_literal(0);
+                return;
+            }
         }
 
         discharge_deferred_comparison();
@@ -1823,14 +1836,30 @@ namespace monad::compiler::native
                 push(x | y);
                 return;
             }
+            // a | 0...0 ==> a
             if (pre_dst->literal()->value == 0) {
                 stack_.push(std::move(pre_src));
                 return;
             }
+            // a | 1...1 ==> 1...1
+            if (pre_dst->literal()->value ==
+                std::numeric_limits<uint256_t>::max()) {
+                stack_.push_literal(std::numeric_limits<uint256_t>::max());
+                return;
+            }
         }
-        else if (pre_src->literal() && pre_src->literal()->value == 0) {
-            stack_.push(std::move(pre_dst));
-            return;
+        else if (pre_src->literal()) {
+            // 0...0 & b ==> b
+            if (pre_src->literal()->value == 0) {
+                stack_.push(std::move(pre_dst));
+                return;
+            }
+            // 1...1 | b ==> 1...1
+            if (pre_src->literal()->value ==
+                std::numeric_limits<uint256_t>::max()) {
+                stack_.push_literal(std::numeric_limits<uint256_t>::max());
+                return;
+            }
         }
 
         discharge_deferred_comparison();
@@ -3979,6 +4008,75 @@ namespace monad::compiler::native
     template bool Emitter::div_optimized<true>();
     template bool Emitter::div_optimized<false>();
 
+    void Emitter::negate_if_original_negative(StackElemRef original, StackElemRef&& value)
+    {
+
+        // TODO assert value is not live
+        if (original->literal()) {
+            if (original->literal()->value[3] & (static_cast<uint64_t>(1) << 63))
+            {
+                stack_.push_literal(0);
+                stack_.push(std::move(value));
+                sub();
+            }
+            else 
+                stack_.push(std::move(value));
+            return;
+        }
+
+
+        discharge_deferred_comparison();
+
+
+        auto [left, right, loc] = get_una_arguments(original, std::nullopt, {});
+        MONAD_COMPILER_DEBUG_ASSERT(left == right);
+        if (loc == LocationType::AvxReg) {
+            constexpr uint256_t high_bit = {0, 0, 0, static_cast<uint64_t>(1) << 63};
+            auto lbl = append_literal(Literal{high_bit});
+            x86::Ymm const y = avx_reg_to_ymm(*left->avx_reg());
+            as_.vptest(y, x86::ptr(lbl));
+            // if original is positive ZF=1
+            auto skip_negation = as_.newLabel();
+            as_.je(skip_negation);
+
+            // TODO emit
+            // not value[0]
+            // not value[1]
+            // not value[2]
+            // not value[3]
+            // add value[0], 1
+            // adc value[1], 0
+            // adc value[2], 0
+            // adc value[3], 0
+    
+            as_.bind(skip_negation);
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(loc == LocationType::GeneralReg);
+            Gpq256 const &gpq = general_reg_to_gpq256(*left->general_reg());
+            as_.test(gpq[3], gpq[3]);
+            // if original is positive SF=0
+            auto skip_negation = as_.newLabel();
+            as_.jns(skip_negation);
+            
+            
+            // TODO emit
+            // not value[0]
+            // not value[1]
+            // not value[2]
+            // not value[3]
+            // add value[0], 1
+            // adc value[1], 0
+            // adc value[2], 0
+            // adc value[3], 0
+
+            as_.bind(skip_negation);
+        }
+
+        stack_.push(std::move(value));
+
+    }
+
     template <bool is_smod>
     bool Emitter::mod_optimized()
     {
@@ -4013,27 +4111,11 @@ namespace monad::compiler::native
                 if (monad::utils::popcount(b) == 1) {
                     stack_.pop();
                     stack_.pop();
-
-                    // we can compute sgn(a) as a `sar` 255 | 1, since sar will
-                    // sign extend, therefore:
-                    // * shifting a 256-bit word beginning with 0... will
-                    //   produce 0...0, and or'ing with 1
-                    //   will produce 0...1 for the value 1 in 2s complement
-                    // * shifting a 256-bit word beginning with 1... will
-                    //   produce 1...1, which in 2s complement is -1
-                    //   or'ing with 1 will have no effect
                     stack_.push(a_elem);
-                    stack_.push_literal(255);
-                    sar();
-                    stack_.push_literal(1);
-                    or_();
-                    auto sgn_a = stack_.pop();
-                    stack_.push(std::move(a_elem));
                     stack_.push_literal(b - 1);
                     and_();
-                    stack_.push(std::move(sgn_a));
-                    mul<EVMC_LATEST_STABLE_REVISION>(
-                        std::numeric_limits<int32_t>::max());
+                    auto res = stack_.pop();
+                    negate_if_original_negative(std::move(a_elem), std::move(res));
                     return true;
                 }
             }
