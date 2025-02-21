@@ -53,8 +53,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void copy_impl(
-        Context *ctx, utils::uint256_t dest_offset_word,
-        utils::uint256_t offset_word, utils::uint256_t size_word,
+        Context *ctx, utils::uint256_t const &dest_offset_word,
+        utils::uint256_t const &offset_word, utils::uint256_t const &size_word,
         std::uint8_t const *source, std::uint32_t len)
     {
         auto size = ctx->get_memory_offset(size_word);
