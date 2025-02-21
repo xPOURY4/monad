@@ -1371,6 +1371,7 @@ TEST(Emitter, udiv)
         {1, 1},
         {4, 0},
         {4, 1},
+        {7, 4},
         {0, 4},
         {std::numeric_limits<uint256_t>::max() - 1, 2}};
     for (auto const &[a, b] : inputs) {
@@ -1393,6 +1394,7 @@ TEST(Emitter, sdiv)
         {1, 1},
         {4, 0},
         {4, 1},
+        {7, 4},
         {0, 4},
         {std::numeric_limits<uint256_t>::max() - 1, 2}};
     for (auto const &[a, b] : inputs) {
@@ -1416,6 +1418,7 @@ TEST(Emitter, umod)
         {1, 0},
         {0, 1},
         {4, 3},
+        {7, 4},
         {3, 5},
         {2, std::numeric_limits<uint256_t>::max() - 1}};
     for (auto const &[a, b] : inputs) {
@@ -1439,6 +1442,7 @@ TEST(Emitter, smod)
         {1, 0},
         {0, 1},
         {4, 3},
+        {7, 4},
         {3, 5},
         {2, std::numeric_limits<uint256_t>::max() - 1}};
     for (auto const &[a, b] : inputs) {

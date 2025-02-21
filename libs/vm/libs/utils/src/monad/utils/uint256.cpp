@@ -4,6 +4,7 @@
 #include <intx/intx.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -71,6 +72,21 @@ namespace monad::utils
             shift_index -= 64;
         }
         return (x >> shift_index_256) | sign_bits;
+    }
+
+    uint256_t countr_zero(uint256_t const &x)
+    {
+        int total_count = 0;
+        int count;
+
+        for (size_t i = 0; i < 4; i++) {
+            count = std::countr_zero(x[i]);
+            total_count += count;
+            if (count < 64) {
+                return uint256_t{total_count};
+            }
+        }
+        return uint256_t{total_count};
     }
 
     uint256_t

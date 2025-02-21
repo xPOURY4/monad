@@ -3868,15 +3868,6 @@ namespace monad::compiler::native
             return false;
         }
 
-        if (a_elem->literal() && b_elem->literal()) {
-            auto const &a = a_elem->literal()->value;
-            auto const &b = b_elem->literal()->value;
-            stack_.pop();
-            stack_.pop();
-            stack_.push_literal(a * b);
-            return true;
-        }
-
         if (a_elem->literal()) {
             auto const &a = a_elem->literal()->value;
             if (a == 0) {
@@ -3885,8 +3876,13 @@ namespace monad::compiler::native
                 stack_.push_literal(0);
                 return true;
             }
-            if (a == 1) {
+            // if exists n. b == 2 ^ n we can optimise a * b ==> a << n
+            if (monad::utils::popcount(a) == 1) {
                 stack_.pop();
+                // n is obtained by counting the number of 0s from the right
+                // before hitting the 1 e.g. 100 in binary is 4 = 2 ^ 2
+                stack_.push_literal(monad::utils::countr_zero(a));
+                shl();
                 return true;
             }
         }
@@ -3899,12 +3895,23 @@ namespace monad::compiler::native
                 stack_.push_literal(0);
                 return true;
             }
-            if (b == 1) {
+            if (monad::utils::popcount(b) == 1) {
                 stack_.pop();
                 stack_.pop();
                 stack_.push(std::move(a_elem));
+                stack_.push_literal(monad::utils::countr_zero(b));
+                shl();
                 return true;
             }
+        }
+
+        if (a_elem->literal() && b_elem->literal()) {
+            auto const &a = a_elem->literal()->value;
+            auto const &b = b_elem->literal()->value;
+            stack_.pop();
+            stack_.pop();
+            stack_.push_literal(a * b);
+            return true;
         }
 
         return false;
@@ -3937,10 +3944,17 @@ namespace monad::compiler::native
                 stack_.push_literal(0);
                 return true;
             }
-            if (b == 1) {
+            if (monad::utils::popcount(b) == 1) {
                 stack_.pop();
                 stack_.pop();
                 stack_.push(std::move(a_elem));
+                stack_.push_literal(monad::utils::countr_zero(b));
+                if constexpr (is_sdiv) {
+                    sar();
+                }
+                else {
+                    shr();
+                }
                 return true;
             }
         }
@@ -3986,11 +4000,54 @@ namespace monad::compiler::native
 
         if (b_elem->literal()) {
             auto const &b = b_elem->literal()->value;
-            if (b == 0 || b == 1) {
+            if (b == 0) {
                 stack_.pop();
                 stack_.pop();
                 stack_.push_literal(0);
                 return true;
+            }
+
+            if constexpr (is_smod) {
+                // if exists n. b == 2 ^ n we can optimise
+                // a smod b ==> sgn(a) * (a & (b - 1))
+                if (monad::utils::popcount(b) == 1) {
+                    stack_.pop();
+                    stack_.pop();
+
+                    // we can compute sgn(a) as a `sar` 255 | 1, since sar will
+                    // sign extend, therefore:
+                    // * shifting a 256-bit word beginning with 0... will
+                    //   produce 0...0, and or'ing with 1
+                    //   will produce 0...1 for the value 1 in 2s complement
+                    // * shifting a 256-bit word beginning with 1... will
+                    //   produce 1...1, which in 2s complement is -1
+                    //   or'ing with 1 will have no effect
+                    stack_.push(a_elem);
+                    stack_.push_literal(255);
+                    sar();
+                    stack_.push_literal(1);
+                    or_();
+                    auto sgn_a = stack_.pop();
+                    stack_.push(std::move(a_elem));
+                    stack_.push_literal(b - 1);
+                    and_();
+                    stack_.push(std::move(sgn_a));
+                    mul<EVMC_LATEST_STABLE_REVISION>(
+                        std::numeric_limits<int32_t>::max());
+                    return true;
+                }
+            }
+            else {
+                // if exists n. b == 2 ^ n we can optimise
+                // a umod b ==> a & (b - 1)
+                if (monad::utils::popcount(b) == 1) {
+                    stack_.pop();
+                    stack_.pop();
+                    stack_.push(std::move(a_elem));
+                    stack_.push_literal(b - 1);
+                    and_();
+                    return true;
+                }
             }
         }
 

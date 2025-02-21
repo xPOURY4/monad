@@ -12,6 +12,14 @@ namespace monad::utils
     uint256_t signextend(uint256_t const &byte_index, uint256_t const &x);
     uint256_t byte(uint256_t const &byte_index, uint256_t const &x);
     uint256_t sar(uint256_t const &shift_index, uint256_t const &x);
+    uint256_t countr_zero(uint256_t const &x);
+
+    inline size_t popcount(uint256_t const &x)
+    {
+        return static_cast<size_t>(
+            std::popcount(x[0]) + std::popcount(x[1]) + std::popcount(x[2]) +
+            std::popcount(x[3]));
+    }
 
     /**
      * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
