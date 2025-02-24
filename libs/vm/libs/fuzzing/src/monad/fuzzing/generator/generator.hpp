@@ -300,13 +300,42 @@ namespace monad::fuzzing
             return;
         }
 
+        MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(jumpdest_patches));
+        MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(valid_jumpdests));
+
+        // The valid jumpdests and path locations in this program appear in
+        // sorted order, so we can bias the generator towards "forwards" jumps
+        // in the CFG by simply keeping track of a pointer to the first jumpdest
+        // greater than the program offset that we're currently patching, and
+        // sampling from that range with greater probability.
+
+        auto forward_jds_begin = valid_jumpdests.begin();
+        auto const forward_jds_end = valid_jumpdests.end();
+
         for (auto const patch : jumpdest_patches) {
             MONAD_COMPILER_DEBUG_ASSERT(patch + 4 < program.size());
             MONAD_COMPILER_DEBUG_ASSERT(program[patch] == PUSH4);
 
-            auto const jd = uniform_sample(eng, valid_jumpdests);
-            auto const *bs = intx::as_bytes(jd);
+            forward_jds_begin = std::find_if(
+                forward_jds_begin, forward_jds_end, [patch](auto jd) {
+                    return jd > patch;
+                });
 
+            // If there are no possible forwards jumps (i.e. we're in the last
+            // block) then we need to unconditionally sample from the full set
+            // of jumpdests.
+            auto const forward_prob =
+                (forward_jds_begin != forward_jds_end) ? 0.8 : 0.0;
+
+            auto const jd = discrete_choice<std::size_t>(
+                eng,
+                [&](auto &g) { return uniform_sample(g, valid_jumpdests); },
+                Choice(forward_prob, [&](auto &g) {
+                    return uniform_sample(
+                        g, forward_jds_begin, forward_jds_end);
+                }));
+
+            auto const *bs = intx::as_bytes(jd);
             for (auto i = 0u; i < 4; ++i) {
                 auto &dest = program[patch + i + 1];
                 MONAD_COMPILER_DEBUG_ASSERT(dest == 0xFF);

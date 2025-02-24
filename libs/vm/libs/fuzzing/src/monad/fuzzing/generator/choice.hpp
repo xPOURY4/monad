@@ -2,6 +2,7 @@
 
 #include <monad/utils/assert.h>
 
+#include <iterator>
 #include <optional>
 #include <random>
 
@@ -70,13 +71,20 @@ namespace monad::fuzzing
         }
     }
 
-    template <typename Engine, typename Container>
-    Container::value_type const &
-    uniform_sample(Engine &eng, Container const &in)
+    template <typename Engine, std::random_access_iterator Iterator>
+    auto const &uniform_sample(Engine &eng, Iterator begin, Iterator end)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(!in.empty());
-        auto dist =
-            std::uniform_int_distribution<std::size_t>(0, in.size() - 1);
-        return in[dist(eng)];
+        using diff_t = std::iterator_traits<Iterator>::difference_type;
+
+        MONAD_COMPILER_DEBUG_ASSERT(begin != end);
+        auto dist = std::uniform_int_distribution<diff_t>(0, end - begin - 1);
+        return *(begin + dist(eng));
+    }
+
+    template <typename Engine, typename Container>
+    auto const &uniform_sample(Engine &eng, Container const &in)
+        requires(std::random_access_iterator<typename Container::iterator>)
+    {
+        return uniform_sample(eng, in.begin(), in.end());
     }
 }
