@@ -361,7 +361,7 @@ namespace monad::fuzzing
 
         for (auto i = 0; i < n_blocks; ++i) {
             auto const is_main = (i == 0);
-            auto const is_exit = !is_main && (i <= n_exit_blocks);
+            auto const is_exit = (i > n_blocks - n_exit_blocks);
 
             auto const block = generate_block(eng, is_exit, is_main);
 
