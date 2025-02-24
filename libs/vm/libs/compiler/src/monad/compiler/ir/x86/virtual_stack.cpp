@@ -198,13 +198,8 @@ namespace monad::compiler::native
 
     void StackElem::insert_general_reg()
     {
-        auto x = stack_.free_general_regs_.top();
+        auto reg = stack_.free_general_regs_.top();
         stack_.free_general_regs_.pop();
-        insert_general_reg(x);
-    }
-
-    void StackElem::insert_general_reg(GeneralReg reg)
-    {
         MONAD_COMPILER_ASSERT(!general_reg_.has_value());
         MONAD_COMPILER_ASSERT(
             stack_.general_reg_stack_elems_[reg.reg] == nullptr);
@@ -226,7 +221,7 @@ namespace monad::compiler::native
         MONAD_COMPILER_ASSERT(general_reg_.has_value());
         stack_.free_general_regs_.push(*general_reg_);
         auto reg = general_reg_->reg;
-        MONAD_COMPILER_ASSERT(stack_.general_reg_stack_elems_[reg] != nullptr);
+        MONAD_COMPILER_ASSERT(stack_.general_reg_stack_elems_[reg] == this);
         stack_.general_reg_stack_elems_[reg] = nullptr;
     }
 
@@ -818,22 +813,20 @@ namespace monad::compiler::native
     StackElemRef Stack::release_general_reg(StackElemRef elem)
     {
         auto dst = new_stack_elem();
-        GeneralReg const reg = *elem->general_reg_;
-        dst->general_reg_ = reg;
-        elem->general_reg_ = std::nullopt;
-        general_reg_stack_elems_[reg.reg] = dst.get();
+        move_general_reg(*elem, *dst);
         return dst;
     }
 
-    void Stack::unsafe_move_general_reg(StackElem &src, StackElem &dst)
+    void Stack::move_general_reg(StackElem &src, StackElem &dst)
     {
-        MONAD_COMPILER_ASSERT(src.general_reg_.has_value());
-        auto reg = *src.general_reg_;
-        src.remove_general_reg();
-        dst.insert_general_reg(reg);
+        GeneralReg const reg = *src.general_reg_;
+        dst.general_reg_ = reg;
+        src.general_reg_ = std::nullopt;
+        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg.reg] == &src);
+        general_reg_stack_elems_[reg.reg] = &dst;
     }
 
-    void Stack::unsafe_remove_general_reg(StackElem &e)
+    void Stack::remove_general_reg(StackElem &e)
     {
         MONAD_COMPILER_ASSERT(e.general_reg_.has_value());
         e.remove_general_reg();

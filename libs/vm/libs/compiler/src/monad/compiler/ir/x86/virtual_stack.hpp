@@ -187,7 +187,6 @@ namespace monad::compiler::native
         void insert_stack_offset(StackOffset);
         void insert_avx_reg();
         void insert_general_reg();
-        void insert_general_reg(GeneralReg);
 
         void free_avx_reg();
         void free_general_reg();
@@ -529,18 +528,18 @@ namespace monad::compiler::native
         StackElemRef release_general_reg(StackElemRef elem);
 
         /**
-         * Move the general register in `src` to `dst`. Unsafe because
-         * it is assumed that `src` does not need to spill its value to another
-         * location, even if general register is the only location.
+         * Move the general register in `src` to `dst`. It is required that
+         * `src` does not need to spill its value to another location, even
+         * if general register is the only location.
          */
-        void unsafe_move_general_reg(StackElem &src, StackElem &dst);
+        void move_general_reg(StackElem &src, StackElem &dst);
 
         /**
-         * Remove the general register in `src`. Unsafe because it is assumed
-         * that the `StackElem` does not need to spill its value to another
+         * Remove the general register in `src`. It is required that the
+         * `StackElem` does not need to spill its value to another
          * location, even if general register is the only location.
          */
-        void unsafe_remove_general_reg(StackElem &);
+        void remove_general_reg(StackElem &);
 
         /**
          * Remove stack offset location from the given stack element. It is

@@ -1506,7 +1506,7 @@ namespace monad::compiler::native
             MONAD_COMPILER_DEBUG_ASSERT(!spill.has_value());
             return x;
         };
-        stack_.unsafe_move_general_reg(*reg_elem(), *elem);
+        stack_.move_general_reg(*reg_elem(), *elem);
 
         if (spill_elem != nullptr) {
             MONAD_COMPILER_DEBUG_ASSERT(spill_elem->stack_offset().has_value());
@@ -2285,10 +2285,10 @@ namespace monad::compiler::native
             // `non_literal_jump_dest_operand`.
             auto *e = *spill_elem;
             if (e != nullptr) {
-                stack_.unsafe_move_general_reg(*dest, *e);
+                stack_.move_general_reg(*dest, *e);
             }
             else {
-                stack_.unsafe_remove_general_reg(*dest);
+                stack_.remove_general_reg(*dest);
             }
         }
         if (std::holds_alternative<Gpq256>(dest_op)) {
