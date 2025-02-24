@@ -10,6 +10,7 @@
 
 #include <array>
 #include <limits>
+#include <memory>
 #include <random>
 #include <unordered_set>
 #include <variant>
@@ -53,14 +54,32 @@ namespace monad::fuzzing
             intx::exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
     }
 
-    template <typename Engine>
+    template <std::size_t Bits = 256, typename Engine = void>
     Constant random_constant(Engine &gen)
+        requires(Bits % 64 == 0 && Bits > 0 && Bits <= 256)
     {
+        constexpr auto words = Bits / 64;
         auto dist =
             std::uniform_int_distribution<utils::uint256_t::word_type>();
 
-        return Constant{
-            utils::uint256_t{dist(gen), dist(gen), dist(gen), dist(gen)}};
+        return Constant{utils::uint256_t{
+            words >= 0 ? dist(gen) : 0,
+            words >= 1 ? dist(gen) : 0,
+            words >= 2 ? dist(gen) : 0,
+            words >= 3 ? dist(gen) : 0,
+        }};
+    }
+
+    template <typename Engine>
+    evmc::address random_address(Engine &eng)
+    {
+        auto ret = evmc::address{};
+        auto const value = random_constant<192>(eng);
+
+        auto const *bytes = intx::as_bytes(value.value);
+        std::copy_n(bytes, 20, &ret.bytes[0]);
+
+        return ret;
     }
 
     template <typename Engine>
@@ -79,6 +98,17 @@ namespace monad::fuzzing
             eng,
             [](auto &g) { return random_constant(g); },
             Choice(0.25, [](auto &) { return ValidJumpDest{}; }),
+            Choice(0.25, [](auto &) { return ValidAddress{}; }),
+            Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
+            Choice(0.20, [](auto &g) { return power_of_two_constant(g); }));
+    }
+
+    template <typename Engine>
+    Push generate_calldata_item(Engine &eng)
+    {
+        return discrete_choice<Push>(
+            eng,
+            [](auto &g) { return random_constant(g); },
             Choice(0.25, [](auto &) { return ValidAddress{}; }),
             Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
             Choice(0.20, [](auto &g) { return power_of_two_constant(g); }));
@@ -243,6 +273,16 @@ namespace monad::fuzzing
     }
 
     template <typename Engine>
+    void compile_push(
+        Engine &eng, std::vector<std::uint8_t> &program, Push const &push,
+        std::vector<evmc::address> const &valid_addresses)
+    {
+        auto patches = std::vector<std::size_t>{};
+        compile_push(eng, program, push, valid_addresses, patches);
+        MONAD_COMPILER_DEBUG_ASSERT(patches.empty());
+    }
+
+    template <typename Engine>
     void compile_block(
         Engine &eng, std::vector<std::uint8_t> &program,
         std::vector<Instruction> const &block,
@@ -381,4 +421,152 @@ namespace monad::fuzzing
         patch_jumpdests(eng, prog, jumpdest_patches, valid_jumpdests);
         return prog;
     }
+
+    template <typename Engine, typename LookupFunc>
+    auto message_gas(
+        Engine &eng, evmc::address const &target,
+        std::vector<evmc::address> const &known_addresses,
+        LookupFunc address_lookup) noexcept
+    {
+        using gas_t = decltype(evmc_message::gas);
+
+        auto const base_gas =
+            address_lookup(target).size() * known_addresses.size();
+
+        auto factor_dist = std::normal_distribution(8.0);
+        auto const factor = std::max(0.0, factor_dist(eng));
+
+        auto const gas = static_cast<double>(base_gas) * factor;
+
+        MONAD_COMPILER_DEBUG_ASSERT(
+            gas <= static_cast<double>(std::numeric_limits<gas_t>::max()));
+        MONAD_COMPILER_DEBUG_ASSERT(gas >= 0);
+
+        return static_cast<gas_t>(gas);
+    }
+
+    struct message_deleter
+    {
+        static void operator()(evmc_message *msg) noexcept
+        {
+            if (!msg) {
+                return;
+            }
+
+            delete[] msg->input_data;
+            delete msg;
+        }
+    };
+
+    using message_ptr = std::unique_ptr<evmc_message, message_deleter>;
+
+    /**
+     * Generates and allocates a calldata buffer containing push-like elements.
+     *
+     * The caller of this function is responsible for deallocating the buffer
+     * appropriately (e.g. by assigning it to the `input_data` member of a
+     * `message_ptr`, or explicitly via `delete[]`).
+     */
+    template <typename Engine>
+    std::uint8_t const *generate_input_data(
+        Engine &eng, std::size_t const size,
+        std::vector<evmc::address> const &known_addresses)
+    {
+        if (size == 0) {
+            return nullptr;
+        }
+
+        auto data = std::vector<std::uint8_t>();
+        data.reserve(size);
+
+        while (data.size() < size) {
+            auto const next_item = generate_calldata_item(eng);
+            compile_push(eng, data, next_item, known_addresses);
+        }
+
+        auto *const return_buf = new std::uint8_t[size];
+
+        MONAD_COMPILER_DEBUG_ASSERT(data.size() >= size);
+        std::copy_n(data.begin(), size, &return_buf[0]);
+
+        return return_buf;
+    }
+
+    /**
+     * Generate a random EVMC message.
+     *
+     * Returns a managed pointer to a message, rather than the message itself in
+     * order that we can control the lifetime of the `input_data` buffer.
+     *
+     * Additionally, the `lookup :: Address -> Code` argument here is passed as
+     * a lambda to decouple the message generator from any particular concrete
+     * state representation. The fuzzer implementation is responsible for
+     * instantiating this lookup as appropriate.
+     */
+    template <typename Engine, typename LookupFunc>
+    message_ptr generate_message(
+        Engine &eng, evmc::address const &target,
+        std::vector<evmc::address> const &known_addresses,
+        std::vector<evmc::address> const &known_eoas,
+        LookupFunc address_lookup) noexcept
+    {
+        auto const kind = uniform_sample(
+            eng, std::array{EVMC_CALL, EVMC_DELEGATECALL, EVMC_CALLCODE});
+
+        auto const flags = uniform_sample(
+            eng, std::array{static_cast<evmc_flags>(0), EVMC_STATIC});
+
+        auto const depth =
+            std::uniform_int_distribution<decltype(evmc_message::depth)>(
+                0, 1023)(eng);
+
+        auto const recipient =
+            (kind == EVMC_CALL)
+                ? target
+                : discrete_choice<evmc::address>(
+                      eng,
+                      [&](auto &g) {
+                          return uniform_sample(g, known_addresses);
+                      },
+                      Choice(0.01, [&](auto &g) { return random_address(g); }));
+
+        auto const eoa_prob = known_eoas.empty() ? 0.0 : 0.5;
+        auto const sender = discrete_choice<evmc::address>(
+            eng,
+            [&](auto &g) { return uniform_sample(g, known_addresses); },
+            Choice(eoa_prob, [&](auto &g) {
+                return uniform_sample(g, known_eoas);
+            }));
+
+        auto const input_size =
+            std::uniform_int_distribution<std::size_t>(0, 1024)(eng);
+        auto const *input_data =
+            generate_input_data(eng, input_size, known_addresses);
+
+        auto const value = discrete_choice<utils::uint256_t>(
+            eng, [](auto &) { return 0; }, Choice(0.9, [&](auto &g) {
+                return random_constant<128>(g).value;
+            }));
+
+        auto const salt = random_constant(eng).value;
+
+        auto const &code = address_lookup(target);
+
+        return message_ptr{new evmc_message{
+            .kind = kind,
+            .flags = flags,
+            .depth = depth,
+            .gas = message_gas(eng, recipient, known_addresses, address_lookup),
+            .recipient = recipient,
+            .sender = sender,
+            .input_data = input_data,
+            .input_size = input_size,
+            .value = intx::be::store<evmc::bytes32>(value),
+            .create2_salt = intx::be::store<evmc::bytes32>(salt),
+            .code_address = target,
+            .code = code.data(),
+            .code_size = code.size(),
+        }};
+    }
+
 }

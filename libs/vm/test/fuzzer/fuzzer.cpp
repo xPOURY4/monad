@@ -322,28 +322,6 @@ void clean_storage(State &state)
     }
 }
 
-// TODO(BSC): fill in actual message generation
-template <typename Engine>
-evmc_message generate_message(Engine &eng, evmc::address const &target) noexcept
-{
-    (void)eng;
-    return evmc_message{
-        .kind = EVMC_CALL,
-        .flags = 0,
-        .depth = 0,
-        .gas = block_gas_limit,
-        .recipient = target,
-        .sender = genesis_address,
-        .input_data = nullptr,
-        .input_size = 0,
-        .value = {},
-        .create2_salt = {},
-        .code_address = target,
-        .code = nullptr,
-        .code_size = 0,
-    };
-}
-
 using random_engine_t = std::mt19937_64;
 
 struct arguments
@@ -409,6 +387,15 @@ void fuzz_iteration(
     evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm,
     std::promise<evmc_status_code> promise)
 {
+    // If we send a message to a random address that wasn't previously deployed,
+    // then rolls back, it can violate an internal assumption in evmone. We
+    // therefore need to make sure there's an empty account at the sender and
+    // recipient addresses.
+    for (State &state : {std::ref(evmone_state), std::ref(compiler_state)}) {
+        state.get_or_insert(msg.sender);
+        state.get_or_insert(msg.recipient);
+    }
+
     auto const evmone_checkpoint = evmone_state.checkpoint();
     auto const evmone_result =
         transition(evmone_state, msg, rev, evmone_vm, block_gas_limit);
@@ -467,6 +454,7 @@ void log(
 
 void handle_timeout(
     std::future<evmc_status_code> &&future, std::jthread &&task,
+    monad::fuzzing::message_ptr &&msg,
     std::unordered_map<evmc_status_code, std::size_t> &exit_code_stats)
 {
     auto status = future.wait_for(0.5s);
@@ -478,6 +466,11 @@ void handle_timeout(
         ++exit_code_stats[static_cast<evmc_status_code>(FUZZER_TIMEOUT)];
         pthread_cancel(task.native_handle());
     }
+
+    // We need the message data to live until we know the worker thread has
+    // completed or been explicitly cancelled; at this point we can explicitly
+    // end its lifetime by resetting it.
+    msg = nullptr;
 }
 
 int main(int argc, char **argv)
@@ -523,12 +516,24 @@ int main(int argc, char **argv)
 
             auto const target =
                 monad::fuzzing::uniform_sample(engine, contract_addresses);
-            auto const msg = generate_message(engine, target);
+            auto msg = monad::fuzzing::generate_message(
+                engine,
+                target,
+                contract_addresses,
+                {genesis_address},
+                [&](auto const &address) {
+                    if (auto *found = evmone_state.find(address);
+                        found != nullptr) {
+                        return found->code;
+                    }
+
+                    return evmc::bytes{};
+                });
             ++total_messages;
 
             auto task = std::jthread(
                 fuzz_iteration,
-                std::ref(msg),
+                std::ref(*msg),
                 rev,
                 std::ref(evmone_state),
                 std::ref(evmone_vm),
@@ -536,7 +541,11 @@ int main(int argc, char **argv)
                 std::ref(compiler_vm),
                 std::move(promise));
 
-            handle_timeout(std::move(future), std::move(task), exit_code_stats);
+            handle_timeout(
+                std::move(future),
+                std::move(task),
+                std::move(msg),
+                exit_code_stats);
         }
 
         log(last_start, args, exit_code_stats, i, total_messages);
