@@ -126,6 +126,12 @@ namespace monad::fuzzing
 
         auto program = std::vector<Instruction>{};
 
+        // Parameters chosen based on the initial fuzzer specification. Because
+        // we generate pushes using a different method to other non-terminator
+        // instructions, we need to weight their generation probability
+        // proportionately to the total number of EVM opcodes. This could be
+        // changed in the future to reconfigure the number of pushes vs. other
+        // instructions.
         constexpr auto total_non_term_prob = 0.90;
         constexpr auto push_weight = (32.0 / 148.0);
         constexpr auto non_term_weight = 1.0 - push_weight;
@@ -138,9 +144,14 @@ namespace monad::fuzzing
             (1 - total_non_term_prob) - random_byte_prob;
 
         if (is_main) {
-            constexpr auto main_initial_pushes = 24;
+            // Parameters chosen by eye; roughly 10% chance of 12 or fewer
+            // pushes and 95% chance of 24 or fewer. Could be configured to
+            // change the characteristics of this distribution.
+            auto main_pushes_dist =
+                std::binomial_distribution<std::size_t>(50, 0.35);
+            auto const main_initial_pushes = main_pushes_dist(eng);
 
-            for (auto i = 0; i < main_initial_pushes; ++i) {
+            for (auto i = 0u; i < main_initial_pushes; ++i) {
                 program.push_back(generate_push(eng));
             }
         }
