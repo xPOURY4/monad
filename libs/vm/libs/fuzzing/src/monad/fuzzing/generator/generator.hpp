@@ -75,7 +75,7 @@ namespace monad::fuzzing
     template <typename Engine>
     Push generate_push(Engine &eng)
     {
-        return uniform_choice<Push>(
+        return discrete_choice<Push>(
             eng,
             [](auto &g) { return random_constant(g); },
             Choice(0.25, [](auto &) { return ValidJumpDest{}; }),
@@ -162,7 +162,7 @@ namespace monad::fuzzing
 
         for (auto terminated = false;
              !terminated && program.size() <= max_block_insts;) {
-            auto next_inst = uniform_choice<Instruction>(
+            auto next_inst = discrete_choice<Instruction>(
                 eng,
                 [](auto &g) { return generate_random_byte(g); },
                 Choice(

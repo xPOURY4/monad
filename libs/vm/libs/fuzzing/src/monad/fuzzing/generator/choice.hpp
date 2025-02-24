@@ -34,7 +34,7 @@ namespace monad::fuzzing
 
     template <
         typename Result, typename Engine, typename Default, typename... Choices>
-    auto uniform_choice(Engine &eng, Default &&d, Choices &&...choices)
+    auto discrete_choice(Engine &eng, Default &&d, Choices &&...choices)
     {
         auto result = std::optional<Result>{};
         auto cumulative = 0.0;
