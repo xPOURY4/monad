@@ -144,16 +144,20 @@ namespace monad::fuzzing
             (1 - total_non_term_prob) - random_byte_prob;
 
         if (is_main) {
-            // Parameters chosen by eye; roughly 10% chance of 12 or fewer
-            // pushes and 95% chance of 24 or fewer. Could be configured to
-            // change the characteristics of this distribution.
-            auto main_pushes_dist =
-                std::binomial_distribution<std::size_t>(50, 0.35);
-            auto const main_initial_pushes = main_pushes_dist(eng);
+            // Leave a 5% chance to not generate any pushes in the main block.
+            with_probability(eng, 0.95, [&](auto &g) {
+                // Parameters chosen by eye; roughly 10% chance of 12 or
+                // fewer pushes and 95% chance of 24 or fewer. Could be
+                // configured to change the characteristics of this
+                // distribution.
+                auto main_pushes_dist =
+                    std::binomial_distribution<std::size_t>(50, 0.35);
+                auto const main_initial_pushes = main_pushes_dist(g);
 
-            for (auto i = 0u; i < main_initial_pushes; ++i) {
-                program.push_back(generate_push(eng));
-            }
+                for (auto i = 0u; i < main_initial_pushes; ++i) {
+                    program.push_back(generate_push(g));
+                }
+            });
         }
 
         with_probability(eng, 0.8, [&](auto &) {
