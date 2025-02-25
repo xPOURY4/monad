@@ -387,6 +387,17 @@ void fuzz_iteration(
     evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm,
     std::promise<evmc_status_code> promise)
 {
+    // Non-portable, slightly hacky code, but we need to be able to cancel
+    // worker threads immediately as the compiled code does not have a way to
+    // politely request cancellation, and the program also won't call a POSIX
+    // cancellation point.
+    auto const res =
+        pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr);
+    if (res != 0) {
+        std::cerr << "Failed to set cancellation type\n";
+        std::exit(1);
+    }
+
     // If we send a message to a random address that wasn't previously deployed,
     // then rolls back, it can violate an internal assumption in evmone. We
     // therefore need to make sure there's an empty account at the sender and
