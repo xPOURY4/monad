@@ -53,8 +53,7 @@ monad_compile_options(interpreter-blockchain-tests)
 target_link_libraries(interpreter-blockchain-tests
     blockchain-test-vm
     utils
-    monad-compiler
-    monad-compiler-vm
+    monad-interpreter
     evmone-blockchaintest-lib)
 
 # Benchmarks
