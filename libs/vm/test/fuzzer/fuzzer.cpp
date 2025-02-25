@@ -147,6 +147,34 @@ void assert_equal(State const &a, State const &b)
     }
 }
 
+void assert_equal(
+    evmc::Result const &evmone_result, evmc::Result const &compiler_result)
+{
+    MONAD_COMPILER_ASSERT(std::ranges::equal(
+        evmone_result.create_address.bytes,
+        compiler_result.create_address.bytes));
+
+    MONAD_COMPILER_ASSERT(evmone_result.gas_left == compiler_result.gas_left);
+    MONAD_COMPILER_ASSERT(
+        evmone_result.gas_refund == compiler_result.gas_refund);
+
+    MONAD_COMPILER_ASSERT(std::ranges::equal(
+        std::span(evmone_result.output_data, evmone_result.output_size),
+        std::span(compiler_result.output_data, compiler_result.output_size)));
+
+    switch (evmone_result.status_code) {
+    case EVMC_SUCCESS:
+    case EVMC_REVERT:
+        MONAD_COMPILER_ASSERT(
+            evmone_result.status_code == compiler_result.status_code);
+        break;
+    default:
+        MONAD_COMPILER_ASSERT(compiler_result.status_code != EVMC_SUCCESS);
+        MONAD_COMPILER_ASSERT(compiler_result.status_code != EVMC_REVERT);
+        break;
+    }
+}
+
 constexpr auto genesis_address =
     0xBEEFCAFE000000000000000000000000BA5EBA11_address;
 
@@ -411,14 +439,16 @@ void fuzz_iteration(
     auto const evmone_result =
         transition(evmone_state, msg, rev, evmone_vm, block_gas_limit);
 
+    auto const compiler_checkpoint = compiler_state.checkpoint();
+    auto const compiler_result =
+        transition(compiler_state, msg, rev, compiler_vm, block_gas_limit);
+
+    assert_equal(evmone_result, compiler_result);
+
     if (evmone_result.status_code != EVMC_SUCCESS) {
         evmone_state.rollback(evmone_checkpoint);
         clean_storage(evmone_state);
     }
-
-    auto const compiler_checkpoint = compiler_state.checkpoint();
-    auto const compiler_result =
-        transition(compiler_state, msg, rev, compiler_vm, block_gas_limit);
 
     if (compiler_result.status_code != EVMC_SUCCESS) {
         compiler_state.rollback(compiler_checkpoint);
