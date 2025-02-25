@@ -8,6 +8,13 @@ namespace monad::fuzzing
 {
     using enum monad::compiler::EvmOpCode;
 
+    constexpr auto call_non_terminators = std::array{
+        CALL,
+        CALLCODE,
+        DELEGATECALL,
+        STATICCALL,
+    };
+
     constexpr auto safe_non_terminators = std::array{
         ADD,
         MUL,
