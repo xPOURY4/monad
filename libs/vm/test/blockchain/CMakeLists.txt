@@ -1,3 +1,5 @@
+# Testing VM
+
 add_library(blockchain-test-vm STATIC)
 target_sources(blockchain-test-vm
     PRIVATE
@@ -15,23 +17,47 @@ target_include_directories(blockchain-test-vm
 )
 monad_compile_options(blockchain-test-vm)
 
-add_executable(blockchain-tests)
-target_sources(blockchain-tests
+# Compiler Blockchain Tests
+
+add_executable(compiler-blockchain-tests)
+target_sources(compiler-blockchain-tests
     PRIVATE
-        blockchain_tests.cpp
+        compiler_blockchain_tests.cpp
 )
-target_include_directories(blockchain-tests
+target_include_directories(compiler-blockchain-tests
     PRIVATE
         "${TOP_CURRENT_BINARY_DIR}/test"
 )
-monad_compile_options(blockchain-tests)
+monad_compile_options(compiler-blockchain-tests)
 
-target_link_libraries(blockchain-tests
+target_link_libraries(compiler-blockchain-tests
     blockchain-test-vm
     utils
     monad-compiler
     monad-compiler-vm
     evmone-blockchaintest-lib)
+
+# Interpreter Blockchain Tests
+
+add_executable(interpreter-blockchain-tests)
+target_sources(interpreter-blockchain-tests
+    PRIVATE
+        interpreter_blockchain_tests.cpp
+)
+target_include_directories(interpreter-blockchain-tests
+    PRIVATE
+        "${TOP_CURRENT_BINARY_DIR}/test"
+)
+monad_compile_options(interpreter-blockchain-tests)
+
+target_link_libraries(interpreter-blockchain-tests
+    blockchain-test-vm
+    utils
+    monad-compiler
+    monad-compiler-vm
+    evmone-blockchaintest-lib)
+
+# Benchmarks
 
 add_executable(blockchain-test-benchmarks)
 target_sources(blockchain-test-benchmarks
@@ -51,6 +77,8 @@ target_link_libraries(blockchain-test-benchmarks
     monad-compiler
     monad-compiler-vm
     evmone-blockchaintest-lib)
+
+# Coverage
 
 if(MONAD_COMPILER_COVERAGE)
     target_compile_options(blockchain-tests PRIVATE -coverage)

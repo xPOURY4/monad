@@ -31,7 +31,13 @@ using CompiledContractsMap = std::unordered_map<
 class BlockchainTestVM : public evmc_vm
 {
 public:
-    BlockchainTestVM();
+    enum class Implementation
+    {
+        Compiler,
+        Interpreter,
+    };
+
+    BlockchainTestVM(Implementation impl = Implementation::Compiler);
 
     evmc_result execute(
         evmc_host_interface const *host, evmc_host_context *context,
@@ -41,9 +47,20 @@ public:
     evmc_capabilities_flagset get_capabilities() const;
 
 private:
+    Implementation impl_;
     evmc::VM evmone_vm_;
     monad::compiler::VM monad_vm_;
     CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
     bool only_evmone_;
+
+    evmc_result execute_compiler(
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+        size_t code_size);
+
+    evmc_result execute_interpreter(
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+        size_t code_size);
 };

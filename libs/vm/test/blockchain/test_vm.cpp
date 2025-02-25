@@ -75,8 +75,9 @@ bool CompiledContractEqual::operator()(
     return d == e && std::memcmp(x.bytes, y.bytes, sizeof(x.bytes)) == 0;
 }
 
-BlockchainTestVM::BlockchainTestVM()
+BlockchainTestVM::BlockchainTestVM(Implementation impl)
     : evmc_vm{EVMC_ABI_VERSION, "monad-compiler-blockchain-test-vm", "0.0.0", ::destroy, ::execute, ::get_capabilities, nullptr}
+    , impl_{impl}
     , evmone_vm_{evmc_create_evmone()}
     , debug_dir_{std::getenv("MONAD_BLOCKCHAIN_TEST_DEBUG_DIR")}
     , only_evmone_{std::getenv("EVMONE_VM_ONLY") != nullptr}
@@ -98,6 +99,20 @@ evmc_result BlockchainTestVM::execute(
         return p->execute(p, host, context, rev, msg, code, code_size);
     }
 
+    if (impl_ == Implementation::Compiler) {
+        return execute_compiler(host, context, rev, msg, code, code_size);
+    }
+    else {
+        MONAD_COMPILER_ASSERT(impl_ == Implementation::Interpreter);
+        return execute_interpreter(host, context, rev, msg, code, code_size);
+    }
+}
+
+evmc_result BlockchainTestVM::execute_compiler(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
     auto code_hash = host->get_code_hash(context, &msg->code_address);
 
     if (auto it = compiled_contracts_.find({rev, code_hash});
@@ -135,6 +150,20 @@ evmc_result BlockchainTestVM::execute(
 
     compiled_contracts_.insert({{rev, code_hash}, *f});
     return monad_vm_.execute(*f, host, context, msg, code, code_size);
+}
+
+evmc_result BlockchainTestVM::execute_interpreter(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    (void)host;
+    (void)context;
+    (void)rev;
+    (void)msg;
+    (void)code;
+    (void)code_size;
+    MONAD_COMPILER_ASSERT(false);
 }
 
 evmc_capabilities_flagset BlockchainTestVM::get_capabilities() const
