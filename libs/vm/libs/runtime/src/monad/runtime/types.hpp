@@ -27,6 +27,21 @@ namespace monad::runtime
         StatusCode status;
     };
 
+    constexpr evmc_result
+    evmc_error_result(evmc_status_code const code) noexcept
+    {
+        return evmc_result{
+            .status_code = code,
+            .gas_left = 0,
+            .gas_refund = 0,
+            .output_data = nullptr,
+            .output_size = 0,
+            .release = nullptr,
+            .create_address = {},
+            .padding = {},
+        };
+    }
+
     struct Environment
     {
         std::uint32_t evmc_flags;
@@ -146,6 +161,11 @@ namespace monad::runtime
 
     struct Context
     {
+        static Context from(
+            evmc_host_interface const *host, evmc_host_context *context,
+            evmc_message const *msg,
+            std::span<std::uint8_t const> code) noexcept;
+
         evmc_host_interface const *host;
         evmc_host_context *context;
 
@@ -222,5 +242,11 @@ namespace monad::runtime
         }
 
         void exit [[noreturn]] (StatusCode code) noexcept;
+
+        evmc_result copy_to_evmc_result();
+
+    private:
+        std::variant<std::span<std::uint8_t const>, evmc_status_code>
+        copy_result_data();
     };
 }

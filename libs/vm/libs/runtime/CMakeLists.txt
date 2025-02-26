@@ -5,6 +5,7 @@ add_library(runtime STATIC)
 target_sources(runtime PRIVATE
     "src/monad/runtime/bin.hpp"
     "src/monad/runtime/call.hpp"
+    "src/monad/runtime/context.cpp"
     "src/monad/runtime/create.hpp"
     "src/monad/runtime/data.hpp"
     "src/monad/runtime/detail.hpp"
