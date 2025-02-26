@@ -14,7 +14,7 @@ namespace monad::utils
     uint256_t sar(uint256_t const &shift_index, uint256_t const &x);
     uint256_t countr_zero(uint256_t const &x);
 
-    inline size_t popcount(uint256_t const &x)
+    constexpr size_t popcount(uint256_t const &x)
     {
         return static_cast<size_t>(
             std::popcount(x[0]) + std::popcount(x[1]) + std::popcount(x[2]) +

@@ -246,14 +246,6 @@ namespace monad::compiler::native
         void basefee();
         void blobbasefee();
 
-    private:
-        bool mul_optimized();
-        template <bool is_sdiv>
-        bool div_optimized();
-        void negate_if_original_negative(StackElemRef original, StackElemRef&& value);
-        template <bool is_smod>
-        bool mod_optimized();
-
     public:
         // Revision dependent instructions
         template <evmc_revision rev>
@@ -635,6 +627,44 @@ namespace monad::compiler::native
 
         ////////// Private EVM instruction utilities //////////
 
+        template <typename... LiveSet>
+        StackElemRef negate(StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        sub(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        add(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        shl(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        shr(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        sar(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        and_(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        or_(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        StackElemRef
+        xor_(StackElemRef, StackElemRef, std::tuple<LiveSet...> const &);
+
+        StackElemRef negate_by_sub(StackElemRef);
+        void negate_gpq256(Gpq256 const &);
+
         void call_runtime_impl(RuntimeImpl &rt);
 
         template <typename... Args, size_t... Is>
@@ -661,6 +691,24 @@ namespace monad::compiler::native
         void status_code(monad::runtime::StatusCode);
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
         void return_with_status_code(monad::runtime::StatusCode);
+
+        bool mul_optimized();
+        template <typename... LiveSet>
+        StackElemRef sdiv_by_sar(
+            StackElemRef, uint256_t const &shift,
+            std::tuple<LiveSet...> const &);
+        template <bool is_sdiv>
+        bool div_optimized();
+        template <typename... LiveSet>
+        StackElemRef mod_by_mask(
+            StackElemRef, uint256_t const &mask,
+            std::tuple<LiveSet...> const &);
+        template <typename... LiveSet>
+        StackElemRef smod_by_mask(
+            StackElemRef, uint256_t const &mask,
+            std::tuple<LiveSet...> const &);
+        template <bool is_smod>
+        bool mod_optimized();
 
         template <typename... LiveSet>
         void
@@ -711,7 +759,7 @@ namespace monad::compiler::native
         };
 
         template <ShiftType shift_type, typename... LiveSet>
-        void shift_by_stack_elem(
+        StackElemRef shift_by_stack_elem(
             StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
         template <ShiftType shift_type, typename... LiveSet>
@@ -720,11 +768,12 @@ namespace monad::compiler::native
             std::tuple<LiveSet...> const &);
 
         template <ShiftType shift_type, typename... LiveSet>
-        void shift_by_literal(
-            uint256_t shift, StackElemRef, std::tuple<LiveSet...> const &);
+        StackElemRef shift_by_literal(
+            uint256_t const &shift, StackElemRef,
+            std::tuple<LiveSet...> const &);
 
         template <ShiftType shift_type, typename... LiveSet>
-        void shift_by_general_reg_or_stack_offset(
+        StackElemRef shift_by_general_reg_or_stack_offset(
             StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
         template <bool commutative, typename... LiveSet>

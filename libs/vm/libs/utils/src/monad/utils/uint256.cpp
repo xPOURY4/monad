@@ -77,10 +77,8 @@ namespace monad::utils
     uint256_t countr_zero(uint256_t const &x)
     {
         int total_count = 0;
-        int count;
-
         for (size_t i = 0; i < 4; i++) {
-            count = std::countr_zero(x[i]);
+            int const count = std::countr_zero(x[i]);
             total_count += count;
             if (count < 64) {
                 return uint256_t{total_count};

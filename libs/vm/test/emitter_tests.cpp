@@ -175,7 +175,7 @@ namespace
         basic_blocks::BasicBlocksIR const &ir, bool dup)
     {
 #if 0
-        if (left_loc != Emitter::LocationType::Literal || right_loc != Emitter::LocationType::Literal || dup) {
+        if (left_loc != Emitter::LocationType::GeneralReg || right_loc != Emitter::LocationType::Literal || !dup) {
             return;
         }
 #endif
@@ -1341,16 +1341,27 @@ TEST(Emitter, add_identity_left)
 
 TEST(Emitter, mul)
 {
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit62{static_cast<uint64_t>(1) << 63};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
+        {0, bit256},
+        {bit256, 0},
         {1, 1},
-        {2, 4},
-        {2, 0},
-        {0, 2},
-        {1, 5},
-        {5, 1},
-        {7, 8},
-        {2, std::numeric_limits<uint256_t>::max() - 1}};
+        {1, bit256},
+        {bit256, 1},
+        {bit62, -bit62},
+        {-bit62, bit62},
+        {-bit62, -bit62},
+        {bit62, bit256},
+        {bit256, bit62},
+        {-bit62, bit256},
+        {bit256, -bit62},
+        {5, 6},
+        {5, -bit62},
+        {-bit62, 5},
+        {5, bit62},
+        {bit62, 5}};
     for (auto const &[a, b] : inputs) {
         auto const expected = a * b;
         pure_bin_instr_test(
@@ -1366,14 +1377,19 @@ TEST(Emitter, mul)
 
 TEST(Emitter, udiv)
 {
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit255{0, 0, 0, static_cast<uint64_t>(1) << 62};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
+        {0, bit256},
+        {bit256, 0},
         {1, 1},
-        {4, 0},
-        {4, 1},
-        {7, 4},
-        {0, 4},
-        {std::numeric_limits<uint256_t>::max() - 1, 2}};
+        {1, bit256},
+        {bit256, 1},
+        {bit256, bit255},
+        {bit255, bit256},
+        {bit256 + 2, bit255 + 1},
+        {bit255 + 2, bit256 + 1}};
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : a / b;
         pure_bin_instr_test(
@@ -1389,14 +1405,38 @@ TEST(Emitter, udiv)
 
 TEST(Emitter, sdiv)
 {
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit255{0, 0, 0, static_cast<uint64_t>(1) << 62};
+    uint256_t bit64{static_cast<uint64_t>(1) << 63};
+    uint256_t const bit63{static_cast<uint64_t>(1) << 62};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
+        {0, bit256},
+        {bit256, 0},
         {1, 1},
-        {4, 0},
-        {4, 1},
-        {7, 4},
-        {0, 4},
-        {std::numeric_limits<uint256_t>::max() - 1, 2}};
+        {1, bit256},
+        {bit256, 1},
+        {bit256, bit255},
+        {bit255, bit256},
+        {bit255, bit255},
+        {-bit255, bit255},
+        {bit255, -bit255},
+        {-bit255, -bit255},
+        {bit256, bit256},
+        {bit256 + 1, bit256},
+        {bit256, bit256 + 1},
+        {bit256, bit64},
+        {bit256 + 16, bit64},
+        {bit256, -bit64},
+        {bit256 + 16, -bit64},
+        {bit64 * 3, bit64},
+        {bit64 * 3, -bit64},
+        {bit64 * 3 + bit63, bit64},
+        {bit64 * 3 + bit63, -bit64},
+        {-(bit64 * 3), bit64},
+        {-(bit64 * 3), -bit64},
+        {-(bit64 * 3 + bit63), bit64},
+        {-(bit64 * 3 + bit63), -bit64}};
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).quot;
         pure_bin_instr_test(
@@ -1412,15 +1452,21 @@ TEST(Emitter, sdiv)
 
 TEST(Emitter, umod)
 {
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit64{static_cast<uint64_t>(1) << 63};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
+        {bit64, 0},
+        {0, bit64},
         {1, 1},
-        {1, 0},
-        {0, 1},
-        {4, 3},
-        {7, 4},
-        {3, 5},
-        {2, std::numeric_limits<uint256_t>::max() - 1}};
+        {bit64, 1},
+        {1, bit64},
+        {bit64 - 2, bit64},
+        {bit64, bit64 - 2},
+        {bit256, bit64},
+        {bit64, bit256},
+        {bit256 + 1, bit64},
+        {bit64, bit256 + 1}};
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : a % b;
         pure_bin_instr_test(
@@ -1436,15 +1482,53 @@ TEST(Emitter, umod)
 
 TEST(Emitter, smod)
 {
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit255{0, 0, 0, static_cast<uint64_t>(1) << 62};
+    uint256_t bit64{static_cast<uint64_t>(1) << 63};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
+        {bit64, 0},
+        {0, bit64},
+
         {1, 1},
-        {1, 0},
-        {0, 1},
-        {4, 3},
-        {7, 4},
-        {3, 5},
-        {2, std::numeric_limits<uint256_t>::max() - 1}};
+        {bit64, 1},
+        {1, bit64},
+
+        {bit64, 5},
+        {-bit64, 5},
+        {5, bit64},
+        {5, -bit64},
+
+        {bit64 - 2, bit64},
+        {-(bit64 - 2), bit64},
+        {bit64 - 2, -bit64},
+        {-(bit64 - 2), -bit64},
+        {bit64, bit64 - 2},
+        {-bit64, bit64 - 2},
+        {bit64, -(bit64 - 2)},
+        {-bit64, -(bit64 - 2)},
+
+        {bit256, bit64},
+        {bit256, -bit64},
+        {bit256 + 16, bit64},
+        {bit256 + 16, -bit64},
+        {bit64, bit256},
+        {-bit64, bit256},
+
+        {bit255, bit64},
+        {-bit255, bit64},
+        {bit255, -bit64},
+        {-bit255, -bit64},
+        {bit64, bit255},
+        {-bit64, bit255},
+        {bit64, -bit255},
+        {-bit64, -bit255},
+
+        {bit256 + 1, bit64},
+        {bit64, bit256 + 1},
+        {bit256 + 1, -bit64},
+        {-bit64, bit256 + 1}};
+
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).rem;
         pure_bin_instr_test(

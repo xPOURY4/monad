@@ -102,6 +102,11 @@ namespace monad::utils
             release();
         }
 
+        void swap(RcPtr &x)
+        {
+            std::swap(rc_object, x.rc_object);
+        }
+
         T &operator*() const
         {
             return rc_object->object;
@@ -146,4 +151,14 @@ namespace monad::utils
 
         RcObject<T> *rc_object;
     };
+}
+
+namespace std
+{
+    template <typename T, typename Deleter>
+    void
+    swap(monad::utils::RcPtr<T, Deleter> &x, monad::utils::RcPtr<T, Deleter> &y)
+    {
+        x.swap(y);
+    }
 }

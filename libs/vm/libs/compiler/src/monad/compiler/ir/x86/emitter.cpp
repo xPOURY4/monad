@@ -425,8 +425,6 @@ namespace monad::compiler::native
             arg);
     }
 
-    ////////// Initialization and de-initialization //////////
-
     Emitter::Emitter(
         asmjit::JitRuntime const &rt, uint64_t codesize, char const *log_path)
         : as_{init_code_holder(rt, log_path)}
@@ -529,8 +527,6 @@ namespace monad::compiler::native
         return contract_main;
     }
 
-    ////////// Private initialization and de-initialization //////////
-
     asmjit::CodeHolder *Emitter::init_code_holder(
         asmjit::JitRuntime const &rt, char const *log_path)
     {
@@ -582,8 +578,6 @@ namespace monad::compiler::native
         as_.pop(x86::rbp);
         as_.ret();
     }
-
-    ////////// Debug functionality //////////
 
     bool Emitter::is_debug_enabled()
     {
@@ -663,8 +657,6 @@ namespace monad::compiler::native
     {
         as_.int3();
     }
-
-    ////////// Core emit functionality //////////
 
     Stack &Emitter::get_stack()
     {
@@ -1055,8 +1047,6 @@ namespace monad::compiler::native
         }
     }
 
-    ////////// Private debug functionality //////////
-
     void Emitter::debug_comment(std::string const &msg)
     {
         MONAD_COMPILER_ASSERT(is_debug_enabled());
@@ -1068,8 +1058,6 @@ namespace monad::compiler::native
             debug_logger_.log("\n");
         }
     }
-
-    ////////// Private core emit functionality //////////
 
     // Does not update eflags
     void
@@ -1132,8 +1120,6 @@ namespace monad::compiler::native
         return gpq256_regs_[reg.reg];
     }
 
-    ////////// Move functionality //////////
-
     void Emitter::mov_stack_index_to_avx_reg(int32_t stack_index)
     {
         mov_stack_elem_to_avx_reg(stack_.get(stack_index));
@@ -1148,8 +1134,6 @@ namespace monad::compiler::native
     {
         mov_stack_elem_to_stack_offset(stack_.get(stack_index));
     }
-
-    ////////// Private move functionality //////////
 
     template <bool assume_aligned>
     void
@@ -1521,8 +1505,6 @@ namespace monad::compiler::native
         return spill_elem;
     }
 
-    ////////// EVM instructions //////////
-
     // No discharge
     void Emitter::push(uint256_t const &x)
     {
@@ -1581,72 +1563,87 @@ namespace monad::compiler::native
         slt(std::move(right), std::move(left));
     }
 
-    // Discharge
     void Emitter::sub()
     {
-        auto pre_dst = stack_.pop();
-        auto pre_src = stack_.pop();
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(sub(std::move(left), std::move(right), {}));
+    }
 
+    // Discharge
+    template <typename... LiveSet>
+    StackElemRef Emitter::sub(
+        StackElemRef pre_dst, StackElemRef pre_src,
+        std::tuple<LiveSet...> const &live)
+    {
         if (pre_dst->literal()) {
             if (pre_src->literal()) {
                 auto const &x = pre_dst->literal()->value;
                 auto const &y = pre_src->literal()->value;
-                push(x - y);
-                return;
+                return stack_.alloc_literal({x - y});
             }
         }
         else if (pre_src->literal() && pre_src->literal()->value == 0) {
-            stack_.push(std::move(pre_dst));
-            return;
+            return pre_dst;
         }
 
         discharge_deferred_comparison();
 
         // Empty live set, because only `pre_dst` and `pre_src` are live:
         auto [dst, dst_loc, src, src_loc] = get_general_dest_and_source<false>(
-            std::move(pre_dst), stack_.top_index() + 1, std::move(pre_src), {});
+            std::move(pre_dst),
+            stack_.top_index() + 1,
+            std::move(pre_src),
+            live);
 
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
         GENERAL_BIN_INSTR(sub, sbb)(dst_op, src_op);
 
-        stack_.push(std::move(dst));
+        return dst;
+    }
+
+    void Emitter::add()
+    {
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(add(std::move(left), std::move(right), {}));
     }
 
     // Discharge
-    void Emitter::add()
+    template <typename... LiveSet>
+    StackElemRef Emitter::add(
+        StackElemRef pre_dst, StackElemRef pre_src,
+        std::tuple<LiveSet...> const &live)
     {
-        auto pre_dst = stack_.pop();
-        auto pre_src = stack_.pop();
-
         if (pre_dst->literal()) {
             if (pre_src->literal()) {
                 auto const &x = pre_dst->literal()->value;
                 auto const &y = pre_src->literal()->value;
-                push(x + y);
-                return;
+                return stack_.alloc_literal({x + y});
             }
             else if (pre_dst->literal()->value == 0) {
-                stack_.push(std::move(pre_src));
-                return;
+                return pre_src;
             }
         }
         else if (pre_src->literal() && pre_src->literal()->value == 0) {
-            stack_.push(std::move(pre_dst));
-            return;
+            return pre_dst;
         }
 
         discharge_deferred_comparison();
 
         // Empty live set, because only `pre_dst` and `pre_src` are live:
         auto [dst, dst_loc, src, src_loc] = get_general_dest_and_source<true>(
-            std::move(pre_dst), stack_.top_index() + 1, std::move(pre_src), {});
+            std::move(pre_dst),
+            stack_.top_index() + 1,
+            std::move(pre_src),
+            live);
 
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
         GENERAL_BIN_INSTR(add, adc)(dst_op, src_op);
 
-        stack_.push(std::move(dst));
+        return dst;
     }
 
     // Discharge
@@ -1718,93 +1715,113 @@ namespace monad::compiler::native
         signextend_stack_elem_ix(std::move(ix), src, {});
     }
 
-    // Discharge through `shift_by_stack_elem`
     void Emitter::shl()
     {
-        auto shift = stack_.pop();
-        auto value = stack_.pop();
-
-        if (shift->literal() && value->literal()) {
-            auto const &i = shift->literal()->value;
-            auto const &x = value->literal()->value;
-            push(x << i);
-            return;
-        }
-
-        shift_by_stack_elem<ShiftType::SHL>(
-            std::move(shift), std::move(value), {});
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(shl(std::move(left), std::move(right), {}));
     }
 
     // Discharge through `shift_by_stack_elem`
+    template <typename... LiveSet>
+    StackElemRef Emitter::shl(
+        StackElemRef shift, StackElemRef value,
+        std::tuple<LiveSet...> const &live)
+    {
+        if (shift->literal() && value->literal()) {
+            auto const &i = shift->literal()->value;
+            auto const &x = value->literal()->value;
+            return stack_.alloc_literal({x << i});
+        }
+
+        return shift_by_stack_elem<ShiftType::SHL>(
+            std::move(shift), std::move(value), live);
+    }
+
     void Emitter::shr()
     {
-        auto shift = stack_.pop();
-        auto value = stack_.pop();
-
-        if (shift->literal() && value->literal()) {
-            auto const &i = shift->literal()->value;
-            auto const &x = value->literal()->value;
-            push(x >> i);
-            return;
-        }
-
-        shift_by_stack_elem<ShiftType::SHR>(
-            std::move(shift), std::move(value), {});
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(shr(std::move(left), std::move(right), {}));
     }
 
     // Discharge through `shift_by_stack_elem`
-    void Emitter::sar()
+    template <typename... LiveSet>
+    StackElemRef Emitter::shr(
+        StackElemRef shift, StackElemRef value,
+        std::tuple<LiveSet...> const &live)
     {
-        auto shift = stack_.pop();
-        auto value = stack_.pop();
-
         if (shift->literal() && value->literal()) {
             auto const &i = shift->literal()->value;
             auto const &x = value->literal()->value;
-            push(monad::utils::sar(i, x));
-            return;
+            return stack_.alloc_literal({x >> i});
         }
 
-        shift_by_stack_elem<ShiftType::SAR>(
-            std::move(shift), std::move(value), {});
+        return shift_by_stack_elem<ShiftType::SHR>(
+            std::move(shift), std::move(value), live);
+    }
+
+    void Emitter::sar()
+    {
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(sar(std::move(left), std::move(right), {}));
+    }
+
+    // Discharge through `shift_by_stack_elem`
+    template <typename... LiveSet>
+    StackElemRef Emitter::sar(
+        StackElemRef shift, StackElemRef value,
+        std::tuple<LiveSet...> const &live)
+    {
+        if (shift->literal() && value->literal()) {
+            auto const &i = shift->literal()->value;
+            auto const &x = value->literal()->value;
+            return stack_.alloc_literal({monad::utils::sar(i, x)});
+        }
+
+        return shift_by_stack_elem<ShiftType::SAR>(
+            std::move(shift), std::move(value), live);
+    }
+
+    void Emitter::and_()
+    {
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(and_(std::move(left), std::move(right), {}));
     }
 
     // Discharge
-    void Emitter::and_()
+    template <typename... LiveSet>
+    StackElemRef Emitter::and_(
+        StackElemRef pre_dst, StackElemRef pre_src,
+        std::tuple<LiveSet...> const &live)
     {
-        auto pre_dst = stack_.pop();
-        auto pre_src = stack_.pop();
-
         if (pre_dst->literal()) {
             if (pre_src->literal()) {
                 auto const &x = pre_dst->literal()->value;
                 auto const &y = pre_src->literal()->value;
-                push(x & y);
-                return;
+                return stack_.alloc_literal({x & y});
             }
             // a & 1...1 ==> a
             if (pre_dst->literal()->value ==
                 std::numeric_limits<uint256_t>::max()) {
-                stack_.push(std::move(pre_src));
-                return;
+                return pre_src;
             }
             // a & 0...0 ==> 0
             if (pre_dst->literal()->value == 0) {
-                stack_.push_literal(0);
-                return;
+                return stack_.alloc_literal({0});
             }
         }
         else if (pre_src->literal()) {
             // 1...1 & b ==> b
             if (pre_src->literal()->value ==
                 std::numeric_limits<uint256_t>::max()) {
-                stack_.push(std::move(pre_dst));
-                return;
+                return pre_dst;
             }
             // 0...0 & b ==> 0
             if (pre_src->literal()->value == 0) {
-                stack_.push_literal(0);
-                return;
+                return stack_.alloc_literal({0});
             }
         }
 
@@ -1813,52 +1830,56 @@ namespace monad::compiler::native
         // Empty live set, because only `pre_dst` and `pre_src` are live:
         auto [dst, left, left_loc, right, right_loc] =
             get_avx_or_general_arguments_commutative(
-                std::move(pre_dst), std::move(pre_src), {});
+                std::move(pre_dst), std::move(pre_src), live);
 
         auto left_op = get_operand(left, left_loc);
         auto right_op = get_operand(
             right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
         AVX_OR_GENERAL_BIN_INSTR(and_, vpand)(dst, left_op, right_op);
 
-        stack_.push(std::move(dst));
+        return dst;
+    }
+
+    void Emitter::or_()
+    {
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(or_(std::move(left), std::move(right), {}));
     }
 
     // Discharge
-    void Emitter::or_()
+    template <typename... LiveSet>
+    StackElemRef Emitter::or_(
+        StackElemRef pre_dst, StackElemRef pre_src,
+        std::tuple<LiveSet...> const &live)
     {
-        auto pre_dst = stack_.pop();
-        auto pre_src = stack_.pop();
-
         if (pre_dst->literal()) {
             if (pre_src->literal()) {
                 auto const &x = pre_dst->literal()->value;
                 auto const &y = pre_src->literal()->value;
-                push(x | y);
-                return;
+                return stack_.alloc_literal({x | y});
             }
             // a | 0...0 ==> a
             if (pre_dst->literal()->value == 0) {
-                stack_.push(std::move(pre_src));
-                return;
+                return pre_src;
             }
             // a | 1...1 ==> 1...1
             if (pre_dst->literal()->value ==
                 std::numeric_limits<uint256_t>::max()) {
-                stack_.push_literal(std::numeric_limits<uint256_t>::max());
-                return;
+                return stack_.alloc_literal(
+                    {std::numeric_limits<uint256_t>::max()});
             }
         }
         else if (pre_src->literal()) {
             // 0...0 & b ==> b
             if (pre_src->literal()->value == 0) {
-                stack_.push(std::move(pre_dst));
-                return;
+                return pre_dst;
             }
             // 1...1 | b ==> 1...1
             if (pre_src->literal()->value ==
                 std::numeric_limits<uint256_t>::max()) {
-                stack_.push_literal(std::numeric_limits<uint256_t>::max());
-                return;
+                return stack_.alloc_literal(
+                    {std::numeric_limits<uint256_t>::max()});
             }
         }
 
@@ -1867,31 +1888,36 @@ namespace monad::compiler::native
         // Empty live set, because only `pre_dst` and `pre_src` are live:
         auto [dst, left, left_loc, right, right_loc] =
             get_avx_or_general_arguments_commutative(
-                std::move(pre_dst), std::move(pre_src), {});
+                std::move(pre_dst), std::move(pre_src), live);
 
         auto left_op = get_operand(left, left_loc);
         auto right_op = get_operand(
             right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
         AVX_OR_GENERAL_BIN_INSTR(or_, vpor)(dst, left_op, right_op);
 
-        stack_.push(std::move(dst));
+        return dst;
+    }
+
+    void Emitter::xor_()
+    {
+        auto left = stack_.pop();
+        auto right = stack_.pop();
+        stack_.push(xor_(std::move(left), std::move(right), {}));
     }
 
     // Discharge
-    void Emitter::xor_()
+    template <typename... LiveSet>
+    StackElemRef Emitter::xor_(
+        StackElemRef pre_dst, StackElemRef pre_src,
+        std::tuple<LiveSet...> const &live)
     {
-        auto pre_dst = stack_.pop();
-        auto pre_src = stack_.pop();
-
         if (pre_dst == pre_src) {
-            push(0);
-            return;
+            return stack_.alloc_literal({0});
         }
         if (pre_dst->literal() && pre_src->literal()) {
             auto const &x = pre_dst->literal()->value;
             auto const &y = pre_src->literal()->value;
-            push(x ^ y);
-            return;
+            return stack_.alloc_literal({x ^ y});
         }
 
         discharge_deferred_comparison();
@@ -1899,14 +1925,14 @@ namespace monad::compiler::native
         // Empty live set, because only `pre_dst` and `pre_src` are live:
         auto [dst, left, left_loc, right, right_loc] =
             get_avx_or_general_arguments_commutative(
-                std::move(pre_dst), std::move(pre_src), {});
+                std::move(pre_dst), std::move(pre_src), live);
 
         auto left_op = get_operand(left, left_loc);
         auto right_op = get_operand(
             right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
         AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)(dst, left_op, right_op);
 
-        stack_.push(std::move(dst));
+        return dst;
     }
 
     // Discharge
@@ -2194,8 +2220,6 @@ namespace monad::compiler::native
     {
         return_with_status_code(runtime::StatusCode::Revert);
     }
-
-    ////////// Private EVM instruction utilities //////////
 
     void Emitter::status_code(runtime::StatusCode status)
     {
@@ -2827,30 +2851,26 @@ namespace monad::compiler::native
         stack_.push(std::move(dst));
     }
 
+    // Discharge directly or through `shift_by_literal`.
     template <Emitter::ShiftType shift_type, typename... LiveSet>
-    void Emitter::shift_by_stack_elem(
+    StackElemRef Emitter::shift_by_stack_elem(
         StackElemRef shift, StackElemRef value,
         std::tuple<LiveSet...> const &live)
     {
-        RegReserv const ix_reserv{shift};
-        RegReserv const src_reserv{value};
-
-        discharge_deferred_comparison();
-
         if (shift->literal()) {
-            shift_by_literal<shift_type>(
-                shift->literal()->value, std::move(value), live);
-            return;
+            auto shift_value = std::move(shift)->literal()->value;
+            return shift_by_literal<shift_type>(
+                shift_value, std::move(value), live);
         }
+        discharge_deferred_comparison();
         if (shift->general_reg()) {
-            shift_by_general_reg_or_stack_offset<shift_type>(
+            return shift_by_general_reg_or_stack_offset<shift_type>(
                 std::move(shift), std::move(value), live);
-            return;
         }
         if (!shift->stack_offset()) {
             mov_avx_reg_to_stack_offset(shift);
         }
-        shift_by_general_reg_or_stack_offset<shift_type>(
+        return shift_by_general_reg_or_stack_offset<shift_type>(
             std::move(shift), std::move(value), live);
     }
 
@@ -2906,24 +2926,31 @@ namespace monad::compiler::native
         }
     }
 
+    // Discharge
     template <Emitter::ShiftType shift_type, typename... LiveSet>
-    void Emitter::shift_by_literal(
-        uint256_t shift, StackElemRef value, std::tuple<LiveSet...> const &live)
+    StackElemRef Emitter::shift_by_literal(
+        uint256_t const &shift_literal, StackElemRef value,
+        std::tuple<LiveSet...> const &live)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(!value->literal().has_value());
+
+        RegReserv const value_reserv{value};
+
+        auto shift = shift_literal;
         if (shift >= 256) {
             if constexpr (
                 shift_type == ShiftType::SHL || shift_type == ShiftType::SHR) {
-                push(0);
-                return;
+                return stack_.alloc_literal({0});
             }
             else {
                 shift = 256;
             }
         }
         else if (shift == 0) {
-            stack_.push(std::move(value));
-            return;
+            return value;
         }
+
+        discharge_deferred_comparison();
 
         int32_t const s = static_cast<int32_t>(shift[0]);
         int8_t const c = static_cast<int8_t>(s & 7);
@@ -2972,8 +2999,7 @@ namespace monad::compiler::native
             else {
                 as_.vmovups(dst_ymm, x86::qword_ptr(x86::rsp, d - 64));
             }
-            stack_.push(std::move(dst));
-            return;
+            return dst;
         }
 
         MONAD_COMPILER_DEBUG_ASSERT(dst->general_reg().has_value());
@@ -3010,27 +3036,32 @@ namespace monad::compiler::native
             }
         }
 
-        stack_.push(std::move(dst));
+        return dst;
     }
 
+    // Discharge
     template <Emitter::ShiftType shift_type, typename... LiveSet>
-    void Emitter::shift_by_general_reg_or_stack_offset(
+    StackElemRef Emitter::shift_by_general_reg_or_stack_offset(
         StackElemRef shift, StackElemRef value,
         std::tuple<LiveSet...> const &live)
     {
         if (value->literal()) {
+            MONAD_COMPILER_DEBUG_ASSERT(!shift->literal().has_value());
             if (value->literal()->value == 0) {
-                stack_.push(std::move(value));
-                return;
+                return value;
             }
             if constexpr (shift_type == ShiftType::SAR) {
                 if (value->literal()->value ==
                     std::numeric_limits<uint256_t>::max()) {
-                    stack_.push(std::move(value));
-                    return;
+                    return value;
                 }
             }
         }
+
+        RegReserv const shift_reserv{shift};
+        RegReserv const value_reserv{value};
+
+        discharge_deferred_comparison();
 
         setup_shift_stack<shift_type>(
             std::move(value), 32, std::tuple_cat(std::make_tuple(shift), live));
@@ -3155,7 +3186,7 @@ namespace monad::compiler::native
             as_.mov(x86::rcx, x86::rax);
         }
 
-        stack_.push(std::move(dst));
+        return dst;
     }
 
     template <bool commutative, typename... LiveSet>
@@ -3889,61 +3920,269 @@ namespace monad::compiler::native
         }
     }
 
+    void Emitter::negate_gpq256(Gpq256 const &gpq)
+    {
+        for (auto const &r : gpq) {
+            as_.not_(r);
+        }
+        as_.add(gpq[0], 1);
+        as_.adc(gpq[1], 0);
+        as_.adc(gpq[2], 0);
+        as_.adc(gpq[3], 0);
+    }
+
+    StackElemRef Emitter::negate_by_sub(StackElemRef elem)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!elem->literal().has_value());
+
+        GeneralRegReserv const reserv{elem};
+
+        auto [dst, dst_reserv] = alloc_general_reg();
+        mov_literal_to_gpq256(
+            Literal{0}, general_reg_to_gpq256(*dst->general_reg()));
+
+        auto const &d = general_reg_to_gpq256(*dst->general_reg());
+        if (elem->general_reg()) {
+            auto const &e = general_reg_to_gpq256(*elem->general_reg());
+            as_.sub(d[0], e[0]);
+            for (size_t i = 1; i < 4; ++i) {
+                as_.sbb(d[i], e[i]);
+            }
+        }
+        else {
+            if (!elem->stack_offset()) {
+                MONAD_COMPILER_DEBUG_ASSERT(elem->avx_reg().has_value());
+                mov_avx_reg_to_stack_offset(elem);
+            }
+            auto m = stack_offset_to_mem(*elem->stack_offset());
+            as_.sub(d[0], m);
+            for (size_t i = 1; i < 4; ++i) {
+                m.addOffset(8);
+                as_.sbb(d[i], m);
+            }
+        }
+
+        return dst;
+    }
+
+    template <typename... LiveSet>
+    StackElemRef
+    Emitter::negate(StackElemRef elem, std::tuple<LiveSet...> const &live)
+    {
+        if (elem->literal()) {
+            auto const &v = elem->literal()->value;
+            return stack_.alloc_literal({-v});
+        }
+        discharge_deferred_comparison();
+        if (!elem->general_reg() ||
+            (is_live(elem, live) && !elem->stack_offset() &&
+             !elem->avx_reg())) {
+            return negate_by_sub(std::move(elem));
+        }
+        auto dst = stack_.release_general_reg(std::move(elem));
+        negate_gpq256(general_reg_to_gpq256(*dst->general_reg()));
+        return dst;
+    }
+
     bool Emitter::mul_optimized()
     {
-        auto const a_elem = stack_.get(stack_.top_index());
-        auto const b_elem = stack_.get(stack_.top_index() - 1);
-        if (!a_elem->literal() && !b_elem->literal()) {
+        auto a_elem = stack_.get(stack_.top_index());
+        auto b_elem = stack_.get(stack_.top_index() - 1);
+
+        if (b_elem->literal()) {
+            if (a_elem->literal()) {
+                auto const &a = a_elem->literal()->value;
+                auto const &b = b_elem->literal()->value;
+                stack_.pop();
+                stack_.pop();
+                stack_.push_literal(a * b);
+                return true;
+            }
+            else {
+                std::swap(a_elem, b_elem);
+            }
+        }
+        else if (!a_elem->literal()) {
             return false;
         }
 
-        if (a_elem->literal()) {
-            auto const &a = a_elem->literal()->value;
-            if (a == 0) {
-                stack_.pop();
-                stack_.pop();
-                stack_.push_literal(0);
-                return true;
-            }
-            // if exists n. b == 2 ^ n we can optimise a * b ==> a << n
-            if (monad::utils::popcount(a) == 1) {
-                stack_.pop();
-                // n is obtained by counting the number of 0s from the right
-                // before hitting the 1 e.g. 100 in binary is 4 = 2 ^ 2
-                stack_.push_literal(monad::utils::countr_zero(a));
-                shl();
-                return true;
-            }
-        }
-
-        if (b_elem->literal()) {
-            auto const &b = b_elem->literal()->value;
-            if (b == 0) {
-                stack_.pop();
-                stack_.pop();
-                stack_.push_literal(0);
-                return true;
-            }
-            if (monad::utils::popcount(b) == 1) {
-                stack_.pop();
-                stack_.pop();
-                stack_.push(std::move(a_elem));
-                stack_.push_literal(monad::utils::countr_zero(b));
-                shl();
-                return true;
-            }
-        }
-
-        if (a_elem->literal() && b_elem->literal()) {
-            auto const &a = a_elem->literal()->value;
-            auto const &b = b_elem->literal()->value;
+        auto a = std::move(a_elem)->literal()->value;
+        if (a == 0) {
             stack_.pop();
             stack_.pop();
-            stack_.push_literal(a * b);
+            stack_.push_literal(0);
+            return true;
+        }
+
+        bool needs_negation = false;
+        if (a[3] & (static_cast<uint64_t>(1) << 63)) {
+            needs_negation = monad::utils::popcount(a) != 1;
+            a = -a;
+        }
+
+        // if exists n. b == 2 ^ n we can optimise a * b ==> a << n
+        if (monad::utils::popcount(a) == 1) {
+            stack_.pop();
+            stack_.pop();
+            // n is obtained by counting the number of 0s from the right
+            // before hitting the 1 e.g. 100 in binary is 4 = 2 ^ 2
+            auto x = shift_by_literal<ShiftType::SHL>(
+                monad::utils::countr_zero(a), std::move(b_elem), {});
+            if (needs_negation) {
+                stack_.push(negate(std::move(x), {}));
+            }
+            else {
+                stack_.push(std::move(x));
+            }
             return true;
         }
 
         return false;
+    }
+
+    // Discharge through `shift_by_literal`.
+    // Note that this function assumes that there is an available
+    // stack offset in the stack. This is the case when calling
+    // from `div_optimized`, because lifetime of the divsor has
+    // ended before calling this function.
+    template <typename... LiveSet>
+    StackElemRef Emitter::sdiv_by_sar(
+        StackElemRef elem, uint256_t const &shift_in,
+        std::tuple<LiveSet...> const &live)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(!elem->literal().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(shift_in <= 255);
+
+        auto shift = static_cast<uint64_t>(shift_in);
+
+        if (shift == 0) {
+            return elem;
+        }
+
+        size_t index = 3;
+        for (auto c = 256 - shift;;) {
+            if (c < 64) {
+                break;
+            }
+            c -= 64;
+            --index;
+        }
+        auto mask = (static_cast<uint64_t>(1) << (shift & 63)) - 1;
+
+        StackElemRef sh;
+        {
+            GeneralRegReserv const elem_reserv{elem};
+            sh = shift_by_literal<ShiftType::SAR>(
+                shift, elem, std::tuple_cat(std::make_tuple(elem), live));
+        }
+
+        GeneralRegReserv const sh_reserv{sh};
+
+        if (!elem->general_reg() && stack_.has_free_general_reg()) {
+            mov_stack_elem_to_general_reg(elem);
+        }
+
+        if (elem->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
+            as_.mov(x86::rax, mask);
+            as_.and_(x86::rax, gpq[index]);
+            while (index--) {
+                as_.or_(x86::rax, gpq[index]);
+            }
+            as_.setnz(x86::al);
+
+            auto const &lbl =
+                append_literal(Literal{static_cast<uint64_t>(1) << 63});
+            as_.test(x86::qword_ptr(lbl), gpq[3]);
+            as_.setnz(x86::ah);
+
+            as_.and_(x86::al, x86::ah);
+            as_.movzx(x86::eax, x86::al);
+        }
+        else {
+            if (!elem->stack_offset()) {
+                MONAD_COMPILER_DEBUG_ASSERT(elem->avx_reg().has_value());
+                mov_avx_reg_to_stack_offset(elem);
+            }
+            MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
+            auto mem = stack_offset_to_mem(*elem->stack_offset());
+            mem.addOffset(24);
+            as_.mov(x86::rax, static_cast<uint64_t>(1) << 63);
+            as_.test(mem, x86::rax);
+            as_.setnz(x86::byte_ptr(x86::rsp, -1));
+
+            MONAD_COMPILER_DEBUG_ASSERT(index <= 3);
+            mem.setOffset(static_cast<int64_t>(index) * 8);
+            as_.mov(x86::rax, mask);
+            as_.and_(x86::rax, mem);
+            while (index--) {
+                mem.addOffset(-8);
+                as_.or_(x86::rax, mem);
+            }
+            as_.setnz(x86::al);
+
+            as_.and_(x86::al, x86::byte_ptr(x86::rsp, -1));
+            as_.movzx(x86::eax, x86::al);
+        }
+
+        elem.reset(); // Release registers and stack offset.
+
+        MONAD_COMPILER_DEBUG_ASSERT(!sh->literal().has_value());
+
+        StackElemRef dst;
+        if (is_live(sh, live)) {
+            if (sh->general_reg() && (sh->stack_offset() || sh->avx_reg())) {
+                dst = stack_.release_general_reg(sh);
+            }
+            else if (sh->stack_offset() && sh->avx_reg()) {
+                dst = stack_.release_stack_offset(sh);
+            }
+            else {
+                if (sh->general_reg() || sh->stack_offset()) {
+                    auto [r, _] = alloc_general_reg();
+                    dst = std::move(r);
+                    mov_stack_elem_to_gpq256(
+                        sh, general_reg_to_gpq256(*dst->general_reg()));
+                }
+                else {
+                    mov_avx_reg_to_stack_offset(sh);
+                    dst = stack_.release_stack_offset(sh);
+                }
+            }
+        }
+        else if (sh->general_reg()) {
+            dst = stack_.release_general_reg(sh);
+        }
+        else if (sh->stack_offset()) {
+            dst = stack_.release_stack_offset(sh);
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(sh->avx_reg().has_value());
+            dst = stack_.release_avx_reg(sh);
+        }
+
+        if (dst->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*dst->general_reg());
+            as_.add(gpq[0], x86::rax);
+            for (size_t i = 1; i < 4; ++i) {
+                as_.adc(gpq[i], 0);
+            }
+        }
+        else {
+            if (!dst->stack_offset()) {
+                MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
+                mov_avx_reg_to_stack_offset(dst);
+            }
+            MONAD_COMPILER_DEBUG_ASSERT(dst->stack_offset().has_value());
+            auto mem = stack_offset_to_mem(*dst->stack_offset());
+            as_.add(mem, x86::rax);
+            for (size_t i = 1; i < 4; ++i) {
+                mem.addOffset(8);
+                as_.adc(mem, 0);
+            }
+        }
+
+        return dst;
     }
 
     template <bool is_sdiv>
@@ -3951,9 +4190,6 @@ namespace monad::compiler::native
     {
         auto const a_elem = stack_.get(stack_.top_index());
         auto const b_elem = stack_.get(stack_.top_index() - 1);
-        if (!a_elem->literal() && !b_elem->literal()) {
-            return false;
-        }
 
         if (a_elem->literal()) {
             auto const &a = a_elem->literal()->value;
@@ -3963,41 +4199,59 @@ namespace monad::compiler::native
                 stack_.push_literal(0);
                 return true;
             }
-        }
-
-        if (b_elem->literal()) {
-            auto const &b = b_elem->literal()->value;
-            if (b == 0) {
+            if (b_elem->literal()) {
+                auto const &b = b_elem->literal()->value;
                 stack_.pop();
                 stack_.pop();
-                stack_.push_literal(0);
-                return true;
-            }
-            if (monad::utils::popcount(b) == 1) {
-                stack_.pop();
-                stack_.pop();
-                stack_.push(std::move(a_elem));
-                stack_.push_literal(monad::utils::countr_zero(b));
                 if constexpr (is_sdiv) {
-                    sar();
+                    stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).quot);
                 }
                 else {
-                    shr();
+                    stack_.push_literal(b == 0 ? 0 : a / b);
                 }
                 return true;
             }
+            return false;
+        }
+        else if (!b_elem->literal()) {
+            return false;
         }
 
-        if (a_elem->literal() && b_elem->literal()) {
-            auto const &a = a_elem->literal()->value;
-            auto const &b = b_elem->literal()->value;
+        auto b = std::move(b_elem)->literal()->value;
+        if (b == 0) {
             stack_.pop();
             stack_.pop();
+            stack_.push_literal(0);
+            return true;
+        }
+
+        bool const needs_negation = [&] {
             if constexpr (is_sdiv) {
-                stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).quot);
+                if (b[3] & (static_cast<uint64_t>(1) << 63)) {
+                    b = -b;
+                    return true;
+                }
+            }
+            return false;
+        }();
+
+        if (monad::utils::popcount(b) == 1) {
+            stack_.pop();
+            stack_.pop();
+            auto shift = monad::utils::countr_zero(b);
+            auto dst = [&] {
+                if constexpr (is_sdiv) {
+                    return sdiv_by_sar(a_elem, shift, {});
+                }
+                else {
+                    return shift_by_literal<ShiftType::SHR>(shift, a_elem, {});
+                }
+            }();
+            if (needs_negation) {
+                stack_.push(negate(std::move(dst), {}));
             }
             else {
-                stack_.push_literal(b == 0 ? 0 : a / b);
+                stack_.push(std::move(dst));
             }
             return true;
         }
@@ -4008,73 +4262,62 @@ namespace monad::compiler::native
     template bool Emitter::div_optimized<true>();
     template bool Emitter::div_optimized<false>();
 
-    void Emitter::negate_if_original_negative(StackElemRef original, StackElemRef&& value)
+    // Discharge
+    template <typename... LiveSet>
+    StackElemRef Emitter::smod_by_mask(
+        StackElemRef elem, uint256_t const &mask,
+        std::tuple<LiveSet...> const &live)
     {
-
-        // TODO assert value is not live
-        if (original->literal()) {
-            if (original->literal()->value[3] & (static_cast<uint64_t>(1) << 63))
-            {
-                stack_.push_literal(0);
-                stack_.push(std::move(value));
-                sub();
-            }
-            else 
-                stack_.push(std::move(value));
-            return;
-        }
-
+        MONAD_COMPILER_DEBUG_ASSERT(!elem->literal().has_value());
 
         discharge_deferred_comparison();
 
-
-        auto [left, right, loc] = get_una_arguments(original, std::nullopt, {});
-        MONAD_COMPILER_DEBUG_ASSERT(left == right);
-        if (loc == LocationType::AvxReg) {
-            constexpr uint256_t high_bit = {0, 0, 0, static_cast<uint64_t>(1) << 63};
-            auto lbl = append_literal(Literal{high_bit});
-            x86::Ymm const y = avx_reg_to_ymm(*left->avx_reg());
-            as_.vptest(y, x86::ptr(lbl));
-            // if original is positive ZF=1
-            auto skip_negation = as_.newLabel();
-            as_.je(skip_negation);
-
-            // TODO emit
-            // not value[0]
-            // not value[1]
-            // not value[2]
-            // not value[3]
-            // add value[0], 1
-            // adc value[1], 0
-            // adc value[2], 0
-            // adc value[3], 0
-    
-            as_.bind(skip_negation);
+        StackElemRef dst;
+        if (elem->general_reg() && !is_live(elem, live)) {
+            dst = stack_.release_general_reg(elem);
         }
         else {
-            MONAD_COMPILER_DEBUG_ASSERT(loc == LocationType::GeneralReg);
-            Gpq256 const &gpq = general_reg_to_gpq256(*left->general_reg());
-            as_.test(gpq[3], gpq[3]);
-            // if original is positive SF=0
-            auto skip_negation = as_.newLabel();
-            as_.jns(skip_negation);
-            
-            
-            // TODO emit
-            // not value[0]
-            // not value[1]
-            // not value[2]
-            // not value[3]
-            // add value[0], 1
-            // adc value[1], 0
-            // adc value[2], 0
-            // adc value[3], 0
-
-            as_.bind(skip_negation);
+            GeneralRegReserv const elem_reserv{elem};
+            auto [r, _] = alloc_general_reg();
+            dst = std::move(r);
+            mov_stack_elem_to_gpq256(
+                elem, general_reg_to_gpq256(*dst->general_reg()));
         }
 
-        stack_.push(std::move(value));
+        auto const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
+        auto const &sign_lbl =
+            append_literal(Literal{static_cast<uint64_t>(1) << 63});
+        auto non_negative_lbl = as_.newLabel();
+        auto after_lbl = as_.newLabel();
+
+        auto emit_mask = [&] {
+            if (is_literal_bounded({mask})) {
+                for (size_t i = 0; i < 4; ++i) {
+                    as_.and_(dst_gpq[i], mask[i]);
+                }
+            }
+            else {
+                auto const &lbl = append_literal({mask});
+                auto m = x86::qword_ptr(lbl);
+                for (size_t i = 0; i < 4; ++i) {
+                    as_.and_(dst_gpq[i], m);
+                    m.addOffset(8);
+                }
+            }
+        };
+
+        as_.test(x86::qword_ptr(sign_lbl), dst_gpq[3]);
+        as_.jz(non_negative_lbl);
+        negate_gpq256(dst_gpq);
+        emit_mask();
+        negate_gpq256(dst_gpq);
+        as_.jmp(after_lbl);
+        as_.bind(non_negative_lbl);
+        emit_mask();
+        as_.bind(after_lbl);
+
+        return dst;
     }
 
     template <bool is_smod>
@@ -4082,9 +4325,6 @@ namespace monad::compiler::native
     {
         auto const a_elem = stack_.get(stack_.top_index());
         auto const b_elem = stack_.get(stack_.top_index() - 1);
-        if (!a_elem->literal() && !b_elem->literal()) {
-            return false;
-        }
 
         if (a_elem->literal()) {
             auto const &a = a_elem->literal()->value;
@@ -4094,55 +4334,46 @@ namespace monad::compiler::native
                 stack_.push(std::move(a_elem));
                 return true;
             }
-        }
-
-        if (b_elem->literal()) {
-            auto const &b = b_elem->literal()->value;
-            if (b == 0) {
+            if (b_elem->literal()) {
+                auto const &b = b_elem->literal()->value;
                 stack_.pop();
                 stack_.pop();
-                stack_.push_literal(0);
+                if constexpr (is_smod) {
+                    stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).rem);
+                }
+                else {
+                    stack_.push_literal(b == 0 ? 0 : a % b);
+                }
                 return true;
             }
-
-            if constexpr (is_smod) {
-                // if exists n. b == 2 ^ n we can optimise
-                // a smod b ==> sgn(a) * (a & (b - 1))
-                if (monad::utils::popcount(b) == 1) {
-                    stack_.pop();
-                    stack_.pop();
-                    stack_.push(a_elem);
-                    stack_.push_literal(b - 1);
-                    and_();
-                    auto res = stack_.pop();
-                    negate_if_original_negative(std::move(a_elem), std::move(res));
-                    return true;
-                }
-            }
-            else {
-                // if exists n. b == 2 ^ n we can optimise
-                // a umod b ==> a & (b - 1)
-                if (monad::utils::popcount(b) == 1) {
-                    stack_.pop();
-                    stack_.pop();
-                    stack_.push(std::move(a_elem));
-                    stack_.push_literal(b - 1);
-                    and_();
-                    return true;
-                }
-            }
+            return false;
+        }
+        else if (!b_elem->literal()) {
+            return false;
         }
 
-        if (a_elem->literal() && b_elem->literal()) {
-            auto const &a = a_elem->literal()->value;
-            auto const &b = b_elem->literal()->value;
+        auto b = std::move(b_elem)->literal()->value;
+        if constexpr (is_smod) {
+            if (b[3] & (static_cast<uint64_t>(1) << 63)) {
+                b = -b;
+            }
+        }
+        if (b <= 1) {
+            stack_.pop();
+            stack_.pop();
+            stack_.push_literal(0);
+            return true;
+        }
+        if (monad::utils::popcount(b) == 1) {
             stack_.pop();
             stack_.pop();
             if constexpr (is_smod) {
-                stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).rem);
+                stack_.push(smod_by_mask(std::move(a_elem), b - 1, {}));
             }
             else {
-                stack_.push_literal(b == 0 ? 0 : a % b);
+                stack_.push(
+                    and_(std::move(a_elem), stack_.alloc_literal({b - 1}), {}));
+                return true;
             }
             return true;
         }
