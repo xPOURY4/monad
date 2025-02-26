@@ -1,8 +1,8 @@
 #pragma once
 
-#include <monad/compiler/evm_opcodes.hpp>
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/types.hpp>
+#include <monad/evm/opcodes.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/cases.hpp>
 

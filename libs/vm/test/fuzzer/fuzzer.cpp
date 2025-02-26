@@ -4,7 +4,7 @@
 #include "host.hpp"
 #include "state.hpp"
 
-#include <monad/compiler/evm_opcodes.hpp>
+#include <monad/evm/opcodes.hpp>
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
 #include <monad/utils/assert.h>

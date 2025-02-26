@@ -1,8 +1,8 @@
-#include <monad/compiler/evm_opcodes.hpp>
 #include <monad/compiler/ir/basic_blocks.hpp>
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/ir/local_stacks.hpp>
 #include <monad/compiler/types.hpp>
+#include <monad/evm/opcodes.hpp>
 
 #include <evmc/evmc.h>
 

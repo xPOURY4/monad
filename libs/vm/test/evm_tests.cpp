@@ -1,7 +1,7 @@
 #include "evm_fixture.hpp"
 
-#include <monad/compiler/evm_opcodes.hpp>
 #include <monad/compiler/types.hpp>
+#include <monad/evm/opcodes.hpp>
 
 #include <test_resource_data.h>
 

@@ -1,7 +1,6 @@
 add_library(monad-compiler STATIC)
 
 target_sources(monad-compiler PRIVATE
-    "src/monad/compiler/evm_opcodes.hpp"
     "src/monad/compiler/transactional_unordered_map.hpp"
     "src/monad/compiler/types.hpp"
     # IR
@@ -47,6 +46,7 @@ target_link_libraries(monad-compiler
     PUBLIC asmjit::asmjit
     PUBLIC evmc::evmc
     PUBLIC evmone
+    PUBLIC monad-evm
     PUBLIC runtime
     PUBLIC utils
 )

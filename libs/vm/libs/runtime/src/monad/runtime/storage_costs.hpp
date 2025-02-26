@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/compiler/evm_opcodes.hpp>
+#include <monad/evm/opcodes.hpp>
 
 #include <evmc/evmc.hpp>
 
