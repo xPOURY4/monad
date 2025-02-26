@@ -1,6 +1,7 @@
 #include "test_vm.hpp"
 
 #include <monad/compiler/ir/x86.hpp>
+#include <monad/interpreter/execute.hpp>
 #include <monad/utils/assert.h>
 #include <monad/vm/vm.hpp>
 
@@ -157,13 +158,8 @@ evmc_result BlockchainTestVM::execute_interpreter(
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
-    (void)host;
-    (void)context;
-    (void)rev;
-    (void)msg;
-    (void)code;
-    (void)code_size;
-    MONAD_COMPILER_ASSERT(false);
+    return monad::interpreter::execute(
+        host, context, rev, msg, {code, code_size});
 }
 
 evmc_capabilities_flagset BlockchainTestVM::get_capabilities() const

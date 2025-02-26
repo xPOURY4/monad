@@ -8,6 +8,7 @@
 
 #include <evmc/evmc.hpp>
 
+#include <csetjmp>
 #include <type_traits>
 #include <vector>
 
@@ -178,6 +179,7 @@ namespace monad::runtime
 
         Memory memory = {};
 
+        std::jmp_buf exit_buffer = {};
         void *exit_stack_ptr = nullptr;
 
         [[gnu::always_inline]]

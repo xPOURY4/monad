@@ -22,6 +22,16 @@ namespace monad::utils
      */
     uint256_t
     from_bytes(std::size_t n, std::size_t remaining, uint8_t const *src);
+
+    /**
+     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
+     * value.
+     *
+     * There must be at least `n` bytes readable from `src`; if there are not,
+     * use the safe overload that allows for the number of bytes remaining to be
+     * specified.
+     */
+    uint256_t from_bytes(std::size_t n, uint8_t const *src);
 }
 
 template <>

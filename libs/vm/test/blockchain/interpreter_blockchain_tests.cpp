@@ -29,7 +29,6 @@ int main(int argc, char **argv)
     blockchain_test_setup(&argc, argv);
     // Skip slow tests:
     testing::FLAGS_gtest_filter +=
-        ":-*" // TODO(BSC): actually run tests
         ":-"
         "GeneralStateTests/VMTests/vmPerformance.loopExp:"
         "GeneralStateTests/VMTests/vmPerformance.loopMul:"

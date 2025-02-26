@@ -89,4 +89,8 @@ namespace monad::utils
         return intx::be::load<uint256_t>(dst);
     }
 
+    uint256_t from_bytes(std::size_t const n, uint8_t const *src)
+    {
+        return from_bytes(n, n, src);
+    }
 }

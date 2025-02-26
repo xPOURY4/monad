@@ -1,8 +1,14 @@
 add_library(monad-interpreter STATIC)
 
 target_sources(monad-interpreter PRIVATE
+  "src/monad/interpreter/execute.cpp"
+  "src/monad/interpreter/execute.hpp"
+  "src/monad/interpreter/instruction_table.hpp"
+  "src/monad/interpreter/instructions.cpp"
+  "src/monad/interpreter/instructions.hpp"
   "src/monad/interpreter/intercode.cpp"
   "src/monad/interpreter/intercode.hpp"
+  "src/monad/interpreter/state.hpp"
 )
 
 monad_compile_options(monad-interpreter)
