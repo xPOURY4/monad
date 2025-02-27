@@ -24,9 +24,9 @@ namespace monad::interpreter
         inline utils::uint256_t const &pop()
         {
             MONAD_COMPILER_DEBUG_ASSERT(stack_size > 0);
-            stack_size -= 1;
+            auto const &ret = *stack_top;
             stack_top -= 1;
-            return *(stack_top + 1);
+            return ret;
         }
 
         [[gnu::always_inline]]
