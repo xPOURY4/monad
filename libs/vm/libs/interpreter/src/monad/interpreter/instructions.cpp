@@ -22,5 +22,7 @@ namespace monad::interpreter
         auto &b = state.top();
 
         b = a + b;
+
+        state.instr_ptr++;
     }
 }

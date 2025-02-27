@@ -18,9 +18,8 @@ namespace monad::interpreter
         requires(N <= 32)
     void push(runtime::Context &, State &state)
     {
-        state.push(utils::from_bytes(N, state.instr_ptr));
-
-        state.instr_ptr += N;
+        state.push(utils::from_bytes(N, state.instr_ptr + 1));
+        state.instr_ptr += N + 1;
     }
 
     template <evmc_revision Rev>
@@ -29,6 +28,7 @@ namespace monad::interpreter
         runtime::sstore<Rev>(&ctx, state.stack_top, state.stack_top - 1, 0);
         state.stack_top -= 2;
         state.stack_size -= 2;
+        state.instr_ptr++;
     }
 
     void add(runtime::Context &, State &);

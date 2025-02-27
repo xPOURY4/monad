@@ -61,7 +61,6 @@ namespace monad::interpreter
         {
             while (true) {
                 auto const instr = *state.instr_ptr;
-                state.instr_ptr += 1;
 
                 charge_static_gas<Rev>(instr, ctx);
                 check_stack<Rev>(instr, ctx, state);
