@@ -1,6 +1,9 @@
+enable_language(ASM)
+
 add_library(monad-interpreter STATIC)
 
 target_sources(monad-interpreter PRIVATE
+  "src/monad/interpreter/entry.S"
   "src/monad/interpreter/execute.cpp"
   "src/monad/interpreter/execute.hpp"
   "src/monad/interpreter/instruction_table.hpp"
