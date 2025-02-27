@@ -34,7 +34,6 @@ namespace monad::interpreter
     namespace
     {
         template <evmc_revision Rev>
-        [[gnu::always_inline]]
         void charge_static_gas(std::uint8_t const instr, runtime::Context &ctx)
         {
             ctx.gas_remaining -= compiler::opcode_table<Rev>[instr].min_gas;
@@ -45,7 +44,6 @@ namespace monad::interpreter
         }
 
         template <evmc_revision Rev>
-        [[gnu::always_inline]]
         void check_stack(
             std::uint8_t const instr, runtime::Context &ctx, State &state,
             utils::uint256_t const *stack_bottom)
