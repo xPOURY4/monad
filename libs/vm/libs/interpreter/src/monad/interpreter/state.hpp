@@ -20,7 +20,8 @@ namespace monad::interpreter
         {
         }
 
-        utils::uint256_t const &pop()
+        [[gnu::always_inline]]
+        inline utils::uint256_t const &pop()
         {
             MONAD_COMPILER_DEBUG_ASSERT(stack_size > 0);
             stack_size -= 1;
@@ -28,13 +29,15 @@ namespace monad::interpreter
             return *(stack_top + 1);
         }
 
-        utils::uint256_t &top()
+        [[gnu::always_inline]]
+        inline utils::uint256_t &top()
         {
             MONAD_COMPILER_DEBUG_ASSERT(stack_size > 0);
             return *stack_top;
         }
 
-        void push(utils::uint256_t const &x)
+        [[gnu::always_inline]]
+        inline void push(utils::uint256_t const &x)
         {
             MONAD_COMPILER_DEBUG_ASSERT(stack_size < 1024);
             stack_size += 1;
