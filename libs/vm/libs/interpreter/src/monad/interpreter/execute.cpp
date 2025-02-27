@@ -34,6 +34,7 @@ namespace monad::interpreter
     namespace
     {
         template <evmc_revision Rev>
+        [[gnu::always_inline]]
         void charge_static_gas(std::uint8_t const instr, runtime::Context &ctx)
         {
             ctx.gas_remaining -= compiler::opcode_table<Rev>[instr].min_gas;
@@ -44,14 +45,17 @@ namespace monad::interpreter
         }
 
         template <evmc_revision Rev>
+        [[gnu::always_inline]]
         void check_stack(
-            std::uint8_t const instr, runtime::Context &ctx, State &state)
+            std::uint8_t const instr, runtime::Context &ctx, State &state,
+            utils::uint256_t const *stack_bottom)
         {
             auto const &info = compiler::opcode_table<Rev>[instr];
+            auto const stack_size = state.stack_top - stack_bottom;
 
             if (MONAD_COMPILER_UNLIKELY(
-                    state.stack_size < info.min_stack ||
-                    (state.stack_size == 1024 && info.increases_stack))) {
+                    stack_size < info.min_stack ||
+                    (stack_size == 1024 && info.increases_stack))) {
                 ctx.exit(runtime::StatusCode::Error);
             }
         }
@@ -59,11 +63,13 @@ namespace monad::interpreter
         template <evmc_revision Rev>
         void core_loop_impl(runtime::Context &ctx, State &state)
         {
+            auto const *stack_bottom = state.stack_bottom;
+
             while (true) {
                 auto const instr = *state.instr_ptr;
 
                 charge_static_gas<Rev>(instr, ctx);
-                check_stack<Rev>(instr, ctx, state);
+                check_stack<Rev>(instr, ctx, state, stack_bottom);
 
                 instruction_table<Rev>[instr](ctx, state);
             }

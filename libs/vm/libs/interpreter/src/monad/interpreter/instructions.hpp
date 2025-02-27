@@ -28,7 +28,6 @@ namespace monad::interpreter
     {
         runtime::sstore<Rev>(&ctx, state.stack_top, state.stack_top - 1, 0);
         state.stack_top -= 2;
-        state.stack_size -= 2;
         state.instr_ptr++;
     }
 
