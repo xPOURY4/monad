@@ -1,5 +1,6 @@
 #pragma once
 
+#include <monad/interpreter/call_runtime.hpp>
 #include <monad/interpreter/state.hpp>
 #include <monad/runtime/storage.hpp>
 #include <monad/runtime/transmute.hpp>
@@ -26,8 +27,7 @@ namespace monad::interpreter
     template <evmc_revision Rev>
     void sstore(runtime::Context &ctx, State &state)
     {
-        runtime::sstore<Rev>(&ctx, state.stack_top, state.stack_top - 1, 0);
-        state.stack_top -= 2;
+        call_runtime(runtime::sstore<Rev>, ctx, state);
         state.instr_ptr++;
     }
 
