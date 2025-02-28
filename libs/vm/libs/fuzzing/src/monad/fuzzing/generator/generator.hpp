@@ -39,7 +39,7 @@ namespace monad::fuzzing
         constexpr auto values = std::array<utils::uint256_t, 4>{
             0,
             1,
-            std::numeric_limits<utils::uint256_t>::max() - 1,
+            intx::exp(utils::uint256_t(2), utils::uint256_t(255)),
             std::numeric_limits<utils::uint256_t>::max(),
         };
 
@@ -52,6 +52,12 @@ namespace monad::fuzzing
         auto dist = std::uniform_int_distribution(1, 254);
         return Constant{
             intx::exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
+    }
+
+    template <typename Engine>
+    Constant negated_power_of_two_constant(Engine &gen)
+    {
+        return Constant{-power_of_two_constant(gen).value};
     }
 
     template <std::size_t Bits = 256, typename Engine = void>
@@ -100,7 +106,10 @@ namespace monad::fuzzing
             Choice(0.25, [](auto &) { return ValidJumpDest{}; }),
             Choice(0.25, [](auto &) { return ValidAddress{}; }),
             Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
-            Choice(0.20, [](auto &g) { return power_of_two_constant(g); }));
+            Choice(0.20, [](auto &g) { return power_of_two_constant(g); }),
+            Choice(0.05, [](auto &g) {
+                return negated_power_of_two_constant(g);
+            }));
     }
 
     template <typename Engine>
@@ -213,7 +222,7 @@ namespace monad::fuzzing
                 auto op = term->opcode;
 
                 if (op == JUMP || op == JUMPI) {
-                    with_probability(eng, 0.5, [&](auto &) {
+                    with_probability(eng, 0.8, [&](auto &) {
                         program.push_back(ValidJumpDest{});
                     });
                 }
@@ -396,9 +405,10 @@ namespace monad::fuzzing
         auto prog = std::vector<std::uint8_t>{};
 
         auto blocks_dist = std::geometric_distribution(0.1);
-        auto const n_blocks = blocks_dist(eng);
+        auto const n_blocks = 1 + blocks_dist(eng);
 
-        constexpr auto n_exit_blocks = 2;
+        auto exit_blocks_dist = std::uniform_int_distribution(1, n_blocks);
+        auto const n_exit_blocks = exit_blocks_dist(eng);
 
         auto valid_jumpdests = std::vector<std::uint32_t>{};
         auto jumpdest_patches = std::vector<std::size_t>{};
@@ -513,8 +523,10 @@ namespace monad::fuzzing
         auto const kind = uniform_sample(
             eng, std::array{EVMC_CALL, EVMC_DELEGATECALL, EVMC_CALLCODE});
 
-        auto const flags = uniform_sample(
-            eng, std::array{static_cast<evmc_flags>(0), EVMC_STATIC});
+        auto const flags = discrete_choice<evmc_flags>(
+            eng,
+            [](auto &) { return static_cast<evmc_flags>(0); },
+            Choice(0.02, [](auto &) { return EVMC_STATIC; }));
 
         auto const depth =
             std::uniform_int_distribution<decltype(evmc_message::depth)>(
