@@ -4043,7 +4043,7 @@ namespace monad::compiler::native
     // Discharge through `shift_by_literal`.
     // Note that this function assumes that there is an available
     // stack offset in the stack. This is the case when calling
-    // from `div_optimized`, because lifetime of the divsor has
+    // from `div_optimized`, because lifetime of the divisor has
     // ended before calling this function.
     template <typename... LiveSet>
     StackElemRef Emitter::sdiv_by_sar(
