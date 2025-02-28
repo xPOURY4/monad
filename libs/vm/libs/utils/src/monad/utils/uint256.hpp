@@ -42,13 +42,6 @@ namespace monad::utils
      */
     uint256_t from_bytes(std::size_t n, uint8_t const *src);
 
-    inline size_t popcount(uint256_t const &x)
-    {
-        return static_cast<size_t>(
-            std::popcount(x[0]) + std::popcount(x[1]) + std::popcount(x[2]) +
-            std::popcount(x[3]));
-    }
-
     inline size_t countl_zero(uint256_t const &x)
     {
         size_t cnt = 0;
