@@ -300,9 +300,14 @@ namespace monad::compiler::native
             call_runtime(remaining_base_gas, true, monad::runtime::smod<rev>);
         }
 
+        bool addmod_opt();
+
         template <evmc_revision rev>
         void addmod(int32_t remaining_base_gas)
         {
+            if (addmod_opt()) {
+                return;
+            }
             call_runtime(remaining_base_gas, true, monad::runtime::addmod<rev>);
         }
 
@@ -771,6 +776,25 @@ namespace monad::compiler::native
         void avx_or_general_bin_instr(
             StackElemRef dst, Operand const &left, Operand const &right);
 
+        std::tuple<
+            StackElemRef, Emitter::LocationType, StackElemRef,
+            Emitter::LocationType>
+        prepare_mod2_bin_dest_and_source(
+            StackElemRef dst, StackElemRef src, size_t exp);
+        template <typename... LiveSet>
+        std::tuple<
+            StackElemRef, Emitter::LocationType, StackElemRef,
+            Emitter::LocationType>
+        get_mod2_bin_dest_and_source(
+            StackElemRef dst_in, StackElemRef src_in, size_t exp,
+            std::tuple<LiveSet...> const &live);
+        void mov_stack_elem_to_general_reg_mod2(StackElemRef elem, size_t exp);
+        void
+        mov_stack_offset_to_general_reg_mod2(StackElemRef elem, size_t exp);
+        void mov_literal_to_general_reg_mod2(StackElemRef elem, size_t exp);
+        void add_mod2(StackElemRef left, StackElemRef right, size_t exp);
+        inline size_t div64_ceil(size_t x);
+
         ////////// Fields //////////
 
         // Order of fields is significant.
@@ -790,6 +814,7 @@ namespace monad::compiler::native
         std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
         std::vector<std::pair<asmjit::Label, void *>> external_functions_;
+
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
         std::vector<std::pair<asmjit::Label, std::string>> debug_messages_;

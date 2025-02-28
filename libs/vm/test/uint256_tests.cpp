@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <monad/utils/uint256.hpp>
 
 #include <gtest/gtest.h>
@@ -108,4 +109,18 @@ TEST(uint256, sar)
     i = 255;
     x = uint256_t{0x7f} << 248;
     ASSERT_EQ(sar(i, x), 0);
+}
+
+template <size_t N>
+void test_bit_width()
+{
+    ASSERT_EQ(bit_width(pow2(N)), N + 1);
+    if constexpr (N > 0) {
+        test_bit_width<N - 1>();
+    }
+}
+
+TEST(uint256, bit_width)
+{
+    test_bit_width<255>();
 }

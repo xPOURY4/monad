@@ -6,6 +6,7 @@
 #include <monad/evm/opcodes.hpp>
 #include <monad/runtime/math.hpp>
 #include <monad/runtime/types.hpp>
+#include <monad/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
@@ -22,6 +23,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1449,6 +1451,150 @@ TEST(Emitter, smod)
             a,
             b,
             expected);
+    }
+}
+
+TEST(Emitter, addmod_opt)
+{
+    {
+        // Constant folding tests.
+        std::vector<std::tuple<uint256_t, uint256_t, uint256_t>> inputs{
+            {0, 0, 0},
+            {1, 1, 0},
+            {2, 4, 1},
+            {2, 3, 4},
+            {{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}, 1, 2},
+            {43194, 13481, 1024},
+            {0xFFFFFFFFF, 0x1, 512},
+            {std::numeric_limits<uint256_t>::max(), 1, 10},
+            {std::numeric_limits<uint256_t>::max() - 1,
+             std::numeric_limits<uint256_t>::max() - 1,
+             std::numeric_limits<uint256_t>::max()},
+            {{0xffffffffffffffff,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFE},
+             {0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFE},
+             {0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF,
+              0xFFFFFFFFFFFFFFFF}}};
+        for (auto &[a, b, m] : inputs) {
+            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            pure_bin_instr_test(
+                PUSH0,
+                [&](Emitter &em) {
+                    em.pop();
+                    em.pop();
+                    em.push(m);
+                    em.push(b);
+                    em.push(a);
+                    ASSERT_TRUE(em.addmod_opt());
+                },
+                0,
+                0,
+                expected);
+        }
+    }
+
+    {
+        // Known powers of two tests
+        std::vector<std::tuple<uint256_t, uint256_t, uint256_t>> inputs{
+            {0, 0, 0},
+            {1, 1, 0},
+            {2, 4, 1},
+            {2, 3, 4},
+            {1, 1, monad::utils::pow2(8)},
+            {std::numeric_limits<uint8_t>::max(), 1, monad::utils::pow2(8)},
+            {std::numeric_limits<uint16_t>::max(), 1, monad::utils::pow2(16)},
+            {std::numeric_limits<uint32_t>::max(), 1, monad::utils::pow2(32)},
+            {std::numeric_limits<uint32_t>::max(),
+             std::numeric_limits<uint32_t>::max(),
+             monad::utils::pow2(32)},
+            {std::numeric_limits<uint64_t>::max(), 3, monad::utils::pow2(63)},
+            {std::numeric_limits<uint64_t>::max(), 1, monad::utils::pow2(64)},
+            {std::numeric_limits<uint32_t>::max(),
+             std::numeric_limits<uint8_t>::max(),
+             monad::utils::pow2(62)},
+            {std::numeric_limits<uint64_t>::max(), 1, 16},
+            {std::numeric_limits<uint64_t>::max(), 1, monad::utils::pow2(8)},
+            {std::numeric_limits<uint64_t>::max(),
+             std::numeric_limits<uint32_t>::max(),
+             monad::utils::pow2(72)},
+            {std::numeric_limits<uint8_t>::max(), 1, monad::utils::pow2(128)},
+            {std::numeric_limits<uint8_t>::max(), 1, monad::utils::pow2(192)},
+            {{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}, 1, 2},
+            {43194, 13481, 1024},
+            {0xFFFFFFFFF, 0x1, 512},
+            {std::numeric_limits<uint256_t>::max(), 1, 8},
+            {std::numeric_limits<uint256_t>::max() -
+                 (std::numeric_limits<uint256_t>::max() / 2),
+             std::numeric_limits<uint64_t>::max(),
+             monad::utils::pow2(60)},
+            {0, std::numeric_limits<uint256_t>::max(), 2},
+            {std::numeric_limits<uint256_t>::max(), 0, 2}};
+        for (auto &[a, b, m] : inputs) {
+            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            pure_bin_instr_test(
+                PUSH0,
+                [&](Emitter &em) {
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    ASSERT_TRUE(em.addmod_opt());
+                },
+                a,
+                b,
+                expected);
+        }
+    }
+}
+
+TEST(Emitter, addmod_nonopt)
+{
+    {
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.push(3);
+                mov_literal_to_location_type(
+                    em,
+                    em.get_stack().top_index(),
+                    Emitter::LocationType::GeneralReg);
+                em.swap(2);
+                em.swap(1);
+                // The modulus is in a register
+                ASSERT_FALSE(em.addmod_opt());
+                em.call_runtime(
+                    10, true, runtime::addmod<EVMC_SPURIOUS_DRAGON>);
+            },
+            4,
+            3,
+            1);
+    }
+
+    {
+        pure_bin_instr_test(
+            PUSH0,
+            [&](Emitter &em) {
+                em.push(2);
+                mov_literal_to_location_type(
+                    em,
+                    em.get_stack().top_index(),
+                    Emitter::LocationType::GeneralReg);
+                em.swap(2);
+                em.swap(1);
+                // The modulus is not a literal
+                ASSERT_FALSE(em.addmod_opt());
+                em.call_runtime(
+                    10, true, runtime::addmod<EVMC_SPURIOUS_DRAGON>);
+            },
+            4,
+            3,
+            1);
     }
 }
 

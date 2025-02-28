@@ -19,6 +19,7 @@
 #include <asmjit/core/operand.h>
 #include <asmjit/x86/x86operand.h>
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -4012,4 +4013,694 @@ namespace monad::compiler::native
 
     template bool Emitter::mod_optimized<true>();
     template bool Emitter::mod_optimized<false>();
+
+    std::tuple<
+        StackElemRef, Emitter::LocationType, StackElemRef,
+        Emitter::LocationType>
+    Emitter::prepare_mod2_bin_dest_and_source(
+        StackElemRef dst, StackElemRef src, size_t exp)
+    {
+        RegReserv const dst_reserv{dst};
+        RegReserv const src_reserv{src};
+
+        if (dst->literal() && !dst->stack_offset() && !dst->avx_reg() &&
+            !dst->general_reg()) {
+            if (src->general_reg()) {
+                std::swap(dst, src);
+            }
+            else if (
+                (src->stack_offset() || src->avx_reg()) &&
+                is_literal_bounded(*dst->literal())) {
+                std::swap(dst, src);
+            }
+        }
+
+        if (dst.get() == src.get()) {
+            if (!dst->general_reg()) {
+                mov_stack_elem_to_general_reg_mod2(dst, exp);
+            }
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::GeneralReg};
+        }
+
+        if (dst->general_reg()) {
+            if (src->general_reg()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::GeneralReg};
+            }
+            if (src->stack_offset()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::StackOffset};
+            }
+            if (src->literal()) {
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::Literal};
+            }
+            mov_avx_reg_to_stack_offset(src);
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::StackOffset};
+        }
+        if (!dst->stack_offset()) {
+            if (dst->literal()) {
+                mov_literal_to_general_reg_mod2(dst, exp);
+                if (src->general_reg()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::GeneralReg};
+                }
+                if (src->stack_offset()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::StackOffset};
+                }
+                if (src->literal()) {
+                    return {
+                        std::move(dst),
+                        LocationType::GeneralReg,
+                        std::move(src),
+                        LocationType::Literal};
+                }
+                mov_avx_reg_to_stack_offset(src);
+                return {
+                    std::move(dst),
+                    LocationType::GeneralReg,
+                    std::move(src),
+                    LocationType::StackOffset};
+            }
+            else {
+                mov_avx_reg_to_stack_offset(dst);
+                // Fall through
+            }
+        }
+        if (src->general_reg()) {
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::GeneralReg};
+        }
+        if (src->literal() && is_literal_bounded(*src->literal())) {
+            return {
+                std::move(dst),
+                LocationType::StackOffset,
+                std::move(src),
+                LocationType::Literal};
+        }
+        if (src->stack_offset()) {
+            mov_stack_offset_to_general_reg_mod2(dst, exp);
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::StackOffset};
+        }
+        if (src->literal()) {
+            mov_stack_offset_to_general_reg_mod2(dst, exp);
+            return {
+                std::move(dst),
+                LocationType::GeneralReg,
+                std::move(src),
+                LocationType::Literal};
+        }
+        mov_avx_reg_to_general_reg(src);
+        return {
+            std::move(dst),
+            LocationType::StackOffset,
+            std::move(src),
+            LocationType::GeneralReg};
+    }
+
+    void
+    Emitter::mov_stack_offset_to_general_reg_mod2(StackElemRef elem, size_t exp)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(exp > 0);
+        MONAD_COMPILER_DEBUG_ASSERT(elem->stack_offset().has_value());
+
+        x86::Mem mem{stack_offset_to_mem(*elem->stack_offset())};
+        insert_general_reg(elem);
+        MONAD_COMPILER_DEBUG_ASSERT(elem->general_reg());
+        auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
+
+        size_t const numQwords = div64_ceil(exp);
+        for (size_t i = 0; i < numQwords; i++) {
+            size_t const occupied_bits =
+                i + 1 == numQwords ? exp - (i * 64) : 64;
+            if (occupied_bits <= 8) {
+                as_.mov(gpq[i].r8Lo(), mem);
+            }
+            else if (occupied_bits <= 16) {
+                as_.mov(gpq[i].r16(), mem);
+            }
+            else if (occupied_bits <= 32) {
+                as_.mov(gpq[i].r32(), mem);
+            }
+            else {
+                as_.mov(gpq[i].r64(), mem);
+            }
+            mem.addOffset(8);
+        }
+    }
+
+    void Emitter::mov_literal_to_general_reg_mod2(StackElemRef elem, size_t exp)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(exp > 0);
+        MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
+
+        insert_general_reg(elem);
+        auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
+        auto const &lit =
+            *elem->literal(); // literal_to_imm256(*elem->literal());
+        size_t const numQwords = div64_ceil(exp);
+        for (size_t i = 0; i < numQwords; i++) {
+            size_t const occupied_bits =
+                i + 1 == numQwords ? exp - (i * 64) : 64;
+            if (occupied_bits <= 8) {
+                as_.mov(gpq[i].r8Lo(), lit.value[i]);
+            }
+            else if (occupied_bits <= 16) {
+                as_.mov(gpq[i].r16(), lit.value[i]);
+            }
+            else if (occupied_bits <= 32) {
+                as_.mov(gpq[i].r32(), lit.value[i]);
+            }
+            else {
+                as_.mov(gpq[i].r64(), lit.value[i]);
+            }
+        }
+    }
+
+    void
+    Emitter::mov_stack_elem_to_general_reg_mod2(StackElemRef elem, size_t exp)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(exp > 0);
+        if (elem->general_reg()) {
+            return;
+        }
+        if (elem->literal()) {
+            mov_literal_to_general_reg_mod2(std::move(elem), exp);
+        }
+        else if (elem->stack_offset()) {
+            mov_stack_offset_to_general_reg_mod2(std::move(elem), exp);
+        }
+        else {
+            MONAD_COMPILER_ASSERT(elem->avx_reg().has_value());
+            mov_avx_reg_to_stack_offset(elem);
+            mov_stack_offset_to_general_reg_mod2(std::move(elem), exp);
+        }
+    }
+
+    template <typename... LiveSet>
+    std::tuple<
+        StackElemRef, Emitter::LocationType, StackElemRef,
+        Emitter::LocationType>
+    Emitter::get_mod2_bin_dest_and_source(
+        StackElemRef dst_in, StackElemRef src_in, size_t exp,
+        std::tuple<LiveSet...> const &live)
+    {
+        auto [dst, dst_loc, src, src_loc] = prepare_mod2_bin_dest_and_source(
+            std::move(dst_in), std::move(src_in), exp);
+        RegReserv const dst_reserv{dst};
+        RegReserv const src_reserv{src};
+
+        if (dst_loc == LocationType::GeneralReg) {
+            if (is_live(dst, live) && !dst->stack_offset() && !dst->literal() &&
+                !dst->avx_reg()) {
+                mov_general_reg_to_stack_offset(dst);
+            }
+            auto new_dst = stack_.release_general_reg(dst);
+            if (dst.get() == src.get()) {
+                return {new_dst, dst_loc, new_dst, src_loc};
+            }
+            else {
+                return {std::move(new_dst), dst_loc, std::move(src), src_loc};
+            }
+        }
+        MONAD_COMPILER_DEBUG_ASSERT(dst.get() != src.get());
+        MONAD_COMPILER_DEBUG_ASSERT(dst_loc == LocationType::StackOffset);
+        if (is_live(dst, live) && !dst->general_reg() && !dst->literal() &&
+            !dst->avx_reg()) {
+            mov_stack_offset_to_avx_reg(dst);
+        }
+        return {
+            stack_.release_stack_offset(std::move(dst)),
+            dst_loc,
+            std::move(src),
+            src_loc};
+    }
+
+    // Discharge
+    bool Emitter::addmod_opt()
+    {
+        // required stack shape: [a b m]
+        auto m_elem = stack_.get(stack_.top_index() - 2);
+        if (!m_elem->literal()) {
+            return false;
+        }
+        auto const &m = m_elem->literal()->value;
+
+        // The trivial group
+        if (m == 0 || m == 1) {
+            stack_.pop();
+            stack_.pop();
+            stack_.pop();
+            stack_.push_literal(0);
+            return true;
+        }
+
+        auto a_elem = stack_.get(stack_.top_index());
+        auto b_elem = stack_.get(stack_.top_index() - 1);
+
+        // Check whether we can constant fold the entire expression.
+        if (a_elem->literal() && b_elem->literal()) {
+            stack_.pop();
+            stack_.pop();
+            stack_.pop();
+            auto const &a = a_elem->literal()->value;
+            auto const &b = b_elem->literal()->value;
+            push(intx::addmod(a, b, m));
+            return true;
+        }
+
+        // Only proceed if we can rewrite
+        // (a + b) % m, where m = 2^n
+        // as
+        // (a + b) & (n - 1)
+        if (utils::popcount(m) != 1) {
+            return false;
+        }
+
+        // Pop the operands
+        stack_.pop();
+        stack_.pop();
+        stack_.pop();
+
+        // Check whether we can elide the addition.
+        bool addition_elided = false;
+        if (b_elem->literal() && b_elem->literal()->value == 0) {
+            b_elem.reset(); // Clear to free potential registers.
+            addition_elided = true;
+        }
+        else if (a_elem->literal() && a_elem->literal()->value == 0) {
+            a_elem = std::move(b_elem);
+            addition_elided = true;
+        }
+        else {
+            size_t const exp = utils::bit_width(m) - 1;
+            // The heavy lifting is done by the following function.
+            add_mod2(std::move(a_elem), std::move(b_elem), exp);
+            // NOTE: this return makes clang-tidy happy, as it emits a
+            // false-positive use-after-move for `a_elem` down below.
+            return true;
+        }
+
+        if (addition_elided) {
+            // Emit masking operation
+            auto mask = stack_.alloc_literal(Literal{m - 1});
+            auto [and_dst, and_left, and_left_loc, and_mask, and_mask_loc] =
+                get_avx_or_general_arguments_commutative(a_elem, mask, {});
+            auto left_op = get_operand(and_left, and_left_loc);
+            auto mask_op = get_operand(
+                and_mask,
+                and_mask_loc,
+                std::holds_alternative<x86::Ymm>(left_op));
+            AVX_OR_GENERAL_BIN_INSTR(and_, vpand)
+            (and_dst, left_op, mask_op);
+
+            stack_.push(std::move(and_dst));
+        }
+
+        return true;
+    }
+
+    void Emitter::add_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
+    {
+        auto [left, left_loc, right, right_loc] =
+            get_mod2_bin_dest_and_source(a_elem, b_elem, exp, {});
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(right, right_loc);
+
+        // Common logic for emitting masks for a single destination
+        // register or destination memory.
+        auto emit_mask = [&](std::variant<x86::Gp, x86::Mem> const &dst) {
+            std::visit(
+                Cases{
+                    [&](x86::Gp const &dst) {
+                        if ((exp & 63) == 8) {
+                            as_.movzx(dst.r64(), dst.r8Lo());
+                            return;
+                        }
+
+                        if ((exp & 63) == 16) {
+                            as_.movzx(dst.r64(), dst.r16());
+                            return;
+                        }
+
+                        if ((exp & 31) == 0) {
+                            return;
+                        }
+
+                        uint64_t const mask =
+                            (1ULL << uint64_t(exp % 64)) - 1ULL;
+                        if (std::bit_width(mask) <= 32) {
+                            as_.and_(dst.r32(), mask);
+                        }
+                        else {
+                            as_.movabs(x86::rax, mask);
+                            as_.and_(dst, x86::rax);
+                        }
+                    },
+                    [&](x86::Mem const &dst) {
+                        if ((exp & 63) == 0) {
+                            return;
+                        }
+                        uint64_t const mask =
+                            (1ULL << uint64_t(exp % 64)) - 1ULL;
+                        if (std::bit_width(mask) < 32) {
+                            as_.and_(dst, mask);
+                        }
+                        else {
+                            as_.movabs(x86::rax, mask);
+                            as_.and_(dst, x86::rax);
+                        }
+                    }},
+                dst);
+        };
+
+        // Common logic for clearing the upper destination register(s)
+        // or part(s) of the destination memory.
+        auto clear_upper_dest = [&](std::variant<Gpq256, x86::Mem> const &dst,
+                                    size_t start) {
+            std::visit(
+                Cases{
+                    [&](Gpq256 const &c) {
+                        for (size_t i = start; i < 4; i++) {
+                            if (!stack_.has_deferred_comparison()) {
+                                as_.xor_(c[i], c[i]);
+                            }
+                            else {
+                                as_.mov(c[i], 0);
+                            }
+                        }
+                    },
+                    [&](x86::Mem const &c) {
+                        x86::Mem temp{c};
+                        for (size_t i = start; i < 4; i++) {
+                            temp.addOffset(8);
+                            as_.mov(temp, 0);
+                        }
+                    }},
+                dst);
+        };
+
+        // The general logic for computing (a + b) & (n - 1)
+        if (std::holds_alternative<Gpq256>(left_op)) {
+            Gpq256 const &a = std::get<Gpq256>(left_op);
+            std::visit(
+                Cases{
+                    [&](Gpq256 const &b) {
+                        // Special case: we can calculate a + b using a
+                        // single lea instruction.
+                        if (exp <= 64) {
+                            if (exp <= 32) {
+                                as_.lea(a[0].r32(), x86::qword_ptr(a[0], b[0]));
+                            }
+                            else {
+                                as_.lea(a[0].r64(), x86::qword_ptr(a[0], b[0]));
+                            }
+                            emit_mask(a[0]);
+                            clear_upper_dest(a, 1);
+                            return;
+                        }
+
+                        size_t const numQwords = div64_ceil(exp);
+                        discharge_deferred_comparison();
+                        for (size_t i = 0; i < numQwords; i++) {
+                            size_t const bits_occupied =
+                                i + 1 == numQwords ? exp - (i * 64) : 64;
+                            if (i == 0) {
+                                if (bits_occupied <= 32) {
+                                    as_.add(a[i].r32(), b[i].r32());
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.add(a[i].r64(), b[i].r64());
+                                }
+                            }
+                            else {
+                                if (bits_occupied <= 32) {
+                                    as_.adc(a[i].r32(), b[i].r32());
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.adc(a[i].r64(), b[i].r64());
+                                }
+                            }
+                        }
+                        emit_mask(a[numQwords - 1]);
+                        clear_upper_dest(a, numQwords);
+                    },
+                    [&](x86::Mem const &b) {
+                        discharge_deferred_comparison();
+                        x86::Mem temp{b};
+                        size_t const numQwords = div64_ceil(exp);
+                        for (size_t i = 0; i < numQwords; i++) {
+                            size_t const bits_occupied =
+                                i + 1 == numQwords ? exp - (i * 64) : 64;
+                            if (i == 0) {
+                                if (bits_occupied <= 8) {
+                                    as_.add(a[i].r8Lo(), temp);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.add(a[i].r16(), temp);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.add(a[i].r32(), temp);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.add(a[i].r64(), temp);
+                                }
+                            }
+                            else {
+                                if (bits_occupied <= 8) {
+                                    as_.adc(a[i].r8Lo(), temp);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.adc(a[i].r16(), temp);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.adc(a[i].r32(), temp);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.adc(a[i].r64(), temp);
+                                }
+                            }
+                            temp.addOffset(8);
+                        }
+                        emit_mask(a[numQwords - 1]);
+                        clear_upper_dest(a, numQwords);
+                    },
+                    [&](Imm256 const &b) {
+                        // Special case: we can calculate a + b using a
+                        // single lea instruction.
+                        if (exp <= 64) {
+                            if (exp <= 32) {
+                                as_.lea(
+                                    a[0].r32(),
+                                    x86::qword_ptr(
+                                        a[0], b[0].valueAs<int32_t>()));
+                            }
+                            else {
+                                as_.lea(
+                                    a[0].r64(),
+                                    x86::qword_ptr(
+                                        a[0], b[0].valueAs<int32_t>()));
+                            }
+                            emit_mask(a[0]);
+                            clear_upper_dest(a, 1);
+                            return;
+                        }
+
+                        discharge_deferred_comparison();
+                        size_t const numQwords = div64_ceil(exp);
+                        for (size_t i = 0; i < numQwords; i++) {
+                            size_t const bits_occupied =
+                                i + 1 == numQwords ? exp - (i * 64) : 64;
+                            if (i == 0) {
+                                if (bits_occupied <= 8) {
+                                    as_.add(a[i].r8Lo(), b[i]);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.add(a[i].r16(), b[i]);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.add(a[i].r32(), b[i]);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.add(a[i].r64(), b[i]);
+                                }
+                            }
+                            else {
+                                if (bits_occupied <= 8) {
+                                    as_.adc(a[i].r8Lo(), b[i]);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.adc(a[i].r16(), b[i]);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.adc(a[i].r32(), b[i]);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.adc(a[i].r64(), b[i]);
+                                }
+                            }
+                        }
+                        emit_mask(a[numQwords - 1]);
+                        clear_upper_dest(a, numQwords);
+                    },
+                    [](x86::Ymm const &) { std::unreachable(); },
+                },
+                right_op);
+        }
+        else {
+            discharge_deferred_comparison();
+            MONAD_COMPILER_DEBUG_ASSERT(
+                std::holds_alternative<x86::Mem>(left_op));
+            x86::Mem const &a = std::get<x86::Mem>(left_op);
+            std::visit(
+                Cases{
+                    [&](Gpq256 const &b) {
+                        x86::Mem temp{a};
+                        size_t const numQwords = div64_ceil(exp);
+                        for (size_t i = 0; i < numQwords; i++) {
+                            size_t const bits_occupied =
+                                i + 1 == numQwords ? exp - (i * 64) : 64;
+                            if (i == 0) {
+                                if (bits_occupied <= 8) {
+                                    as_.add(temp, b[i].r8Lo());
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.add(temp, b[i].r16());
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.add(temp, b[i].r32());
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.add(temp, b[i].r64());
+                                }
+                            }
+                            else {
+                                if (bits_occupied <= 8) {
+                                    as_.adc(temp, b[i].r8Lo());
+                                }
+                                else if (bits_occupied <= 16) {
+                                    as_.adc(temp, b[i].r16());
+                                }
+                                else if (bits_occupied <= 32) {
+                                    as_.adc(temp, b[i].r32());
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.adc(temp, b[i].r64());
+                                }
+                            }
+                            temp.addOffset(8);
+                        };
+                        temp.addOffset(-8);
+                        emit_mask(temp);
+                        clear_upper_dest(temp, numQwords);
+                    },
+                    [&](Imm256 const &b) {
+                        x86::Mem temp{a};
+                        size_t const numQwords = div64_ceil(exp);
+                        for (size_t i = 0; i < numQwords; i++) {
+                            size_t const bits_occupied =
+                                i + 1 == numQwords ? exp - (i * 64) : 64;
+                            if (i == 0) {
+                                if (bits_occupied <= 8) {
+                                    temp.setSize(1);
+                                    as_.add(temp, b[i]);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    temp.setSize(2);
+                                    as_.add(temp, b[i]);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    temp.setSize(4);
+                                    as_.add(temp, 1);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.add(temp, b[i]);
+                                }
+                            }
+                            else {
+                                if (bits_occupied <= 8) {
+                                    temp.setSize(1);
+                                    as_.adc(temp, b[i]);
+                                }
+                                else if (bits_occupied <= 16) {
+                                    temp.setSize(2);
+                                    as_.adc(temp, b[i]);
+                                }
+                                else if (bits_occupied <= 32) {
+                                    temp.setSize(4);
+                                    as_.adc(temp, b[i]);
+                                }
+                                else {
+                                    MONAD_COMPILER_DEBUG_ASSERT(
+                                        bits_occupied <= 64);
+                                    as_.adc(temp, b[i]);
+                                }
+                            }
+                            temp.setSize(8);
+                            temp.addOffset(8);
+                        };
+                        temp.addOffset(-8);
+                        emit_mask(temp);
+                        clear_upper_dest(temp, numQwords);
+                    },
+                    [](auto const &) { MONAD_COMPILER_ASSERT(false); },
+                },
+                right_op);
+        }
+        stack_.push(std::move(left));
+    }
+
+    inline size_t Emitter::div64_ceil(size_t x)
+    {
+        return (x >> 6) + ((x & 63) != 0);
+    }
 }

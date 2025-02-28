@@ -1,6 +1,7 @@
 #pragma once
 
 #include <intx/intx.hpp>
+#include <limits>
 
 #include <format>
 
@@ -32,6 +33,36 @@ namespace monad::utils
      * specified.
      */
     uint256_t from_bytes(std::size_t n, uint8_t const *src);
+
+    inline size_t popcount(uint256_t const &x)
+    {
+        return static_cast<size_t>(
+            std::popcount(x[0]) + std::popcount(x[1]) + std::popcount(x[2]) +
+            std::popcount(x[3]));
+    }
+
+    inline size_t countl_zero(uint256_t const &x)
+    {
+        size_t cnt = 0;
+        for (size_t i = 0; i < 4; i++) {
+            cnt += static_cast<size_t>(std::countl_zero(x[3 - i]));
+            if (cnt != ((i + 1U) * 64U)) {
+                return cnt;
+            }
+        }
+        return cnt;
+    }
+
+    inline size_t bit_width(uint256_t const &x)
+    {
+        return static_cast<size_t>(std::numeric_limits<uint256_t>::digits) -
+               countl_zero(x);
+    }
+
+    consteval uint256_t pow2(size_t n)
+    {
+        return uint256_t{1} << n;
+    }
 }
 
 template <>
