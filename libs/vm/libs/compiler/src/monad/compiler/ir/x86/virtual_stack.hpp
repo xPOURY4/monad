@@ -571,6 +571,14 @@ namespace monad::compiler::native
         StackElem *spill_general_reg(StackElem *);
 
         /**
+         * Whether all stack elements are located at thrir rightful
+         * stack offset. E.g. for all stack indices i, if e is the
+         * stack element e at index i, then e is also located at stack
+         * offset i.
+         */
+        bool is_properly_spilled();
+
+        /**
          * Find a general register for the given stack element.
          * If the optional StackOffset has a value, then make sure
          * to emit mov instruction from the general register to stack offset.

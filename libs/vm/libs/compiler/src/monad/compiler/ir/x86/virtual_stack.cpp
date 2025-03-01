@@ -656,6 +656,29 @@ namespace monad::compiler::native
         return e;
     }
 
+    bool Stack::is_properly_spilled()
+    {
+        for (int32_t stack_ix = 0; stack_ix <= top_index_; ++stack_ix) {
+            size_t const i = static_cast<size_t>(stack_ix);
+            if (!positive_elems_[i]->stack_offset()) {
+                return false;
+            }
+            if (positive_elems_[i]->stack_offset()->offset != stack_ix) {
+                return false;
+            }
+        }
+        for (uint32_t i = 0; i < negative_elems_.size(); ++i) {
+            if (!negative_elems_[i]->stack_offset()) {
+                return false;
+            }
+            int32_t const stack_ix = -static_cast<int32_t>(i) - 1;
+            if (negative_elems_[i]->stack_offset()->offset != stack_ix) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     std::vector<std::pair<GeneralReg, StackOffset>>
     Stack::spill_all_caller_save_general_regs()
     {

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <format>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -817,12 +818,22 @@ namespace monad::compiler::native
         return true;
     }
 
+    template <bool preserve_eflags>
     void Emitter::adjust_by_stack_delta()
     {
         auto const delta = stack_.delta();
         if (delta != 0) {
-            as_.add(x86::qword_ptr(x86::rsp, sp_offset_stack_size), delta);
-            as_.add(x86::rbp, delta * 32);
+            auto ssm = x86::qword_ptr(x86::rsp, sp_offset_stack_size);
+            if constexpr (preserve_eflags) {
+                as_.mov(x86::rax, ssm);
+                as_.lea(x86::rax, x86::ptr(x86::rax, delta));
+                as_.lea(x86::rbp, x86::ptr(x86::rbp, delta * 32));
+                as_.mov(ssm, x86::rax);
+            }
+            else {
+                as_.add(ssm, delta);
+                as_.add(x86::rbp, delta * 32);
+            }
         }
     }
 
@@ -1596,9 +1607,10 @@ namespace monad::compiler::native
             std::move(pre_src),
             live);
 
-        auto dst_op = get_operand(dst, dst_loc);
-        auto src_op = get_operand(src, src_loc);
-        GENERAL_BIN_INSTR(sub, sbb)(dst_op, src_op);
+        GENERAL_BIN_INSTR(sub, sbb)
+        (dst, dst_loc, src, src_loc, [](size_t i, uint64_t x) {
+            return i == 0 && x == 0;
+        });
 
         return dst;
     }
@@ -1639,9 +1651,10 @@ namespace monad::compiler::native
             std::move(pre_src),
             live);
 
-        auto dst_op = get_operand(dst, dst_loc);
-        auto src_op = get_operand(src, src_loc);
-        GENERAL_BIN_INSTR(add, adc)(dst_op, src_op);
+        GENERAL_BIN_INSTR(add, adc)
+        (dst, dst_loc, src, src_loc, [](size_t i, uint64_t x) {
+            return i == 0 && x == 0;
+        });
 
         return dst;
     }
@@ -1832,10 +1845,10 @@ namespace monad::compiler::native
             get_avx_or_general_arguments_commutative(
                 std::move(pre_dst), std::move(pre_src), live);
 
-        auto left_op = get_operand(left, left_loc);
-        auto right_op = get_operand(
-            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
-        AVX_OR_GENERAL_BIN_INSTR(and_, vpand)(dst, left_op, right_op);
+        AVX_OR_GENERAL_BIN_INSTR(and_, vpand)
+        (dst, left, left_loc, right, right_loc, [](size_t, uint64_t x) {
+            return x == std::numeric_limits<uint64_t>::max();
+        });
 
         return dst;
     }
@@ -1890,10 +1903,10 @@ namespace monad::compiler::native
             get_avx_or_general_arguments_commutative(
                 std::move(pre_dst), std::move(pre_src), live);
 
-        auto left_op = get_operand(left, left_loc);
-        auto right_op = get_operand(
-            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
-        AVX_OR_GENERAL_BIN_INSTR(or_, vpor)(dst, left_op, right_op);
+        AVX_OR_GENERAL_BIN_INSTR(or_, vpor)
+        (dst, left, left_loc, right, right_loc, [](size_t, uint64_t x) {
+            return x == 0;
+        });
 
         return dst;
     }
@@ -1927,10 +1940,10 @@ namespace monad::compiler::native
             get_avx_or_general_arguments_commutative(
                 std::move(pre_dst), std::move(pre_src), live);
 
-        auto left_op = get_operand(left, left_loc);
-        auto right_op = get_operand(
-            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
-        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)(dst, left_op, right_op);
+        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)
+        (dst, left, left_loc, right, right_loc, [](size_t, uint64_t) {
+            return false;
+        });
 
         return dst;
     }
@@ -1959,10 +1972,10 @@ namespace monad::compiler::native
             get_avx_or_general_arguments_commutative(
                 std::move(pre_dst), std::move(pre_src), {});
 
-        auto left_op = get_operand(left, left_loc);
-        auto right_op = get_operand(
-            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
-        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)(dst, left_op, right_op);
+        AVX_OR_GENERAL_BIN_INSTR(xor_, vpxor)
+        (dst, left, left_loc, right, right_loc, [](size_t, uint64_t) {
+            return false;
+        });
 
         if (left_loc == LocationType::AvxReg) {
             x86::Ymm const &y = avx_reg_to_ymm(*dst->avx_reg());
@@ -2193,7 +2206,7 @@ namespace monad::compiler::native
     {
         discharge_deferred_comparison();
         write_to_final_stack_offsets();
-        adjust_by_stack_delta();
+        adjust_by_stack_delta<false>();
     }
 
     // No discharge
@@ -2257,13 +2270,13 @@ namespace monad::compiler::native
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
             write_to_final_stack_offsets();
-            adjust_by_stack_delta();
+            adjust_by_stack_delta<false>();
             jump_literal_dest(lit);
         }
         else {
             auto [op, spill_elem] = non_literal_jump_dest_operand(dest, live);
             write_to_final_stack_offsets();
-            adjust_by_stack_delta();
+            adjust_by_stack_delta<false>();
             jump_non_literal_dest(dest, op, spill_elem);
         }
     }
@@ -2474,7 +2487,7 @@ namespace monad::compiler::native
                 cond = nullptr;
                 dest = nullptr;
                 write_to_final_stack_offsets();
-                adjust_by_stack_delta();
+                adjust_by_stack_delta<false>();
             }
             else {
                 // Clear to remove locations, if not on stack:
@@ -2486,25 +2499,23 @@ namespace monad::compiler::native
 
         Comparison const comp = jumpi_comparison(std::move(cond), dest);
 
-        auto fallthrough_lbl = as_.newLabel();
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
             write_to_final_stack_offsets();
-            conditional_jmp(fallthrough_lbl, negate_comparison(comp));
-            adjust_by_stack_delta();
-            as_.jmp(jump_dest_label(lit));
+            adjust_by_stack_delta<true>();
+            conditional_jmp(jump_dest_label(lit), comp);
         }
         else {
+            auto fallthrough_lbl = as_.newLabel();
             // Note that `cond` is not live here.
             auto [op, spill_elem] = non_literal_jump_dest_operand(dest, {});
             write_to_final_stack_offsets();
             conditional_jmp(fallthrough_lbl, negate_comparison(comp));
-            adjust_by_stack_delta();
+            adjust_by_stack_delta<false>();
             jump_non_literal_dest(dest, op, spill_elem);
+            as_.bind(fallthrough_lbl);
+            adjust_by_stack_delta<false>();
         }
-
-        as_.bind(fallthrough_lbl);
-        adjust_by_stack_delta();
     }
 
     void Emitter::jumpi_keep_fallthrough_stack()
@@ -2524,11 +2535,22 @@ namespace monad::compiler::native
             return;
         }
 
-        asmjit::Label const fallthrough_lbl = as_.newLabel();
         Comparison const comp = jumpi_comparison(std::move(cond), dest);
-        conditional_jmp(fallthrough_lbl, negate_comparison(comp));
-        jump_stack_elem_dest(std::move(dest), {});
-        as_.bind(fallthrough_lbl);
+        if (dest->literal() && stack_.delta() == 0 &&
+            stack_.is_properly_spilled()) {
+            // We do not need to spill stack elements and we do not need
+            // to adjust by stack delta, so only need conditional jump.
+            auto lit = literal_jump_dest_operand(std::move(dest));
+            conditional_jmp(jump_dest_label(lit), comp);
+        }
+        else {
+            asmjit::Label const fallthrough_lbl = as_.newLabel();
+            conditional_jmp(fallthrough_lbl, negate_comparison(comp));
+            // The jump_stack_elem_dest function will spill to stack
+            // and/or adjust by stack delta.
+            jump_stack_elem_dest(std::move(dest), {});
+            as_.bind(fallthrough_lbl);
+        }
     }
 
     void Emitter::read_context_address(int32_t offset)
@@ -2650,9 +2672,8 @@ namespace monad::compiler::native
         StackElemRef dst, LocationType dst_loc, StackElemRef src,
         LocationType src_loc)
     {
-        auto dst_op = get_operand(dst, dst_loc);
-        auto src_op = get_operand(src, src_loc);
-        GENERAL_BIN_INSTR(cmp, sbb)(dst_op, src_op);
+        GENERAL_BIN_INSTR(cmp, sbb)
+        (dst, dst_loc, src, src_loc, [](size_t, uint64_t) { return false; });
     }
 
     void Emitter::byte_literal_ix(uint256_t const &ix, StackOffset src)
@@ -3468,28 +3489,51 @@ namespace monad::compiler::native
         Emitter::GeneralBinInstr<x86::Gp, asmjit::Imm> GI,
         Emitter::GeneralBinInstr<x86::Mem, x86::Gp> MG,
         Emitter::GeneralBinInstr<x86::Mem, asmjit::Imm> MI>
-    void
-    Emitter::general_bin_instr(Operand const &dst_op, Operand const &src_op)
+    void Emitter::general_bin_instr(
+        StackElemRef dst, LocationType dst_loc, StackElemRef src,
+        LocationType src_loc,
+        std::function<bool(size_t, uint64_t)> is_no_operation)
     {
+        auto dst_op = get_operand(dst, dst_loc);
+        auto src_op = get_operand(src, src_loc);
+
+        size_t instr_ix = 0;
+        auto isnop = [&] -> std::function<bool(size_t, size_t)> {
+            if (src->literal()) {
+                return [&](size_t ins, size_t i) {
+                    return is_no_operation(ins, src->literal()->value[i]);
+                };
+            }
+            else {
+                return [](size_t, size_t) { return false; };
+            }
+        }();
+
         if (std::holds_alternative<Gpq256>(dst_op)) {
             Gpq256 const &dst_gpq = std::get<Gpq256>(dst_op);
             std::visit(
                 Cases{
                     [&](Gpq256 const &src_gpq) {
                         for (size_t i = 0; i < 4; ++i) {
-                            (as_.*GG[i])(dst_gpq[i], src_gpq[i]);
+                            if (!isnop(instr_ix, i)) {
+                                (as_.*GG[instr_ix++])(dst_gpq[i], src_gpq[i]);
+                            }
                         }
                     },
                     [&](x86::Mem const &src_mem) {
                         x86::Mem temp{src_mem};
                         for (size_t i = 0; i < 4; ++i) {
-                            (as_.*GM[i])(dst_gpq[i], temp);
+                            if (!isnop(instr_ix, i)) {
+                                (as_.*GM[instr_ix++])(dst_gpq[i], temp);
+                            }
                             temp.addOffset(8);
                         }
                     },
                     [&](Imm256 const &src_imm) {
                         for (size_t i = 0; i < 4; ++i) {
-                            (as_.*GI[i])(dst_gpq[i], src_imm[i]);
+                            if (!isnop(instr_ix, i)) {
+                                (as_.*GI[instr_ix++])(dst_gpq[i], src_imm[i]);
+                            }
                         }
                     },
                     [](x86::Ymm const &) { std::unreachable(); },
@@ -3505,14 +3549,18 @@ namespace monad::compiler::native
                     [&](Gpq256 const &src_gpq) {
                         x86::Mem temp{dst_mem};
                         for (size_t i = 0; i < 4; ++i) {
-                            (as_.*MG[i])(temp, src_gpq[i]);
+                            if (!isnop(instr_ix, i)) {
+                                (as_.*MG[instr_ix++])(temp, src_gpq[i]);
+                            }
                             temp.addOffset(8);
                         }
                     },
                     [&](Imm256 const &src_imm) {
                         x86::Mem temp{dst_mem};
                         for (size_t i = 0; i < 4; ++i) {
-                            (as_.*MI[i])(temp, src_imm[i]);
+                            if (!isnop(instr_ix, i)) {
+                                (as_.*MI[instr_ix++])(temp, src_imm[i]);
+                            }
                             temp.addOffset(8);
                         }
                     },
@@ -3894,29 +3942,37 @@ namespace monad::compiler::native
         Emitter::GeneralBinInstr<x86::Mem, asmjit::Imm> MI,
         Emitter::AvxBinInstr<x86::Vec> VV, Emitter::AvxBinInstr<x86::Mem> VM>
     void Emitter::avx_or_general_bin_instr(
-        StackElemRef dst, Operand const &left, Operand const &right)
+        StackElemRef dst, StackElemRef left, LocationType left_loc,
+        StackElemRef right, LocationType right_loc,
+        std::function<bool(size_t, uint64_t)> is_no_operation)
     {
-        if (std::holds_alternative<Gpq256>(left)) {
+        if (left_loc == LocationType::GeneralReg) {
             general_bin_instr<GG, GM, GI, MG, MI>(
-                std::move(left), std::move(right));
+                std::move(left),
+                left_loc,
+                std::move(right),
+                right_loc,
+                std::move(is_no_operation));
+            return;
+        }
+        auto left_op = get_operand(left, left_loc);
+        auto right_op = get_operand(
+            right, right_loc, std::holds_alternative<x86::Ymm>(left_op));
+        MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
+        MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Ymm>(left_op));
+        if (std::holds_alternative<x86::Ymm>(right_op)) {
+            (as_.*VV)(
+                avx_reg_to_ymm(*dst->avx_reg()),
+                std::get<x86::Ymm>(left_op),
+                std::get<x86::Ymm>(right_op));
         }
         else {
-            MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
-            MONAD_COMPILER_DEBUG_ASSERT(std::holds_alternative<x86::Ymm>(left));
-            if (std::holds_alternative<x86::Ymm>(right)) {
-                (as_.*VV)(
-                    avx_reg_to_ymm(*dst->avx_reg()),
-                    std::get<x86::Ymm>(left),
-                    std::get<x86::Ymm>(right));
-            }
-            else {
-                MONAD_COMPILER_DEBUG_ASSERT(
-                    std::holds_alternative<x86::Mem>(right));
-                (as_.*VM)(
-                    avx_reg_to_ymm(*dst->avx_reg()),
-                    std::get<x86::Ymm>(left),
-                    std::get<x86::Mem>(right));
-            }
+            MONAD_COMPILER_DEBUG_ASSERT(
+                std::holds_alternative<x86::Mem>(right_op));
+            (as_.*VM)(
+                avx_reg_to_ymm(*dst->avx_reg()),
+                std::get<x86::Ymm>(left_op),
+                std::get<x86::Mem>(right_op));
         }
     }
 
@@ -4112,7 +4168,7 @@ namespace monad::compiler::native
             as_.setnz(x86::byte_ptr(x86::rsp, -1));
 
             MONAD_COMPILER_DEBUG_ASSERT(index <= 3);
-            mem.setOffset(static_cast<int64_t>(index) * 8);
+            mem.addOffset(static_cast<int64_t>(index) * 8 - 24);
             as_.mov(x86::rax, mask);
             as_.and_(x86::rax, mem);
             while (index--) {
@@ -4684,38 +4740,20 @@ namespace monad::compiler::native
         stack_.pop();
 
         // Check whether we can elide the addition.
-        bool addition_elided = false;
         if (b_elem->literal() && b_elem->literal()->value == 0) {
-            b_elem.reset(); // Clear to free potential registers.
-            addition_elided = true;
+            b_elem.reset(); // Clear to free registers and stack offset.
+            auto mask = stack_.alloc_literal(Literal{m - 1});
+            stack_.push(and_(std::move(a_elem), std::move(mask), {}));
         }
         else if (a_elem->literal() && a_elem->literal()->value == 0) {
-            a_elem = std::move(b_elem);
-            addition_elided = true;
+            a_elem.reset(); // Clear to free registers and stack offset.
+            auto mask = stack_.alloc_literal(Literal{m - 1});
+            stack_.push(and_(std::move(b_elem), std::move(mask), {}));
         }
         else {
             size_t const exp = utils::bit_width(m) - 1;
             // The heavy lifting is done by the following function.
             add_mod2(std::move(a_elem), std::move(b_elem), exp);
-            // NOTE: this return makes clang-tidy happy, as it emits a
-            // false-positive use-after-move for `a_elem` down below.
-            return true;
-        }
-
-        if (addition_elided) {
-            // Emit masking operation
-            auto mask = stack_.alloc_literal(Literal{m - 1});
-            auto [and_dst, and_left, and_left_loc, and_mask, and_mask_loc] =
-                get_avx_or_general_arguments_commutative(a_elem, mask, {});
-            auto left_op = get_operand(and_left, and_left_loc);
-            auto mask_op = get_operand(
-                and_mask,
-                and_mask_loc,
-                std::holds_alternative<x86::Ymm>(left_op));
-            AVX_OR_GENERAL_BIN_INSTR(and_, vpand)
-            (and_dst, left_op, mask_op);
-
-            stack_.push(std::move(and_dst));
         }
 
         return true;
@@ -4723,10 +4761,29 @@ namespace monad::compiler::native
 
     void Emitter::add_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
     {
+        discharge_deferred_comparison();
+
         auto [left, left_loc, right, right_loc] =
             get_mod2_bin_dest_and_source(a_elem, b_elem, exp, {});
         auto left_op = get_operand(left, left_loc);
         auto right_op = get_operand(right, right_loc);
+
+        size_t const numQwords = div64_ceil(exp);
+
+        // Skip initial additions by zero.
+        size_t start_offset = 0;
+        if (right->literal()) {
+            while (start_offset < numQwords) {
+                uint64_t const mask =
+                    start_offset + 1 == numQwords && (exp & 63) != 0
+                        ? (uint64_t{1} << (exp & 63)) - 1
+                        : std::numeric_limits<uint64_t>::max();
+                if ((right->literal()->value[start_offset] & mask) != 0) {
+                    break;
+                }
+                ++start_offset;
+            }
+        }
 
         // Common logic for emitting masks for a single destination
         // register or destination memory.
@@ -4744,8 +4801,15 @@ namespace monad::compiler::native
                             return;
                         }
 
-                        if ((exp & 31) == 0) {
-                            return;
+                        if (start_offset == numQwords) {
+                            if ((exp & 63) == 0) {
+                                return;
+                            }
+                        }
+                        else {
+                            if ((exp & 31) == 0) {
+                                return;
+                            }
                         }
 
                         uint64_t const mask =
@@ -4777,12 +4841,11 @@ namespace monad::compiler::native
 
         // Common logic for clearing the upper destination register(s)
         // or part(s) of the destination memory.
-        auto clear_upper_dest = [&](std::variant<Gpq256, x86::Mem> const &dst,
-                                    size_t start) {
+        auto clear_upper_dest = [&](std::variant<Gpq256, x86::Mem> const &dst) {
             std::visit(
                 Cases{
                     [&](Gpq256 const &c) {
-                        for (size_t i = start; i < 4; i++) {
+                        for (size_t i = numQwords; i < 4; i++) {
                             if (!stack_.has_deferred_comparison()) {
                                 as_.xor_(c[i], c[i]);
                             }
@@ -4793,7 +4856,7 @@ namespace monad::compiler::native
                     },
                     [&](x86::Mem const &c) {
                         x86::Mem temp{c};
-                        for (size_t i = start; i < 4; i++) {
+                        for (size_t i = numQwords; i < 4; i++) {
                             temp.addOffset(8);
                             as_.mov(temp, 0);
                         }
@@ -4807,26 +4870,10 @@ namespace monad::compiler::native
             std::visit(
                 Cases{
                     [&](Gpq256 const &b) {
-                        // Special case: we can calculate a + b using a
-                        // single lea instruction.
-                        if (exp <= 64) {
-                            if (exp <= 32) {
-                                as_.lea(a[0].r32(), x86::qword_ptr(a[0], b[0]));
-                            }
-                            else {
-                                as_.lea(a[0].r64(), x86::qword_ptr(a[0], b[0]));
-                            }
-                            emit_mask(a[0]);
-                            clear_upper_dest(a, 1);
-                            return;
-                        }
-
-                        size_t const numQwords = div64_ceil(exp);
-                        discharge_deferred_comparison();
-                        for (size_t i = 0; i < numQwords; i++) {
+                        for (size_t i = start_offset; i < numQwords; i++) {
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
-                            if (i == 0) {
+                            if (i == start_offset) {
                                 if (bits_occupied <= 32) {
                                     as_.add(a[i].r32(), b[i].r32());
                                 }
@@ -4848,16 +4895,15 @@ namespace monad::compiler::native
                             }
                         }
                         emit_mask(a[numQwords - 1]);
-                        clear_upper_dest(a, numQwords);
+                        clear_upper_dest(a);
                     },
                     [&](x86::Mem const &b) {
-                        discharge_deferred_comparison();
                         x86::Mem temp{b};
-                        size_t const numQwords = div64_ceil(exp);
-                        for (size_t i = 0; i < numQwords; i++) {
+                        temp.addOffset(static_cast<int64_t>(start_offset) * 8);
+                        for (size_t i = start_offset; i < numQwords; i++) {
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
-                            if (i == 0) {
+                            if (i == start_offset) {
                                 if (bits_occupied <= 8) {
                                     as_.add(a[i].r8Lo(), temp);
                                 }
@@ -4892,35 +4938,13 @@ namespace monad::compiler::native
                             temp.addOffset(8);
                         }
                         emit_mask(a[numQwords - 1]);
-                        clear_upper_dest(a, numQwords);
+                        clear_upper_dest(a);
                     },
                     [&](Imm256 const &b) {
-                        // Special case: we can calculate a + b using a
-                        // single lea instruction.
-                        if (exp <= 64) {
-                            if (exp <= 32) {
-                                as_.lea(
-                                    a[0].r32(),
-                                    x86::qword_ptr(
-                                        a[0], b[0].valueAs<int32_t>()));
-                            }
-                            else {
-                                as_.lea(
-                                    a[0].r64(),
-                                    x86::qword_ptr(
-                                        a[0], b[0].valueAs<int32_t>()));
-                            }
-                            emit_mask(a[0]);
-                            clear_upper_dest(a, 1);
-                            return;
-                        }
-
-                        discharge_deferred_comparison();
-                        size_t const numQwords = div64_ceil(exp);
-                        for (size_t i = 0; i < numQwords; i++) {
+                        for (size_t i = start_offset; i < numQwords; i++) {
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
-                            if (i == 0) {
+                            if (i == start_offset) {
                                 if (bits_occupied <= 8) {
                                     as_.add(a[i].r8Lo(), b[i]);
                                 }
@@ -4954,14 +4978,13 @@ namespace monad::compiler::native
                             }
                         }
                         emit_mask(a[numQwords - 1]);
-                        clear_upper_dest(a, numQwords);
+                        clear_upper_dest(a);
                     },
                     [](x86::Ymm const &) { std::unreachable(); },
                 },
                 right_op);
         }
         else {
-            discharge_deferred_comparison();
             MONAD_COMPILER_DEBUG_ASSERT(
                 std::holds_alternative<x86::Mem>(left_op));
             x86::Mem const &a = std::get<x86::Mem>(left_op);
@@ -4969,11 +4992,13 @@ namespace monad::compiler::native
                 Cases{
                     [&](Gpq256 const &b) {
                         x86::Mem temp{a};
-                        size_t const numQwords = div64_ceil(exp);
-                        for (size_t i = 0; i < numQwords; i++) {
+                        temp.addOffset(
+                            static_cast<int64_t>(start_offset) * 8 - 8);
+                        for (size_t i = start_offset; i < numQwords; i++) {
+                            temp.addOffset(8);
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
-                            if (i == 0) {
+                            if (i == start_offset) {
                                 if (bits_occupied <= 8) {
                                     as_.add(temp, b[i].r8Lo());
                                 }
@@ -5005,19 +5030,19 @@ namespace monad::compiler::native
                                     as_.adc(temp, b[i].r64());
                                 }
                             }
-                            temp.addOffset(8);
                         };
-                        temp.addOffset(-8);
                         emit_mask(temp);
-                        clear_upper_dest(temp, numQwords);
+                        clear_upper_dest(temp);
                     },
                     [&](Imm256 const &b) {
                         x86::Mem temp{a};
-                        size_t const numQwords = div64_ceil(exp);
-                        for (size_t i = 0; i < numQwords; i++) {
+                        temp.addOffset(
+                            static_cast<int64_t>(start_offset) * 8 - 8);
+                        for (size_t i = start_offset; i < numQwords; i++) {
+                            temp.addOffset(8);
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
-                            if (i == 0) {
+                            if (i == start_offset) {
                                 if (bits_occupied <= 8) {
                                     temp.setSize(1);
                                     as_.add(temp, b[i]);
@@ -5028,7 +5053,7 @@ namespace monad::compiler::native
                                 }
                                 else if (bits_occupied <= 32) {
                                     temp.setSize(4);
-                                    as_.add(temp, 1);
+                                    as_.add(temp, b[i]);
                                 }
                                 else {
                                     MONAD_COMPILER_DEBUG_ASSERT(
@@ -5055,12 +5080,10 @@ namespace monad::compiler::native
                                     as_.adc(temp, b[i]);
                                 }
                             }
-                            temp.setSize(8);
-                            temp.addOffset(8);
                         };
-                        temp.addOffset(-8);
+                        temp.setSize(8);
                         emit_mask(temp);
-                        clear_upper_dest(temp, numQwords);
+                        clear_upper_dest(temp);
                     },
                     [](auto const &) { MONAD_COMPILER_ASSERT(false); },
                 },

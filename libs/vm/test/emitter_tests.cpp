@@ -175,7 +175,7 @@ namespace
         basic_blocks::BasicBlocksIR const &ir, bool dup)
     {
 #if 0
-        if (left_loc != Emitter::LocationType::GeneralReg || right_loc != Emitter::LocationType::Literal || !dup) {
+        if (left_loc != Emitter::LocationType::StackOffset || right_loc != Emitter::LocationType::Literal || dup) {
             return;
         }
 #endif
@@ -1274,6 +1274,25 @@ TEST(Emitter, sub)
         std::numeric_limits<uint256_t>::max());
 }
 
+TEST(Emitter, sub_with_elim_operation)
+{
+    uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
+    uint256 y{0};
+    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    y[3] = 10;
+    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    y[3] = 0;
+    y[2] = uint64_t{1} << 63;
+    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    y[2] = 0;
+    y[1] = std::numeric_limits<uint64_t>::max();
+    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+}
+
 TEST(Emitter, sub_identity)
 {
     auto ir = basic_blocks::BasicBlocksIR({PUSH0, PUSH0, SUB});
@@ -1309,6 +1328,25 @@ TEST(Emitter, add)
         std::numeric_limits<uint256_t>::max() - 1,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 2);
+}
+
+TEST(Emitter, add_with_elim_operation)
+{
+    uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
+    uint256 y{0};
+    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    y[3] = 10;
+    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    y[3] = 0;
+    y[2] = uint64_t{1} << 63;
+    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    y[2] = 0;
+    y[1] = std::numeric_limits<uint64_t>::max();
+    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
 }
 
 TEST(Emitter, add_identity_right)
@@ -1641,6 +1679,41 @@ TEST(Emitter, addmod_opt)
     }
 }
 
+TEST(Emitter, addmod_opt_with_elim_operation)
+{
+    uint256_t const x{
+        (uint64_t{1} << 63) | 2, 3 << 1, (7 << 10) | 1, (15 << 20) | 7};
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+        {x, 0},
+        {x, {0, 0, 0, (1 << 20) | 2}},
+        {x, {0, 0, (2 << 10) | 3, 0}},
+        {x, {0, std::numeric_limits<uint64_t>::max(), 0, 0}}};
+    std::vector<int> shifts = {0, 1, 2, 3};
+    for (int i = 4; i < 252; i += 4) {
+        shifts.push_back(i);
+    }
+    for (int i = 252; i < 256; ++i) {
+        shifts.push_back(i);
+    }
+    for (int const shift : shifts) {
+        uint256_t m = uint256_t{1} << shift;
+        for (auto [a, b] : inputs) {
+            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            pure_bin_instr_test(
+                PUSH0,
+                [&](Emitter &em) {
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    ASSERT_TRUE(em.addmod_opt());
+                },
+                a,
+                b,
+                expected);
+        }
+    }
+}
+
 TEST(Emitter, addmod_nonopt)
 {
     {
@@ -1698,6 +1771,23 @@ TEST(Emitter, and_)
         std::numeric_limits<uint256_t>::max() - 1);
 }
 
+TEST(Emitter, and_with_elim_operation)
+{
+    uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
+    uint256 y{std::numeric_limits<uint256_t>::max()};
+    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    y[3] = 1 << 20;
+    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    y[1] = 2 << 1;
+    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    y[0] = (uint64_t{1} << 63) | 1;
+    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+}
+
 TEST(Emitter, and_identity_left)
 {
     auto ir = basic_blocks::BasicBlocksIR({PUSH0, PUSH0, AND});
@@ -1736,6 +1826,23 @@ TEST(Emitter, or_)
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         std::numeric_limits<uint256_t>::max());
+}
+
+TEST(Emitter, or_with_elim_operation)
+{
+    uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
+    uint256 y{0};
+    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    y[3] = 10;
+    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    y[1] = std::numeric_limits<uint64_t>::max();
+    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    y[2] = uint64_t{1} << 63;
+    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
 }
 
 TEST(Emitter, or_identity_left)

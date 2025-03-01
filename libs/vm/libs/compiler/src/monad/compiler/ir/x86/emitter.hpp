@@ -564,6 +564,7 @@ namespace monad::compiler::native
         bool is_live(StackElemRef, std::tuple<LiveSet...> const &);
 
         bool block_prologue(basic_blocks::Block const &);
+        template <bool preserve_eflags>
         void adjust_by_stack_delta();
         void write_to_final_stack_offsets();
 
@@ -797,7 +798,10 @@ namespace monad::compiler::native
             GeneralBinInstr<asmjit::x86::Gp, asmjit::Imm> GI,
             GeneralBinInstr<asmjit::x86::Mem, asmjit::x86::Gp> MG,
             GeneralBinInstr<asmjit::x86::Mem, asmjit::Imm> MI>
-        void general_bin_instr(Operand const &dst_op, Operand const &src_op);
+        void general_bin_instr(
+            StackElemRef dst, LocationType dst_loc, StackElemRef src,
+            LocationType src_loc,
+            std::function<bool(size_t, uint64_t)> is_no_operation);
 
         template <typename... LiveSet>
         std::tuple<StackElemRef, StackElemRef, LocationType> get_una_arguments(
@@ -824,7 +828,9 @@ namespace monad::compiler::native
             GeneralBinInstr<asmjit::x86::Mem, asmjit::Imm> MI,
             AvxBinInstr<asmjit::x86::Vec> VV, AvxBinInstr<asmjit::x86::Mem> VM>
         void avx_or_general_bin_instr(
-            StackElemRef dst, Operand const &left, Operand const &right);
+            StackElemRef dst, StackElemRef left, LocationType left_loc,
+            StackElemRef right, LocationType right_loc,
+            std::function<bool(size_t, uint64_t)> is_no_operation);
 
         std::tuple<
             StackElemRef, Emitter::LocationType, StackElemRef,
