@@ -74,6 +74,7 @@ add_subdirectory(libs/interpreter)
 add_subdirectory(libs/runtime)
 add_subdirectory(libs/utils)
 add_subdirectory(libs/vm)
+add_subdirectory(cmd/parser)
 
 if(MONAD_COMPILER_TESTING)
     add_subdirectory(test)

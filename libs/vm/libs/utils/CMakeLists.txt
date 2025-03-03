@@ -10,6 +10,8 @@ target_sources(utils PRIVATE
     "src/monad/utils/rc_ptr.hpp"
     "src/monad/utils/uint256.cpp"
     "src/monad/utils/uint256.hpp"
+    "src/monad/utils/parser.cpp"
+    "src/monad/utils/parser.hpp"
 )
 
 monad_compile_options(utils)
@@ -20,4 +22,5 @@ target_include_directories(utils
 
 target_link_libraries(utils
     PUBLIC intx::intx
+    PUBLIC monad-compiler
 )
