@@ -1,8 +1,8 @@
 .text
+.intel_syntax noprefix
 .globl monad_runtime_mul
 .type monad_runtime_mul, @function
 .align 16
-.intel_syntax noprefix
 monad_runtime_mul:
 .cfi_startproc
     push    r14
@@ -56,4 +56,61 @@ monad_runtime_mul:
     ret
 .cfi_endproc
 .size monad_runtime_mul, .-monad_runtime_mul
+
+.globl monad_runtime_mul_192
+.type monad_runtime_mul_192, @function
+.align 16
+monad_runtime_mul_192:
+.cfi_startproc
+    mov     r9, qword ptr [rsi]
+    mov     r11, qword ptr [rsi + 8]
+    mov     rsi, qword ptr [rsi + 16]
+    mov     rcx, qword ptr [rdx]
+    mov     rax, qword ptr [rdx + 8]
+    mov     r8, qword ptr [rdx + 16]
+    mov     rdx, r9
+    mulx    rdx, r10, r8
+    mov     rdx, rsi
+    mulx    rdx, r8, rcx
+    add     r8, r10
+    imul    rsi, rax
+    mov     rdx, rcx
+    mulx    rsi, rdx, r9
+    mov     qword ptr [rdi], rdx
+    mov     rdx, rax
+    mulx    r10, r9, r9
+    add     r9, rsi
+    adc     r10, 0
+    mov     rdx, rcx
+    mulx    rsi, rcx, r11
+    add     rcx, r9
+    adc     rsi, r10
+    mov     rdx, rax
+    mulx    r11, rdx, r11
+    add     rdx, rsi
+    add     rdx, r8
+    mov     qword ptr [rdi + 8], rcx
+    mov     qword ptr [rdi + 16], rdx
+    ret
+.cfi_endproc
+.size monad_runtime_mul_192, .-monad_runtime_mul_192
+
+.globl monad_runtime_mul_128
+.type monad_runtime_mul_128, @function
+.align 16
+monad_runtime_mul_128:
+.cfi_startproc
+    mov     rcx, qword ptr [rsi]
+    mov     r10, qword ptr [rdx + 8]
+    mov     rdx, qword ptr [rdx]
+    mulx    r8, r9, rcx
+    imul    rdx, qword ptr [rsi + 8]
+    imul    rcx, r10
+    add     rcx, rdx
+    add     rcx, r8
+    mov     qword ptr [rdi], r9
+    mov     qword ptr [rdi + 8], rcx
+    ret
+.cfi_endproc
+.size monad_runtime_mul_128, .-monad_runtime_mul_128
 .section .note.GNU-stack,"",@progbits

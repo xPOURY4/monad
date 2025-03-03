@@ -125,5 +125,24 @@ namespace monad::compiler::test
         void set_balance(utils::uint256_t addr, utils::uint256_t balance);
 
         std::basic_string_view<uint8_t> result_data();
+
+        template <unsigned N>
+        void test_mul(
+            void (*f)(
+                ::intx::uint<N> *, ::intx::uint<N> const *,
+                ::intx::uint<N> const *),
+            utils::uint256_t const &x, utils::uint256_t const &y)
+        {
+            ::intx::uint<N> z;
+            f(&z,
+              (::intx::uint<N> const *)::intx::as_words(x),
+              (::intx::uint<N> const *)::intx::as_words(y));
+            constexpr utils::uint256_t shift = utils::uint256_t{1} << N;
+            utils::uint256_t expected = ::intx::mulmod(x, y, shift);
+            constexpr int size = N / 8;
+            ASSERT_EQ(
+                memcmp(::intx::as_bytes(z), ::intx::as_bytes(expected), size),
+                0);
+        }
     };
 }

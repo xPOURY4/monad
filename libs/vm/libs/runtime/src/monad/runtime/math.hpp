@@ -11,6 +11,12 @@
 extern "C" void monad_runtime_mul(
     ::intx::uint256 *, ::intx::uint256 const *, ::intx::uint256 const *);
 
+extern "C" void monad_runtime_mul_192(
+    ::intx::uint<192> *, ::intx::uint<192> const *, ::intx::uint<192> const *);
+
+extern "C" void monad_runtime_mul_128(
+    ::intx::uint<128> *, ::intx::uint<128> const *, ::intx::uint<128> const *);
+
 namespace monad::runtime
 {
     template <evmc_revision Rev>

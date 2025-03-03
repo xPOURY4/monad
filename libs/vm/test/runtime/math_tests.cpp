@@ -1,5 +1,6 @@
 #include "fixture.hpp"
 
+#include <cstdint>
 #include <monad/runtime/math.hpp>
 #include <monad/utils/uint256.hpp>
 
@@ -8,6 +9,8 @@
 #include <evmc/evmc.h>
 
 #include <gtest/gtest.h>
+#include <utility>
+#include <vector>
 
 using namespace monad;
 using namespace monad::runtime;
@@ -35,6 +38,57 @@ TEST_F(RuntimeTest, Mul)
         f(0x747d1d94b679f91eeeee9ecca05eb0b0a71ea2020c4e94bdb62e4d5f9fef9244_u256,
           0xcd566972b5e50104011a92b59fa8e0b1234851ae_u256),
         0xd4dac120ee7e085767e373530940f800a1d01787793fcf63bcf635fdf13cee38_u256);
+}
+
+TEST_F(RuntimeTest, Mul_128_192)
+{
+
+    utils::uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    utils::uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
+    utils::uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
+    utils::uint256_t bit64{static_cast<uint64_t>(1) << 63};
+    std::vector<std::pair<utils::uint256_t, utils::uint256_t>> const inputs{
+        {0, 0},
+        {0, bit256},
+        {0, bit192},
+        {0, bit128},
+        {bit256, 0},
+        {bit192, 0},
+        {bit128, 0},
+        {1, 1},
+        {1, bit256},
+        {bit256, 1},
+        {1, bit192},
+        {bit192, 1},
+        {1, bit128},
+        {bit128, 1},
+        {bit64, -bit64},
+        {-bit64, bit64},
+        {-bit64, -bit64},
+        {bit64, bit256},
+        {bit256, bit64},
+        {-bit64, bit256},
+        {bit256, -bit64},
+        {bit64, bit192},
+        {bit192, bit64},
+        {-bit64, bit192},
+        {bit192, -bit64},
+        {bit64, bit128},
+        {bit128, bit64},
+        {-bit64, bit128},
+        {bit128, -bit64},
+        {5, 6},
+        {5, -bit64},
+        {-bit64, 5},
+        {5, bit64},
+        {bit64, 5},
+        {0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE_u256,
+         2}};
+
+    for (auto const &[a, b] : inputs) {
+        test_mul(monad_runtime_mul_128, a, b);
+        test_mul(monad_runtime_mul_192, a, b);
+    }
 }
 
 TEST_F(RuntimeTest, UDiv)
