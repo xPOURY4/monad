@@ -81,6 +81,10 @@ target_link_libraries(blockchain-test-benchmarks
 # Coverage
 
 if(MONAD_COMPILER_COVERAGE)
-    target_compile_options(blockchain-tests PRIVATE -coverage)
-    target_link_options(blockchain-tests PRIVATE -coverage)
+    target_compile_options(blockchain-test-benchmarks PRIVATE -coverage)
+    target_link_options(blockchain-test-benchmarks PRIVATE -coverage)
+    target_compile_options(interpreter-blockchain-tests PRIVATE -coverage)
+    target_link_options(interpreter-blockchain-tests PRIVATE -coverage)
+    target_compile_options(compiler-blockchain-tests PRIVATE -coverage)
+    target_link_options(compiler-blockchain-tests PRIVATE -coverage)
 endif()
