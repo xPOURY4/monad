@@ -447,31 +447,31 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void log0(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::log0<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log0);
         }
 
         template <evmc_revision rev>
         void log1(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::log1<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log1);
         }
 
         template <evmc_revision rev>
         void log2(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::log2<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log2);
         }
 
         template <evmc_revision rev>
         void log3(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::log3<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log3);
         }
 
         template <evmc_revision rev>
         void log4(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::log4<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::log4);
         }
 
         template <evmc_revision rev>
