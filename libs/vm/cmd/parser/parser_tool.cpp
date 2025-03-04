@@ -81,7 +81,8 @@ int main(int argc, char **argv)
             }
             auto out = std::ofstream(outfile, std::ios::binary);
             out.write(
-                reinterpret_cast<char const *>(opcodes.data()), opcodes.size());
+                reinterpret_cast<char const *>(opcodes.data()),
+                (long)opcodes.size());
             out.close();
         }
     }

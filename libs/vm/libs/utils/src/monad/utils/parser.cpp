@@ -239,12 +239,11 @@ void write_n_bytes_at(bool verbose,
     }
 }
 
-int write_opcode(bool verbose, std::vector<uint8_t> &opcodes, std::string opname)
+uint8_t write_opcode(bool verbose, std::vector<uint8_t> &opcodes, std::string opname)
 {
     auto c = find_opcode(opname);
     if (!c.has_value()) {
-        warn("unknown opcode", opname);
-        return -1;
+        err("unknown opcode");
     }
     opcodes.push_back(c.value());
     show_byte_at(verbose, opcodes, opcodes.size() - 1, "//     " + opname);
@@ -256,8 +255,8 @@ void show_opcodes(std::vector<uint8_t> &opcodes)
     auto tbl = monad::compiler::make_opcode_table<EVMC_CANCUN>();
     for (std::size_t i = 0; i < opcodes.size(); ++i) {
         std::cout << std::hex << "[0x" << i << "] ";
-        auto c = (int)opcodes[i];
-        std::cout << "0x" << std::hex << c;
+        auto c = opcodes[i];
+        std::cout << "0x" << std::hex << (int)c;
         std::cout << " " << tbl[c].name;
         std::cout << '\n';
         if (c >= PUSH1 && c <= PUSH32) {
@@ -303,7 +302,7 @@ std::vector<uint8_t> compile_tokens(bool verbose, std::vector<Token> &tokens)
                     }
 
                     auto c = write_opcode(verbose, opcodes, opname);
-                    auto nbytes = c - PUSH0;
+                    std::size_t const nbytes = c - PUSH0;
 
                     write_n_bytes_at(verbose, opcodes, value, nbytes, opcodes.size());
                 },
