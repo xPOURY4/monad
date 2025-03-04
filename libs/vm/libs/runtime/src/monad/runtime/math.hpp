@@ -9,25 +9,26 @@
 #include <intx/intx.hpp>
 
 extern "C" void monad_runtime_mul(
-    ::intx::uint256 *, ::intx::uint256 const *, ::intx::uint256 const *);
+    ::intx::uint256 *, ::intx::uint256 const *,
+    ::intx::uint256 const *) noexcept;
 
 extern "C" void monad_runtime_mul_192(
-    ::intx::uint<192> *, ::intx::uint<192> const *, ::intx::uint<192> const *);
+    ::intx::uint<192> *, ::intx::uint<192> const *,
+    ::intx::uint<192> const *) noexcept;
 
 extern "C" void monad_runtime_mul_128(
-    ::intx::uint<128> *, ::intx::uint<128> const *, ::intx::uint<128> const *);
+    ::intx::uint<128> *, ::intx::uint<128> const *,
+    ::intx::uint<128> const *) noexcept;
 
 namespace monad::runtime
 {
-    template <evmc_revision Rev>
     constexpr void (*mul)(
         utils::uint256_t *, utils::uint256_t const *,
-        utils::uint256_t const *) = monad_runtime_mul;
+        utils::uint256_t const *) noexcept = monad_runtime_mul;
 
-    template <evmc_revision Rev>
-    void udiv(
+    constexpr void udiv(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr)
+        utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -37,10 +38,9 @@ namespace monad::runtime
         *result_ptr = *a_ptr / *b_ptr;
     }
 
-    template <evmc_revision Rev>
-    void sdiv(
+    constexpr void sdiv(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr)
+        utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -50,10 +50,9 @@ namespace monad::runtime
         *result_ptr = intx::sdivrem(*a_ptr, *b_ptr).quot;
     }
 
-    template <evmc_revision Rev>
-    void umod(
+    constexpr void umod(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr)
+        utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -63,10 +62,9 @@ namespace monad::runtime
         *result_ptr = *a_ptr % *b_ptr;
     }
 
-    template <evmc_revision Rev>
-    void smod(
+    constexpr void smod(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr)
+        utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -76,10 +74,9 @@ namespace monad::runtime
         *result_ptr = intx::sdivrem(*a_ptr, *b_ptr).rem;
     }
 
-    template <evmc_revision Rev>
-    void addmod(
+    constexpr void addmod(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
+        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr) noexcept
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
@@ -89,10 +86,9 @@ namespace monad::runtime
         *result_ptr = intx::addmod(*a_ptr, *b_ptr, *n_ptr);
     }
 
-    template <evmc_revision Rev>
-    void mulmod(
+    constexpr void mulmod(
         utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr)
+        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr) noexcept
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
@@ -103,9 +99,10 @@ namespace monad::runtime
     }
 
     template <evmc_revision Rev>
-    void
+    constexpr void
     exp(Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *a_ptr, utils::uint256_t const *exponent_ptr)
+        utils::uint256_t const *a_ptr,
+        utils::uint256_t const *exponent_ptr) noexcept
     {
         auto exponent_byte_size = intx::count_significant_bytes(*exponent_ptr);
 

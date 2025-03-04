@@ -254,7 +254,7 @@ namespace monad::compiler::native
             if (mul_optimized()) {
                 return;
             }
-            call_runtime(remaining_base_gas, false, monad::runtime::mul<rev>);
+            call_runtime(remaining_base_gas, false, monad::runtime::mul);
         }
 
         template <evmc_revision rev>
@@ -263,7 +263,7 @@ namespace monad::compiler::native
             if (div_optimized<false>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, true, monad::runtime::udiv<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::udiv);
         }
 
         template <evmc_revision rev>
@@ -272,7 +272,7 @@ namespace monad::compiler::native
             if (div_optimized<true>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, true, monad::runtime::sdiv<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sdiv);
         }
 
         template <evmc_revision rev>
@@ -281,7 +281,7 @@ namespace monad::compiler::native
             if (mod_optimized<false>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, true, monad::runtime::umod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::umod);
         }
 
         template <evmc_revision rev>
@@ -290,7 +290,7 @@ namespace monad::compiler::native
             if (mod_optimized<true>()) {
                 return;
             }
-            call_runtime(remaining_base_gas, true, monad::runtime::smod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::smod);
         }
 
         bool addmod_opt();
@@ -301,13 +301,13 @@ namespace monad::compiler::native
             if (addmod_opt()) {
                 return;
             }
-            call_runtime(remaining_base_gas, true, monad::runtime::addmod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::addmod);
         }
 
         template <evmc_revision rev>
         void mulmod(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::mulmod<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mulmod);
         }
 
         template <evmc_revision rev>

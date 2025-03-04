@@ -1729,8 +1729,7 @@ TEST(Emitter, addmod_nonopt)
                 em.swap(1);
                 // The modulus is in a register
                 ASSERT_FALSE(em.addmod_opt());
-                em.call_runtime(
-                    10, true, runtime::addmod<EVMC_SPURIOUS_DRAGON>);
+                em.call_runtime(10, true, runtime::addmod);
             },
             4,
             3,
@@ -1750,8 +1749,7 @@ TEST(Emitter, addmod_nonopt)
                 em.swap(1);
                 // The modulus is not a literal
                 ASSERT_FALSE(em.addmod_opt());
-                em.call_runtime(
-                    10, true, runtime::addmod<EVMC_SPURIOUS_DRAGON>);
+                em.call_runtime(10, true, runtime::addmod);
             },
             4,
             3,

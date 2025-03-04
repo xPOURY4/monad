@@ -19,7 +19,7 @@ using namespace intx;
 
 TEST_F(RuntimeTest, Mul)
 {
-    auto f = wrap(mul<EVMC_CANCUN>);
+    auto f = wrap(mul);
 
     ASSERT_EQ(f(10, 10), 100);
     ASSERT_EQ(
@@ -93,7 +93,7 @@ TEST_F(RuntimeTest, Mul_128_192)
 
 TEST_F(RuntimeTest, UDiv)
 {
-    auto f = wrap(udiv<EVMC_CANCUN>);
+    auto f = wrap(udiv);
 
     ASSERT_EQ(f(4, 2), 2);
     ASSERT_EQ(f(4, 3), 1);
@@ -107,7 +107,7 @@ TEST_F(RuntimeTest, SDiv)
 {
     constexpr auto neg = [](auto n) { return -utils::uint256_t{n}; };
 
-    auto f = wrap(sdiv<EVMC_CANCUN>);
+    auto f = wrap(sdiv);
 
     ASSERT_EQ(f(8, 2), 4);
     ASSERT_EQ(f(neg(4), 2), neg(2));
@@ -122,7 +122,7 @@ TEST_F(RuntimeTest, SDiv)
 
 TEST_F(RuntimeTest, UMod)
 {
-    auto f = wrap(umod<EVMC_CANCUN>);
+    auto f = wrap(umod);
 
     ASSERT_EQ(f(10, 3), 1);
     ASSERT_EQ(f(17, 5), 2);
@@ -135,7 +135,7 @@ TEST_F(RuntimeTest, UMod)
 
 TEST_F(RuntimeTest, SMod)
 {
-    auto f = wrap(smod<EVMC_CANCUN>);
+    auto f = wrap(smod);
 
     ASSERT_EQ(f(10, 3), 1);
     ASSERT_EQ(
@@ -150,7 +150,7 @@ TEST_F(RuntimeTest, SMod)
 
 TEST_F(RuntimeTest, AddMod)
 {
-    auto f = wrap(addmod<EVMC_CANCUN>);
+    auto f = wrap(addmod);
 
     ASSERT_EQ(f(10, 10, 8), 4);
     ASSERT_EQ(f(134, 378, 0), 0);
@@ -163,7 +163,7 @@ TEST_F(RuntimeTest, AddMod)
 
 TEST_F(RuntimeTest, MulMod)
 {
-    auto f = wrap(mulmod<EVMC_CANCUN>);
+    auto f = wrap(mulmod);
 
     ASSERT_EQ(f(10, 10, 8), 4);
     ASSERT_EQ(f(134, 378, 0), 0);

@@ -181,7 +181,7 @@ namespace monad::runtime
         void *exit_stack_ptr = nullptr;
 
         [[gnu::always_inline]]
-        void deduct_gas(std::int64_t gas)
+        constexpr void deduct_gas(std::int64_t const gas) noexcept
         {
             gas_remaining -= gas;
             if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
@@ -190,13 +190,14 @@ namespace monad::runtime
         }
 
         [[gnu::always_inline]]
-        void deduct_gas(Bin<32> gas)
+        constexpr void deduct_gas(Bin<32> const gas) noexcept
         {
             return deduct_gas(*gas);
         }
 
         [[gnu::always_inline]]
-        static int64_t memory_cost_from_word_count(Bin<32> word_count)
+        static constexpr int64_t
+        memory_cost_from_word_count(Bin<32> const word_count) noexcept
         {
             auto c = static_cast<uint64_t>(*word_count);
             return static_cast<int64_t>((c * c) / 512 + (3 * c));
