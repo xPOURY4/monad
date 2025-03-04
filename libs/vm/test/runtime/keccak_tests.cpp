@@ -20,7 +20,7 @@ TEST_F(RuntimeTest, KeccakNoExpand)
 {
     ctx_.gas_remaining = 9;
     call(
-        mstore<EVMC_CANCUN>,
+        mstore,
         0,
         0xFFFFFFFF00000000000000000000000000000000000000000000000000000000_u256);
     ASSERT_EQ(ctx_.gas_remaining, 6);

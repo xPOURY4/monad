@@ -3,8 +3,7 @@
 
 namespace monad::runtime
 {
-    template <evmc_revision Rev>
-    void mload(
+    inline void mload(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *offset_ptr)
     {
@@ -13,8 +12,7 @@ namespace monad::runtime
         *result_ptr = uint256_load_be(ctx->memory.data + *offset);
     }
 
-    template <evmc_revision Rev>
-    void mstore(
+    inline void mstore(
         Context *ctx, utils::uint256_t const *offset_ptr,
         utils::uint256_t const *value_ptr)
     {
@@ -23,8 +21,7 @@ namespace monad::runtime
         uint256_store_be(ctx->memory.data + *offset, *value_ptr);
     }
 
-    template <evmc_revision Rev>
-    void mstore8(
+    inline void mstore8(
         Context *ctx, utils::uint256_t const *offset_ptr,
         utils::uint256_t const *value_ptr)
     {
@@ -33,8 +30,7 @@ namespace monad::runtime
         ctx->memory.data[*offset] = intx::as_bytes(*value_ptr)[0];
     }
 
-    template <evmc_revision Rev>
-    void mcopy(
+    inline void mcopy(
         Context *ctx, utils::uint256_t const *dst_ptr,
         utils::uint256_t const *src_ptr, utils::uint256_t const *size_ptr)
     {

@@ -398,20 +398,19 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void mload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::mload<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mload);
         }
 
         template <evmc_revision rev>
         void mstore(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::mstore<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mstore);
         }
 
         template <evmc_revision rev>
         void mstore8(int32_t remaining_base_gas)
         {
-            call_runtime(
-                remaining_base_gas, true, monad::runtime::mstore8<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mstore8);
         }
 
         template <evmc_revision rev>
@@ -441,7 +440,7 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void mcopy(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::mcopy<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::mcopy);
         }
 
         template <evmc_revision rev>

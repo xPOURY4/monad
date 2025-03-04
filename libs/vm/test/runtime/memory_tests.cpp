@@ -3,8 +3,6 @@
 #include <monad/runtime/memory.hpp>
 #include <monad/runtime/types.hpp>
 
-#include <evmc/evmc.h>
-
 #include <intx/intx.hpp>
 
 #include <algorithm>
@@ -22,13 +20,13 @@ TEST_F(RuntimeTest, EmptyMemory)
 TEST_F(RuntimeTest, MStore)
 {
     ctx_.gas_remaining = 6;
-    call(mstore<EVMC_CANCUN>, 0, 0xFF);
+    call(mstore, 0, 0xFF);
     ASSERT_EQ(ctx_.memory.size, 32);
     ASSERT_EQ(ctx_.memory.data[31], 0xFF);
     ASSERT_EQ(ctx_.memory.cost, 3);
     ASSERT_EQ(ctx_.gas_remaining, 3);
 
-    call(mstore<EVMC_CANCUN>, 1, 0xFF);
+    call(mstore, 1, 0xFF);
     ASSERT_EQ(ctx_.memory.size, 64);
     ASSERT_EQ(ctx_.memory.data[31], 0x00);
     ASSERT_EQ(ctx_.memory.data[32], 0xFF);
@@ -40,7 +38,7 @@ TEST_F(RuntimeTest, MStoreWord)
 {
     ctx_.gas_remaining = 3;
     call(
-        mstore<EVMC_CANCUN>,
+        mstore,
         0,
         0x000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F_u256);
 
@@ -57,9 +55,9 @@ TEST_F(RuntimeTest, MCopy)
 {
     ctx_.gas_remaining = 20;
 
-    call(mstore8<EVMC_CANCUN>, 1, 1);
-    call(mstore8<EVMC_CANCUN>, 2, 2);
-    call(mcopy<EVMC_CANCUN>, 3, 1, 33);
+    call(mstore8, 1, 1);
+    call(mstore8, 2, 2);
+    call(mcopy, 3, 1, 33);
 
     ASSERT_EQ(ctx_.memory.cost, 6);
     ASSERT_EQ(ctx_.gas_remaining, 8);
@@ -75,20 +73,20 @@ TEST_F(RuntimeTest, MCopy)
 TEST_F(RuntimeTest, MStore8)
 {
     ctx_.gas_remaining = 3;
-    call(mstore8<EVMC_CANCUN>, 0, 0xFFFF);
+    call(mstore8, 0, 0xFFFF);
     ASSERT_EQ(ctx_.gas_remaining, 0);
     ASSERT_EQ(ctx_.memory.cost, 3);
     ASSERT_EQ(ctx_.memory.data[0], 0xFF);
     ASSERT_EQ(ctx_.memory.data[1], 0x00);
 
-    call(mstore8<EVMC_CANCUN>, 1, 0xFF);
+    call(mstore8, 1, 0xFF);
     ASSERT_EQ(ctx_.gas_remaining, 0);
     ASSERT_EQ(ctx_.memory.cost, 3);
     ASSERT_EQ(ctx_.memory.data[0], 0xFF);
     ASSERT_EQ(ctx_.memory.data[1], 0xFF);
 
     ASSERT_EQ(
-        call(mload<EVMC_CANCUN>, 0),
+        call(mload, 0),
         0xFFFF000000000000000000000000000000000000000000000000000000000000_u256);
     ASSERT_EQ(ctx_.gas_remaining, 0);
     ASSERT_EQ(ctx_.memory.cost, 3);
@@ -97,12 +95,12 @@ TEST_F(RuntimeTest, MStore8)
 TEST_F(RuntimeTest, MLoad)
 {
     ctx_.gas_remaining = 6;
-    call(mstore<EVMC_CANCUN>, 0, 0xFF);
-    ASSERT_EQ(call(mload<EVMC_CANCUN>, 0), 0xFF);
+    call(mstore, 0, 0xFF);
+    ASSERT_EQ(call(mload, 0), 0xFF);
     ASSERT_EQ(ctx_.gas_remaining, 3);
     ASSERT_EQ(ctx_.memory.cost, 3);
 
-    ASSERT_EQ(call(mload<EVMC_CANCUN>, 1), 0xFF00);
+    ASSERT_EQ(call(mload, 1), 0xFF00);
     ASSERT_EQ(ctx_.gas_remaining, 0);
     ASSERT_EQ(ctx_.memory.cost, 6);
 }
@@ -110,7 +108,7 @@ TEST_F(RuntimeTest, MLoad)
 TEST_F(RuntimeTest, QuadraticCosts)
 {
     ctx_.gas_remaining = 101;
-    ASSERT_EQ(call(mload<EVMC_CANCUN>, 1024), 0);
+    ASSERT_EQ(call(mload, 1024), 0);
     ASSERT_EQ(ctx_.gas_remaining, 0);
     ASSERT_EQ(ctx_.memory.cost, 101);
     ASSERT_EQ(ctx_.memory.size, 1056);

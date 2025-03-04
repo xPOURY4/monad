@@ -21,7 +21,7 @@ constexpr evmc_address result_addr = {0x42};
 TEST_F(RuntimeTest, CreateFrontier)
 {
     constexpr auto rev = EVMC_FRONTIER;
-    call(mstore<rev>, 0, prog);
+    call(mstore, 0, prog);
     ASSERT_EQ(ctx_.memory.data[31], 0xF3);
 
     ctx_.gas_remaining = 1000000;
@@ -40,7 +40,7 @@ TEST_F(RuntimeTest, CreateFrontier)
 TEST_F(RuntimeTest, CreateShanghai)
 {
     constexpr auto rev = EVMC_SHANGHAI;
-    call(mstore<rev>, 0, prog);
+    call(mstore, 0, prog);
     ASSERT_EQ(ctx_.memory.data[31], 0xF3);
 
     ctx_.gas_remaining = 1000000;
@@ -59,7 +59,7 @@ TEST_F(RuntimeTest, CreateShanghai)
 TEST_F(RuntimeTest, CreateTangerineWhistle)
 {
     constexpr auto rev = EVMC_TANGERINE_WHISTLE;
-    call(mstore<rev>, 0, prog);
+    call(mstore, 0, prog);
     ASSERT_EQ(ctx_.memory.data[31], 0xF3);
 
     ctx_.gas_remaining = 1000000;
@@ -106,7 +106,7 @@ TEST_F(RuntimeTest, CreateFrontierFailure)
 TEST_F(RuntimeTest, Create2Constantinople)
 {
     constexpr auto rev = EVMC_CONSTANTINOPLE;
-    call(mstore<rev>, 0, prog);
+    call(mstore, 0, prog);
     ASSERT_EQ(ctx_.memory.data[31], 0xF3);
 
     ctx_.gas_remaining = 1000000;
