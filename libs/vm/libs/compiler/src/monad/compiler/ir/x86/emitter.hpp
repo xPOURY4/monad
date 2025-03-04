@@ -319,7 +319,7 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void sha3(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::sha3<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::sha3);
         }
 
         template <evmc_revision rev>

@@ -11,8 +11,7 @@
 
 namespace monad::runtime
 {
-    template <evmc_revision Rev>
-    void sha3(
+    inline void sha3(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
