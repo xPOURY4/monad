@@ -81,13 +81,10 @@ namespace monad::runtime
         ctx->deduct_gas(gas_used);
     }
 
-    template <evmc_revision Rev>
-    void tload(
+    inline void tload(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *key_ptr)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
-
         auto key = bytes32_from_uint256(*key_ptr);
 
         auto value = ctx->host->get_transient_storage(
@@ -96,13 +93,10 @@ namespace monad::runtime
         *result_ptr = uint256_from_bytes32(value);
     }
 
-    template <evmc_revision Rev>
-    void tstore(
+    inline void tstore(
         Context *ctx, utils::uint256_t const *key_ptr,
         utils::uint256_t const *val_ptr)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_CANCUN);
-
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
             ctx->exit(StatusCode::Error);
         }

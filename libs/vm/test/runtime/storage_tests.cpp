@@ -16,9 +16,8 @@ constexpr utils::uint256_t val_2 = 90897;
 
 TEST_F(RuntimeTest, TransientStorage)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto load = wrap(tload<rev>);
-    auto store = wrap(tstore<rev>);
+    auto load = wrap(tload);
+    auto store = wrap(tstore);
 
     ctx_.gas_remaining = 0;
 

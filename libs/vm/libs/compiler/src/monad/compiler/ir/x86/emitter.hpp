@@ -428,13 +428,13 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void tload(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::tload<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::tload);
         }
 
         template <evmc_revision rev>
         void tstore(int32_t remaining_base_gas)
         {
-            call_runtime(remaining_base_gas, true, monad::runtime::tstore<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::tstore);
         }
 
         template <evmc_revision rev>
