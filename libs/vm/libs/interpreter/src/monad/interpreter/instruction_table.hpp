@@ -27,7 +27,7 @@ namespace monad::interpreter
         return {
             stop, // 0x00
             add, // 0x01
-            stop, // 0x02
+            mul, // 0x02
             stop, // 0x03
             stop, // 0x04,
             stop, // 0x05,
@@ -81,7 +81,7 @@ namespace monad::interpreter
             stop, // 0x32,
             stop, // 0x33,
             stop, // 0x34,
-            stop, // 0x35,
+            calldataload, // 0x35,
             stop, // 0x36,
             stop, // 0x37,
             stop, // 0x38,
@@ -281,7 +281,7 @@ namespace monad::interpreter
             error, //
 
             stop, // 0xF0,
-            stop, // 0xF1,
+            call<EVMC_FRONTIER>, // 0xF1,
             stop, // 0xF2,
             stop, // 0xF3,
             error, //
@@ -306,6 +306,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_HOMESTEAD)>;
         table[SSTORE] = sstore<EVMC_HOMESTEAD>;
+        table[CALL] = call<EVMC_HOMESTEAD>;
 
         return table;
     }
@@ -318,6 +319,7 @@ namespace monad::interpreter
         auto table =
             instruction_table<previous_evm_revision(EVMC_TANGERINE_WHISTLE)>;
         table[SSTORE] = sstore<EVMC_TANGERINE_WHISTLE>;
+        table[CALL] = call<EVMC_TANGERINE_WHISTLE>;
 
         return table;
     }
@@ -330,6 +332,7 @@ namespace monad::interpreter
         auto table =
             instruction_table<previous_evm_revision(EVMC_SPURIOUS_DRAGON)>;
         table[SSTORE] = sstore<EVMC_SPURIOUS_DRAGON>;
+        table[CALL] = call<EVMC_SPURIOUS_DRAGON>;
 
         return table;
     }
@@ -341,6 +344,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_BYZANTIUM)>;
         table[SSTORE] = sstore<EVMC_BYZANTIUM>;
+        table[CALL] = call<EVMC_BYZANTIUM>;
 
         return table;
     }
@@ -364,6 +368,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_PETERSBURG)>;
         table[SSTORE] = sstore<EVMC_PETERSBURG>;
+        table[CALL] = call<EVMC_PETERSBURG>;
 
         return table;
     }
@@ -375,6 +380,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_ISTANBUL)>;
         table[SSTORE] = sstore<EVMC_ISTANBUL>;
+        table[CALL] = call<EVMC_ISTANBUL>;
 
         return table;
     }
@@ -386,6 +392,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_BERLIN)>;
         table[SSTORE] = sstore<EVMC_BERLIN>;
+        table[CALL] = call<EVMC_BERLIN>;
 
         return table;
     }
@@ -397,6 +404,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_LONDON)>;
         table[SSTORE] = sstore<EVMC_LONDON>;
+        table[CALL] = call<EVMC_LONDON>;
 
         return table;
     }
@@ -407,7 +415,8 @@ namespace monad::interpreter
         using namespace monad::compiler;
 
         auto table = instruction_table<previous_evm_revision(EVMC_PARIS)>;
-        table[SSTORE] = sstore<EVMC_CANCUN>;
+        table[SSTORE] = sstore<EVMC_PARIS>;
+        table[CALL] = call<EVMC_PARIS>;
 
         return table;
     }
@@ -419,6 +428,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_SHANGHAI)>;
         table[SSTORE] = sstore<EVMC_SHANGHAI>;
+        table[CALL] = call<EVMC_SHANGHAI>;
 
         return table;
     }
@@ -430,6 +440,7 @@ namespace monad::interpreter
 
         auto table = instruction_table<previous_evm_revision(EVMC_CANCUN)>;
         table[SSTORE] = sstore<EVMC_CANCUN>;
+        table[CALL] = call<EVMC_CANCUN>;
 
         return table;
     }

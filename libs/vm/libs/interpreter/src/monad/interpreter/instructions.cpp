@@ -1,5 +1,6 @@
 #include <monad/interpreter/instructions.hpp>
 #include <monad/interpreter/state.hpp>
+#include <monad/runtime/math.hpp>
 #include <monad/runtime/types.hpp>
 
 namespace monad::interpreter
@@ -23,6 +24,18 @@ namespace monad::interpreter
 
         b = a + b;
 
+        state.instr_ptr++;
+    }
+
+    void mul(runtime::Context &ctx, State &state)
+    {
+        call_runtime(monad_runtime_mul, ctx, state);
+        state.instr_ptr++;
+    }
+
+    void calldataload(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::calldataload, ctx, state);
         state.instr_ptr++;
     }
 }

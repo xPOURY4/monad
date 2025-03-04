@@ -2,6 +2,8 @@
 
 #include <monad/interpreter/call_runtime.hpp>
 #include <monad/interpreter/state.hpp>
+#include <monad/runtime/call.hpp>
+#include <monad/runtime/data.hpp>
 #include <monad/runtime/storage.hpp>
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
@@ -31,5 +33,16 @@ namespace monad::interpreter
         state.instr_ptr++;
     }
 
+    void calldataload(runtime::Context &ctx, State &state);
+
+    template <evmc_revision Rev>
+    void call(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::call<Rev>, ctx, state);
+        state.instr_ptr++;
+    }
+
     void add(runtime::Context &, State &);
+
+    void mul(runtime::Context &, State &);
 }

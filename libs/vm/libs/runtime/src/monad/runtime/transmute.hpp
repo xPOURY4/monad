@@ -62,35 +62,15 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline utils::uint256_t uint256_load_le(std::uint8_t const *bytes)
-    {
-        std::uint64_t ts[4];
-        std::memcpy(&ts, bytes, 32);
-        return {ts[0], ts[1], ts[2], ts[3]};
-    }
-
-    [[gnu::always_inline]]
     inline utils::uint256_t
     uint256_load_bounded_le(std::uint8_t const *bytes, std::uint32_t max_len)
     {
-        if (max_len >= 32) {
-            return uint256_load_le(bytes);
-        }
-        std::uint64_t ts[4] = {};
-        std::size_t offset = 0;
-#pragma GCC unroll 5
-        for (std::int32_t i = 4; i >= 0; --i) {
-            std::uint32_t p = 1 << i;
-            if (max_len & p) {
-                std::memcpy(
-                    reinterpret_cast<uint8_t *>(ts) + offset,
-                    bytes + offset,
-                    p);
-                offset |= p;
-            }
-        }
-
-        return {ts[0], ts[1], ts[2], ts[3]};
+        auto ret = utils::uint256_t{};
+        std::memcpy(
+            reinterpret_cast<std::uint8_t *>(&ret) + (32 - max_len),
+            bytes,
+            max_len);
+        return intx::bswap(ret);
     }
 
     [[gnu::always_inline]]
