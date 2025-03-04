@@ -54,8 +54,7 @@ TEST_F(RuntimeTest, BalanceCancunWarm)
 
 TEST_F(RuntimeTest, CallDataLoadInBounds)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto load = wrap(calldataload<rev>);
+    auto load = wrap(calldataload);
 
     ASSERT_EQ(
         load(0),
@@ -72,14 +71,9 @@ TEST_F(RuntimeTest, CallDataLoadInBounds)
 
 TEST_F(RuntimeTest, CallDataLoadOutOfBounds)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto load = wrap(calldataload<rev>);
+    auto load = wrap(calldataload);
 
-    ASSERT_EQ(
-        call(
-            calldataload<EVMC_CANCUN>,
-            std::numeric_limits<std::int64_t>::max()),
-        0);
+    ASSERT_EQ(call(calldataload, std::numeric_limits<std::int64_t>::max()), 0);
 
     ASSERT_EQ(load(256), 0);
 
@@ -99,8 +93,7 @@ TEST_F(RuntimeTest, CallDataSize)
 
 TEST_F(RuntimeTest, CallDataCopyAll)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(calldatacopy<rev>);
+    auto copy = wrap(calldatacopy);
 
     ctx_.gas_remaining = 24;
     copy(0, 0, 128);
@@ -114,8 +107,7 @@ TEST_F(RuntimeTest, CallDataCopyAll)
 
 TEST_F(RuntimeTest, CallDataCopyPartial)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(calldatacopy<rev>);
+    auto copy = wrap(calldatacopy);
 
     ctx_.gas_remaining = 12;
     copy(67, 5, 23);
@@ -138,8 +130,7 @@ TEST_F(RuntimeTest, CallDataCopyPartial)
 
 TEST_F(RuntimeTest, CallDataCopyOutOfBounds)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(calldatacopy<rev>);
+    auto copy = wrap(calldatacopy);
 
     ctx_.gas_remaining = 51;
     copy(17, 0, 256);
@@ -162,8 +153,7 @@ TEST_F(RuntimeTest, CallDataCopyOutOfBounds)
 
 TEST_F(RuntimeTest, CodeCopyAll)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(codecopy<rev>);
+    auto copy = wrap(codecopy);
 
     ctx_.gas_remaining = 24;
     copy(0, 0, 128);
@@ -177,8 +167,7 @@ TEST_F(RuntimeTest, CodeCopyAll)
 
 TEST_F(RuntimeTest, CodeCopyPartial)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(codecopy<rev>);
+    auto copy = wrap(codecopy);
 
     ctx_.gas_remaining = 12;
     copy(47, 12, 23);
@@ -201,8 +190,7 @@ TEST_F(RuntimeTest, CodeCopyPartial)
 
 TEST_F(RuntimeTest, CodeCopyOutOfBounds)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(codecopy<rev>);
+    auto copy = wrap(codecopy);
 
     ctx_.gas_remaining = 51;
     copy(25, 0, 256);
@@ -307,8 +295,7 @@ TEST_F(RuntimeTest, ReturnDataSize)
 
 TEST_F(RuntimeTest, ReturnDataCopyAll)
 {
-    constexpr auto rev = EVMC_CANCUN;
-    auto copy = wrap(returndatacopy<rev>);
+    auto copy = wrap(returndatacopy);
 
     auto return_data = result_data();
     ctx_.env.return_data = return_data.data();

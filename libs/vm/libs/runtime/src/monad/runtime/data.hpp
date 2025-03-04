@@ -30,8 +30,7 @@ namespace monad::runtime
         *result_ptr = uint256_from_bytes32(balance);
     }
 
-    template <evmc_revision Rev>
-    void calldataload(
+    inline void calldataload(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *i_ptr)
     {
@@ -51,8 +50,7 @@ namespace monad::runtime
             &ctx->env.input_data[start], ctx->env.input_data_size - start);
     }
 
-    template <evmc_revision Rev>
-    void copy_impl(
+    inline void copy_impl(
         Context *ctx, utils::uint256_t const &dest_offset_word,
         utils::uint256_t const &offset_word, utils::uint256_t const &size_word,
         std::uint8_t const *source, std::uint32_t len)
@@ -80,12 +78,11 @@ namespace monad::runtime
         std::fill_n(dest_ptr + copy_size, *size - copy_size, 0);
     }
 
-    template <evmc_revision Rev>
-    void calldatacopy(
+    inline void calldatacopy(
         Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
-        copy_impl<Rev>(
+        copy_impl(
             ctx,
             *dest_offset_ptr,
             *offset_ptr,
@@ -94,12 +91,11 @@ namespace monad::runtime
             ctx->env.input_data_size);
     }
 
-    template <evmc_revision Rev>
-    void codecopy(
+    inline void codecopy(
         Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {
-        copy_impl<Rev>(
+        copy_impl(
             ctx,
             *dest_offset_ptr,
             *offset_ptr,
@@ -150,8 +146,7 @@ namespace monad::runtime
         }
     }
 
-    template <evmc_revision Rev>
-    void returndatacopy(
+    inline void returndatacopy(
         Context *ctx, utils::uint256_t const *dest_offset_ptr,
         utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
     {

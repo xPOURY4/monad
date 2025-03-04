@@ -333,21 +333,20 @@ namespace monad::compiler::native
         void calldataload(int32_t remaining_base_gas)
         {
             call_runtime(
-                remaining_base_gas, true, monad::runtime::calldataload<rev>);
+                remaining_base_gas, true, monad::runtime::calldataload);
         }
 
         template <evmc_revision rev>
         void calldatacopy(int32_t remaining_base_gas)
         {
             call_runtime(
-                remaining_base_gas, true, monad::runtime::calldatacopy<rev>);
+                remaining_base_gas, true, monad::runtime::calldatacopy);
         }
 
         template <evmc_revision rev>
         void codecopy(int32_t remaining_base_gas)
         {
-            call_runtime(
-                remaining_base_gas, true, monad::runtime::codecopy<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::codecopy);
         }
 
         template <evmc_revision rev>
@@ -368,7 +367,7 @@ namespace monad::compiler::native
         void returndatacopy(int32_t remaining_base_gas)
         {
             call_runtime(
-                remaining_base_gas, true, monad::runtime::returndatacopy<rev>);
+                remaining_base_gas, true, monad::runtime::returndatacopy);
         }
 
         template <evmc_revision rev>
@@ -381,22 +380,19 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void blockhash(int32_t remaining_base_gas)
         {
-            call_runtime(
-                remaining_base_gas, true, monad::runtime::blockhash<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::blockhash);
         }
 
         template <evmc_revision rev>
         void selfbalance(int32_t remaining_base_gas)
         {
-            call_runtime(
-                remaining_base_gas, true, monad::runtime::selfbalance<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::selfbalance);
         }
 
         template <evmc_revision rev>
         void blobhash(int32_t remaining_base_gas)
         {
-            call_runtime(
-                remaining_base_gas, true, monad::runtime::blobhash<rev>);
+            call_runtime(remaining_base_gas, true, monad::runtime::blobhash);
         }
 
         template <evmc_revision rev>

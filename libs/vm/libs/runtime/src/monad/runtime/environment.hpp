@@ -10,8 +10,7 @@
 
 namespace monad::runtime
 {
-    template <evmc_revision Rev>
-    void blockhash(
+    inline void blockhash(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *block_number_ptr)
     {
@@ -34,16 +33,14 @@ namespace monad::runtime
         }
     }
 
-    template <evmc_revision Rev>
-    void selfbalance(Context *ctx, utils::uint256_t *result_ptr)
+    inline void selfbalance(Context *ctx, utils::uint256_t *result_ptr)
     {
         auto balance =
             ctx->host->get_balance(ctx->context, &ctx->env.recipient);
         *result_ptr = uint256_from_bytes32(balance);
     }
 
-    template <evmc_revision Rev>
-    void blobhash(
+    inline void blobhash(
         Context *ctx, utils::uint256_t *result_ptr,
         utils::uint256_t const *index)
     {
