@@ -18,6 +18,10 @@ namespace monad::interpreter
     template <evmc_revision Rev>
     consteval InstrTable make_instruction_table()
     {
+        constexpr auto since = [](evmc_revision first, InstrEval impl) {
+            return (Rev >= first) ? impl : error;
+        };
+
         return {
             stop, // 0x00
             add, // 0x01
@@ -36,63 +40,63 @@ namespace monad::interpreter
             error, //
             error, //
 
-            stop, // 0x10,
-            stop, // 0x11,
-            stop, // 0x12,
-            stop, // 0x13,
-            stop, // 0x14,
-            stop, // 0x15,
-            stop, // 0x16,
-            stop, // 0x17,
-            stop, // 0x18,
-            stop, // 0x19,
-            stop, // 0x1A,
+            lt, // 0x10,
+            gt, // 0x11,
+            slt, // 0x12,
+            sgt, // 0x13,
+            eq, // 0x14,
+            iszero, // 0x15,
+            and_, // 0x16,
+            or_, // 0x17,
+            xor_, // 0x18,
+            not_, // 0x19,
+            byte, // 0x1A,
+            since(EVMC_CONSTANTINOPLE, shl), // 0x1B,
+            since(EVMC_CONSTANTINOPLE, shr), // 0x1C,
+            since(EVMC_CONSTANTINOPLE, sar), // 0x1D,
+            error, //
+            error, //
+
+            error, // 0x20,
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
             error, //
             error, //
             error, //
             error, //
             error, //
 
-            stop, // 0x20,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-
-            stop, // 0x30,
-            stop, // 0x31,
-            stop, // 0x32,
-            stop, // 0x33,
-            stop, // 0x34,
+            error, // 0x30,
+            error, // 0x31,
+            error, // 0x32,
+            error, // 0x33,
+            error, // 0x34,
             calldataload, // 0x35,
-            stop, // 0x36,
-            stop, // 0x37,
-            stop, // 0x38,
-            stop, // 0x39,
-            stop, // 0x3A,
-            stop, // 0x3B,
-            stop, // 0x3C,
+            error, // 0x36,
+            error, // 0x37,
+            error, // 0x38,
+            error, // 0x39,
+            error, // 0x3A,
+            error, // 0x3B,
+            error, // 0x3C,
             error, //
             error, //
             error, //
 
-            stop, // 0x40,
-            stop, // 0x41,
-            stop, // 0x42,
-            stop, // 0x43,
-            stop, // 0x44,
-            stop, // 0x45,
+            error, // 0x40,
+            error, // 0x41,
+            error, // 0x42,
+            error, // 0x43,
+            error, // 0x44,
+            error, // 0x45,
             error, //
             error, //
             error, //
@@ -104,18 +108,18 @@ namespace monad::interpreter
             error, //
             error, //
 
-            stop, // 0x50,
-            stop, // 0x51,
-            stop, // 0x52,
-            stop, // 0x53,
-            stop, // 0x54,
+            pop, // 0x50,
+            error, // 0x51,
+            error, // 0x52,
+            error, // 0x53,
+            sload<Rev>, // 0x54,
             sstore<Rev>, // 0x55,
-            stop, // 0x56,
-            stop, // 0x57,
-            stop, // 0x58,
-            stop, // 0x59,
-            stop, // 0x5A,
-            stop, // 0x5B,
+            jump, // 0x56,
+            jumpi, // 0x57,
+            error, // 0x58,
+            error, // 0x59,
+            error, // 0x5A,
+            jumpdest, // 0x5B,
             error, //
             error, //
             error, //
@@ -155,62 +159,45 @@ namespace monad::interpreter
             push<31>, // 0x7E,
             push<32>, // 0x7F,
 
-            stop, // 0x80,
-            stop, // 0x81,
-            stop, // 0x82,
-            stop, // 0x83,
-            stop, // 0x84,
-            stop, // 0x85,
-            stop, // 0x86,
-            stop, // 0x87,
-            stop, // 0x88,
-            stop, // 0x89,
-            stop, // 0x8A,
-            stop, // 0x8B,
-            stop, // 0x8C,
-            stop, // 0x8D,
-            stop, // 0x8E,
-            stop, // 0x8F,
+            dup<1>, // 0x80,
+            dup<2>, // 0x81,
+            dup<3>, // 0x82,
+            dup<4>, // 0x83,
+            dup<5>, // 0x84,
+            dup<6>, // 0x85,
+            dup<7>, // 0x86,
+            dup<8>, // 0x87,
+            dup<9>, // 0x88,
+            dup<10>, // 0x89,
+            dup<11>, // 0x8A,
+            dup<12>, // 0x8B,
+            dup<13>, // 0x8C,
+            dup<14>, // 0x8D,
+            dup<15>, // 0x8E,
+            dup<16>, // 0x8F,
 
-            stop, // 0x90,
-            stop, // 0x91,
-            stop, // 0x92,
-            stop, // 0x93,
-            stop, // 0x94,
-            stop, // 0x95,
-            stop, // 0x96,
-            stop, // 0x97,
-            stop, // 0x98,
-            stop, // 0x99,
-            stop, // 0x9A,
-            stop, // 0x9B,
-            stop, // 0x9C,
-            stop, // 0x9D,
-            stop, // 0x9E,
-            stop, // 0x9F,
+            swap<1>, // 0x90,
+            swap<2>, // 0x91,
+            swap<3>, // 0x92,
+            swap<4>, // 0x93,
+            swap<5>, // 0x94,
+            swap<6>, // 0x95,
+            swap<7>, // 0x96,
+            swap<8>, // 0x97,
+            swap<9>, // 0x98,
+            swap<10>, // 0x99,
+            swap<11>, // 0x9A,
+            swap<12>, // 0x9B,
+            swap<13>, // 0x9C,
+            swap<14>, // 0x9D,
+            swap<15>, // 0x9E,
+            swap<16>, // 0x9F,
 
-            stop, // 0xA0,
-            stop, // 0xA1,
-            stop, // 0xA2,
-            stop, // 0xA3,
-            stop, // 0xA4,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            error, // 0xA0,
+            error, // 0xA1,
+            error, // 0xA2,
+            error, // 0xA3,
+            error, // 0xA4,
             error, //
             error, //
             error, //
@@ -274,10 +261,27 @@ namespace monad::interpreter
             error, //
             error, //
 
-            stop, // 0xF0,
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+            error, //
+
+            error, // 0xF0,
             call<Rev>, // 0xF1,
-            stop, // 0xF2,
-            stop, // 0xF3,
+            error, // 0xF2,
+            return_, // 0xF3,
             error, //
             error, //
             error, //
@@ -289,7 +293,7 @@ namespace monad::interpreter
             error, //
             error, //
             error, //
-            stop // 0xFF,
+            error // 0xFF,
         };
     }
 

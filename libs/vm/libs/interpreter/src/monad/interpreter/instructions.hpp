@@ -34,6 +34,13 @@ namespace monad::interpreter
         state.next();
     }
 
+    template <evmc_revision Rev>
+    void sload(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::sload<Rev>, ctx, state);
+        state.next();
+    }
+
     void calldataload(runtime::Context &ctx, State &state);
 
     template <evmc_revision Rev>
@@ -42,6 +49,8 @@ namespace monad::interpreter
         call_runtime(runtime::call<Rev>, ctx, state);
         state.next();
     }
+
+    // Arithmetic
 
     void add(runtime::Context &, State &);
     void mul(runtime::Context &, State &);
@@ -61,4 +70,50 @@ namespace monad::interpreter
     }
 
     void signextend(runtime::Context &, State &);
+
+    // Boolean
+
+    void lt(runtime::Context &, State &);
+    void gt(runtime::Context &, State &);
+    void slt(runtime::Context &, State &);
+    void sgt(runtime::Context &, State &);
+    void eq(runtime::Context &, State &);
+    void iszero(runtime::Context &, State &);
+
+    // Bitwise
+    void and_(runtime::Context &, State &);
+    void or_(runtime::Context &, State &);
+    void xor_(runtime::Context &, State &);
+    void not_(runtime::Context &, State &);
+    void byte(runtime::Context &, State &);
+    void shl(runtime::Context &, State &);
+    void shr(runtime::Context &, State &);
+    void sar(runtime::Context &, State &);
+
+    // Stack
+    void pop(runtime::Context &, State &);
+
+    template <std::size_t N>
+        requires(N >= 1)
+    void dup(runtime::Context &, State &state)
+    {
+        state.push(*(state.stack_top - N));
+        state.next();
+    }
+
+    template <std::size_t N>
+        requires(N >= 1)
+    void swap(runtime::Context &, State &state)
+    {
+        std::swap(state.top(), *(state.stack_top - N));
+        state.next();
+    }
+
+    // Control Flow
+    void jump(runtime::Context &, State &);
+    void jumpi(runtime::Context &, State &);
+    void jumpdest(runtime::Context &, State &);
+
+    // VM Control
+    void return_(runtime::Context &, State &);
 }

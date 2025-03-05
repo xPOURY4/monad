@@ -91,7 +91,7 @@ namespace monad::interpreter
 
         auto const stack_ptr = allocate_stack();
         auto const analysis = Intercode(code);
-        auto state = State{analysis, ctx, stack_ptr.get()};
+        auto state = State{analysis, stack_ptr.get()};
 
         interpreter_runtime_trampoline(&ctx.exit_stack_ptr, rev, &ctx, &state);
         return ctx.copy_to_evmc_result();

@@ -11,11 +11,9 @@ namespace monad::interpreter
 {
     struct State
     {
-        State(
-            Intercode const &code, runtime::Context const &ctx,
-            std::uint8_t *stack_ptr)
+        State(Intercode const &code, std::uint8_t *stack_ptr)
             : analysis{code}
-            , instr_ptr{ctx.env.code}
+            , instr_ptr{analysis.code()}
             , stack_top{reinterpret_cast<utils::uint256_t *>(stack_ptr) - 1}
             , stack_bottom{stack_top}
         {
