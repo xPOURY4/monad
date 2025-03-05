@@ -169,13 +169,13 @@ namespace
     using PureEmitterInstrPtr = void (Emitter::*)();
 
     void pure_bin_instr_test_instance(
-        PureEmitterInstr instr, uint256_t const &left,
+        asmjit::JitRuntime &rt, PureEmitterInstr instr, uint256_t const &left,
         Emitter::LocationType left_loc, uint256_t const &right,
         Emitter::LocationType right_loc, uint256_t const &result,
         basic_blocks::BasicBlocksIR const &ir, bool dup)
     {
 #if 0
-        if (left_loc != Emitter::LocationType::StackOffset || right_loc != Emitter::LocationType::Literal || dup) {
+        if (left_loc != Emitter::LocationType::Literal || right_loc != Emitter::LocationType::AvxReg || dup) {
             return;
         }
 #endif
@@ -185,8 +185,6 @@ namespace
                     left, Emitter::location_type_to_string(left_loc),
                     right, Emitter::location_type_to_string(right_loc)) << std::endl;
 #endif
-
-        asmjit::JitRuntime rt;
 
         Emitter emit{rt, ir.codesize};
         (void)emit.begin_new_block(ir.blocks()[0]);
@@ -234,7 +232,7 @@ namespace
     }
 
     void pure_una_instr_test_instance(
-        PureEmitterInstr instr, uint256_t const &input,
+        asmjit::JitRuntime &rt, PureEmitterInstr instr, uint256_t const &input,
         Emitter::LocationType loc, uint256_t const &result,
         basic_blocks::BasicBlocksIR const &ir, bool dup)
     {
@@ -249,8 +247,6 @@ namespace
                     input, Emitter::location_type_to_string(loc), dup)
             << std::endl;
 #endif
-
-        asmjit::JitRuntime rt;
 
         Emitter emit{rt, ir.codesize};
         (void)emit.begin_new_block(ir.blocks()[0]);
@@ -290,8 +286,8 @@ namespace
     }
 
     void pure_bin_instr_test(
-        EvmOpCode opcode, PureEmitterInstr instr, uint256_t const &left,
-        uint256_t const &right, uint256_t const &result)
+        asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstr instr,
+        uint256_t const &left, uint256_t const &right, uint256_t const &result)
     {
         std::vector<Emitter::LocationType> const locs = {
             Emitter::LocationType::Literal,
@@ -304,6 +300,7 @@ namespace
         for (auto left_loc : locs) {
             for (auto right_loc : locs) {
                 pure_bin_instr_test_instance(
+                    rt,
                     instr,
                     left,
                     left_loc,
@@ -331,22 +328,30 @@ namespace
         for (auto left_loc : locs) {
             for (auto right_loc : locs) {
                 pure_bin_instr_test_instance(
-                    instr, left, left_loc, right, right_loc, result, ir2, true);
+                    rt,
+                    instr,
+                    left,
+                    left_loc,
+                    right,
+                    right_loc,
+                    result,
+                    ir2,
+                    true);
             }
         }
     }
 
     void pure_bin_instr_test(
-        EvmOpCode opcode, PureEmitterInstrPtr instr, uint256_t const &left,
-        uint256_t const &right, uint256_t const &result)
+        asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstrPtr instr,
+        uint256_t const &left, uint256_t const &right, uint256_t const &result)
     {
         pure_bin_instr_test(
-            opcode, [&](Emitter &e) { (e.*instr)(); }, left, right, result);
+            rt, opcode, [&](Emitter &e) { (e.*instr)(); }, left, right, result);
     }
 
     void pure_una_instr_test(
-        EvmOpCode opcode, PureEmitterInstr instr, uint256_t const &input,
-        uint256_t const &result)
+        asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstr instr,
+        uint256_t const &input, uint256_t const &result)
     {
         std::vector<Emitter::LocationType> const locs = {
             Emitter::LocationType::Literal,
@@ -357,23 +362,25 @@ namespace
         std::vector<uint8_t> bytecode1{PUSH0, opcode, PUSH0, RETURN};
         auto ir1 = basic_blocks::BasicBlocksIR(std::move(bytecode1));
         for (auto loc : locs) {
-            pure_una_instr_test_instance(instr, input, loc, result, ir1, false);
+            pure_una_instr_test_instance(
+                rt, instr, input, loc, result, ir1, false);
         }
 
         std::vector<uint8_t> bytecode2{
             PUSH0, DUP1, opcode, SWAP1, opcode, RETURN};
         auto ir2 = basic_blocks::BasicBlocksIR(std::move(bytecode2));
         for (auto loc : locs) {
-            pure_una_instr_test_instance(instr, input, loc, result, ir1, true);
+            pure_una_instr_test_instance(
+                rt, instr, input, loc, result, ir1, true);
         }
     }
 
     void pure_una_instr_test(
-        EvmOpCode opcode, PureEmitterInstrPtr instr, uint256_t const &input,
-        uint256_t const &result)
+        asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstrPtr instr,
+        uint256_t const &input, uint256_t const &result)
     {
         pure_una_instr_test(
-            opcode, [&](Emitter &e) { (e.*instr)(); }, input, result);
+            rt, opcode, [&](Emitter &e) { (e.*instr)(); }, input, result);
     }
 
     void jump_test(
@@ -485,9 +492,10 @@ namespace
     }
 
     void jumpi_test(
-        Emitter::LocationType loc1, Emitter::LocationType loc2,
-        Emitter::LocationType loc_cond, Emitter::LocationType loc_dest,
-        bool take_jump, bool deferred_comparison, bool swap, bool dup,
+        asmjit::JitRuntime &rt, Emitter::LocationType loc1,
+        Emitter::LocationType loc2, Emitter::LocationType loc_cond,
+        Emitter::LocationType loc_dest, bool take_jump,
+        bool deferred_comparison, bool swap, bool dup,
         bool jumpdest_fallthrough)
     {
 #if 0
@@ -509,7 +517,6 @@ namespace
         auto ir =
             get_jumpi_ir(deferred_comparison, swap, dup, jumpdest_fallthrough);
 
-        asmjit::JitRuntime rt;
         Emitter emit{rt, ir.codesize};
 
         for (auto const &[k, _] : ir.jump_dests()) {
@@ -1197,9 +1204,11 @@ TEST(Emitter, discharge_negated_deferred_comparison)
 
 TEST(Emitter, lt)
 {
-    pure_bin_instr_test(LT, &Emitter::lt, 5, 6, 1);
-    pure_bin_instr_test(LT, &Emitter::lt, -1, -1, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, LT, &Emitter::lt, 5, 6, 1);
+    pure_bin_instr_test(rt, LT, &Emitter::lt, -1, -1, 0);
     pure_bin_instr_test(
+        rt,
         LT,
         &Emitter::lt,
         std::numeric_limits<uint256_t>::max(),
@@ -1209,9 +1218,11 @@ TEST(Emitter, lt)
 
 TEST(Emitter, gt)
 {
-    pure_bin_instr_test(GT, &Emitter::gt, 5, 6, 0);
-    pure_bin_instr_test(GT, &Emitter::gt, -1, -1, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, GT, &Emitter::gt, 5, 6, 0);
+    pure_bin_instr_test(rt, GT, &Emitter::gt, -1, -1, 0);
     pure_bin_instr_test(
+        rt,
         GT,
         &Emitter::gt,
         std::numeric_limits<uint256_t>::max(),
@@ -1221,15 +1232,18 @@ TEST(Emitter, gt)
 
 TEST(Emitter, slt)
 {
-    pure_bin_instr_test(SLT, &Emitter::slt, 5, 6, 1);
-    pure_bin_instr_test(SLT, &Emitter::slt, -1, -1, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, SLT, &Emitter::slt, 5, 6, 1);
+    pure_bin_instr_test(rt, SLT, &Emitter::slt, -1, -1, 0);
     pure_bin_instr_test(
+        rt,
         SLT,
         &Emitter::slt,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         0);
     pure_bin_instr_test(
+        rt,
         SLT,
         &Emitter::slt,
         std::numeric_limits<uint256_t>::max() - 1,
@@ -1239,15 +1253,18 @@ TEST(Emitter, slt)
 
 TEST(Emitter, sgt)
 {
-    pure_bin_instr_test(SGT, &Emitter::sgt, 5, 6, 0);
-    pure_bin_instr_test(SGT, &Emitter::sgt, -1, -1, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, SGT, &Emitter::sgt, 5, 6, 0);
+    pure_bin_instr_test(rt, SGT, &Emitter::sgt, -1, -1, 0);
     pure_bin_instr_test(
+        rt,
         SGT,
         &Emitter::gt,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         1);
     pure_bin_instr_test(
+        rt,
         SGT,
         &Emitter::gt,
         std::numeric_limits<uint256_t>::max() - 1,
@@ -1257,16 +1274,19 @@ TEST(Emitter, sgt)
 
 TEST(Emitter, sub)
 {
+    asmjit::JitRuntime rt;
     pure_bin_instr_test(
-        SUB, &Emitter::sub, 5, 6, std::numeric_limits<uint256_t>::max());
-    pure_bin_instr_test(SUB, &Emitter::sub, -1, -1, 0);
+        rt, SUB, &Emitter::sub, 5, 6, std::numeric_limits<uint256_t>::max());
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, -1, -1, 0);
     pure_bin_instr_test(
+        rt,
         SUB,
         &Emitter::sub,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         1);
     pure_bin_instr_test(
+        rt,
         SUB,
         &Emitter::sub,
         std::numeric_limits<uint256_t>::max() - 1,
@@ -1276,21 +1296,22 @@ TEST(Emitter, sub)
 
 TEST(Emitter, sub_with_elim_operation)
 {
+    asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
     uint256 y{0};
-    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
-    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, y, x, y - x);
     y[3] = 10;
-    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
-    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, y, x, y - x);
     y[3] = 0;
     y[2] = uint64_t{1} << 63;
-    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
-    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, y, x, y - x);
     y[2] = 0;
     y[1] = std::numeric_limits<uint64_t>::max();
-    pure_bin_instr_test(SUB, &Emitter::sub, x, y, x - y);
-    pure_bin_instr_test(SUB, &Emitter::sub, y, x, y - x);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, x, y, x - y);
+    pure_bin_instr_test(rt, SUB, &Emitter::sub, y, x, y - x);
 }
 
 TEST(Emitter, sub_identity)
@@ -1309,20 +1330,24 @@ TEST(Emitter, sub_identity)
 
 TEST(Emitter, add)
 {
-    pure_bin_instr_test(ADD, &Emitter::add, 5, 6, 11);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, ADD, &Emitter::add, 5, 6, 11);
     pure_bin_instr_test(
+        rt,
         ADD,
         &Emitter::add,
         -1,
         -1,
         uint256_t{0, 1, 0, 0} + uint256_t{0, 1, 0, 0} - 2);
     pure_bin_instr_test(
+        rt,
         ADD,
         &Emitter::add,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         std::numeric_limits<uint256_t>::max() - 2);
     pure_bin_instr_test(
+        rt,
         ADD,
         &Emitter::add,
         std::numeric_limits<uint256_t>::max() - 1,
@@ -1332,21 +1357,22 @@ TEST(Emitter, add)
 
 TEST(Emitter, add_with_elim_operation)
 {
+    asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
     uint256 y{0};
-    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
-    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, y, x, x + y);
     y[3] = 10;
-    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
-    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, y, x, x + y);
     y[3] = 0;
     y[2] = uint64_t{1} << 63;
-    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
-    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, y, x, x + y);
     y[2] = 0;
     y[1] = std::numeric_limits<uint64_t>::max();
-    pure_bin_instr_test(ADD, &Emitter::add, x, y, x + y);
-    pure_bin_instr_test(ADD, &Emitter::add, y, x, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, x, y, x + y);
+    pure_bin_instr_test(rt, ADD, &Emitter::add, y, x, x + y);
 }
 
 TEST(Emitter, add_identity_right)
@@ -1381,28 +1407,54 @@ TEST(Emitter, mul)
 {
     uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
     uint256_t bit62{static_cast<uint64_t>(1) << 63};
-    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
+    uint256_t clear_lhs{2, 3, 4, 5};
+    uint256_t clear0{
+        0x8765432187654321, 0x1234567812345678, 0x8765432187654321, 0x11};
+    uint256_t clear1{0, 0x1234567812345678, 0x8765432187654321, 0x11};
+    uint256_t clear2{0x1234567812345678, 0, 0x8765432187654321, 0x11};
+    uint256_t clear3{0x1234567812345678, 0x8765432187654321, 0, 0x11};
+    uint256_t clear4{0x1234567812345678, 0x8765432187654321, 0x11, 0};
+    uint256_t clear12{0, 0, 0x8765432187654321, 0x1234567812345678};
+    uint256_t clear23{0x8765432187654321, 0, 0, 0x1234567812345678};
+    uint256_t clear34{0x8765432187654321, 0x1234567812345678, 0, 0};
+    uint256_t clear123{0, 0, 0, 0x1234567812345678};
+    uint256_t clear234{0x8765432187654321, 0, 0, 0};
+    std::vector<std::pair<uint256_t, uint256_t>> const pre_inputs{
         {0, 0},
         {0, bit256},
         {bit256, 0},
         {1, 1},
         {1, bit256},
         {bit256, 1},
-        {bit62, -bit62},
-        {-bit62, bit62},
-        {-bit62, -bit62},
         {bit62, bit256},
         {bit256, bit62},
-        {-bit62, bit256},
-        {bit256, -bit62},
         {5, 6},
-        {5, -bit62},
-        {-bit62, 5},
         {5, bit62},
-        {bit62, 5}};
+        {bit62, 5},
+        {clear_lhs, clear0},
+        {clear_lhs, clear1},
+        {clear_lhs, clear2},
+        {clear_lhs, clear3},
+        {clear_lhs, clear4},
+        {clear_lhs, clear12},
+        {clear_lhs, clear23},
+        {clear_lhs, clear34},
+        {clear_lhs, clear123},
+        {clear_lhs, clear234}};
+
+    std::vector<std::pair<uint256_t, uint256_t>> inputs;
+    for (auto const &[x, y] : pre_inputs) {
+        inputs.emplace_back(x, y);
+        inputs.emplace_back(-x, y);
+        inputs.emplace_back(x, -y);
+        inputs.emplace_back(-x, -y);
+    }
+
+    asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
         auto const expected = a * b;
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.mul<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
@@ -1428,9 +1480,11 @@ TEST(Emitter, udiv)
         {bit255, bit256},
         {bit256 + 2, bit255 + 1},
         {bit255 + 2, bit256 + 1}};
+    asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : a / b;
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.udiv<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
@@ -1475,9 +1529,11 @@ TEST(Emitter, sdiv)
         {-(bit64 * 3), -bit64},
         {-(bit64 * 3 + bit63), bit64},
         {-(bit64 * 3 + bit63), -bit64}};
+    asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).quot;
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.sdiv<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
@@ -1505,9 +1561,11 @@ TEST(Emitter, umod)
         {bit64, bit256},
         {bit256 + 1, bit64},
         {bit64, bit256 + 1}};
+    asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : a % b;
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.umod<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
@@ -1567,9 +1625,11 @@ TEST(Emitter, smod)
         {bit256 + 1, -bit64},
         {-bit64, bit256 + 1}};
 
+    asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
         auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).rem;
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.smod<EVMC_FRONTIER>(std::numeric_limits<int32_t>::max());
@@ -1582,6 +1642,7 @@ TEST(Emitter, smod)
 
 TEST(Emitter, addmod_opt)
 {
+    asmjit::JitRuntime rt;
     {
         // Constant folding tests.
         std::vector<std::tuple<uint256_t, uint256_t, uint256_t>> inputs{
@@ -1611,6 +1672,7 @@ TEST(Emitter, addmod_opt)
         for (auto &[a, b, m] : inputs) {
             auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
             pure_bin_instr_test(
+                rt,
                 PUSH0,
                 [&](Emitter &em) {
                     em.pop();
@@ -1665,6 +1727,7 @@ TEST(Emitter, addmod_opt)
         for (auto &[a, b, m] : inputs) {
             auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
             pure_bin_instr_test(
+                rt,
                 PUSH0,
                 [&](Emitter &em) {
                     em.push(m);
@@ -1695,11 +1758,13 @@ TEST(Emitter, addmod_opt_with_elim_operation)
     for (int i = 252; i < 256; ++i) {
         shifts.push_back(i);
     }
+    asmjit::JitRuntime rt;
     for (int const shift : shifts) {
         uint256_t m = uint256_t{1} << shift;
         for (auto [a, b] : inputs) {
             auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
             pure_bin_instr_test(
+                rt,
                 PUSH0,
                 [&](Emitter &em) {
                     em.push(m);
@@ -1716,8 +1781,10 @@ TEST(Emitter, addmod_opt_with_elim_operation)
 
 TEST(Emitter, addmod_nonopt)
 {
+    asmjit::JitRuntime rt;
     {
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.push(3);
@@ -1738,6 +1805,7 @@ TEST(Emitter, addmod_nonopt)
 
     {
         pure_bin_instr_test(
+            rt,
             PUSH0,
             [&](Emitter &em) {
                 em.push(2);
@@ -1757,11 +1825,128 @@ TEST(Emitter, addmod_nonopt)
     }
 }
 
+TEST(Emitter, mulmod)
+{
+    uint256_t const clear0{
+        0x8765432187654321,
+        0x1234567812345678,
+        0x8765432187654321,
+        0x1234567812345678};
+    uint256_t const clear1{0, clear0[1], clear0[2], clear0[3]};
+    uint256_t const clear2{clear0[0], 0, clear0[2], clear0[3]};
+    uint256_t const clear3{clear0[0], clear0[1], 0, clear0[3]};
+    uint256_t const clear4{clear0[0], clear0[1], clear0[2], 0};
+    uint256_t const clear12{0, 0, clear0[2], clear0[3]};
+    uint256_t const clear23{clear0[0], 0, 0, clear0[3]};
+    uint256_t const clear34{clear0[0], clear0[1], 0, 0};
+    uint256_t const clear14{0, clear0[1], clear0[2], 0};
+    uint256_t const clear123{0, 0, 0, clear0[3]};
+    uint256_t const clear234{clear0[0], 0, 0, 0};
+    uint256_t const x{2, 3, 4, 5};
+
+    std::vector<std::pair<uint256_t, uint256_t>> const pre_inputs{
+        {clear0, x},
+        {x, clear1},
+        {clear2, x},
+        {x, clear3},
+        {clear4, x},
+        {x, clear12},
+        {clear23, x},
+        {x, clear34},
+        {clear14, x},
+        {x, clear123},
+        {clear234, x}};
+
+    std::vector<std::pair<uint256_t, uint256_t>> inputs;
+    for (auto const &[x, y] : pre_inputs) {
+        inputs.emplace_back(x, y);
+        inputs.emplace_back(-x, y);
+        inputs.emplace_back(x, -y);
+        inputs.emplace_back(-x, -y);
+    }
+
+    std::vector<int> shifts = {0, 1, 2, 3};
+    for (int i = 4; i < 252; i += 4) {
+        shifts.push_back(i);
+    }
+    for (int i = 252; i < 256; ++i) {
+        shifts.push_back(i);
+    }
+
+    asmjit::JitRuntime rt;
+    for (auto const &s : shifts) {
+        for (auto &[a, b] : inputs) {
+            uint256_t m = uint256_t{1} << s;
+            auto expected = m == 0 ? 0 : intx::mulmod(a, b, m);
+            pure_bin_instr_test(
+                rt,
+                PUSH0,
+                [&](Emitter &em) {
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    em.mulmod<EVMC_LATEST_STABLE_REVISION>(1000);
+                },
+                a,
+                b,
+                expected);
+            pure_bin_instr_test(
+                rt,
+                PUSH0,
+                [&](Emitter &em) {
+                    em.swap(1);
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    em.mulmod<EVMC_LATEST_STABLE_REVISION>(1000);
+                },
+                a,
+                b,
+                expected);
+        }
+    }
+
+    std::vector<uint256_t> const non_shift_mods = {
+        uint256_t{31}, clear0, clear234, -uint256_t{31}, -clear0, -clear234};
+    for (auto const &m : non_shift_mods) {
+        for (auto &[a, b] : inputs) {
+            auto expected = m == 0 ? 0 : intx::mulmod(a, b, m);
+            pure_bin_instr_test(
+                rt,
+                PUSH0,
+                [&](Emitter &em) {
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    em.mulmod<EVMC_LATEST_STABLE_REVISION>(1000);
+                },
+                a,
+                b,
+                expected);
+            pure_bin_instr_test(
+                rt,
+                PUSH0,
+                [&](Emitter &em) {
+                    em.swap(1);
+                    em.push(m);
+                    em.swap(2);
+                    em.swap(1);
+                    em.mulmod<EVMC_LATEST_STABLE_REVISION>(1000);
+                },
+                a,
+                b,
+                expected);
+        }
+    }
+}
+
 TEST(Emitter, and_)
 {
-    pure_bin_instr_test(AND, &Emitter::and_, 1, 3, 1);
-    pure_bin_instr_test(AND, &Emitter::and_, 2, 1, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, AND, &Emitter::and_, 1, 3, 1);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, 2, 1, 0);
     pure_bin_instr_test(
+        rt,
         AND,
         &Emitter::and_,
         std::numeric_limits<uint256_t>::max(),
@@ -1771,19 +1956,20 @@ TEST(Emitter, and_)
 
 TEST(Emitter, and_with_elim_operation)
 {
+    asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
     uint256 y{std::numeric_limits<uint256_t>::max()};
-    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
-    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, y, x, y & x);
     y[3] = 1 << 20;
-    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
-    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, y, x, y & x);
     y[1] = 2 << 1;
-    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
-    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, y, x, y & x);
     y[0] = (uint64_t{1} << 63) | 1;
-    pure_bin_instr_test(AND, &Emitter::and_, x, y, x & y);
-    pure_bin_instr_test(AND, &Emitter::and_, y, x, y & x);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, x, y, x & y);
+    pure_bin_instr_test(rt, AND, &Emitter::and_, y, x, y & x);
 }
 
 TEST(Emitter, and_identity_left)
@@ -1816,9 +2002,11 @@ TEST(Emitter, and_identity_right)
 
 TEST(Emitter, or_)
 {
-    pure_bin_instr_test(OR, &Emitter::or_, 1, 3, 3);
-    pure_bin_instr_test(OR, &Emitter::or_, 2, 1, 3);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, OR, &Emitter::or_, 1, 3, 3);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, 2, 1, 3);
     pure_bin_instr_test(
+        rt,
         OR,
         &Emitter::or_,
         std::numeric_limits<uint256_t>::max(),
@@ -1828,19 +2016,20 @@ TEST(Emitter, or_)
 
 TEST(Emitter, or_with_elim_operation)
 {
+    asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
     uint256 y{0};
-    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
-    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, y, x, y | x);
     y[3] = 10;
-    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
-    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, y, x, y | x);
     y[1] = std::numeric_limits<uint64_t>::max();
-    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
-    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, y, x, y | x);
     y[2] = uint64_t{1} << 63;
-    pure_bin_instr_test(OR, &Emitter::or_, x, y, x | y);
-    pure_bin_instr_test(OR, &Emitter::or_, y, x, y | x);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, x, y, x | y);
+    pure_bin_instr_test(rt, OR, &Emitter::or_, y, x, y | x);
 }
 
 TEST(Emitter, or_identity_left)
@@ -1873,9 +2062,11 @@ TEST(Emitter, or_identity_right)
 
 TEST(Emitter, xor_)
 {
-    pure_bin_instr_test(XOR, &Emitter::xor_, 1, 3, 2);
-    pure_bin_instr_test(XOR, &Emitter::xor_, 2, 1, 3);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, XOR, &Emitter::xor_, 1, 3, 2);
+    pure_bin_instr_test(rt, XOR, &Emitter::xor_, 2, 1, 3);
     pure_bin_instr_test(
+        rt,
         XOR,
         &Emitter::xor_,
         std::numeric_limits<uint256_t>::max(),
@@ -1901,15 +2092,18 @@ TEST(Emitter, xor_same)
 
 TEST(Emitter, eq)
 {
-    pure_bin_instr_test(EQ, &Emitter::eq, 0, 0, 1);
-    pure_bin_instr_test(EQ, &Emitter::eq, 1, 0, 0);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, EQ, &Emitter::eq, 0, 0, 1);
+    pure_bin_instr_test(rt, EQ, &Emitter::eq, 1, 0, 0);
     pure_bin_instr_test(
+        rt,
         EQ,
         &Emitter::eq,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max() - 1,
         0);
     pure_bin_instr_test(
+        rt,
         EQ,
         &Emitter::eq,
         std::numeric_limits<uint256_t>::max(),
@@ -1935,49 +2129,62 @@ TEST(Emitter, eq_same)
 
 TEST(Emitter, byte)
 {
-    pure_bin_instr_test(BYTE, &Emitter::byte, 31, 1, 1);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, BYTE, &Emitter::byte, 31, 1, 1);
     pure_bin_instr_test(
-        BYTE, &Emitter::byte, 0, {0, 0, 0, 0x8877665544332211}, 0x88);
+        rt, BYTE, &Emitter::byte, 0, {0, 0, 0, 0x8877665544332211}, 0x88);
     pure_bin_instr_test(
-        BYTE, &Emitter::byte, 4, {0, 0, 0, 0x8877665544332211}, 0x44);
-    pure_bin_instr_test(BYTE, &Emitter::byte, 32, {-1, -1, -1, -1}, 0);
+        rt, BYTE, &Emitter::byte, 4, {0, 0, 0, 0x8877665544332211}, 0x44);
+    pure_bin_instr_test(rt, BYTE, &Emitter::byte, 32, {-1, -1, -1, -1}, 0);
 }
 
 TEST(Emitter, signextend)
 {
+    asmjit::JitRuntime rt;
     pure_bin_instr_test(
-        SIGNEXTEND, &Emitter::signextend, 0, 255, {-1, -1, -1, -1});
+        rt, SIGNEXTEND, &Emitter::signextend, 0, 255, {-1, -1, -1, -1});
     pure_bin_instr_test(
+        rt,
         SIGNEXTEND,
         &Emitter::signextend,
         1,
         0x8000,
         {-1 & ~0x7fff, -1, -1, -1});
-    pure_bin_instr_test(SIGNEXTEND, &Emitter::signextend, 1, 0x7000, 0x7000);
     pure_bin_instr_test(
+        rt, SIGNEXTEND, &Emitter::signextend, 1, 0x7000, 0x7000);
+    pure_bin_instr_test(
+        rt,
         SIGNEXTEND,
         &Emitter::signextend,
         25,
         {0, 0, 0, 0xff00},
         {0, 0, 0, ~0xff});
     pure_bin_instr_test(
+        rt,
         SIGNEXTEND,
         &Emitter::signextend,
         25,
         {0, 0, 0, 0x7f00},
         {0, 0, 0, 0x7f00});
     pure_bin_instr_test(
-        SIGNEXTEND, &Emitter::signextend, 31, {0, 0, 0, -1}, {0, 0, 0, -1});
+        rt, SIGNEXTEND, &Emitter::signextend, 31, {0, 0, 0, -1}, {0, 0, 0, -1});
     pure_bin_instr_test(
-        SIGNEXTEND, &Emitter::signextend, 32, {0, 0, 0, -1}, {0, 0, 0, -1});
+        rt, SIGNEXTEND, &Emitter::signextend, 32, {0, 0, 0, -1}, {0, 0, 0, -1});
 }
 
 TEST(Emitter, shl)
 {
-    pure_bin_instr_test(SHL, &Emitter::shl, 3, 1, 1 << 3);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, SHL, &Emitter::shl, 3, 1, 1 << 3);
     pure_bin_instr_test(
-        SHL, &Emitter::shl, 255, 1, {0, 0, 0, static_cast<uint64_t>(1) << 63});
+        rt,
+        SHL,
+        &Emitter::shl,
+        255,
+        1,
+        {0, 0, 0, static_cast<uint64_t>(1) << 63});
     pure_bin_instr_test(
+        rt,
         SHL,
         &Emitter::shl,
         63,
@@ -1987,6 +2194,7 @@ TEST(Emitter, shl)
          0,
          0});
     pure_bin_instr_test(
+        rt,
         SHL,
         &Emitter::shl,
         127,
@@ -1996,9 +2204,9 @@ TEST(Emitter, shl)
          ~static_cast<uint64_t>(0),
          ~static_cast<uint64_t>(0)});
     pure_bin_instr_test(
-        SHL, &Emitter::shl, 256, std::numeric_limits<uint256_t>::max(), 0);
+        rt, SHL, &Emitter::shl, 256, std::numeric_limits<uint256_t>::max(), 0);
     pure_bin_instr_test(
-        SHL, &Emitter::shl, 257, std::numeric_limits<uint256_t>::max(), 0);
+        rt, SHL, &Emitter::shl, 257, std::numeric_limits<uint256_t>::max(), 0);
 }
 
 TEST(Emitter, shl_identity)
@@ -2031,23 +2239,26 @@ TEST(Emitter, shl_0)
 
 TEST(Emitter, shr)
 {
-    pure_bin_instr_test(SHR, &Emitter::shr, 1, 2, 1);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, SHR, &Emitter::shr, 1, 2, 1);
     pure_bin_instr_test(
+        rt,
         SHR,
         &Emitter::shr,
         63,
         {0, -1, 0, 0},
         {~static_cast<uint64_t>(0) - 1, 1, 0, 0});
     pure_bin_instr_test(
+        rt,
         SHR,
         &Emitter::shr,
         127,
         std::numeric_limits<uint256_t>::max(),
         {~static_cast<uint64_t>(0), ~static_cast<uint64_t>(0), 1, 0});
     pure_bin_instr_test(
-        SHR, &Emitter::shr, 256, std::numeric_limits<uint256_t>::max(), 0);
+        rt, SHR, &Emitter::shr, 256, std::numeric_limits<uint256_t>::max(), 0);
     pure_bin_instr_test(
-        SHR, &Emitter::shr, 257, std::numeric_limits<uint256_t>::max(), 0);
+        rt, SHR, &Emitter::shr, 257, std::numeric_limits<uint256_t>::max(), 0);
 }
 
 TEST(Emitter, shr_identity)
@@ -2080,14 +2291,17 @@ TEST(Emitter, shr_0)
 
 TEST(Emitter, sar)
 {
-    pure_bin_instr_test(SAR, &Emitter::sar, 1, 2, 1);
+    asmjit::JitRuntime rt;
+    pure_bin_instr_test(rt, SAR, &Emitter::sar, 1, 2, 1);
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         63,
         {0, -1, 0, 0},
         {~static_cast<uint64_t>(0) - 1, 1, 0, 0});
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         63,
@@ -2097,30 +2311,35 @@ TEST(Emitter, sar)
          ~static_cast<uint64_t>(0) - 1,
          ~static_cast<uint64_t>(0)});
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         127,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max());
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         256,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max());
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         257,
         std::numeric_limits<uint256_t>::max(),
         std::numeric_limits<uint256_t>::max());
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         256,
         {0, 0, 0, ~(static_cast<uint64_t>(1) << 63)},
         0);
     pure_bin_instr_test(
+        rt,
         SAR,
         &Emitter::sar,
         257,
@@ -2172,13 +2391,21 @@ TEST(Emitter, sar_max)
 
 TEST(Emitter, call_runtime_pure)
 {
+    asmjit::JitRuntime rt;
     pure_bin_instr_test(
-        DIV, [](Emitter &emit) { emit.udiv<EVMC_FRONTIER>(0); }, 1000, 4, 250);
+        rt,
+        DIV,
+        [](Emitter &emit) { emit.udiv<EVMC_FRONTIER>(0); },
+        1000,
+        4,
+        250);
 }
 
 TEST(Emitter, call_runtime_impl)
 {
+    asmjit::JitRuntime rt;
     pure_bin_instr_test(
+        rt,
         EXP,
         [](Emitter &emit) { emit.exp<EVMC_FRONTIER>(0); },
         10,
@@ -2694,22 +2921,24 @@ TEST(Emitter, callvalue)
 
 TEST(Emitter, iszero)
 {
-    pure_una_instr_test(ISZERO, &Emitter::iszero, 0, 1);
-    pure_una_instr_test(ISZERO, &Emitter::iszero, 1, 0);
-    pure_una_instr_test(ISZERO, &Emitter::iszero, -1, 0);
+    asmjit::JitRuntime rt;
+    pure_una_instr_test(rt, ISZERO, &Emitter::iszero, 0, 1);
+    pure_una_instr_test(rt, ISZERO, &Emitter::iszero, 1, 0);
+    pure_una_instr_test(rt, ISZERO, &Emitter::iszero, -1, 0);
     pure_una_instr_test(
-        ISZERO, &Emitter::iszero, std::numeric_limits<uint256_t>::max(), 0);
+        rt, ISZERO, &Emitter::iszero, std::numeric_limits<uint256_t>::max(), 0);
 }
 
 TEST(Emitter, not_)
 {
+    asmjit::JitRuntime rt;
     pure_una_instr_test(
-        NOT, &Emitter::not_, 0, std::numeric_limits<uint256_t>::max());
+        rt, NOT, &Emitter::not_, 0, std::numeric_limits<uint256_t>::max());
     pure_una_instr_test(
-        NOT, &Emitter::not_, 1, std::numeric_limits<uint256_t>::max() - 1);
-    pure_una_instr_test(NOT, &Emitter::not_, -1, {0, -1, -1, -1});
+        rt, NOT, &Emitter::not_, 1, std::numeric_limits<uint256_t>::max() - 1);
+    pure_una_instr_test(rt, NOT, &Emitter::not_, -1, {0, -1, -1, -1});
     pure_una_instr_test(
-        NOT, &Emitter::not_, std::numeric_limits<uint256_t>::max(), 0);
+        rt, NOT, &Emitter::not_, std::numeric_limits<uint256_t>::max(), 0);
 }
 
 TEST(Emitter, jump)
@@ -2755,12 +2984,14 @@ TEST(Emitter, jumpi)
         Emitter::LocationType::AvxReg,
         Emitter::LocationType::GeneralReg,
         Emitter::LocationType::StackOffset};
+    asmjit::JitRuntime rt;
     for (auto loc1 : locs) {
         for (auto loc2 : locs) {
             for (auto loc_cond : locs) {
                 for (auto loc_dest : locs) {
                     for (int8_t i = 0; i < 32; ++i) {
                         jumpi_test(
+                            rt,
                             loc1,
                             loc2,
                             loc_cond,

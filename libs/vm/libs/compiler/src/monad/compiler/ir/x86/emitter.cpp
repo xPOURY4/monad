@@ -3,6 +3,7 @@
 #include <monad/compiler/ir/x86/emitter.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
+#include <monad/runtime/math.hpp>
 #include <monad/runtime/types.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
@@ -23,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -126,15 +128,20 @@ namespace
 {
     using namespace monad::compiler::native;
 
-    bool is_literal_bounded(Literal lit)
+    bool is_uint64_bounded(uint64_t x)
     {
+        auto i = static_cast<int64_t>(x);
         constexpr int64_t upper =
             static_cast<int64_t>(std::numeric_limits<int32_t>::max());
         constexpr int64_t lower =
             static_cast<int64_t>(std::numeric_limits<int32_t>::min());
+        return i <= upper && i >= lower;
+    }
+
+    bool is_literal_bounded(Literal lit)
+    {
         for (size_t i = 0; i < 4; ++i) {
-            auto v = static_cast<int64_t>(lit.value[i]);
-            if (v > upper || v < lower) {
+            if (!is_uint64_bounded(lit.value[i])) {
                 return false;
             }
         }
@@ -436,6 +443,7 @@ namespace monad::compiler::native
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
         , rcx_general_reg{2}
         , rcx_general_reg_index{}
+        , rdx_general_reg_index{1}
         , bytecode_size_{codesize}
     {
         contract_prologue();
@@ -597,6 +605,7 @@ namespace monad::compiler::native
         spill_caller_save_regs(true);
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_context);
+        as_.vzeroupper();
         as_.call(x86::qword_ptr(fn_lbl));
     }
 
@@ -613,6 +622,7 @@ namespace monad::compiler::native
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_stack);
         as_.mov(x86::rdx, x86::qword_ptr(x86::rsp, sp_offset_stack_size));
+        as_.vzeroupper();
         as_.call(x86::qword_ptr(fn_lbl));
     }
 
@@ -651,6 +661,7 @@ namespace monad::compiler::native
             auto lit = append_literal(e2->literal().value());
             as_.lea(x86::rdx, x86::qword_ptr(lit));
         }
+        as_.vzeroupper();
         as_.call(x86::qword_ptr(fn_lbl));
     }
 
@@ -1220,8 +1231,21 @@ namespace monad::compiler::native
 
     void Emitter::mov_literal_to_gpq256(Literal const &lit, Gpq256 const &gpq)
     {
-        for (size_t i = 0; i < 4; ++i) {
-            as_.mov(gpq[i], lit.value[i]);
+        if (stack_.has_deferred_comparison()) {
+            for (size_t i = 0; i < 4; ++i) {
+                as_.mov(gpq[i], lit.value[i]);
+            }
+        }
+        else {
+            for (size_t i = 0; i < 4; ++i) {
+                auto const &r = gpq[i];
+                if (lit.value[i] == 0) {
+                    as_.xor_(r, r);
+                }
+                else {
+                    as_.mov(r, lit.value[i]);
+                }
+            }
         }
     }
 
@@ -1463,22 +1487,8 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_DEBUG_ASSERT(elem->literal().has_value());
         insert_general_reg(elem);
-        auto const &rs = general_reg_to_gpq256(*elem->general_reg());
-        auto lit = *elem->literal();
-        for (size_t i = 0; i < 4; ++i) {
-            auto const &r = rs[i];
-            if (lit.value[i] == 0) {
-                if (!stack_.has_deferred_comparison()) {
-                    as_.xor_(r, r);
-                }
-                else {
-                    as_.mov(r, 0);
-                }
-            }
-            else {
-                as_.mov(r, lit.value[i]);
-            }
-        }
+        mov_literal_to_gpq256(
+            *elem->literal(), general_reg_to_gpq256(*elem->general_reg()));
     }
 
     void Emitter::mov_stack_offset_to_general_reg(StackElemRef elem)
@@ -4044,6 +4054,558 @@ namespace monad::compiler::native
         return dst;
     }
 
+    // Scrambles rdx
+    // Does not update eflags
+    template <typename LeftOpType>
+    void
+    Emitter::mulx(x86::Gpq dst1, x86::Gpq dst2, LeftOpType left, x86::Gpq right)
+    {
+        as_.mov(x86::rdx, left);
+        as_.mulx(dst1, dst2, right);
+    }
+
+    template <typename LeftOpType>
+    void Emitter::imul_by_gpq(
+        bool is_32_bit, x86::Gpq dst, LeftOpType left, x86::Gpq right)
+    {
+        as_.mov(dst, right);
+        if (is_32_bit) {
+            if constexpr (std::is_same_v<LeftOpType, x86::Gpq>) {
+                as_.imul(dst.r32(), left.r32());
+            }
+            else {
+                as_.imul(dst.r32(), left);
+            }
+        }
+        else {
+            as_.imul(dst, left);
+        }
+    }
+
+    template <typename LeftOpType>
+    void Emitter::imul_by_int32(
+        bool is_32_bit, x86::Gpq dst, LeftOpType left, int32_t right)
+    {
+        if (is_32_bit) {
+            if constexpr (std::is_same_v<LeftOpType, x86::Gpq>) {
+                as_.imul(dst.r32(), left.r32(), right);
+            }
+            else {
+                as_.imul(dst.r32(), left, right);
+            }
+        }
+        else {
+            as_.imul(dst, left, right);
+        }
+    }
+
+    template <typename LeftOpType>
+    void Emitter::imul_by_rax_or_int32(
+        bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
+        std::optional<int32_t> i)
+    {
+        if (i) {
+            imul_by_int32(is_32_bit, dst, left, *i);
+        }
+        else {
+            imul_by_gpq(is_32_bit, dst, left, x86::rax);
+        }
+    }
+
+    // Scrambles rdx
+    void Emitter::mul_with_bit_size_by_rax(
+        size_t bit_size, x86::Gpq const *dst, Operand const &left,
+        std::optional<int32_t> value_of_rax)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(bit_size > 0 && bit_size <= 256);
+
+        constexpr auto right = x86::rax;
+
+        auto last_ix = div64_ceil(bit_size) - 1;
+
+        bool const is_32_bit = (bit_size & 63) > 0 && (bit_size & 63) <= 32;
+
+        auto next_dst_pair = [&](size_t i) -> std::pair<x86::Gpq, x86::Gpq> {
+            auto dst1 = i == last_ix - 1 ? x86::rax : dst[i + 1];
+            auto dst2 = i == 0 ? dst[0] : x86::rdx;
+            return {dst1, dst2};
+        };
+
+        auto post_add = [&](size_t i) {
+            if (last_ix == 1) {
+                if (is_32_bit) {
+                    as_.add(dst[1].r32(), x86::eax);
+                }
+                else {
+                    as_.add(dst[1], x86::rax);
+                }
+            }
+            else if (i > 0) {
+                if (i == 1) {
+                    as_.add(dst[1], x86::rdx);
+                }
+                else {
+                    as_.adc(dst[i], x86::rdx);
+                }
+                if (i == last_ix - 1) {
+                    if (is_32_bit) {
+                        as_.adc(dst[last_ix].r32(), x86::eax);
+                    }
+                    else {
+                        as_.adc(dst[last_ix], x86::rax);
+                    }
+                }
+            }
+        };
+
+        if (std::holds_alternative<Gpq256>(left)) {
+            auto const &lgpq = std::get<Gpq256>(left);
+            imul_by_rax_or_int32(
+                is_32_bit, dst[last_ix], lgpq[last_ix], value_of_rax);
+            for (size_t i = 0; i < last_ix; ++i) {
+                auto [dst1, dst2] = next_dst_pair(i);
+                mulx(dst1, dst2, lgpq[i], right);
+                post_add(i);
+            }
+        }
+        else {
+            MONAD_COMPILER_ASSERT(std::holds_alternative<x86::Mem>(left));
+            auto mem = std::get<x86::Mem>(left);
+            mem.addOffset(static_cast<int64_t>(last_ix) * 8);
+            imul_by_rax_or_int32(is_32_bit, dst[last_ix], mem, value_of_rax);
+            mem.addOffset(-(static_cast<int64_t>(last_ix) * 8));
+            for (size_t i = 0; i < last_ix; ++i) {
+                auto [dst1, dst2] = next_dst_pair(i);
+                mulx(dst1, dst2, mem, right);
+                post_add(i);
+                mem.addOffset(8);
+            }
+        }
+    }
+
+    Emitter::MulEmitter::MulEmitter(
+        size_t bit_size, Emitter &em, Operand const &left,
+        RightMulArg const &right, x86::Gpq const *dst, x86::Gpq const *tmp)
+        : bit_size_{bit_size}
+        , em_{em}
+        , left_{left}
+        , right_{right}
+        , dst_{dst}
+        , tmp_{tmp}
+        , is_dst_initialized_{}
+    {
+    }
+
+    void Emitter::MulEmitter::init_mul_dst(size_t sub_size, x86::Gpq *mul_dst)
+    {
+        size_t const N = div64_ceil(sub_size);
+        if (is_dst_initialized_) {
+            for (size_t i = 0; i < N; ++i) {
+                mul_dst[i] = tmp_[i];
+            }
+        }
+        else {
+            size_t const c = div64_ceil(bit_size_);
+            for (size_t i = c - N, n = 0; i < c; ++i) {
+                mul_dst[n++] = dst_[i];
+            }
+        }
+    }
+
+    void
+    Emitter::MulEmitter::mul_sequence(size_t sub_size, x86::Gpq const *mul_dst)
+    {
+        size_t const word_count = div64_ceil(bit_size_);
+        size_t const N = div64_ceil(sub_size);
+        bool const is_32_bit = (sub_size & 63) != 0 && (sub_size & 63) <= 32;
+        if (std::holds_alternative<uint256_t>(right_) &&
+            std::get<uint256_t>(right_)[word_count - N] == 1) {
+            if (std::holds_alternative<Gpq256>(left_)) {
+                auto const &lgpq = std::get<Gpq256>(left_);
+                size_t i = 0;
+                for (; i < N - 1; ++i) {
+                    em_.as_.mov(mul_dst[i], lgpq[i]);
+                }
+                if (is_32_bit) {
+                    em_.as_.mov(mul_dst[i].r32(), lgpq[i].r32());
+                }
+                else {
+                    em_.as_.mov(mul_dst[i], lgpq[i]);
+                }
+            }
+            else {
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    std::holds_alternative<x86::Mem>(left_));
+                auto lmem = std::get<x86::Mem>(left_);
+                size_t i = 0;
+                for (; i < N - 1; ++i) {
+                    em_.as_.mov(mul_dst[i], lmem);
+                    lmem.addOffset(8);
+                }
+                if (is_32_bit) {
+                    em_.as_.mov(mul_dst[i].r32(), lmem);
+                }
+                else {
+                    em_.as_.mov(mul_dst[i], lmem);
+                }
+            }
+        }
+        else if (N > 1) {
+            auto known_value = std::visit(
+                Cases{
+                    [&](uint256_t const &r) {
+                        auto x = r[word_count - N];
+                        em_.as_.mov(x86::rax, x);
+                        if (!is_uint64_bounded(x)) {
+                            return std::optional<int32_t>{};
+                        }
+                        int32_t y;
+                        std::memcpy(&y, &x, sizeof(int32_t));
+                        return std::optional{y};
+                    },
+                    [&](Gpq256 const &r) {
+                        em_.as_.mov(x86::rax, r[word_count - N]);
+                        return std::optional<int32_t>{};
+                    },
+                    [&](x86::Mem r) {
+                        r.addOffset(static_cast<int64_t>((word_count - N) * 8));
+                        em_.as_.mov(x86::rax, r);
+                        return std::optional<int32_t>{};
+                    },
+                },
+                right_);
+            em_.mul_with_bit_size_by_rax(sub_size, mul_dst, left_, known_value);
+        }
+        else if (std::holds_alternative<Gpq256>(left_)) {
+            auto const &lgpq = std::get<Gpq256>(left_);
+            std::visit(
+                Cases{
+                    [&](uint256_t const &r) {
+                        auto x = r[word_count - N];
+                        if (is_32_bit) {
+                            em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32(), x);
+                        }
+                        else if (is_uint64_bounded(x)) {
+                            em_.as_.imul(mul_dst[0], lgpq[0], x);
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], x);
+                            em_.as_.imul(mul_dst[0], lgpq[0]);
+                        }
+                    },
+                    [&](Gpq256 const &r) {
+                        if (is_32_bit) {
+                            em_.as_.mov(
+                                mul_dst[0].r32(), r[word_count - N].r32());
+                            em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32());
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], r[word_count - N]);
+                            em_.as_.imul(mul_dst[0], lgpq[0]);
+                        }
+                    },
+                    [&](x86::Mem r) {
+                        r.addOffset(static_cast<int64_t>((word_count - N) * 8));
+                        if (is_32_bit) {
+                            em_.as_.mov(mul_dst[0].r32(), r);
+                            em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32());
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], r);
+                            em_.as_.imul(mul_dst[0], lgpq[0]);
+                        }
+                    },
+                },
+                right_);
+        }
+        else {
+            MONAD_COMPILER_DEBUG_ASSERT(
+                std::holds_alternative<x86::Mem>(left_));
+            auto const &lmem = std::get<x86::Mem>(left_);
+            std::visit(
+                Cases{
+                    [&](uint256_t const &r) {
+                        auto x = r[word_count - N];
+                        if (is_32_bit) {
+                            em_.as_.imul(mul_dst[0].r32(), lmem, x);
+                        }
+                        else if (is_uint64_bounded(x)) {
+                            em_.as_.imul(mul_dst[0], lmem, x);
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], x);
+                            em_.as_.imul(mul_dst[0], lmem);
+                        }
+                    },
+                    [&](Gpq256 const &r) {
+                        if (is_32_bit) {
+                            em_.as_.mov(
+                                mul_dst[0].r32(), r[word_count - N].r32());
+                            em_.as_.imul(mul_dst[0].r32(), lmem);
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], r[word_count - N]);
+                            em_.as_.imul(mul_dst[0], lmem);
+                        }
+                    },
+                    [&](x86::Mem r) {
+                        r.addOffset(static_cast<int64_t>((word_count - N) * 8));
+                        if (is_32_bit) {
+                            em_.as_.mov(mul_dst[0].r32(), r);
+                            em_.as_.imul(mul_dst[0].r32(), lmem);
+                        }
+                        else {
+                            em_.as_.mov(mul_dst[0], r);
+                            em_.as_.imul(mul_dst[0], lmem);
+                        }
+                    },
+                },
+                right_);
+        }
+    }
+
+    void
+    Emitter::MulEmitter::update_dst(size_t sub_size, x86::Gpq const *mul_dst)
+    {
+        if (is_dst_initialized_) {
+            bool const is_32_bit =
+                (bit_size_ & 63) != 0 && (bit_size_ & 63) <= 32;
+            size_t const word_count = div64_ceil(bit_size_);
+            size_t i = word_count - div64_ceil(sub_size);
+            size_t j = 0;
+            if (is_32_bit) {
+                if (i == word_count - 1) {
+                    em_.as_.add(dst_[i++].r32(), mul_dst[j++].r32());
+                }
+                else {
+                    em_.as_.add(dst_[i++], mul_dst[j++]);
+                }
+                while (i < word_count) {
+                    if (i == word_count - 1) {
+                        em_.as_.adc(dst_[i++].r32(), mul_dst[j++].r32());
+                    }
+                    else {
+                        em_.as_.adc(dst_[i++], mul_dst[j++]);
+                    }
+                }
+            }
+            else {
+                em_.as_.add(dst_[i++], mul_dst[j++]);
+                while (i < word_count) {
+                    em_.as_.adc(dst_[i++], mul_dst[j++]);
+                }
+            }
+        }
+        else {
+            is_dst_initialized_ = true;
+        }
+    }
+
+    void Emitter::MulEmitter::compose(size_t sub_size, x86::Gpq *mul_dst)
+    {
+        size_t const i = div64_ceil(bit_size_) - div64_ceil(sub_size);
+        if (!std::holds_alternative<uint256_t>(right_) ||
+            std::get<uint256_t>(right_)[i] != 0) {
+            init_mul_dst(sub_size, mul_dst);
+            mul_sequence(sub_size, mul_dst);
+            update_dst(sub_size, mul_dst);
+        }
+        else if (!is_dst_initialized_) {
+            em_.as_.xor_(dst_[i], dst_[i]);
+        }
+    }
+
+    void Emitter::MulEmitter::emit()
+    {
+        x86::Gpq mul_dst[4];
+        auto sub_size = bit_size_;
+        while (sub_size > 64) {
+            compose(sub_size, mul_dst);
+            sub_size -= 64;
+        }
+        compose(sub_size, mul_dst);
+    }
+
+    StackElemRef Emitter::mul_with_bit_size(
+        size_t bit_size, StackElemRef left,
+        MulEmitter::RightMulArg const &right)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(bit_size > 0 && bit_size <= 256);
+
+        size_t const dst_word_count = div64_ceil(bit_size);
+
+        MONAD_COMPILER_DEBUG_ASSERT(!left->literal().has_value());
+
+        discharge_deferred_comparison();
+
+        size_t required_reg_count = 0;
+        bool needs_mulx = true;
+        for (size_t i = 0; i < dst_word_count; ++i) {
+            if (!std::holds_alternative<uint256_t>(right) ||
+                std::get<uint256_t>(right)[i] != 0) {
+                if (required_reg_count == 0) {
+                    required_reg_count = dst_word_count;
+                    needs_mulx = i != dst_word_count - 1;
+                }
+                else {
+                    required_reg_count += (dst_word_count - i);
+                    break;
+                }
+            }
+        }
+
+        if (required_reg_count == 0) {
+            return stack_.alloc_literal({0});
+        }
+
+        MONAD_COMPILER_DEBUG_ASSERT(
+            required_reg_count >= dst_word_count && required_reg_count < 8);
+
+        GeneralRegReserv const left_reserv{left};
+        if (required_reg_count > dst_word_count) {
+            if (!left->general_reg()) {
+                mov_stack_elem_to_general_reg(left);
+            }
+        }
+        else {
+            if (!left->general_reg() && !left->stack_offset()) {
+                MONAD_COMPILER_DEBUG_ASSERT(left->avx_reg().has_value());
+                mov_avx_reg_to_stack_offset(left);
+            }
+        }
+
+        auto [dst, dst_reserv] = alloc_general_reg();
+
+        auto tmp = dst;
+        auto tmp_reserv = dst_reserv;
+        if (required_reg_count > 4) {
+            auto [t, r] = alloc_general_reg();
+            tmp = t;
+            tmp_reserv = r;
+        }
+
+        auto spill_elem = tmp;
+        auto spill_elem_reserv = tmp_reserv;
+        std::optional<x86::Gpq> spill_gpq;
+        if (needs_mulx && stack_.has_free_general_reg()) {
+            auto [s, r] = alloc_general_reg();
+            spill_elem = s;
+            spill_elem_reserv = r;
+            auto const &gpq = general_reg_to_gpq256(*spill_elem->general_reg());
+            spill_gpq = gpq[rdx_general_reg_index];
+        }
+
+        bool preserve_dst_rdx = false;
+        bool preserve_left_rdx = false;
+
+        if (needs_mulx) {
+            auto &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
+            auto &tmp_gpq = general_reg_to_gpq256(*tmp->general_reg());
+            if (dst_gpq[rdx_general_reg_index] == x86::rdx) {
+                preserve_dst_rdx = true;
+            }
+            if (preserve_dst_rdx) {
+                if (tmp != dst) {
+                    std::swap(tmp, dst);
+                    preserve_dst_rdx = false;
+                }
+                else {
+                    if (spill_gpq) {
+                        dst_gpq[rdx_general_reg_index] = *spill_gpq;
+                    }
+                    else {
+                        as_.push(reg_context);
+                        dst_gpq[rdx_general_reg_index] = reg_context;
+                    }
+                }
+            }
+            else if (left->general_reg()) {
+                if (tmp != dst) {
+                    spill_gpq = tmp_gpq[rdx_general_reg_index];
+                }
+                auto &left_gpq = general_reg_to_gpq256(*left->general_reg());
+                if (left_gpq[rdx_general_reg_index] == x86::rdx) {
+                    preserve_left_rdx = true;
+                    if (spill_gpq) {
+                        as_.mov(*spill_gpq, x86::rdx);
+                        left_gpq[rdx_general_reg_index] = *spill_gpq;
+                    }
+                    else {
+                        as_.push(reg_context);
+                        as_.mov(reg_context, x86::rdx);
+                        left_gpq[rdx_general_reg_index] = reg_context;
+                    }
+                }
+            }
+        }
+
+        auto &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
+        auto left_op =
+            left->general_reg()
+                ? Operand{general_reg_to_gpq256(*left->general_reg())}
+                : Operand{stack_offset_to_mem(*left->stack_offset())};
+        MONAD_COMPILER_DEBUG_ASSERT(dst_word_count <= 4);
+        x86::Gpq emit_tmp[3];
+        if (tmp != dst) {
+            auto &tmp_gpq = general_reg_to_gpq256(*tmp->general_reg());
+            for (size_t i = 0, n = 0; n < dst_word_count - 1; ++i) {
+                if (i != rdx_general_reg_index) {
+                    emit_tmp[n++] = tmp_gpq[i];
+                }
+            }
+        }
+        else {
+            for (size_t i = 0, n = dst_word_count;
+                 n < 4 && i < dst_word_count - 1;
+                 ++i) {
+                emit_tmp[i] = dst_gpq[n++];
+            }
+        }
+
+        MulEmitter{bit_size, *this, left_op, right, dst_gpq.data(), emit_tmp}
+            .emit();
+
+        if (bit_size & 31) {
+            auto mask = (uint64_t{1} << (bit_size & 63)) - 1;
+            if (std::bit_width(mask) <= 32) {
+                as_.and_(dst_gpq[dst_word_count - 1].r32(), mask);
+            }
+            else {
+                as_.mov(x86::rax, mask);
+                as_.and_(dst_gpq[dst_word_count - 1], x86::rax);
+            }
+        }
+        for (size_t i = dst_word_count; i < 4; ++i) {
+            as_.xor_(dst_gpq[i], dst_gpq[i]);
+        }
+
+        if (preserve_dst_rdx) {
+            if (spill_gpq) {
+                as_.mov(x86::rdx, *spill_gpq);
+                dst_gpq[rdx_general_reg_index] = x86::rdx;
+            }
+            else {
+                as_.mov(x86::rdx, reg_context);
+                dst_gpq[rdx_general_reg_index] = x86::rdx;
+                as_.pop(reg_context);
+            }
+        }
+        else if (preserve_left_rdx) {
+            auto &left_gpq = general_reg_to_gpq256(*left->general_reg());
+            if (spill_gpq) {
+                as_.mov(x86::rdx, *spill_gpq);
+                left_gpq[rdx_general_reg_index] = x86::rdx;
+            }
+            else {
+                as_.mov(x86::rdx, reg_context);
+                left_gpq[rdx_general_reg_index] = x86::rdx;
+                as_.pop(reg_context);
+            }
+        }
+
+        return dst;
+    }
+
     bool Emitter::mul_optimized()
     {
         auto a_elem = stack_.get(stack_.top_index());
@@ -4074,26 +4636,29 @@ namespace monad::compiler::native
             return true;
         }
 
-        bool needs_negation = false;
+        auto a_shift = a;
         if (a[3] & (static_cast<uint64_t>(1) << 63)) {
-            needs_negation = monad::utils::popcount(a) != 1;
-            a = -a;
+            a_shift = -a;
         }
 
-        // if exists n. b == 2 ^ n we can optimise a * b ==> a << n
-        if (monad::utils::popcount(a) == 1) {
+        if (monad::utils::popcount(a_shift) == 1) {
             stack_.pop();
             stack_.pop();
-            // n is obtained by counting the number of 0s from the right
-            // before hitting the 1 e.g. 100 in binary is 4 = 2 ^ 2
             auto x = shift_by_literal<ShiftType::SHL>(
-                monad::utils::countr_zero(a), std::move(b_elem), {});
-            if (needs_negation) {
+                monad::utils::countr_zero(a_shift), std::move(b_elem), {});
+            if (a_shift[3] != a[3]) {
+                // The shift was negated. Negate result for correct sign:
                 stack_.push(negate(std::move(x), {}));
             }
             else {
                 stack_.push(std::move(x));
             }
+            return true;
+        }
+        else if (!a[0] || !a[1] || !a[2] || !a[3]) {
+            stack_.pop();
+            stack_.pop();
+            stack_.push(mul_with_bit_size(256, std::move(b_elem), a));
             return true;
         }
 
@@ -4698,7 +5263,10 @@ namespace monad::compiler::native
     }
 
     // Discharge
-    bool Emitter::addmod_opt()
+    template <
+        Emitter::ModOpType ModOp, uint64_t Unit, uint64_t Absorb,
+        Emitter::ModOpByMaskType ModOpByMask>
+    bool Emitter::modop_optimized()
     {
         // required stack shape: [a b m]
         auto m_elem = stack_.get(stack_.top_index() - 2);
@@ -4719,15 +5287,40 @@ namespace monad::compiler::native
         auto a_elem = stack_.get(stack_.top_index());
         auto b_elem = stack_.get(stack_.top_index() - 1);
 
+        static_assert(Absorb <= 1);
+        static_assert(Unit <= 1);
+
         // Check whether we can constant fold the entire expression.
-        if (a_elem->literal() && b_elem->literal()) {
-            stack_.pop();
-            stack_.pop();
-            stack_.pop();
-            auto const &a = a_elem->literal()->value;
-            auto const &b = b_elem->literal()->value;
-            push(intx::addmod(a, b, m));
-            return true;
+        if (a_elem->literal()) {
+            if constexpr (Absorb != Unit) {
+                if (a_elem->literal()->value == Absorb) {
+                    stack_.pop();
+                    stack_.pop();
+                    stack_.pop();
+                    push(Absorb);
+                    return true;
+                }
+            }
+            if (b_elem->literal()) {
+                stack_.pop();
+                stack_.pop();
+                stack_.pop();
+                auto const &a = a_elem->literal()->value;
+                auto const &b = b_elem->literal()->value;
+                push(ModOp(a, b, m));
+                return true;
+            }
+        }
+        else if (b_elem->literal()) {
+            if constexpr (Absorb != Unit) {
+                if (b_elem->literal()->value == Absorb) {
+                    stack_.pop();
+                    stack_.pop();
+                    stack_.pop();
+                    push(Absorb);
+                    return true;
+                }
+            }
         }
 
         // Only proceed if we can rewrite
@@ -4744,12 +5337,12 @@ namespace monad::compiler::native
         stack_.pop();
 
         // Check whether we can elide the addition.
-        if (b_elem->literal() && b_elem->literal()->value == 0) {
+        if (b_elem->literal() && b_elem->literal()->value == Unit) {
             b_elem.reset(); // Clear to free registers and stack offset.
             auto mask = stack_.alloc_literal(Literal{m - 1});
             stack_.push(and_(std::move(a_elem), std::move(mask), {}));
         }
-        else if (a_elem->literal() && a_elem->literal()->value == 0) {
+        else if (a_elem->literal() && a_elem->literal()->value == Unit) {
             a_elem.reset(); // Clear to free registers and stack offset.
             auto mask = stack_.alloc_literal(Literal{m - 1});
             stack_.push(and_(std::move(b_elem), std::move(mask), {}));
@@ -4757,10 +5350,16 @@ namespace monad::compiler::native
         else {
             size_t const exp = utils::bit_width(m) - 1;
             // The heavy lifting is done by the following function.
-            add_mod2(std::move(a_elem), std::move(b_elem), exp);
+            (this->*ModOpByMask)(std::move(a_elem), std::move(b_elem), exp);
         }
 
         return true;
+    }
+
+    // Discharge
+    bool Emitter::addmod_opt()
+    {
+        return modop_optimized<intx::addmod, 0, 0, &Emitter::add_mod2>();
     }
 
     void Emitter::add_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
@@ -5101,8 +5700,92 @@ namespace monad::compiler::native
         stack_.push(std::move(left));
     }
 
-    inline size_t Emitter::div64_ceil(size_t x)
+    // Discharge
+    bool Emitter::mulmod_opt()
     {
-        return (x >> 6) + ((x & 63) != 0);
+        return modop_optimized<intx::mulmod, 1, 0, &Emitter::mul_mod2>();
+    }
+
+    void Emitter::mul_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
+    {
+        discharge_deferred_comparison();
+
+        MONAD_COMPILER_DEBUG_ASSERT(exp >= 1 && exp < 256);
+        if (a_elem->literal()) {
+            std::swap(a_elem, b_elem);
+        }
+        MONAD_COMPILER_DEBUG_ASSERT(!a_elem->literal().has_value());
+
+        auto mask = (1 << uint256_t{exp}) - 1;
+        auto last_ix = (exp - 1) >> 6;
+        static constexpr size_t inline_threshold = 1;
+
+        if (b_elem->literal()) {
+            auto b = b_elem->literal()->value & mask;
+            if (last_ix <= inline_threshold) {
+                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+                return;
+            }
+            bool has_zero = false;
+            for (size_t i = 0; i <= last_ix; ++i) {
+                has_zero |= b[i] == 0;
+            }
+            if (has_zero) {
+                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+                return;
+            }
+        }
+        else if (last_ix <= inline_threshold) {
+            if (b_elem->general_reg()) {
+                auto const &b = general_reg_to_gpq256(*b_elem->general_reg());
+                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+            }
+            else {
+                if (!b_elem->stack_offset()) {
+                    mov_avx_reg_to_stack_offset(b_elem);
+                }
+                auto const &b = stack_offset_to_mem(*b_elem->stack_offset());
+                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+            }
+            return;
+        }
+
+        MONAD_COMPILER_DEBUG_ASSERT(exp > 128);
+        spill_caller_save_regs(false);
+
+        auto call_runtime_mul = [&](RuntimeImpl &&rt) {
+            rt.pass(std::move(a_elem));
+            rt.pass(std::move(b_elem));
+            rt.call_impl();
+        };
+        if (exp <= 192) {
+            call_runtime_mul(
+                Runtime<uint256_t *, uint256_t const *, uint256_t const *>(
+                    this, false, monad_runtime_mul_192));
+        }
+        else {
+            call_runtime_mul(
+                Runtime<uint256_t *, uint256_t const *, uint256_t const *>(
+                    this, false, monad::runtime::mul));
+        }
+
+        MONAD_COMPILER_DEBUG_ASSERT(stack_.top()->stack_offset().has_value());
+        auto res_mem = stack_offset_to_mem(*stack_.top()->stack_offset());
+        res_mem.addOffset(static_cast<int64_t>(last_ix * 8));
+        if (exp & 63) {
+            auto last_mask = mask[last_ix];
+            if (std::bit_width(last_mask) < 32) {
+                as_.and_(res_mem, last_mask);
+            }
+            else {
+                as_.mov(x86::rax, last_mask);
+                as_.and_(res_mem, x86::rax);
+            }
+        }
+        if (last_ix < 3) {
+            res_mem.addOffset(8);
+            MONAD_COMPILER_DEBUG_ASSERT(last_ix == 2);
+            as_.mov(res_mem, 0);
+        }
     }
 }

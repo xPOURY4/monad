@@ -88,25 +88,4 @@ monad_runtime_mul_192:
 .cfi_endproc
 .size monad_runtime_mul_192, .-monad_runtime_mul_192
 
-.globl monad_runtime_mul_128
-.type monad_runtime_mul_128, @function
-.align 16
-monad_runtime_mul_128:
-.cfi_startproc
-    mov     r8, qword ptr [rdx]
-    mov     r9, qword ptr [rdx + 8]
-    mov     rax, qword ptr [rsi]
-    mov     rdx, r8
-    mulx    r11, rcx, rax
-    mov     qword ptr [rdi], rcx
-    imul    r9, rax
-    add     r11, r9
-    mov     rax, qword ptr [rsi + 8]
-    mov     rdx, r8
-    imul    rdx, rax
-    add     r11, rdx
-    mov     qword ptr [rdi + 8], r11
-    ret
-.cfi_endproc
-.size monad_runtime_mul_128, .-monad_runtime_mul_128
 .section .note.GNU-stack,"",@progbits

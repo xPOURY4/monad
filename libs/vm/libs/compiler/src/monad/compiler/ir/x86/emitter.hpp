@@ -138,6 +138,11 @@ namespace monad::compiler::native
                     !monad::runtime::detail::uses_remaining_gas_v<Args...>);
             }
 
+            Runtime(Emitter *e, bool spill_avx, void (*f)(uint256_t *, Args...))
+                : Runtime(e, 0, spill_avx, f)
+            {
+            }
+
             uint256_t static_call(Args... args)
             {
                 uint256_t result;
@@ -304,9 +309,14 @@ namespace monad::compiler::native
             call_runtime(remaining_base_gas, true, monad::runtime::addmod);
         }
 
+        bool mulmod_opt();
+
         template <evmc_revision rev>
         void mulmod(int32_t remaining_base_gas)
         {
+            if (mulmod_opt()) {
+                return;
+            }
             call_runtime(remaining_base_gas, true, monad::runtime::mulmod);
         }
 
@@ -688,13 +698,71 @@ namespace monad::compiler::native
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
         void return_with_status_code(monad::runtime::StatusCode);
 
+        static constexpr size_t div64_ceil(size_t x)
+        {
+            return (x >> 6) + ((x & 63) != 0);
+        }
+
+        class MulEmitter
+        {
+        public:
+            using RightMulArg =
+                std::variant<uint256_t, asmjit::x86::Mem, Gpq256>;
+
+            MulEmitter(
+                size_t bit_size, Emitter &em, Operand const &left,
+                RightMulArg const &right, asmjit::x86::Gpq const *dst,
+                asmjit::x86::Gpq const *tmp);
+
+            void emit();
+
+        private:
+            void init_mul_dst(size_t sub_size, asmjit::x86::Gpq *);
+            void mul_sequence(size_t sub_size, asmjit::x86::Gpq const *);
+            void update_dst(size_t sub_size, asmjit::x86::Gpq const *);
+            void compose(size_t sub_size, asmjit::x86::Gpq *);
+
+            size_t bit_size_;
+            Emitter &em_;
+            Operand const &left_;
+            RightMulArg const &right_;
+            asmjit::x86::Gpq const *dst_;
+            asmjit::x86::Gpq const *tmp_;
+            bool is_dst_initialized_;
+        };
+
+        friend class MulEmitter;
+
+        template <typename LeftOpType>
+        void mulx(
+            asmjit::x86::Gpq dst1, asmjit::x86::Gpq dst2, LeftOpType left,
+            asmjit::x86::Gpq right);
+        template <typename LeftOpType>
+        void imul_by_gpq(
+            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
+            asmjit::x86::Gpq right);
+        template <typename LeftOpType>
+        void imul_by_int32(
+            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
+            int32_t right);
+        template <typename LeftOpType>
+        void imul_by_rax_or_int32(
+            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
+            std::optional<int32_t>);
+        void mul_with_bit_size_by_rax(
+            size_t bit_size, asmjit::x86::Gpq const *dst, Operand const &left,
+            std::optional<int32_t> value_of_rax);
+        StackElemRef mul_with_bit_size(
+            size_t bit_size, StackElemRef, MulEmitter::RightMulArg const &);
         bool mul_optimized();
+
         template <typename... LiveSet>
         StackElemRef sdiv_by_sar(
             StackElemRef, uint256_t const &shift,
             std::tuple<LiveSet...> const &);
         template <bool is_sdiv>
         bool div_optimized();
+
         template <typename... LiveSet>
         StackElemRef mod_by_mask(
             StackElemRef, uint256_t const &mask,
@@ -844,7 +912,16 @@ namespace monad::compiler::native
         mov_stack_offset_to_general_reg_mod2(StackElemRef elem, size_t exp);
         void mov_literal_to_general_reg_mod2(StackElemRef elem, size_t exp);
         void add_mod2(StackElemRef left, StackElemRef right, size_t exp);
-        inline size_t div64_ceil(size_t x);
+        void mul_mod2(StackElemRef left, StackElemRef right, size_t exp);
+
+        using ModOpType = uint256_t (*)(
+            uint256_t const &, uint256_t const &, uint256_t const &);
+        using ModOpByMaskType =
+            void (Emitter::*)(StackElemRef, StackElemRef, size_t exp);
+        template <
+            ModOpType ModOp, uint64_t Unit, uint64_t Absorb,
+            ModOpByMaskType ModOpByMask>
+        bool modop_optimized();
 
         ////////// Fields //////////
 
@@ -860,7 +937,8 @@ namespace monad::compiler::native
         bool keep_stack_in_next_block_;
         std::array<Gpq256, 3> gpq256_regs_;
         GeneralReg rcx_general_reg;
-        uint8_t rcx_general_reg_index;
+        uint8_t rcx_general_reg_index; // must be 0 or 3
+        uint8_t rdx_general_reg_index; // must be 1 or 2
         uint64_t bytecode_size_;
         std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;

@@ -40,9 +40,8 @@ TEST_F(RuntimeTest, Mul)
         0xd4dac120ee7e085767e373530940f800a1d01787793fcf63bcf635fdf13cee38_u256);
 }
 
-TEST_F(RuntimeTest, Mul_128_192)
+TEST_F(RuntimeTest, Mul_192)
 {
-
     utils::uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
     utils::uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
     utils::uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
@@ -86,8 +85,9 @@ TEST_F(RuntimeTest, Mul_128_192)
          2}};
 
     for (auto const &[a, b] : inputs) {
-        test_mul(monad_runtime_mul_128, a, b);
-        test_mul(monad_runtime_mul_192, a, b);
+        utils::uint256_t result;
+        monad_runtime_mul_192(&result, &a, &b);
+        ASSERT_EQ(result, ::intx::mulmod(a, b, utils::uint256_t{1} << 192));
     }
 }
 
