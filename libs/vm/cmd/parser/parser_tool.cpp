@@ -1,23 +1,25 @@
 /**
- * parse an evm opcode text file and return the resulting vector of evm bytecode
+ * parse an evm opcode text <file> and
+ * write the resulting evm bytecode to <file>.evm
  *
- * Notes:
- * case is ignored
- * data can be in hex or decimal form
- * pushes can be statically sized (e.g. push3 0xabcdef) or computed size (e.g.
- * push 0xabcdef) jumpdests can use named labels, e.g. push .mylabel jumpdest
- * .mylabel end of line comments (// .. \n) and whitespace are ignored
+ * -b switch reads in an evm bytecode file and
+ *  writes the corresponding text to stdout
+ *
+ * see parser.hpp for details
+ *
  */
 
-#include <CLI/CLI.hpp>
 #include <cstdint>
 #include <cstdlib>
 #include <ios>
 #include <iostream>
 #include <iterator>
-#include <monad/utils/parser.hpp>
 #include <string>
 #include <vector>
+
+#include <CLI/CLI.hpp>
+
+#include <monad/utils/parser.hpp>
 
 using namespace monad::utils;
 
@@ -58,32 +60,36 @@ int main(int argc, char **argv)
 {
     auto args = parse_args(argc, argv);
     for (auto const &filename : args.filenames) {
-        if (args.verbose) {
-            std::cout << "compiling " << filename << '\n';
-        }
         auto in = std::ifstream(filename, std::ios::binary);
         if (args.binary) {
+            if (args.verbose) {
+                std::cerr << "printing " << filename << '\n';
+            }
             auto opcodes = std::vector<uint8_t>(
                 std::istreambuf_iterator<char>(in),
                 std::istreambuf_iterator<char>());
 
-            show_opcodes(opcodes);
+            std::cout << show_opcodes(opcodes) << '\n';
         }
         else {
+            if (args.verbose) {
+                std::cerr << "parsing " << filename << '\n';
+            }
             auto s = std::string(
                 std::istreambuf_iterator<char>(in),
                 std::istreambuf_iterator<char>());
 
-            auto opcodes = parse_opcodes(args.verbose, filename, s);
+            auto opcodes =
+                args.verbose ? parse_opcodes_verbose(s) : parse_opcodes(s);
+
             auto outfile = filename + ".evm";
             if (args.verbose) {
-                std::cout << "writing " << outfile << '\n';
+                std::cerr << "writing " << outfile << '\n';
             }
             auto out = std::ofstream(outfile, std::ios::binary);
             out.write(
                 reinterpret_cast<char const *>(opcodes.data()),
-                (long)opcodes.size());
-            out.close();
+                static_cast<long>(opcodes.size()));
         }
     }
     return 0;

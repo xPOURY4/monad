@@ -1,4 +1,3 @@
-#include <CLI/CLI.hpp>
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -7,20 +6,24 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <evmc/evmc.h>
-#include <intx/intx.hpp>
 #include <iostream>
-#include <monad/evm/opcodes.hpp>
-#include <monad/utils/cases.hpp>
-#include <monad/utils/parser.hpp>
-#include <monad/utils/uint256.hpp>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
+
+#include <CLI/CLI.hpp>
+#include <evmc/evmc.h>
+#include <intx/intx.hpp>
+
+#include <monad/evm/opcodes.hpp>
+#include <monad/utils/cases.hpp>
+#include <monad/utils/parser.hpp>
+#include <monad/utils/uint256.hpp>
 
 using namespace monad::compiler;
 
@@ -94,15 +97,14 @@ namespace monad::utils
         return input;
     }
 
-    void err(std::string msg)
+    void err(std::string_view msg, std::string_view value)
     {
-        std::cerr << "error: " << msg << '\n';
+        std::cerr << "error: " << msg << ' ' << value << '\n';
         exit(1);
     }
 
     std::pair<char const *, std::variant<uint256_t, std::string>>
     parse_constant_or_label(char const *input)
-
     {
         input = drop_spaces(input);
         auto const *p = try_parse_hex_constant(input);
@@ -118,7 +120,7 @@ namespace monad::utils
         }
         p = try_parse_label(input);
         if (p == input) {
-            err("missing argument to push");
+            err("missing argument to push", "");
         }
 
         auto s = std::string(input, p);
@@ -159,21 +161,6 @@ namespace monad::utils
 
     using Token = std::variant<Push, JumpDest, OpName>;
 
-    std::optional<uint8_t> find_opcode(std::string const op)
-    {
-        auto tbl = monad::compiler::make_opcode_table<EVMC_CANCUN>();
-        size_t i;
-        for (i = 0; i < tbl.size(); ++i) {
-            if (tbl[i].name == op) {
-                break;
-            }
-        }
-        if (i < tbl.size()) {
-            return (uint8_t)i;
-        }
-        return std::nullopt;
-    }
-
     std::optional<uint256_t> try_to_resolve_push_arg(
         std::variant<uint256_t, std::string> const &arg,
         std::unordered_map<std::string, std::size_t> const &known_labels)
@@ -184,27 +171,18 @@ namespace monad::utils
                 [&](std::string const &lbl) {
                     auto search = known_labels.find(lbl);
                     if (search != known_labels.end()) {
-                        return std::make_optional((uint256_t)search->second);
+                        return std::make_optional(
+                            static_cast<uint256_t>(search->second));
                     }
-                    return (std::optional<uint256_t>)std::nullopt;
+                    return static_cast<std::optional<uint256_t>>(std::nullopt);
                 },
             },
             arg);
     }
 
-    void warn(std::string msg, std::string value)
+    void warn(std::string_view msg, std::string_view value)
     {
         std::cerr << "warning: " << msg << " " << value << '\n';
-    }
-
-    uint8_t min_bytes_to_store(uint256_t x)
-    {
-        uint8_t n = 0;
-        while (x > 0) {
-            x >>= 8;
-            n++;
-        }
-        return n;
     }
 
     void show_byte_at(
@@ -214,10 +192,12 @@ namespace monad::utils
         if (!verbose) {
             return;
         }
-        std::cout << "[0x" << std::hex << i << "] ";
-        std::cout << " 0x" << std::hex << (int)opcodes[i];
-        std::cout << s;
-        std::cout << '\n';
+        std::cerr << "[0x" << std::hex << i << "] ";
+        std::cerr << " 0x" << std::hex << static_cast<int>(opcodes[i]);
+        if (s != "") {
+            std::cerr << "      // " << s;
+        }
+        std::cerr << '\n';
     }
 
     void write_n_bytes_at(
@@ -230,15 +210,31 @@ namespace monad::utils
         }
 
         for (auto i = idx + n - 1; i >= idx; --i) {
-            opcodes[i] = (uint8_t)value & 0xff;
+            opcodes[i] = static_cast<uint8_t>(value) & 0xff;
             value >>= 8;
         }
         for (auto i = idx; i < idx + n; ++i) {
             show_byte_at(verbose, opcodes, i, "");
         }
         if (value > 0) {
-            err("value too large for push");
+            err("value too large for push", to_string(value));
         }
+    }
+
+    std::optional<uint8_t> find_opcode(std::string const op)
+    {
+        auto const &tbl =
+            monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
+        size_t i;
+        for (i = 0; i < tbl.size(); ++i) {
+            if (tbl[i].name == op) {
+                break;
+            }
+        }
+        if (i < tbl.size()) {
+            return static_cast<uint8_t>(i);
+        }
+        return std::nullopt;
     }
 
     uint8_t write_opcode(
@@ -246,30 +242,34 @@ namespace monad::utils
     {
         auto c = find_opcode(opname);
         if (!c.has_value()) {
-            err("unknown opcode");
+            err("unknown opcode", opname);
         }
         opcodes.push_back(c.value());
-        show_byte_at(verbose, opcodes, opcodes.size() - 1, "//     " + opname);
+        show_byte_at(verbose, opcodes, opcodes.size() - 1, opname);
         return c.value();
     }
 
-    void show_opcodes(std::vector<uint8_t> &opcodes)
+    std::string show_opcodes(std::vector<uint8_t> &opcodes)
     {
-        auto tbl = monad::compiler::make_opcode_table<EVMC_CANCUN>();
+        std::stringstream ss;
+        auto const &tbl =
+            monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
         for (std::size_t i = 0; i < opcodes.size(); ++i) {
-            std::cout << std::hex << "[0x" << i << "] ";
+            ss << std::hex << "[0x" << i << "] ";
             auto c = opcodes[i];
-            std::cout << "0x" << std::hex << (int)c;
-            std::cout << " " << tbl[c].name;
-            std::cout << '\n';
+            ss << "0x" << std::hex << static_cast<int>(c);
+            ss << " " << tbl[c].name;
+            ss << '\n';
             if (c >= PUSH1 && c <= PUSH32) {
                 for (auto j = 0; j < c - PUSH0; ++j) {
                     i++;
-                    std::cout << std::hex << "[0x" << i << "] ";
-                    std::cout << "0x" << std::hex << (int)opcodes[i] << '\n';
+                    ss << std::hex << "[0x" << i << "] ";
+                    ss << "0x" << std::hex << static_cast<int>(opcodes[i])
+                       << '\n';
                 }
             }
         }
+        return ss.str();
     }
 
     std::vector<uint8_t>
@@ -302,7 +302,8 @@ namespace monad::utils
                             value = r.value();
                         }
                         if (op.opname == "PUSH") {
-                            auto n = (int)min_bytes_to_store(value);
+                            auto n = static_cast<int>(
+                                count_significant_bytes(value));
 
                             opname = "PUSH" + std::to_string(n);
                         }
@@ -317,7 +318,7 @@ namespace monad::utils
                         if (op.label.has_value()) {
                             auto search = known_labels.find(op.label.value());
                             if (search != known_labels.end()) {
-                                err("multiply defined label");
+                                err("multiply defined label", op.label.value());
                             }
                             known_labels[op.label.value()] = opcodes.size();
                         }
@@ -328,12 +329,12 @@ namespace monad::utils
         }
         // resolve labels
         if (verbose) {
-            std::cout << "// resolving labels\n";
+            std::cerr << "// resolving labels\n";
         }
         for (auto const &p : unknown_labels) {
             auto search = known_labels.find(p.first);
             if (search == known_labels.end()) {
-                err("undefined label");
+                err("undefined label", p.first);
             }
             auto value = search->second;
             for (auto const &ix : p.second) {
@@ -341,7 +342,7 @@ namespace monad::utils
             }
         }
         if (verbose) {
-            std::cout << "// done\n";
+            std::cerr << "// done\n";
         }
         if (verbose) {
             show_opcodes(opcodes);
@@ -349,35 +350,30 @@ namespace monad::utils
         return opcodes;
     }
 
-    std::vector<uint8_t>
-    parse_opcodes(bool verbose, std::string filename, std::string str)
+    std::vector<uint8_t> parse_opcodes_helper(bool verbose, std::string &str)
     {
         auto tokens = std::vector<Token>{};
 
         char const *input = str.c_str();
 
-        if (verbose) {
-            std::cout << "parsing " << filename << '\n';
-        }
-
         while (*input) {
             auto const *p = try_parse_hex_constant(input);
             if (p != input) {
-                warn("unexpected hex constant", std::string(input, p));
+                warn("unexpected hex constant", std::string_view(input, p));
                 input = p;
                 continue;
             }
 
             p = try_parse_decimal_constant(input);
             if (p != input) {
-                warn("unexpected decimal constant", std::string(input, p));
+                warn("unexpected decimal constant", std::string_view(input, p));
                 input = p;
                 continue;
             }
 
             p = try_parse_label(input);
             if (p != input) {
-                warn("unexpected label", std::string(input, p));
+                warn("unexpected label", std::string_view(input, p));
                 input = p;
                 continue;
             }
@@ -420,6 +416,16 @@ namespace monad::utils
             input++; // otherwise ignore
         }
         return compile_tokens(verbose, tokens);
+    }
+
+    std::vector<uint8_t> parse_opcodes(std::string &str)
+    {
+        return parse_opcodes_helper(false, str);
+    }
+
+    std::vector<uint8_t> parse_opcodes_verbose(std::string &str)
+    {
+        return parse_opcodes_helper(true, str);
     }
 
 }
