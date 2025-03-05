@@ -5,6 +5,7 @@
 #include <monad/utils/uint256.hpp>
 
 #include <cstdint>
+#include <tuple>
 
 namespace monad::interpreter
 {
@@ -36,12 +37,28 @@ namespace monad::interpreter
             return *stack_top;
         }
 
+        template <std::size_t N>
+        [[gnu::always_inline]] inline auto pop_for_overwrite()
+        {
+            auto const popped =
+                [this]<std::size_t... Is>(std::index_sequence<Is...>) {
+                    return std::tie(((void)Is, pop())...);
+                }(std::make_index_sequence<N - 1>());
+
+            return std::tuple_cat(popped, std::tie(top()));
+        }
+
         [[gnu::always_inline]]
         inline void push(utils::uint256_t const &x)
         {
             MONAD_COMPILER_DEBUG_ASSERT(stack_size() < 1024);
             stack_top += 1;
             top() = x;
+        }
+
+        [[gnu::always_inline]] inline void next()
+        {
+            instr_ptr++;
         }
 
         std::ptrdiff_t stack_size() const noexcept

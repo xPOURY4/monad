@@ -19,23 +19,20 @@ namespace monad::interpreter
 
     void add(runtime::Context &, State &state)
     {
-        auto const &a = state.pop();
-        auto &b = state.top();
-
+        auto &&[a, b] = state.pop_for_overwrite<2>();
         b = a + b;
-
-        state.instr_ptr++;
+        state.next();
     }
 
     void mul(runtime::Context &ctx, State &state)
     {
         call_runtime(monad_runtime_mul, ctx, state);
-        state.instr_ptr++;
+        state.next();
     }
 
     void calldataload(runtime::Context &ctx, State &state)
     {
         call_runtime(runtime::calldataload, ctx, state);
-        state.instr_ptr++;
+        state.next();
     }
 }
