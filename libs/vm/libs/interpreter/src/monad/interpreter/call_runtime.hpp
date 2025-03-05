@@ -24,33 +24,42 @@ namespace monad::interpreter
 
         auto const stack_args =
             [&state]<std::size_t... Is>(std::index_sequence<Is...>) {
-                return std::array{(state.stack_top - Is)...};
+                return std::tuple{(state.stack_top - Is)...};
             }(std::make_index_sequence<stack_arg_count>());
 
-        auto const word_args = [&] {
-            if constexpr (use_context && use_result) {
-                return std::tuple_cat(
-                    std::tuple(&ctx, stack_args[stack_arg_count - 1]),
-                    stack_args);
-            }
-            else if constexpr (use_context) {
-                return std::tuple_cat(std::tuple(&ctx), stack_args);
-            }
-            else if constexpr (use_result) {
-                return std::tuple_cat(
-                    std::tuple(stack_args[stack_arg_count - 1]), stack_args);
+        auto const with_result_args = [&] {
+            if constexpr (use_result) {
+                if constexpr (stack_arg_count == 0) {
+                    return std::tuple_cat(
+                        std::tuple(state.stack_top + 1), stack_args);
+                }
+                else {
+                    return std::tuple_cat(
+                        std::tuple(std::get<stack_arg_count - 1>(stack_args)),
+                        stack_args);
+                }
             }
             else {
                 return stack_args;
             }
         }();
 
-        auto const all_args = [&] {
-            if constexpr (use_base_gas) {
-                return std::tuple_cat(word_args, std::tuple(std::int64_t{0}));
+        auto const with_context_args = [&] {
+            if constexpr (use_context) {
+                return std::tuple_cat(std::tuple(&ctx), with_result_args);
             }
             else {
-                return word_args;
+                return with_result_args;
+            }
+        }();
+
+        auto const all_args = [&] {
+            if constexpr (use_base_gas) {
+                return std::tuple_cat(
+                    with_context_args, std::tuple(std::int64_t{0}));
+            }
+            else {
+                return with_context_args;
             }
         }();
 

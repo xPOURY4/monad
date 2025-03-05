@@ -1,31 +1,36 @@
+#include <monad/interpreter/call_runtime.hpp>
 #include <monad/interpreter/instructions.hpp>
 #include <monad/interpreter/state.hpp>
+#include <monad/runtime/data.hpp>
+#include <monad/runtime/environment.hpp>
+#include <monad/runtime/keccak.hpp>
 #include <monad/runtime/math.hpp>
+#include <monad/runtime/runtime.hpp>
+#include <monad/runtime/storage.hpp>
+#include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
 #include <monad/utils/assert.h>
+#include <monad/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
-
-#include <format>
-#include <iostream>
-
-namespace monad::interpreter
-#include <monad/utils/uint256.hpp>
-{
-    using enum runtime::StatusCode;
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+
+namespace monad::interpreter
+{
+    using enum runtime::StatusCode;
+
+    void stop(runtime::Context &ctx, State &)
+    {
         ctx.exit(Success);
     }
 
-    void error(runtime::Context &, State &state)
+    void invalid(runtime::Context &ctx, State &)
     {
-        std::cerr << std::format("Unknown op: {:02X}\n", *state.instr_ptr);
-        abort();
-        // ctx.exit(Error);
+        ctx.exit(Error);
     }
 
     void add(runtime::Context &, State &state)
@@ -189,9 +194,206 @@ namespace monad::interpreter
         state.next();
     }
 
+    void sha3(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::sha3, ctx, state);
+        state.next();
+    }
+
+    void address(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_address(ctx.env.recipient));
+        state.next();
+    }
+
+    void origin(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_address(ctx.env.tx_context.tx_origin));
+        state.next();
+    }
+
+    void caller(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_address(ctx.env.sender));
+        state.next();
+    }
+
+    void callvalue(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_bytes32(ctx.env.value));
+        state.next();
+    }
+
     void calldataload(runtime::Context &ctx, State &state)
     {
         call_runtime(runtime::calldataload, ctx, state);
+        state.next();
+    }
+
+    void calldatasize(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.input_data_size);
+        state.next();
+    }
+
+    void calldatacopy(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::calldatacopy, ctx, state);
+        state.next();
+    }
+
+    void codesize(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.code_size);
+        state.next();
+    }
+
+    void codecopy(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::codecopy, ctx, state);
+        state.next();
+    }
+
+    void gasprice(runtime::Context &ctx, State &state)
+    {
+        state.push(
+            runtime::uint256_from_bytes32(ctx.env.tx_context.tx_gas_price));
+        state.next();
+    }
+
+    void returndatasize(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.return_data_size);
+        state.next();
+    }
+
+    void returndatacopy(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::returndatacopy, ctx, state);
+        state.next();
+    }
+
+    void blockhash(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::blockhash, ctx, state);
+        state.next();
+    }
+
+    void coinbase(runtime::Context &ctx, State &state)
+    {
+        state.push(
+            runtime::uint256_from_address(ctx.env.tx_context.block_coinbase));
+        state.next();
+    }
+
+    void timestamp(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.tx_context.block_timestamp);
+        state.next();
+    }
+
+    void number(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.tx_context.block_number);
+        state.next();
+    }
+
+    void prevrandao(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_bytes32(
+            ctx.env.tx_context.block_prev_randao));
+        state.next();
+    }
+
+    void gaslimit(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.env.tx_context.block_gas_limit);
+        state.next();
+    }
+
+    void chainid(runtime::Context &ctx, State &state)
+    {
+        state.push(runtime::uint256_from_bytes32(ctx.env.tx_context.chain_id));
+        state.next();
+    }
+
+    void selfbalance(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::selfbalance, ctx, state);
+        state.next();
+    }
+
+    void basefee(runtime::Context &ctx, State &state)
+    {
+        state.push(
+            runtime::uint256_from_bytes32(ctx.env.tx_context.block_base_fee));
+        state.next();
+    }
+
+    void blobhash(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::blobhash, ctx, state);
+        state.next();
+    }
+
+    void blobbasefee(runtime::Context &ctx, State &state)
+    {
+        state.push(
+            runtime::uint256_from_bytes32(ctx.env.tx_context.blob_base_fee));
+        state.next();
+    }
+
+    void mload(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::mload, ctx, state);
+        state.next();
+    }
+
+    void mstore(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::mstore, ctx, state);
+        state.next();
+    }
+
+    void mstore8(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::mstore8, ctx, state);
+        state.next();
+    }
+
+    void mcopy(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::mcopy, ctx, state);
+        state.next();
+    }
+
+    void tload(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::tload, ctx, state);
+        state.next();
+    }
+
+    void tstore(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::tstore, ctx, state);
+        state.next();
+    }
+
+    void pc(runtime::Context &, State &state)
+    {
+        state.push(state.instr_ptr - state.analysis.code());
+        state.next();
+    }
+
+    void msize(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.memory.size);
+        state.next();
+    }
+
+    void gas(runtime::Context &ctx, State &state)
+    {
+        state.push(ctx.gas_remaining);
         state.next();
     }
 
@@ -201,14 +403,15 @@ namespace monad::interpreter
         state.next();
     }
 
-    void jump(runtime::Context &ctx, State &state)
+    void jump_impl(
+        runtime::Context &ctx, State &state, utils::uint256_t const &target)
     {
-        auto const &jd_word = state.pop();
+        if (MONAD_COMPILER_UNLIKELY(
+                target > std::numeric_limits<std::size_t>::max())) {
+            ctx.exit(Error);
+        }
 
-        MONAD_COMPILER_DEBUG_ASSERT(
-            jd_word <= std::numeric_limits<std::size_t>::max());
-        auto const jd = static_cast<std::size_t>(jd_word);
-
+        auto const jd = static_cast<std::size_t>(target);
         if (MONAD_COMPILER_UNLIKELY(!state.analysis.is_jumpdest(jd))) {
             ctx.exit(Error);
         }
@@ -216,21 +419,19 @@ namespace monad::interpreter
         state.instr_ptr = state.analysis.code() + jd;
     }
 
+    void jump(runtime::Context &ctx, State &state)
+    {
+        auto const &target = state.pop();
+        jump_impl(ctx, state, target);
+    }
+
     void jumpi(runtime::Context &ctx, State &state)
     {
-        auto const &jd_word = state.pop();
+        auto const &target = state.pop();
         auto const &cond = state.pop();
 
         if (cond) {
-            MONAD_COMPILER_DEBUG_ASSERT(
-                jd_word <= std::numeric_limits<std::size_t>::max());
-            auto const jd = static_cast<std::size_t>(jd_word);
-
-            if (MONAD_COMPILER_UNLIKELY(!state.analysis.is_jumpdest(jd))) {
-                ctx.exit(Error);
-            }
-
-            state.instr_ptr = state.analysis.code() + jd;
+            jump_impl(ctx, state, target);
         }
         else {
             state.next();
@@ -252,5 +453,17 @@ namespace monad::interpreter
         }
 
         ctx.exit(Success);
+    }
+
+    void revert(runtime::Context &ctx, State &state)
+    {
+        for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
+            std::copy_n(
+                intx::as_bytes(state.pop()),
+                32,
+                reinterpret_cast<std::uint8_t *>(result_loc));
+        }
+
+        ctx.exit(Revert);
     }
 }

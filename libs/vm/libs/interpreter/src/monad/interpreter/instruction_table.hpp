@@ -19,7 +19,7 @@ namespace monad::interpreter
     consteval InstrTable make_instruction_table()
     {
         constexpr auto since = [](evmc_revision first, InstrEval impl) {
-            return (Rev >= first) ? impl : error;
+            return (Rev >= first) ? impl : invalid;
         };
 
         return {
@@ -35,10 +35,10 @@ namespace monad::interpreter
             mulmod, // 0x09,
             exp<Rev>, // 0x0A,
             signextend, // 0x0B,
-            error, //
-            error, //
-            error, //
-            error, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
             lt, // 0x10,
             gt, // 0x11,
@@ -54,76 +54,76 @@ namespace monad::interpreter
             since(EVMC_CONSTANTINOPLE, shl), // 0x1B,
             since(EVMC_CONSTANTINOPLE, shr), // 0x1C,
             since(EVMC_CONSTANTINOPLE, sar), // 0x1D,
-            error, //
-            error, //
+            invalid, //
+            invalid, //
 
-            error, // 0x20,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            sha3, // 0x20,
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, // 0x30,
-            error, // 0x31,
-            error, // 0x32,
-            error, // 0x33,
-            error, // 0x34,
+            address, // 0x30,
+            balance<Rev>, // 0x31,
+            origin, // 0x32,
+            caller, // 0x33,
+            callvalue, // 0x34,
             calldataload, // 0x35,
-            error, // 0x36,
-            error, // 0x37,
-            error, // 0x38,
-            error, // 0x39,
-            error, // 0x3A,
-            error, // 0x3B,
-            error, // 0x3C,
-            error, //
-            error, //
-            error, //
+            calldatasize, // 0x36,
+            calldatacopy, // 0x37,
+            codesize, // 0x38,
+            codecopy, // 0x39,
+            gasprice, // 0x3A,
+            extcodesize<Rev>, // 0x3B,
+            extcodecopy<Rev>, // 0x3C,
+            since(EVMC_BYZANTIUM, returndatasize), // 0x3D,
+            since(EVMC_BYZANTIUM, returndatacopy), // 0x3E,
+            since(EVMC_CONSTANTINOPLE, extcodehash<Rev>), // 0x3F,
 
-            error, // 0x40,
-            error, // 0x41,
-            error, // 0x42,
-            error, // 0x43,
-            error, // 0x44,
-            error, // 0x45,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            blockhash, // 0x40,
+            coinbase, // 0x41,
+            timestamp, // 0x42,
+            number, // 0x43,
+            prevrandao, // 0x44,
+            gaslimit, // 0x45,
+            since(EVMC_ISTANBUL, chainid), // 0x46,
+            since(EVMC_ISTANBUL, selfbalance), // 0x47,
+            since(EVMC_LONDON, basefee), // 0x48,
+            since(EVMC_CANCUN, blobhash), // 0x49,
+            since(EVMC_CANCUN, blobbasefee), // 0x4A,
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
             pop, // 0x50,
-            error, // 0x51,
-            error, // 0x52,
-            error, // 0x53,
+            mload, // 0x51,
+            mstore, // 0x52,
+            mstore8, // 0x53,
             sload<Rev>, // 0x54,
             sstore<Rev>, // 0x55,
             jump, // 0x56,
             jumpi, // 0x57,
-            error, // 0x58,
-            error, // 0x59,
-            error, // 0x5A,
+            pc, // 0x58,
+            msize, // 0x59,
+            gas, // 0x5A,
             jumpdest, // 0x5B,
-            error, //
-            error, //
-            error, //
-            error, //
+            since(EVMC_CANCUN, tload), // 0x5C,
+            since(EVMC_CANCUN, tstore), // 0x5D,
+            since(EVMC_CANCUN, mcopy), // 0x5E,
+            since(EVMC_SHANGHAI, push<0>), // 0x5F,
 
             push<1>, // 0x60,
             push<2>, // 0x61,
@@ -193,107 +193,107 @@ namespace monad::interpreter
             swap<15>, // 0x9E,
             swap<16>, // 0x9F,
 
-            error, // 0xA0,
-            error, // 0xA1,
-            error, // 0xA2,
-            error, // 0xA3,
-            error, // 0xA4,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            log<0>, // 0xA0,
+            log<1>, // 0xA1,
+            log<2>, // 0xA2,
+            log<3>, // 0xA3,
+            log<4>, // 0xA4,
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
 
-            error, // 0xF0,
+            create<Rev>, // 0xF0,
             call<Rev>, // 0xF1,
-            error, // 0xF2,
+            callcode<Rev>, // 0xF2,
             return_, // 0xF3,
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error, //
-            error // 0xFF,
+            since(EVMC_HOMESTEAD, delegatecall<Rev>), // 0xF4,
+            since(EVMC_CONSTANTINOPLE, create2<Rev>), // 0xF5,
+            invalid, //
+            invalid, //
+            invalid, //
+            invalid, //
+            since(EVMC_BYZANTIUM, staticcall<Rev>), // 0xFA,
+            invalid, //
+            invalid, //
+            since(EVMC_BYZANTIUM, revert), // 0xFD,
+            invalid, // 0xFE,
+            selfdestruct<Rev>, // 0xFF,
         };
     }
 

@@ -53,7 +53,8 @@ namespace monad::interpreter
 
             if (MONAD_COMPILER_UNLIKELY(
                     stack_size < info.min_stack ||
-                    (stack_size == 1024 && info.increases_stack))) {
+                    (stack_size - info.min_stack + info.increases_stack >
+                     1024))) {
                 ctx.exit(runtime::StatusCode::Error);
             }
         }
@@ -65,6 +66,32 @@ namespace monad::interpreter
 
             while (true) {
                 auto const instr = *state.instr_ptr;
+
+#if 0
+                auto const &info = compiler::opcode_table<Rev>[instr];
+                std::clog << std::format(
+                    "{{\"pc\":{},\"op\":{},\"gas\":\"0x{:x}\",\"gasCost\":\"0x{"
+                    ":x}\",\"memSize\":{},\"stack\":[",
+                    state.instr_ptr - state.analysis.code(),
+                    instr,
+                    ctx.gas_remaining,
+                    info.dynamic_gas ? 0 : info.min_gas,
+                    ctx.memory.size);
+
+                auto comma = "";
+                for (auto i = state.stack_size() - 1; i >= 0; --i) {
+                    std::clog << std::format(
+                        "{}\"0x{}\"",
+                        comma,
+                        intx::to_string(*(state.stack_top - i), 16));
+                    comma = ",";
+                }
+                std::clog << std::format(
+                    "],\"depth\":{},\"refund\":{},\"opName\":\"{}\"}}\n",
+                    ctx.env.depth,
+                    ctx.gas_refund,
+                    info.name);
+#endif
 
                 charge_static_gas<Rev>(instr, ctx);
                 check_stack<Rev>(instr, ctx, state, stack_bottom);
