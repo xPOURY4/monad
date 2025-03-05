@@ -4,6 +4,7 @@
 #include <monad/interpreter/state.hpp>
 #include <monad/runtime/call.hpp>
 #include <monad/runtime/data.hpp>
+#include <monad/runtime/math.hpp>
 #include <monad/runtime/storage.hpp>
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
@@ -30,7 +31,7 @@ namespace monad::interpreter
     void sstore(runtime::Context &ctx, State &state)
     {
         call_runtime(runtime::sstore<Rev>, ctx, state);
-        state.instr_ptr++;
+        state.next();
     }
 
     void calldataload(runtime::Context &ctx, State &state);
@@ -39,10 +40,25 @@ namespace monad::interpreter
     void call(runtime::Context &ctx, State &state)
     {
         call_runtime(runtime::call<Rev>, ctx, state);
-        state.instr_ptr++;
+        state.next();
     }
 
     void add(runtime::Context &, State &);
-
     void mul(runtime::Context &, State &);
+    void sub(runtime::Context &, State &);
+    void udiv(runtime::Context &, State &);
+    void sdiv(runtime::Context &, State &);
+    void umod(runtime::Context &, State &);
+    void smod(runtime::Context &, State &);
+    void addmod(runtime::Context &, State &);
+    void mulmod(runtime::Context &, State &);
+
+    template <evmc_revision Rev>
+    void exp(runtime::Context &ctx, State &state)
+    {
+        call_runtime(runtime::exp<Rev>, ctx, state);
+        state.next();
+    }
+
+    void signextend(runtime::Context &, State &);
 }
