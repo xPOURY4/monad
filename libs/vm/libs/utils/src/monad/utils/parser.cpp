@@ -224,7 +224,7 @@ namespace monad::utils
         }
     }
 
-    std::optional<uint8_t> find_opcode(std::string const op)
+    std::optional<uint8_t> find_opcode(std::string_view op)
     {
         auto const &tbl =
             monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
