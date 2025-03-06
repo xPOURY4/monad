@@ -36,7 +36,7 @@ namespace monad::fuzzing
     template <typename Engine>
     Constant meaningful_constant(Engine &gen)
     {
-        constexpr auto values = std::array<utils::uint256_t, 4>{
+        static constexpr auto values = std::array<utils::uint256_t, 4>{
             0,
             1,
             intx::exp(utils::uint256_t(2), utils::uint256_t(255)),
@@ -64,7 +64,7 @@ namespace monad::fuzzing
     Constant random_constant(Engine &gen)
         requires(Bits % 64 == 0 && Bits > 0 && Bits <= 256)
     {
-        constexpr auto words = Bits / 64;
+        static constexpr auto words = Bits / 64;
         auto dist =
             std::uniform_int_distribution<utils::uint256_t::word_type>();
 
@@ -126,8 +126,8 @@ namespace monad::fuzzing
     struct Call
     {
         std::uint8_t opcode;
-        std::optional<uint8_t> gas_pct;
-        Constant value;
+        uint8_t gas_pct;
+        uint8_t balance_pct;
         Constant argsOffset;
         Constant argsSize;
         Constant retOffset;
@@ -135,30 +135,15 @@ namespace monad::fuzzing
     };
 
     template <typename Engine>
-    Constant call_value_constant(Engine &gen)
-    {
-        auto init_values = [](void) constexpr {
-            std::array<utils::uint256_t, 100> values{};
-            std::fill(values.begin(), values.begin() + 3, 1);
-            values[3] = 2;
-            values[4] = std::numeric_limits<utils::uint256_t>::max();
-            return values;
-        };
-        constexpr auto values = init_values();
-
-        return Constant{uniform_sample(gen, values)};
-    }
-
-    template <typename Engine>
     Call generate_call(Engine &eng)
     {
-        auto gas_pcts = std::vector<std::optional<uint8_t>>{
-            std::nullopt, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        static constexpr auto pcts =
+            std::array<uint8_t, 12>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
         return Call{
             .opcode = uniform_sample(eng, call_non_terminators),
-            .gas_pct = uniform_sample(eng, gas_pcts),
-            .value = call_value_constant(eng),
+            .gas_pct = uniform_sample(eng, pcts),
+            .balance_pct = uniform_sample(eng, pcts),
             .argsOffset = memory_constant(eng),
             .argsSize = memory_constant(eng),
             .retOffset = memory_constant(eng),
@@ -203,7 +188,7 @@ namespace monad::fuzzing
     std::vector<Instruction>
     generate_block(Engine &eng, bool const is_exit, bool const is_main)
     {
-        constexpr std::size_t max_block_insts = 1000;
+        static constexpr std::size_t max_block_insts = 1000;
 
         auto program = std::vector<Instruction>{};
 
@@ -213,17 +198,19 @@ namespace monad::fuzzing
         // proportionately to the total number of EVM opcodes. This could be
         // changed in the future to reconfigure the number of pushes vs. other
         // instructions.
-        constexpr auto total_non_term_prob = 0.90;
-        constexpr auto push_weight = (32.0 / 148.0);
-        constexpr auto call_weight = (4.0 / 148.0);
-        constexpr auto non_term_weight = 1.0 - (push_weight + call_weight);
+        static constexpr auto total_non_term_prob = 0.90;
+        static constexpr auto push_weight = (32.0 / 148.0);
+        static constexpr auto call_weight = (4.0 / 148.0);
+        static constexpr auto non_term_weight =
+            1.0 - (push_weight + call_weight);
 
-        constexpr auto push_prob = total_non_term_prob * push_weight;
-        constexpr auto call_prob = total_non_term_prob * call_weight;
-        constexpr auto non_term_prob = total_non_term_prob * non_term_weight;
+        static constexpr auto push_prob = total_non_term_prob * push_weight;
+        static constexpr auto call_prob = total_non_term_prob * call_weight;
+        static constexpr auto non_term_prob =
+            total_non_term_prob * non_term_weight;
 
-        constexpr auto random_byte_prob = 0.000001;
-        constexpr auto terminate_prob =
+        static constexpr auto random_byte_prob = 0.000001;
+        static constexpr auto terminate_prob =
             (1 - total_non_term_prob) - random_byte_prob;
 
         if (is_main) {
@@ -301,13 +288,22 @@ namespace monad::fuzzing
 
     void compile_constant(std::vector<std::uint8_t> &program, Constant const &c)
     {
-
         program.push_back(PUSH32);
 
         auto const *bs = intx::as_bytes(c.value);
         for (auto i = 31; i >= 0; --i) {
             program.push_back(bs[i]);
         }
+    }
+
+    void compile_percent(std::vector<std::uint8_t> &program, uint8_t pct)
+    {
+        program.push_back(PUSH1);
+        program.push_back(pct);
+        program.push_back(MUL);
+        program.push_back(PUSH1);
+        program.push_back(10);
+        program.push_back(DIV);
     }
 
     template <typename Engine>
@@ -318,33 +314,23 @@ namespace monad::fuzzing
         if (valid_addresses.empty()) {
             return;
         }
-        program.push_back(call.opcode);
-        if (call.gas_pct.has_value()) {
-            // send some percentage of available gas
-            program.push_back(GAS);
-            program.push_back(PUSH1);
-            program.push_back(call.gas_pct.value());
-            program.push_back(MUL);
-            program.push_back(PUSH1);
-            program.push_back(10);
-            program.push_back(DIV);
-        }
-        else {
-            // attempt to send too much gas
-            program.push_back(GAS);
-            program.push_back(PUSH1);
-            program.push_back(1);
-            program.push_back(ADD);
-        }
-        compile_address(eng, program, valid_addresses);
+
+        compile_constant(program, call.retSize);
+        compile_constant(program, call.retOffset);
+        compile_constant(program, call.argsSize);
+        compile_constant(program, call.argsOffset);
 
         if (call.opcode == CALL || call.opcode == CALLCODE) {
-            compile_constant(program, call.value);
+            program.push_back(BALANCE);
+            compile_percent(program, call.balance_pct);
         }
-        compile_constant(program, call.argsOffset);
-        compile_constant(program, call.argsSize);
-        compile_constant(program, call.retOffset);
-        compile_constant(program, call.retSize);
+
+        compile_address(eng, program, valid_addresses);
+
+        // send some percentage of available gas
+        program.push_back(GAS);
+        compile_percent(program, call.gas_pct);
+        program.push_back(call.opcode);
     }
 
     template <typename Engine>
