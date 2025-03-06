@@ -258,11 +258,7 @@ namespace monad::utils
         auto const &tbl =
             monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
         for (std::size_t i = 0; i < opcodes.size(); ++i) {
-            ss << std::hex << "[0x" << i << "] ";
-            auto c = opcodes[i];
-            ss << "0x" << std::hex << static_cast<int>(c);
-            ss << " " << tbl[c].name;
-            ss << '\n';
+            ss << std::format("[{:#x}] {:#x} {}\n", i, opcodes[i], tbl[opcodes[i]].name);
             if (c >= PUSH1 && c <= PUSH32) {
                 for (auto j = 0; j < c - PUSH0; ++j) {
                     i++;
