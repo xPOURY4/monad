@@ -24,16 +24,16 @@ namespace monad::utils
      *
      */
 
-    std::vector<uint8_t> parse_opcodes(std::string &str);
+    std::vector<uint8_t> parse_opcodes(std::string const &str);
 
     /**
      * the same as parse_opcodes but it writes info to stderr as it is working
      */
-    std::vector<uint8_t> parse_opcodes_verbose(std::string &str);
+    std::vector<uint8_t> parse_opcodes_verbose(std::string const &str);
 
     /**
      *  convert from binary evm bytecode to text opcodes and data
      */
-    std::string show_opcodes(std::vector<uint8_t> &opcodes);
+    std::string show_opcodes(std::vector<uint8_t> const &opcodes);
 
 }

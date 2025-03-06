@@ -99,7 +99,7 @@ namespace monad::utils
 
     void err(std::string_view msg, std::string_view value)
     {
-        std::cerr << "error: " << msg << ' ' << value << '\n';
+        std::cerr << "error: " << msg << ": " << value << '\n';
         exit(1);
     }
 
@@ -182,7 +182,7 @@ namespace monad::utils
 
     void warn(std::string_view msg, std::string_view value)
     {
-        std::cerr << "warning: " << msg << " " << value << '\n';
+        std::cerr << "warning: " << msg << ": " << value << '\n';
     }
 
     void show_byte_at(
@@ -204,20 +204,23 @@ namespace monad::utils
         bool verbose, std::vector<uint8_t> &opcodes, uint256_t value,
         std::size_t n, std::size_t idx)
     {
+        auto v = value;
         auto sz = idx + n;
         if (sz > opcodes.size()) {
             opcodes.resize(sz);
         }
 
         for (auto i = idx + n - 1; i >= idx; --i) {
-            opcodes[i] = static_cast<uint8_t>(value) & 0xff;
-            value >>= 8;
+            opcodes[i] = static_cast<uint8_t>(v) & 0xff;
+            v >>= 8;
         }
+
         for (auto i = idx; i < idx + n; ++i) {
             show_byte_at(verbose, opcodes, i, "");
         }
-        if (value > 0) {
-            err("value too large for push", to_string(value));
+
+        if (v > 0) {
+            err("value too large for push", intx::to_string(value));
         }
     }
 
@@ -249,7 +252,7 @@ namespace monad::utils
         return c.value();
     }
 
-    std::string show_opcodes(std::vector<uint8_t> &opcodes)
+    std::string show_opcodes(std::vector<uint8_t> const &opcodes)
     {
         std::stringstream ss;
         auto const &tbl =
@@ -350,7 +353,8 @@ namespace monad::utils
         return opcodes;
     }
 
-    std::vector<uint8_t> parse_opcodes_helper(bool verbose, std::string &str)
+    std::vector<uint8_t>
+    parse_opcodes_helper(bool verbose, std::string const &str)
     {
         auto tokens = std::vector<Token>{};
 
@@ -418,12 +422,12 @@ namespace monad::utils
         return compile_tokens(verbose, tokens);
     }
 
-    std::vector<uint8_t> parse_opcodes(std::string &str)
+    std::vector<uint8_t> parse_opcodes(std::string const &str)
     {
         return parse_opcodes_helper(false, str);
     }
 
-    std::vector<uint8_t> parse_opcodes_verbose(std::string &str)
+    std::vector<uint8_t> parse_opcodes_verbose(std::string const &str)
     {
         return parse_opcodes_helper(true, str);
     }
