@@ -95,6 +95,7 @@ jobs:
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
               run: |
+                ulimit -s 32768
                 ./build/test/blockchain/interpreter-blockchain-tests
 
     code-quality:
