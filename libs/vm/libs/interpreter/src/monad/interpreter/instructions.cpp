@@ -443,7 +443,8 @@ namespace monad::interpreter
         state.next();
     }
 
-    void return_(runtime::Context &ctx, State &state)
+    void return_impl(
+        runtime::StatusCode const code, runtime::Context &ctx, State &state)
     {
         for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
             std::copy_n(
@@ -452,18 +453,16 @@ namespace monad::interpreter
                 reinterpret_cast<std::uint8_t *>(result_loc));
         }
 
-        ctx.exit(Success);
+        ctx.exit(code);
+    }
+
+    void return_(runtime::Context &ctx, State &state)
+    {
+        return_impl(Success, ctx, state);
     }
 
     void revert(runtime::Context &ctx, State &state)
     {
-        for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
-            std::copy_n(
-                intx::as_bytes(state.pop()),
-                32,
-                reinterpret_cast<std::uint8_t *>(result_loc));
-        }
-
-        ctx.exit(Revert);
+        return_impl(Revert, ctx, state);
     }
 }
