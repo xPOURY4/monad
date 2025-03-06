@@ -241,7 +241,7 @@ namespace monad::utils
     }
 
     uint8_t write_opcode(
-        bool verbose, std::vector<uint8_t> &opcodes, std::string opname)
+        bool verbose, std::vector<uint8_t> &opcodes, std::string_view opname)
     {
         auto c = find_opcode(opname);
         if (!c.has_value()) {
