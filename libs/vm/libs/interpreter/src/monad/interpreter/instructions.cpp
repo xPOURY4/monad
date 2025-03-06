@@ -35,7 +35,7 @@ namespace monad::interpreter
 
     void add(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = a + b;
         state.next();
     }
@@ -48,7 +48,7 @@ namespace monad::interpreter
 
     void sub(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = a - b;
         state.next();
     }
@@ -91,42 +91,42 @@ namespace monad::interpreter
 
     void signextend(runtime::Context &, State &state)
     {
-        auto &&[b, x] = state.pop_for_overwrite<2>();
+        auto &&[b, x] = state.pop_for_overwrite();
         x = monad::utils::signextend(b, x);
         state.next();
     }
 
     void lt(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = (a < b) ? 1 : 0;
         state.next();
     }
 
     void gt(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = (a > b) ? 1 : 0;
         state.next();
     }
 
     void slt(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = intx::slt(a, b) ? 1 : 0;
         state.next();
     }
 
     void sgt(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = intx::slt(b, a) ? 1 : 0; // note swapped arguments
         state.next();
     }
 
     void eq(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = (a == b) ? 1 : 0;
         state.next();
     }
@@ -140,21 +140,21 @@ namespace monad::interpreter
 
     void and_(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = a & b;
         state.next();
     }
 
     void or_(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = a | b;
         state.next();
     }
 
     void xor_(runtime::Context &, State &state)
     {
-        auto &&[a, b] = state.pop_for_overwrite<2>();
+        auto &&[a, b] = state.pop_for_overwrite();
         b = a ^ b;
         state.next();
     }
@@ -168,28 +168,28 @@ namespace monad::interpreter
 
     void byte(runtime::Context &, State &state)
     {
-        auto &&[i, x] = state.pop_for_overwrite<2>();
+        auto &&[i, x] = state.pop_for_overwrite();
         x = utils::byte(i, x);
         state.next();
     }
 
     void shl(runtime::Context &, State &state)
     {
-        auto &&[shift, value] = state.pop_for_overwrite<2>();
+        auto &&[shift, value] = state.pop_for_overwrite();
         value <<= shift;
         state.next();
     }
 
     void shr(runtime::Context &, State &state)
     {
-        auto &&[shift, value] = state.pop_for_overwrite<2>();
+        auto &&[shift, value] = state.pop_for_overwrite();
         value >>= shift;
         state.next();
     }
 
     void sar(runtime::Context &, State &state)
     {
-        auto &&[shift, value] = state.pop_for_overwrite<2>();
+        auto &&[shift, value] = state.pop_for_overwrite();
         value = monad::utils::sar(shift, value);
         state.next();
     }

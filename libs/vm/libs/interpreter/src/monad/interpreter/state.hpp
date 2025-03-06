@@ -35,15 +35,10 @@ namespace monad::interpreter
             return *stack_top;
         }
 
-        template <std::size_t N>
         [[gnu::always_inline]] inline auto pop_for_overwrite()
         {
-            auto const popped =
-                [this]<std::size_t... Is>(std::index_sequence<Is...>) {
-                    return std::tie(((void)Is, pop())...);
-                }(std::make_index_sequence<N - 1>());
-
-            return std::tuple_cat(popped, std::tie(top()));
+            auto const &a = pop();
+            return std::tie(a, top());
         }
 
         [[gnu::always_inline]]
