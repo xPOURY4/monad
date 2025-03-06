@@ -95,8 +95,7 @@ jobs:
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
               run: |
-                ./build/test/blockchain/interpreter-blockchain-tests \
-                  --gtest_filter='*add11*:*mul'
+                ./build/test/blockchain/interpreter-blockchain-tests
 
     code-quality:
         name: Code quality checks
