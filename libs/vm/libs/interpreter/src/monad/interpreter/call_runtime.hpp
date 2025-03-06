@@ -65,8 +65,10 @@ namespace monad::interpreter
 
         std::apply(f, all_args);
 
-        constexpr auto stack_adjustment =
-            stack_arg_count - (use_result ? 1 : 0);
+        static_assert(
+            stack_arg_count <= std::numeric_limits<std::ptrdiff_t>::max());
+        constexpr std::ptrdiff_t stack_adjustment =
+            static_cast<std::ptrdiff_t>(stack_arg_count) - (use_result ? 1 : 0);
         state.stack_top -= stack_adjustment;
     }
 }
