@@ -187,7 +187,7 @@ namespace monad::utils
 
     void show_byte_at(
         bool verbose, std::vector<uint8_t> const &opcodes, std::size_t i,
-        std::string s)
+        std::string_view s)
     {
         if (!verbose) {
             return;
@@ -258,7 +258,8 @@ namespace monad::utils
         auto const &tbl =
             monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
         for (std::size_t i = 0; i < opcodes.size(); ++i) {
-            ss << std::format("[{:#x}] {:#x} {}\n", i, opcodes[i], tbl[opcodes[i]].name);
+            auto c = opcodes[i];
+            ss << std::format("[{:#x}] {:#x} {}\n", i, c, tbl[opcodes[i]].name);
             if (c >= PUSH1 && c <= PUSH32) {
                 for (auto j = 0; j < c - PUSH0; ++j) {
                     i++;
