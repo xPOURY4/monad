@@ -18,7 +18,7 @@ namespace monad::interpreter
         requires(N <= 32)
     void push(runtime::Context &, State &state)
     {
-        state.push(runtime::uint256_load_bounded_le(state.instr_ptr + 1, N));
+        state.push(runtime::uint256_load_immediate<N>(state.instr_ptr + 1));
         state.instr_ptr += N + 1;
     }
 

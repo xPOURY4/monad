@@ -61,15 +61,14 @@ namespace monad::runtime
             std::byteswap(ts[0])};
     }
 
+    template <std::size_t N>
+        requires(N <= 32)
     [[gnu::always_inline]]
-    inline utils::uint256_t
-    uint256_load_bounded_le(std::uint8_t const *bytes, std::uint32_t max_len)
+    inline utils::uint256_t uint256_load_immediate(std::uint8_t const *bytes)
     {
         auto ret = utils::uint256_t{};
         std::memcpy(
-            reinterpret_cast<std::uint8_t *>(&ret) + (32 - max_len),
-            bytes,
-            max_len);
+            reinterpret_cast<std::uint8_t *>(&ret) + (32 - N), bytes, N);
         return intx::bswap(ret);
     }
 
