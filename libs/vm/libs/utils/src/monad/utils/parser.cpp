@@ -138,7 +138,7 @@ namespace monad::utils
         return input;
     }
 
-    bool is_push(std::string op)
+    bool is_push(std::string_view op)
     {
         return (find(push_ops.begin(), push_ops.end(), op) != push_ops.end());
     }
