@@ -262,9 +262,7 @@ namespace monad::utils
             if (c >= PUSH1 && c <= PUSH32) {
                 for (auto j = 0; j < c - PUSH0; ++j) {
                     i++;
-                    ss << std::hex << "[0x" << i << "] ";
-                    ss << "0x" << std::hex << static_cast<int>(opcodes[i])
-                       << '\n';
+                    ss << std::format("[{:#x}] {:#x}\n", i, opcodes[i]);
                 }
             }
         }
