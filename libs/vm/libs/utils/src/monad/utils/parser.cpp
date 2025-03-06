@@ -346,8 +346,6 @@ namespace monad::utils
         }
         if (verbose) {
             std::cerr << "// done\n";
-        }
-        if (verbose) {
             show_opcodes(opcodes);
         }
         return opcodes;
