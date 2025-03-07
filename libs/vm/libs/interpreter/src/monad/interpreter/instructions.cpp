@@ -403,20 +403,23 @@ namespace monad::interpreter
         state.next();
     }
 
-    void jump_impl(
-        runtime::Context &ctx, State &state, utils::uint256_t const &target)
+    namespace
     {
-        if (MONAD_COMPILER_UNLIKELY(
-                target > std::numeric_limits<std::size_t>::max())) {
-            ctx.exit(Error);
-        }
+        void jump_impl(
+            runtime::Context &ctx, State &state, utils::uint256_t const &target)
+        {
+            if (MONAD_COMPILER_UNLIKELY(
+                    target > std::numeric_limits<std::size_t>::max())) {
+                ctx.exit(Error);
+            }
 
-        auto const jd = static_cast<std::size_t>(target);
-        if (MONAD_COMPILER_UNLIKELY(!state.analysis.is_jumpdest(jd))) {
-            ctx.exit(Error);
-        }
+            auto const jd = static_cast<std::size_t>(target);
+            if (MONAD_COMPILER_UNLIKELY(!state.analysis.is_jumpdest(jd))) {
+                ctx.exit(Error);
+            }
 
-        state.instr_ptr = state.analysis.code() + jd;
+            state.instr_ptr = state.analysis.code() + jd;
+        }
     }
 
     void jump(runtime::Context &ctx, State &state)
@@ -443,17 +446,20 @@ namespace monad::interpreter
         state.next();
     }
 
-    void return_impl(
-        runtime::StatusCode const code, runtime::Context &ctx, State &state)
+    namespace
     {
-        for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
-            std::copy_n(
-                intx::as_bytes(state.pop()),
-                32,
-                reinterpret_cast<std::uint8_t *>(result_loc));
-        }
+        void return_impl(
+            runtime::StatusCode const code, runtime::Context &ctx, State &state)
+        {
+            for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
+                std::copy_n(
+                    intx::as_bytes(state.pop()),
+                    32,
+                    reinterpret_cast<std::uint8_t *>(result_loc));
+            }
 
-        ctx.exit(code);
+            ctx.exit(code);
+        }
     }
 
     void return_(runtime::Context &ctx, State &state)
