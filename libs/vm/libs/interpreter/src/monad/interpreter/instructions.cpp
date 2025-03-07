@@ -99,42 +99,42 @@ namespace monad::interpreter
     void lt(runtime::Context &, State &state)
     {
         auto &&[a, b] = state.pop_for_overwrite();
-        b = (a < b) ? 1 : 0;
+        b = a < b;
         state.next();
     }
 
     void gt(runtime::Context &, State &state)
     {
         auto &&[a, b] = state.pop_for_overwrite();
-        b = (a > b) ? 1 : 0;
+        b = a > b;
         state.next();
     }
 
     void slt(runtime::Context &, State &state)
     {
         auto &&[a, b] = state.pop_for_overwrite();
-        b = intx::slt(a, b) ? 1 : 0;
+        b = intx::slt(a, b);
         state.next();
     }
 
     void sgt(runtime::Context &, State &state)
     {
         auto &&[a, b] = state.pop_for_overwrite();
-        b = intx::slt(b, a) ? 1 : 0; // note swapped arguments
+        b = intx::slt(b, a); // note swapped arguments
         state.next();
     }
 
     void eq(runtime::Context &, State &state)
     {
         auto &&[a, b] = state.pop_for_overwrite();
-        b = (a == b) ? 1 : 0;
+        b = (a == b);
         state.next();
     }
 
     void iszero(runtime::Context &, State &state)
     {
         auto &a = state.top();
-        a = (a == 0) ? 1 : 0;
+        a = (a == 0);
         state.next();
     }
 
