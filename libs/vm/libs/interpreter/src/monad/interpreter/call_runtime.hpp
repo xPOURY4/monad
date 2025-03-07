@@ -30,8 +30,7 @@ namespace monad::interpreter
         auto const with_result_args = [&] {
             if constexpr (use_result) {
                 if constexpr (stack_arg_count == 0) {
-                    return std::tuple_cat(
-                        std::tuple(state.stack_top + 1), stack_args);
+                    return std::tuple(state.stack_top + 1);
                 }
                 else {
                     return std::tuple_cat(
