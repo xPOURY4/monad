@@ -82,7 +82,7 @@ jobs:
             - name: Run unit tests
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
-              run: ./build/test/unit-tests
+              run: ./build/test/unit/unit-tests
 
             - name: Run compiler Ethereum tests
               env:
