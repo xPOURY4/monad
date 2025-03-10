@@ -108,9 +108,9 @@ namespace monad::compiler::basic_blocks
             return 0;
         case InvalidInstruction:
             return 0;
-        default:
-            std::unreachable();
         }
+
+        std::unreachable();
     }
 
     /**
@@ -132,9 +132,9 @@ namespace monad::compiler::basic_blocks
         case FallThrough:
         case InvalidInstruction:
             return 0;
-        default:
-            std::unreachable();
         }
+
+        std::unreachable();
     }
 
     /**

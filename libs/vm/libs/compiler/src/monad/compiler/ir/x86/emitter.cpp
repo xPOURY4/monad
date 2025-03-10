@@ -3478,9 +3478,9 @@ namespace monad::compiler::native
             }
         case LocationType::AvxReg:
             return avx_reg_to_ymm(*elem->avx_reg());
-        default:
-            std::unreachable();
         }
+
+        std::unreachable();
     }
 
     template <
@@ -3510,6 +3510,9 @@ namespace monad::compiler::native
         }();
 
         if (std::holds_alternative<Gpq256>(dst_op)) {
+            MONAD_COMPILER_DEBUG_ASSERT(
+                !std::holds_alternative<x86::Ymm>(src_op));
+
             Gpq256 const &dst_gpq = std::get<Gpq256>(dst_op);
             std::visit(
                 Cases{
@@ -4866,6 +4869,9 @@ namespace monad::compiler::native
 
         // The general logic for computing (a + b) & (n - 1)
         if (std::holds_alternative<Gpq256>(left_op)) {
+            MONAD_COMPILER_DEBUG_ASSERT(
+                !std::holds_alternative<x86::Ymm>(right_op));
+
             Gpq256 const &a = std::get<Gpq256>(left_op);
             std::visit(
                 Cases{

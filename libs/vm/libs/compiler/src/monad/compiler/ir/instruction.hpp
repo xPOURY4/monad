@@ -382,9 +382,9 @@ namespace monad::compiler
             return "CREATE2";
         case StaticCall:
             return "STATICCALL";
-        default:
-            std::unreachable();
         }
+
+        std::unreachable();
     }
 }
 

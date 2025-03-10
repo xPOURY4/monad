@@ -98,9 +98,9 @@ namespace monad::compiler::native
             return NotEqual;
         case NotEqual:
             return Equal;
-        default:
-            std::unreachable();
         }
+
+        std::unreachable();
     }
 
     struct DeferredComparison
