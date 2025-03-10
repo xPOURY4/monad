@@ -696,7 +696,7 @@ namespace monad::compiler::native
     void Emitter::gas_decrement_check_non_negative(int32_t gas)
     {
         gas_decrement_no_check(gas);
-        as_.jb(error_label_);
+        as_.jl(error_label_);
     }
 
     void Emitter::spill_caller_save_regs(bool spill_avx)
@@ -2526,8 +2526,8 @@ namespace monad::compiler::native
         auto cond = stack_.pop();
 
         if (cond->literal()) {
+            discharge_deferred_comparison();
             if (cond->literal()->value != 0) {
-                discharge_deferred_comparison();
                 // Clear to remove locations, if not on stack:
                 cond = nullptr;
                 jump_stack_elem_dest(std::move(dest), {});
