@@ -3496,6 +3496,7 @@ namespace monad::compiler::native
     {
         auto dst_op = get_operand(dst, dst_loc);
         auto src_op = get_operand(src, src_loc);
+        MONAD_COMPILER_DEBUG_ASSERT(!std::holds_alternative<x86::Ymm>(src_op));
 
         size_t instr_ix = 0;
         auto isnop = [&] -> std::function<bool(size_t, size_t)> {
@@ -3510,9 +3511,6 @@ namespace monad::compiler::native
         }();
 
         if (std::holds_alternative<Gpq256>(dst_op)) {
-            MONAD_COMPILER_DEBUG_ASSERT(
-                !std::holds_alternative<x86::Ymm>(src_op));
-
             Gpq256 const &dst_gpq = std::get<Gpq256>(dst_op);
             std::visit(
                 Cases{
@@ -3546,6 +3544,9 @@ namespace monad::compiler::native
         else {
             MONAD_COMPILER_DEBUG_ASSERT(
                 std::holds_alternative<x86::Mem>(dst_op));
+            MONAD_COMPILER_DEBUG_ASSERT(
+                !std::holds_alternative<x86::Mem>(src_op));
+
             x86::Mem const &dst_mem = std::get<x86::Mem>(dst_op);
             std::visit(
                 Cases{
@@ -3567,7 +3568,7 @@ namespace monad::compiler::native
                             temp.addOffset(8);
                         }
                     },
-                    [](auto const &) { MONAD_COMPILER_ASSERT(false); },
+                    [](auto const &) { std::unreachable(); },
                 },
                 src_op);
         }
@@ -4770,6 +4771,8 @@ namespace monad::compiler::native
             get_mod2_bin_dest_and_source(a_elem, b_elem, exp, {});
         auto left_op = get_operand(left, left_loc);
         auto right_op = get_operand(right, right_loc);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !std::holds_alternative<x86::Ymm>(right_op));
 
         size_t const numQwords = div64_ceil(exp);
 
@@ -4869,9 +4872,6 @@ namespace monad::compiler::native
 
         // The general logic for computing (a + b) & (n - 1)
         if (std::holds_alternative<Gpq256>(left_op)) {
-            MONAD_COMPILER_DEBUG_ASSERT(
-                !std::holds_alternative<x86::Ymm>(right_op));
-
             Gpq256 const &a = std::get<Gpq256>(left_op);
             std::visit(
                 Cases{
@@ -4993,6 +4993,9 @@ namespace monad::compiler::native
         else {
             MONAD_COMPILER_DEBUG_ASSERT(
                 std::holds_alternative<x86::Mem>(left_op));
+            MONAD_COMPILER_DEBUG_ASSERT(
+                !std::holds_alternative<x86::Mem>(right_op));
+
             x86::Mem const &a = std::get<x86::Mem>(left_op);
             std::visit(
                 Cases{
@@ -5091,7 +5094,7 @@ namespace monad::compiler::native
                         emit_mask(temp);
                         clear_upper_dest(temp);
                     },
-                    [](auto const &) { MONAD_COMPILER_ASSERT(false); },
+                    [](auto const &) { std::unreachable(); },
                 },
                 right_op);
         }
