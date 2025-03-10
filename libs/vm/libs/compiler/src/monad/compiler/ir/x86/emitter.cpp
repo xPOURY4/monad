@@ -130,7 +130,7 @@ namespace
 
     bool is_uint64_bounded(uint64_t x)
     {
-        auto i = static_cast<int64_t>(x);
+        int64_t const i = std::bit_cast<int64_t>(x);
         constexpr int64_t upper =
             static_cast<int64_t>(std::numeric_limits<int32_t>::max());
         constexpr int64_t lower =
