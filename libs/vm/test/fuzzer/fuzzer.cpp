@@ -35,11 +35,9 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <pthread.h>
 #include <random>
 #include <span>
 #include <string_view>
-#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -53,14 +51,8 @@ using namespace std::chrono_literals;
 
 using enum monad::compiler::EvmOpCode;
 
-constexpr auto FUZZER_TIMEOUT = EVMC_INSUFFICIENT_BALANCE + 1;
-
 constexpr std::string_view to_string(evmc_status_code const sc) noexcept
 {
-    if (sc == FUZZER_TIMEOUT) {
-        return "TIMEOUT";
-    }
-
     switch (sc) {
     case EVMC_SUCCESS:
         return "SUCCESS";
@@ -338,26 +330,10 @@ arguments parse_args(int const argc, char **const argv)
     return args;
 }
 
-void fuzz_iteration(
+evmc_status_code fuzz_iteration(
     evmc_message const &msg, evmc_revision const rev, State &evmone_state,
-    evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm,
-    std::promise<evmc_status_code> promise)
+    evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm)
 {
-    // Non-portable, slightly hacky code, but we need to be able to cancel
-    // worker threads immediately as the compiled code does not have a way to
-    // politely request cancellation, and the program also won't call a POSIX
-    // cancellation point.
-    auto const res =
-        pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr);
-    if (res != 0) {
-        std::cerr << "Failed to set cancellation type\n";
-        std::exit(1);
-    }
-
-    // If we send a message to a random address that wasn't previously deployed,
-    // then rolls back, it can violate an internal assumption in evmone. We
-    // therefore need to make sure there's an empty account at the sender and
-    // recipient addresses.
     for (State &state : {std::ref(evmone_state), std::ref(compiler_state)}) {
         state.get_or_insert(msg.sender);
         state.get_or_insert(msg.recipient);
@@ -384,7 +360,7 @@ void fuzz_iteration(
     }
 
     assert_equal(evmone_state, compiler_state);
-    promise.set_value(evmone_result.status_code);
+    return evmone_result.status_code;
 }
 
 void log(
@@ -419,27 +395,6 @@ void log(
 
         start = end;
     }
-}
-
-void handle_timeout(
-    std::future<evmc_status_code> &&future, std::jthread &&task,
-    monad::fuzzing::message_ptr &&msg,
-    std::unordered_map<evmc_status_code, std::size_t> &exit_code_stats)
-{
-    auto status = future.wait_for(0.5s);
-    if (status == std::future_status::ready) {
-        ++exit_code_stats[future.get()];
-    }
-    else {
-        MONAD_COMPILER_ASSERT(status == std::future_status::timeout);
-        ++exit_code_stats[static_cast<evmc_status_code>(FUZZER_TIMEOUT)];
-        pthread_cancel(task.native_handle());
-    }
-
-    // We need the message data to live until we know the worker thread has
-    // completed or been explicitly cancelled; at this point we can explicitly
-    // end its lifetime by resetting it.
-    msg = nullptr;
 }
 
 int main(int argc, char **argv)
@@ -500,21 +455,14 @@ int main(int argc, char **argv)
                 });
             ++total_messages;
 
-            auto task = std::jthread(
-                fuzz_iteration,
-                std::ref(*msg),
+            auto const ec = fuzz_iteration(
+                *msg,
                 rev,
-                std::ref(evmone_state),
-                std::ref(evmone_vm),
-                std::ref(compiler_state),
-                std::ref(compiler_vm),
-                std::move(promise));
-
-            handle_timeout(
-                std::move(future),
-                std::move(task),
-                std::move(msg),
-                exit_code_stats);
+                evmone_state,
+                evmone_vm,
+                compiler_state,
+                compiler_vm);
+            ++exit_code_stats[ec];
         }
 
         log(last_start, args, exit_code_stats, i, total_messages);
