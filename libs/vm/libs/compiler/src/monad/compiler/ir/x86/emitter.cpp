@@ -4064,12 +4064,11 @@ namespace monad::compiler::native
         as_.mulx(dst1, dst2, right);
     }
 
-    template <typename LeftOpType>
-    void Emitter::imul_by_gpq(
-        bool is_32_bit, x86::Gpq dst, LeftOpType left, x86::Gpq right)
+    template <bool Is32Bit, typename LeftOpType>
+    void Emitter::imul_by_gpq(x86::Gpq dst, LeftOpType left, x86::Gpq right)
     {
         as_.mov(dst, right);
-        if (is_32_bit) {
+        if constexpr (Is32Bit) {
             if constexpr (std::is_same_v<LeftOpType, x86::Gpq>) {
                 as_.imul(dst.r32(), left.r32());
             }
@@ -4082,11 +4081,10 @@ namespace monad::compiler::native
         }
     }
 
-    template <typename LeftOpType>
-    void Emitter::imul_by_int32(
-        bool is_32_bit, x86::Gpq dst, LeftOpType left, int32_t right)
+    template <bool Is32Bit, typename LeftOpType>
+    void Emitter::imul_by_int32(x86::Gpq dst, LeftOpType left, int32_t right)
     {
-        if (is_32_bit) {
+        if constexpr (Is32Bit) {
             if constexpr (std::is_same_v<LeftOpType, x86::Gpq>) {
                 as_.imul(dst.r32(), left.r32(), right);
             }
@@ -4099,21 +4097,35 @@ namespace monad::compiler::native
         }
     }
 
-    template <typename LeftOpType>
+    template <bool Is32Bit, typename LeftOpType>
     void Emitter::imul_by_rax_or_int32(
-        bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
-        std::optional<int32_t> i)
+        asmjit::x86::Gpq dst, LeftOpType left, std::optional<int32_t> i)
     {
         if (i) {
-            imul_by_int32(is_32_bit, dst, left, *i);
+            imul_by_int32<Is32Bit>(dst, left, *i);
         }
         else {
-            imul_by_gpq(is_32_bit, dst, left, x86::rax);
+            imul_by_gpq<Is32Bit>(dst, left, x86::rax);
+        }
+    }
+
+    void Emitter::mul_with_bit_size_by_rax(
+        size_t bit_size, x86::Gpq const *dst, Operand const &left,
+        std::optional<int32_t> value_of_rax)
+    {
+        if ((bit_size & 63) && (bit_size & 63) <= 32) {
+            mul_with_bit_size_and_has_32_bit_by_rax<true>(
+                bit_size, dst, left, value_of_rax);
+        }
+        else {
+            mul_with_bit_size_and_has_32_bit_by_rax<false>(
+                bit_size, dst, left, value_of_rax);
         }
     }
 
     // Scrambles rdx
-    void Emitter::mul_with_bit_size_by_rax(
+    template <bool Has32Bit>
+    void Emitter::mul_with_bit_size_and_has_32_bit_by_rax(
         size_t bit_size, x86::Gpq const *dst, Operand const &left,
         std::optional<int32_t> value_of_rax)
     {
@@ -4121,9 +4133,7 @@ namespace monad::compiler::native
 
         constexpr auto right = x86::rax;
 
-        auto last_ix = div64_ceil(bit_size) - 1;
-
-        bool const is_32_bit = (bit_size & 63) > 0 && (bit_size & 63) <= 32;
+        auto const last_ix = div64_ceil(bit_size) - 1;
 
         auto next_dst_pair = [&](size_t i) -> std::pair<x86::Gpq, x86::Gpq> {
             auto dst1 = i == last_ix - 1 ? x86::rax : dst[i + 1];
@@ -4133,7 +4143,7 @@ namespace monad::compiler::native
 
         auto post_add = [&](size_t i) {
             if (last_ix == 1) {
-                if (is_32_bit) {
+                if constexpr (Has32Bit) {
                     as_.add(dst[1].r32(), x86::eax);
                 }
                 else {
@@ -4148,7 +4158,7 @@ namespace monad::compiler::native
                     as_.adc(dst[i], x86::rdx);
                 }
                 if (i == last_ix - 1) {
-                    if (is_32_bit) {
+                    if constexpr (Has32Bit) {
                         as_.adc(dst[last_ix].r32(), x86::eax);
                     }
                     else {
@@ -4160,8 +4170,8 @@ namespace monad::compiler::native
 
         if (std::holds_alternative<Gpq256>(left)) {
             auto const &lgpq = std::get<Gpq256>(left);
-            imul_by_rax_or_int32(
-                is_32_bit, dst[last_ix], lgpq[last_ix], value_of_rax);
+            imul_by_rax_or_int32<Has32Bit>(
+                dst[last_ix], lgpq[last_ix], value_of_rax);
             for (size_t i = 0; i < last_ix; ++i) {
                 auto [dst1, dst2] = next_dst_pair(i);
                 mulx(dst1, dst2, lgpq[i], right);
@@ -4172,7 +4182,7 @@ namespace monad::compiler::native
             MONAD_COMPILER_ASSERT(std::holds_alternative<x86::Mem>(left));
             auto mem = std::get<x86::Mem>(left);
             mem.addOffset(static_cast<int64_t>(last_ix) * 8);
-            imul_by_rax_or_int32(is_32_bit, dst[last_ix], mem, value_of_rax);
+            imul_by_rax_or_int32<Has32Bit>(dst[last_ix], mem, value_of_rax);
             mem.addOffset(-(static_cast<int64_t>(last_ix) * 8));
             for (size_t i = 0; i < last_ix; ++i) {
                 auto [dst1, dst2] = next_dst_pair(i);
@@ -4212,12 +4222,12 @@ namespace monad::compiler::native
         }
     }
 
+    template <bool Has32Bit>
     void
     Emitter::MulEmitter::mul_sequence(size_t sub_size, x86::Gpq const *mul_dst)
     {
         size_t const word_count = div64_ceil(bit_size_);
         size_t const N = div64_ceil(sub_size);
-        bool const is_32_bit = (sub_size & 63) != 0 && (sub_size & 63) <= 32;
         if (std::holds_alternative<uint256_t>(right_) &&
             std::get<uint256_t>(right_)[word_count - N] == 1) {
             if (std::holds_alternative<Gpq256>(left_)) {
@@ -4226,7 +4236,7 @@ namespace monad::compiler::native
                 for (; i < N - 1; ++i) {
                     em_.as_.mov(mul_dst[i], lgpq[i]);
                 }
-                if (is_32_bit) {
+                if constexpr (Has32Bit) {
                     em_.as_.mov(mul_dst[i].r32(), lgpq[i].r32());
                 }
                 else {
@@ -4242,7 +4252,7 @@ namespace monad::compiler::native
                     em_.as_.mov(mul_dst[i], lmem);
                     lmem.addOffset(8);
                 }
-                if (is_32_bit) {
+                if constexpr (Has32Bit) {
                     em_.as_.mov(mul_dst[i].r32(), lmem);
                 }
                 else {
@@ -4282,7 +4292,7 @@ namespace monad::compiler::native
                 Cases{
                     [&](uint256_t const &r) {
                         auto x = r[word_count - N];
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32(), x);
                         }
                         else if (is_uint64_bounded(x)) {
@@ -4294,7 +4304,7 @@ namespace monad::compiler::native
                         }
                     },
                     [&](Gpq256 const &r) {
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.mov(
                                 mul_dst[0].r32(), r[word_count - N].r32());
                             em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32());
@@ -4306,7 +4316,7 @@ namespace monad::compiler::native
                     },
                     [&](x86::Mem r) {
                         r.addOffset(static_cast<int64_t>((word_count - N) * 8));
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.mov(mul_dst[0].r32(), r);
                             em_.as_.imul(mul_dst[0].r32(), lgpq[0].r32());
                         }
@@ -4326,7 +4336,7 @@ namespace monad::compiler::native
                 Cases{
                     [&](uint256_t const &r) {
                         auto x = r[word_count - N];
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.imul(mul_dst[0].r32(), lmem, x);
                         }
                         else if (is_uint64_bounded(x)) {
@@ -4338,7 +4348,7 @@ namespace monad::compiler::native
                         }
                     },
                     [&](Gpq256 const &r) {
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.mov(
                                 mul_dst[0].r32(), r[word_count - N].r32());
                             em_.as_.imul(mul_dst[0].r32(), lmem);
@@ -4350,7 +4360,7 @@ namespace monad::compiler::native
                     },
                     [&](x86::Mem r) {
                         r.addOffset(static_cast<int64_t>((word_count - N) * 8));
-                        if (is_32_bit) {
+                        if constexpr (Has32Bit) {
                             em_.as_.mov(mul_dst[0].r32(), r);
                             em_.as_.imul(mul_dst[0].r32(), lmem);
                         }
@@ -4364,16 +4374,15 @@ namespace monad::compiler::native
         }
     }
 
+    template <bool Has32Bit>
     void
     Emitter::MulEmitter::update_dst(size_t sub_size, x86::Gpq const *mul_dst)
     {
         if (is_dst_initialized_) {
-            bool const is_32_bit =
-                (bit_size_ & 63) != 0 && (bit_size_ & 63) <= 32;
             size_t const word_count = div64_ceil(bit_size_);
             size_t i = word_count - div64_ceil(sub_size);
             size_t j = 0;
-            if (is_32_bit) {
+            if constexpr (Has32Bit) {
                 if (i == word_count - 1) {
                     em_.as_.add(dst_[i++].r32(), mul_dst[j++].r32());
                 }
@@ -4401,29 +4410,41 @@ namespace monad::compiler::native
         }
     }
 
+    template <bool Has32Bit>
     void Emitter::MulEmitter::compose(size_t sub_size, x86::Gpq *mul_dst)
     {
         size_t const i = div64_ceil(bit_size_) - div64_ceil(sub_size);
         if (!std::holds_alternative<uint256_t>(right_) ||
             std::get<uint256_t>(right_)[i] != 0) {
             init_mul_dst(sub_size, mul_dst);
-            mul_sequence(sub_size, mul_dst);
-            update_dst(sub_size, mul_dst);
+            mul_sequence<Has32Bit>(sub_size, mul_dst);
+            update_dst<Has32Bit>(sub_size, mul_dst);
         }
         else if (!is_dst_initialized_) {
             em_.as_.xor_(dst_[i], dst_[i]);
         }
     }
 
-    void Emitter::MulEmitter::emit()
+    template <bool Has32Bit>
+    void Emitter::MulEmitter::emit_loop()
     {
         x86::Gpq mul_dst[4];
         auto sub_size = bit_size_;
         while (sub_size > 64) {
-            compose(sub_size, mul_dst);
+            compose<Has32Bit>(sub_size, mul_dst);
             sub_size -= 64;
         }
-        compose(sub_size, mul_dst);
+        compose<Has32Bit>(sub_size, mul_dst);
+    }
+
+    void Emitter::MulEmitter::emit()
+    {
+        if ((bit_size_ & 63) && (bit_size_ & 63) <= 32) {
+            emit_loop<true>();
+        }
+        else {
+            emit_loop<false>();
+        }
     }
 
     StackElemRef Emitter::mul_with_bit_size(
@@ -4656,6 +4677,9 @@ namespace monad::compiler::native
             return true;
         }
         else if (!a[0] || !a[1] || !a[2] || !a[3]) {
+            // If one of the qwords in `a` is zero, then we will inline
+            // the multiplication. This will save at least one x86
+            // multiplication instruction.
             stack_.pop();
             stack_.pop();
             stack_.push(mul_with_bit_size(256, std::move(b_elem), a));
@@ -5717,9 +5741,16 @@ namespace monad::compiler::native
         MONAD_COMPILER_DEBUG_ASSERT(!a_elem->literal().has_value());
 
         auto mask = (1 << uint256_t{exp}) - 1;
-        auto last_ix = (exp - 1) >> 6;
+        auto const last_ix = (exp - 1) >> 6;
         static constexpr size_t inline_threshold = 1;
 
+        // We will inline the multiplication in two cases.
+        // 1. If the number of qwords is at most `inline_threshold + 1`,
+        //    then inline the multiplication to avoid overhead of a
+        //    runtime call.
+        // 2. If multiplying by a known literal and one qword of the
+        //    literal is zero, then inline to save at least one x86
+        //    multiplication instruction.
         if (b_elem->literal()) {
             auto b = b_elem->literal()->value & mask;
             if (last_ix <= inline_threshold) {

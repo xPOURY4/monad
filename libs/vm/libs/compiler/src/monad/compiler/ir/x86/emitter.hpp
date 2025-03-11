@@ -718,9 +718,14 @@ namespace monad::compiler::native
 
         private:
             void init_mul_dst(size_t sub_size, asmjit::x86::Gpq *);
+            template <bool Has32Bit>
             void mul_sequence(size_t sub_size, asmjit::x86::Gpq const *);
+            template <bool Has32Bit>
             void update_dst(size_t sub_size, asmjit::x86::Gpq const *);
+            template <bool Has32Bit>
             void compose(size_t sub_size, asmjit::x86::Gpq *);
+            template <bool Has32Bit>
+            void emit_loop();
 
             size_t bit_size_;
             Emitter &em_;
@@ -737,19 +742,20 @@ namespace monad::compiler::native
         void mulx(
             asmjit::x86::Gpq dst1, asmjit::x86::Gpq dst2, LeftOpType left,
             asmjit::x86::Gpq right);
-        template <typename LeftOpType>
+        template <bool Is32Bit, typename LeftOpType>
         void imul_by_gpq(
-            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
-            asmjit::x86::Gpq right);
-        template <typename LeftOpType>
-        void imul_by_int32(
-            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
-            int32_t right);
-        template <typename LeftOpType>
+            asmjit::x86::Gpq dst, LeftOpType left, asmjit::x86::Gpq right);
+        template <bool Is32Bit, typename LeftOpType>
+        void
+        imul_by_int32(asmjit::x86::Gpq dst, LeftOpType left, int32_t right);
+        template <bool Is32Bit, typename LeftOpType>
         void imul_by_rax_or_int32(
-            bool is_32_bit, asmjit::x86::Gpq dst, LeftOpType left,
-            std::optional<int32_t>);
+            asmjit::x86::Gpq dst, LeftOpType left, std::optional<int32_t>);
         void mul_with_bit_size_by_rax(
+            size_t bit_size, asmjit::x86::Gpq const *dst, Operand const &left,
+            std::optional<int32_t> value_of_rax);
+        template <bool Has32Bit>
+        void mul_with_bit_size_and_has_32_bit_by_rax(
             size_t bit_size, asmjit::x86::Gpq const *dst, Operand const &left,
             std::optional<int32_t> value_of_rax);
         StackElemRef mul_with_bit_size(
