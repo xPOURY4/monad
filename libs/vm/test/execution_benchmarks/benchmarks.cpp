@@ -104,6 +104,8 @@ namespace
             return "interpreter";
         case Compiler:
             return "compiler";
+        case Evmone:
+            return "evmone";
         }
 
         std::unreachable();
@@ -111,7 +113,7 @@ namespace
 
     void register_benchmark(std::string_view const name, evmc_message const msg)
     {
-        for (auto const impl : {Interpreter, Compiler}) {
+        for (auto const impl : {Interpreter, Compiler, Evmone}) {
             benchmark::RegisterBenchmark(
                 std::format("execute/{}/{}", name, impl_name(impl)),
                 run_benchmark,

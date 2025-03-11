@@ -50,6 +50,16 @@ namespace
     {
         return reinterpret_cast<BlockchainTestVM *>(vm)->get_capabilities();
     }
+
+    BlockchainTestVM::Implementation
+    impl_from_env(BlockchainTestVM::Implementation const impl) noexcept
+    {
+        if (std::getenv("EVMONE_VM_ONLY") != nullptr) {
+            return BlockchainTestVM::Implementation::Evmone;
+        }
+
+        return impl;
+    }
 }
 
 size_t CompiledContractHash::operator()(CompiledContractId const &p)
@@ -78,10 +88,9 @@ bool CompiledContractEqual::operator()(
 
 BlockchainTestVM::BlockchainTestVM(Implementation impl)
     : evmc_vm{EVMC_ABI_VERSION, "monad-compiler-blockchain-test-vm", "0.0.0", ::destroy, ::execute, ::get_capabilities, nullptr}
-    , impl_{impl}
+    , impl_{impl_from_env(impl)}
     , evmone_vm_{evmc_create_evmone()}
     , debug_dir_{std::getenv("MONAD_BLOCKCHAIN_TEST_DEBUG_DIR")}
-    , only_evmone_{std::getenv("EVMONE_VM_ONLY") != nullptr}
 {
     MONAD_COMPILER_ASSERT(!debug_dir_ || fs::is_directory(debug_dir_));
 }
@@ -91,16 +100,12 @@ evmc_result BlockchainTestVM::execute(
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
-    if (only_evmone_ || msg->kind == EVMC_CREATE || msg->kind == EVMC_CREATE2 ||
-        std::memcmp(
-            msg->sender.bytes,
-            SYSTEM_ADDRESS.bytes,
-            sizeof(SYSTEM_ADDRESS.bytes)) == 0) {
+    if (impl_ == Implementation::Evmone || msg->kind == EVMC_CREATE ||
+        msg->kind == EVMC_CREATE2 || msg->sender == SYSTEM_ADDRESS) {
         auto *p = evmone_vm_.get_raw_pointer();
         return p->execute(p, host, context, rev, msg, code, code_size);
     }
-
-    if (impl_ == Implementation::Compiler) {
+    else if (impl_ == Implementation::Compiler) {
         return execute_compiler(host, context, rev, msg, code, code_size);
     }
     else {

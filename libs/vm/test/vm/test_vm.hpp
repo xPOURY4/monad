@@ -35,6 +35,7 @@ public:
     {
         Compiler,
         Interpreter,
+        Evmone,
     };
 
     BlockchainTestVM(Implementation impl = Implementation::Compiler);
@@ -52,7 +53,6 @@ private:
     monad::compiler::VM monad_vm_;
     CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
-    bool only_evmone_;
 
     evmc_result execute_compiler(
         evmc_host_interface const *host, evmc_host_context *context,
