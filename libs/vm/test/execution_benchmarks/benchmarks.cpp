@@ -4,16 +4,21 @@
 #include <test_vm.hpp>
 
 #include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
 
-#include "account.hpp"
 #include "host.hpp"
 #include "state.hpp"
 
 #include <benchmark/benchmark.h>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <format>
 #include <memory>
 #include <span>
+#include <string_view>
+#include <utility>
 
 using namespace evmone::state;
 using enum BlockchainTestVM::Implementation;
@@ -83,7 +88,7 @@ namespace
 
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
-        auto *interface = &host.get_interface();
+        auto const *interface = &host.get_interface();
         auto *ctx = host.to_context();
         auto const *code = msg.code;
         auto const code_size = msg.code_size;
