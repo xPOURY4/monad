@@ -112,16 +112,6 @@ jobs:
                   -t blockchain-test-benchmarks \
                   -t compile-benchmarks
 
-            - name: Run benchmarks
-              run: |
-                # Script doesn't exist in the base compiler yet
-                head-compiler/scripts/report-benchmarks.sh                            \
-                  base-compiler/build/test/blockchain/blockchain-test-benchmarks  \
-                  base_runtime_benchmarks.json
-                head-compiler/scripts/report-benchmarks.sh                            \
-                  head-compiler/build/test/blockchain/blockchain-test-benchmarks  \
-                  head_runtime_benchmarks.json
-
             - name: Run compile benchmarks
               run: |
                 # Script doesn't exist in the base compiler yet
@@ -145,14 +135,6 @@ jobs:
 
                   echo "- Old commit: $BASE"
                   echo "- New commit: $HEAD"
-
-                  echo "### Run Time"
-                  uv run                                                    \
-                    --directory head-compiler/scripts/benchmark-analysis    \
-                    compare-benchmarks                                      \
-                    --type run                                              \
-                    --before $GITHUB_WORKSPACE/base_runtime_benchmarks.json \
-                    --after $GITHUB_WORKSPACE/head_runtime_benchmarks.json
 
                   echo "### Compile Time"
                   uv run                                                    \
