@@ -2,6 +2,7 @@ include(GoogleTest)
 
 add_subdirectory(blockchain)
 add_subdirectory(compile_benchmarks)
+add_subdirectory(execution_benchmarks)
 add_subdirectory(fuzzer)
 add_subdirectory(fuzzer_benchmarks)
 add_subdirectory(unit)
