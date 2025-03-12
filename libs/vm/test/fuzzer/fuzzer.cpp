@@ -316,7 +316,10 @@ arguments parse_args(int const argc, char **const argv)
         "--log-freq", args.log_freq, "Print logging every N iterations");
 
     app.add_option(
-        "-r,--runs", args.runs, "Number of runs (evm state is reset between runs) (unbounded by default)");
+        "-r,--runs",
+        args.runs,
+        "Number of runs (evm state is reset between runs) (unbounded by "
+        "default)");
 
     app.add_flag(
         "--print-stats",
