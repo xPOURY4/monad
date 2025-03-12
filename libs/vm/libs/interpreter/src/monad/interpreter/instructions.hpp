@@ -24,22 +24,26 @@ namespace monad::interpreter
             ctx.gas_remaining -= info.min_gas;
 
             if (MONAD_COMPILER_UNLIKELY(ctx.gas_remaining < 0)) {
-                ctx.exit(runtime::StatusCode::Error);
+                ctx.exit(Error);
             }
         }
 
+        if constexpr (info.min_stack == 0 && !info.increases_stack) {
+            return;
+        }
+
+        auto const stack_size = state.stack_top - state.stack_bottom;
+
         if constexpr (info.min_stack > 0) {
-            auto const stack_size = state.stack_top - state.stack_bottom;
             if (MONAD_COMPILER_UNLIKELY(stack_size < info.min_stack)) {
-                ctx.exit(runtime::StatusCode::Error);
+                ctx.exit(Error);
             }
         }
 
         if constexpr (info.increases_stack) {
-            auto const stack_size = state.stack_top - state.stack_bottom;
-            if (MONAD_COMPILER_UNLIKELY(
-                    stack_size - info.min_stack + 1 > 1024)) {
-                ctx.exit(runtime::StatusCode::Error);
+            static constexpr auto size_end = 1024 + info.min_stack;
+            if (MONAD_COMPILER_UNLIKELY(stack_size >= size_end)) {
+                ctx.exit(Error);
             }
         }
     }
