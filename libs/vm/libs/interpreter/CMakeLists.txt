@@ -11,7 +11,6 @@ target_sources(monad-interpreter PRIVATE
   "src/monad/interpreter/execute.cpp"
   "src/monad/interpreter/execute.hpp"
   "src/monad/interpreter/instruction_table.hpp"
-  "src/monad/interpreter/instructions.cpp"
   "src/monad/interpreter/instructions.hpp"
   "src/monad/interpreter/intercode.cpp"
   "src/monad/interpreter/intercode.hpp"
