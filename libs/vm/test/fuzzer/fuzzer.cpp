@@ -277,10 +277,11 @@ struct arguments
     using seed_t = random_engine_t::result_type;
     static constexpr seed_t default_seed = std::numeric_limits<seed_t>::max();
 
-    std::size_t iterations = std::numeric_limits<std::size_t>::max();
+    std::size_t iterations_per_run = 100;
     std::size_t messages = 256;
     seed_t seed = default_seed;
     std::int64_t log_freq = 1000;
+    std::size_t runs = std::numeric_limits<std::size_t>::max();
     bool print_stats = false;
 
     void set_random_seed_if_default()
@@ -297,9 +298,9 @@ arguments parse_args(int const argc, char **const argv)
     auto args = arguments{};
 
     app.add_option(
-        "-i,--iterations",
-        args.iterations,
-        "Number of fuzz iterations to run (unbounded by default)");
+        "-i,--iterations-per-run",
+        args.iterations_per_run,
+        "Number of fuzz iterations in each run (default 100)");
 
     app.add_option(
         "-n,--messages",
@@ -313,6 +314,9 @@ arguments parse_args(int const argc, char **const argv)
 
     app.add_option(
         "--log-freq", args.log_freq, "Print logging every N iterations");
+
+    app.add_option(
+        "-r,--runs", args.runs, "Number of runs (evm state is reset between runs) (unbounded by default)");
 
     app.add_flag(
         "--print-stats",
@@ -397,11 +401,9 @@ void log(
     }
 }
 
-int main(int argc, char **argv)
+void do_run(arguments const &args)
 {
     constexpr auto rev = EVMC_CANCUN;
-
-    auto const args = parse_args(argc, argv);
 
     std::cerr << std::format("Fuzzing with seed: {}\n", args.seed);
 
@@ -420,7 +422,7 @@ int main(int argc, char **argv)
 
     auto last_start = std::chrono::high_resolution_clock::now();
 
-    for (auto i = 0u; i < args.iterations; ++i) {
+    for (auto i = 0u; i < args.iterations_per_run; ++i) {
         auto const contract =
             monad::fuzzing::generate_program(engine, contract_addresses);
 
@@ -467,4 +469,16 @@ int main(int argc, char **argv)
 
         log(last_start, args, exit_code_stats, i, total_messages);
     }
+}
+
+int main(int argc, char **argv)
+{
+    auto args = parse_args(argc, argv);
+
+    for (auto i = 0u; i < args.runs; ++i) {
+        do_run(args);
+        args.seed = random_engine_t(args.seed)();
+    }
+
+    return 0;
 }
