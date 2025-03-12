@@ -843,9 +843,9 @@ namespace monad::compiler::native
     void Stack::move_general_reg(StackElem &src, StackElem &dst)
     {
         GeneralReg const reg = *src.general_reg_;
+        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg.reg] == &src);
         dst.general_reg_ = reg;
         src.general_reg_ = std::nullopt;
-        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg.reg] == &src);
         general_reg_stack_elems_[reg.reg] = &dst;
     }
 
@@ -853,6 +853,12 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_ASSERT(e.general_reg_.has_value());
         e.remove_general_reg();
+    }
+
+    void Stack::remove_stack_offset(StackElem &e)
+    {
+        MONAD_COMPILER_ASSERT(e.stack_offset().has_value());
+        e.remove_stack_offset();
     }
 
     bool Stack::is_general_reg_on_stack(GeneralReg reg)

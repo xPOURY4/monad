@@ -2358,11 +2358,14 @@ namespace monad::compiler::native
         std::optional<StackElem *> spill_elem)
     {
         if (spill_elem.has_value()) {
+            MONAD_COMPILER_DEBUG_ASSERT(dest->general_reg().has_value());
             // Restore `stack_` back to the state before calling
             // `non_literal_jump_dest_operand`.
             auto *e = *spill_elem;
             if (e != nullptr) {
+                MONAD_COMPILER_DEBUG_ASSERT(e->is_on_stack());
                 stack_.move_general_reg(*dest, *e);
+                stack_.remove_stack_offset(*e);
             }
             else {
                 stack_.remove_general_reg(*dest);

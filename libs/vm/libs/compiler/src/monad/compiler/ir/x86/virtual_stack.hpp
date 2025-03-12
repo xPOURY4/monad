@@ -535,11 +535,18 @@ namespace monad::compiler::native
         void move_general_reg(StackElem &src, StackElem &dst);
 
         /**
-         * Remove the general register in `src`. It is required that the
+         * Remove the general register. It is required that the
          * `StackElem` does not need to spill its value to another
          * location, even if general register is the only location.
          */
         void remove_general_reg(StackElem &);
+
+        /**
+         * Remove the stack offset. It is required that the
+         * `StackElem` does not need to spill its value to another
+         * location, even if stack offset is the only location.
+         */
+        void remove_stack_offset(StackElem &);
 
         /**
          * Remove stack offset location from the given stack element. It is
