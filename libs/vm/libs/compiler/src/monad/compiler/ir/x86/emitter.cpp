@@ -4713,7 +4713,7 @@ namespace monad::compiler::native
 
         size_t index = 3;
         for (auto c = 256 - shift;;) {
-            if (c < 64) {
+            if (c <= 64) {
                 break;
             }
             c -= 64;
@@ -4736,8 +4736,13 @@ namespace monad::compiler::native
 
         if (elem->general_reg()) {
             auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
-            as_.mov(x86::rax, mask);
-            as_.and_(x86::rax, gpq[index]);
+            if (mask != 0) {
+                as_.mov(x86::rax, mask);
+                as_.and_(x86::rax, gpq[index]);
+            }
+            else {
+                as_.xor_(x86::rax, x86::rax);
+            }
             while (index--) {
                 as_.or_(x86::rax, gpq[index]);
             }
