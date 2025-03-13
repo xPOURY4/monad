@@ -54,7 +54,7 @@ namespace monad::interpreter
     {
         check_requirements<ADD, Rev>(ctx, state);
         auto &&[a, b] = state.pop_for_overwrite();
-        b = a + b;
+        b = runtime::unrolled_add(a, b);
         state.next();
     }
 
