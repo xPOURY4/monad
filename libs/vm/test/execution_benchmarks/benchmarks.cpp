@@ -1,5 +1,6 @@
 #include <monad/utils/assert.h>
-#include <monad/utils/load_program.hpp>
+
+#include <test_resource_data.h>
 
 #include <test_vm.hpp>
 
@@ -12,15 +13,24 @@
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <ios>
+#include <iterator>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
+
+namespace fs = std::filesystem;
 
 using namespace evmone::state;
+using namespace test_resource;
+
 using enum BlockchainTestVM::Implementation;
 
 struct free_message
@@ -39,14 +49,14 @@ using msg_ptr = std::unique_ptr<evmc_message, free_message>;
 
 struct benchmark_case
 {
-    std::string_view name;
+    std::string name;
     msg_ptr msg;
 };
 
 namespace
 {
     auto make_benchmark(
-        std::string_view name, std::span<std::uint8_t const> code,
+        std::string const &name, std::span<std::uint8_t const> code,
         std::span<std::uint8_t const> input)
     {
         auto *code_buffer = new std::uint8_t[code.size()];
@@ -72,6 +82,30 @@ namespace
         });
 
         return benchmark_case{name, std::move(msg)};
+    }
+
+    std::vector<std::uint8_t> read_file(fs::path const &path)
+    {
+        auto in = std::ifstream(path, std::ios::binary);
+        return {
+            std::istreambuf_iterator<char>(in),
+            std::istreambuf_iterator<char>{}};
+    }
+
+    auto load_benchmark(fs::path const &path)
+    {
+        MONAD_COMPILER_DEBUG_ASSERT(fs::is_directory(path));
+
+        auto const contract_path = path / "contract";
+        MONAD_COMPILER_DEBUG_ASSERT(fs::is_regular_file(contract_path));
+
+        auto const calldata_path = path / "calldata";
+        MONAD_COMPILER_DEBUG_ASSERT(fs::is_regular_file(calldata_path));
+
+        return make_benchmark(
+            path.stem().string(),
+            read_file(contract_path),
+            read_file(calldata_path));
     }
 
     void run_benchmark(
@@ -129,15 +163,13 @@ namespace
 
     auto benchmarks() noexcept
     {
-        return std::array{
-            make_benchmark("empty", {}, {}),
-            make_benchmark(
-                "counting_loop",
-                monad::utils::parse_hex_program(
-                    "7f0000000000000000000000000000000000000000000000000000"
-                    "0000000100005f525f5b600101805f511415602457"),
-                {}),
-        };
+        auto ret = std::vector<benchmark_case>{};
+
+        for (auto const &p : fs::directory_iterator(execution_benchmarks_dir)) {
+            ret.emplace_back(load_benchmark(p));
+        }
+
+        return ret;
     }
 }
 

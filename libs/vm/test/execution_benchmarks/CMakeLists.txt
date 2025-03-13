@@ -5,6 +5,11 @@ target_sources(execution-benchmarks
 )
 monad_compile_options(execution-benchmarks)
 
+target_include_directories(execution-benchmarks
+    PRIVATE
+        "${TOP_CURRENT_BINARY_DIR}/test"
+)
+
 target_link_libraries(execution-benchmarks
     benchmark::benchmark
     blockchain-test-vm
