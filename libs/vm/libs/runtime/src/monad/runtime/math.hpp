@@ -124,17 +124,10 @@ namespace monad::runtime
     [[gnu::always_inline]] inline utils::uint256_t
     unrolled_add(utils::uint256_t const &a, utils::uint256_t const &b)
     {
-        auto sum = utils::uint256_t{};
-
         auto [s0, c0] = intx::addc(a[0], b[0], false);
-        sum[0] = s0;
         auto [s1, c1] = intx::addc(a[1], b[1], c0);
-        sum[1] = s1;
         auto [s2, c2] = intx::addc(a[2], b[2], c1);
-        sum[2] = s2;
         auto [s3, c3] = intx::addc(a[3], b[3], c2);
-        sum[3] = s3;
-
-        return sum;
+        return {s0, s1, s2, s3};
     }
 }
