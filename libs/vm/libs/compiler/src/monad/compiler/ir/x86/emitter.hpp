@@ -781,9 +781,8 @@ namespace monad::compiler::native
         bool mod_optimized();
 
         template <typename... LiveSet>
-        void
-        jump_stack_elem_dest(StackElemRef &&, std::tuple<LiveSet...> const &);
-        uint256_t literal_jump_dest_operand(StackElemRef &&);
+        void jump_stack_elem_dest(StackElemRef, std::tuple<LiveSet...> const &);
+        uint256_t literal_jump_dest_operand(StackElemRef);
         asmjit::Label const &jump_dest_label(uint256_t const &);
         void jump_literal_dest(uint256_t const &);
         template <typename... LiveSet>
@@ -793,7 +792,7 @@ namespace monad::compiler::native
         void jump_non_literal_dest(
             StackElemRef, Operand const &, std::optional<StackElem *>);
         void conditional_jmp(asmjit::Label const &, Comparison);
-        Comparison jumpi_comparison(StackElemRef &&cond, StackElemRef dest);
+        Comparison jumpi_comparison(StackElemRef cond, StackElemRef dest);
         void jumpi_spill_fallthrough_stack();
         void jumpi_keep_fallthrough_stack();
 

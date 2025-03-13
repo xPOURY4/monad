@@ -60,6 +60,13 @@ namespace monad::fuzzing
         return Constant{-power_of_two_constant(gen).value};
     }
 
+    template <typename Engine>
+    std::uint32_t random_uint32(Engine &gen)
+    {
+        auto dist = std::uniform_int_distribution<std::uint32_t>();
+        return dist(gen);
+    }
+
     template <std::size_t Bits = 256, typename Engine = void>
     Constant random_constant(Engine &gen)
         requires(Bits % 64 == 0 && Bits > 0 && Bits <= 256)
@@ -89,6 +96,16 @@ namespace monad::fuzzing
     }
 
     template <typename Engine>
+    Constant random_constant_with_cleared_words(Engine &gen)
+    {
+        auto c = random_constant(gen);
+        for (size_t i = 0; i < 4; ++i) {
+            with_probability(gen, 0.5, [&](auto &) { c.value[i] = 0; });
+        }
+        return c;
+    }
+
+    template <typename Engine>
     Constant memory_constant(Engine &gen)
     {
         auto dist = std::uniform_int_distribution<std::uint64_t>(0, 1 << 16);
@@ -104,7 +121,10 @@ namespace monad::fuzzing
             eng,
             [](auto &g) { return random_constant(g); },
             Choice(0.25, [](auto &) { return ValidJumpDest{}; }),
-            Choice(0.25, [](auto &) { return ValidAddress{}; }),
+            Choice(0.20, [](auto &) { return ValidAddress{}; }),
+            Choice(
+                0.05,
+                [](auto &g) { return random_constant_with_cleared_words(g); }),
             Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
             Choice(0.20, [](auto &g) { return power_of_two_constant(g); }),
             Choice(0.05, [](auto &g) {
@@ -200,7 +220,9 @@ namespace monad::fuzzing
         // instructions.
         static constexpr auto total_non_term_prob = 0.90;
         static constexpr auto push_weight = (32.0 / 148.0);
-        static constexpr auto call_weight = (4.0 / 148.0);
+        // The call weight is small, because the are all similar,
+        // and they increase the number of out-of-gas errors.
+        static constexpr auto call_weight = (1.0 / 148.0);
         static constexpr auto non_term_weight =
             1.0 - (push_weight + call_weight);
 
@@ -216,12 +238,12 @@ namespace monad::fuzzing
         if (is_main) {
             // Leave a 5% chance to not generate any pushes in the main block.
             with_probability(eng, 0.95, [&](auto &g) {
-                // Parameters chosen by eye; roughly 10% chance of 12 or
-                // fewer pushes and 95% chance of 24 or fewer. Could be
-                // configured to change the characteristics of this
-                // distribution.
+                // Parameters chosen by eye:
+                // - centered at around 65,
+                // - roughly 10% chance of 55 or less,
+                // - roughly 10% chance of 75 or more.
                 auto main_pushes_dist =
-                    std::binomial_distribution<std::size_t>(50, 0.35);
+                    std::binomial_distribution<std::size_t>(650, 0.1);
                 auto const main_initial_pushes = main_pushes_dist(g);
 
                 for (auto i = 0u; i < main_initial_pushes; ++i) {
@@ -254,13 +276,13 @@ namespace monad::fuzzing
                 auto op = term->opcode;
 
                 if (op == JUMP || op == JUMPI) {
-                    with_probability(eng, 0.8, [&](auto &) {
+                    with_probability(eng, 0.9, [&](auto &) {
                         program.push_back(ValidJumpDest{});
                     });
                 }
                 else if (is_exit_terminator(op)) {
-                    for (auto op : {SSTORE, MSTORE}) {
-                        with_probability(eng, 0.293, [&](auto &) {
+                    for (auto op : {SSTORE, MSTORE, TSTORE}) {
+                        with_probability(eng, 0.5, [&](auto &) {
                             program.push_back(NonTerminator{op});
                         });
                     }
@@ -444,10 +466,6 @@ namespace monad::fuzzing
         std::vector<std::size_t> const &jumpdest_patches,
         std::vector<std::uint32_t> const &valid_jumpdests)
     {
-        if (valid_jumpdests.empty()) {
-            return;
-        }
-
         MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(jumpdest_patches));
         MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(valid_jumpdests));
 
@@ -473,11 +491,18 @@ namespace monad::fuzzing
             // block) then we need to unconditionally sample from the full set
             // of jumpdests.
             auto const forward_prob =
-                (forward_jds_begin != forward_jds_end) ? 0.8 : 0.0;
+                (forward_jds_begin != forward_jds_end) ? 0.9 : 0.0;
 
             auto const jd = discrete_choice<std::size_t>(
                 eng,
-                [&](auto &g) { return uniform_sample(g, valid_jumpdests); },
+                [&](auto &g) {
+                    if (valid_jumpdests.size() == 0) {
+                        return random_uint32(g);
+                    }
+                    else {
+                        return uniform_sample(g, valid_jumpdests);
+                    }
+                },
                 Choice(forward_prob, [&](auto &g) {
                     return uniform_sample(
                         g, forward_jds_begin, forward_jds_end);
@@ -490,6 +515,14 @@ namespace monad::fuzzing
 
                 dest = bs[3 - i];
             }
+
+            // If there is only one or zero valid jump destinations,
+            // then we will lilely fail due to invalid jump destination
+            // or due to generating a loop. So in this case we will generate a
+            // return instead of a jump(i) instruction with 90% probability.
+            auto const return_prob = valid_jumpdests.size() > 1 ? 0 : 0.9;
+            with_probability(
+                eng, return_prob, [&](auto &) { program[patch + 5] = RETURN; });
         }
     }
 

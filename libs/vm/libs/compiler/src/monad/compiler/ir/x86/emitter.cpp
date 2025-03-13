@@ -2275,7 +2275,7 @@ namespace monad::compiler::native
 
     template <typename... LiveSet>
     void Emitter::jump_stack_elem_dest(
-        StackElemRef &&dest, std::tuple<LiveSet...> const &live)
+        StackElemRef dest, std::tuple<LiveSet...> const &live)
     {
         if (dest->literal()) {
             auto lit = literal_jump_dest_operand(std::move(dest));
@@ -2291,7 +2291,7 @@ namespace monad::compiler::native
         }
     }
 
-    uint256_t Emitter::literal_jump_dest_operand(StackElemRef &&dest)
+    uint256_t Emitter::literal_jump_dest_operand(StackElemRef dest)
     {
         return dest->literal()->value;
     }
@@ -2440,7 +2440,7 @@ namespace monad::compiler::native
         }
     }
 
-    Comparison Emitter::jumpi_comparison(StackElemRef &&cond, StackElemRef dest)
+    Comparison Emitter::jumpi_comparison(StackElemRef cond, StackElemRef dest)
     {
         auto dc = stack_.discharge_deferred_comparison();
         if (dc.stack_elem && (dc.stack_elem == dest.get() ||

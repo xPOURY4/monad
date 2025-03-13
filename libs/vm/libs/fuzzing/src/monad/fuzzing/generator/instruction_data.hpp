@@ -15,6 +15,11 @@ namespace monad::fuzzing
         STATICCALL,
     };
 
+    constexpr auto create_non_terminators = std::array{
+        CREATE,
+        CREATE2,
+    };
+
     constexpr auto safe_non_terminators = std::array{
         ADD,
         MUL,
@@ -118,8 +123,6 @@ namespace monad::fuzzing
         LOG2,
         LOG3,
         LOG4,
-        CREATE,
-        CREATE2,
     };
 
     constexpr auto terminators = std::array{

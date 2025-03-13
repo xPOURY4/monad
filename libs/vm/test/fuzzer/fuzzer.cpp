@@ -176,6 +176,20 @@ evmc::Result transition(
     State &state, evmc_message const &msg, evmc_revision const rev,
     evmc::VM &vm, std::int64_t const block_gas_left)
 {
+    // Pre-transaction clean-up.
+    // - Clear transient storage.
+    // - Set accounts and their storage access status to cold.
+    // - Clear the "just created" account flag.
+    for (auto &[addr, acc] : state.get_accounts()) {
+        acc.transient_storage.clear();
+        acc.access_status = EVMC_ACCESS_COLD;
+        acc.just_created = false;
+        for (auto &[key, val] : acc.storage) {
+            val.access_status = EVMC_ACCESS_COLD;
+            val.original = val.current;
+        }
+    }
+
     // TODO(BSC): fill out block and host context properly; should all work fine
     // for the moment as zero values from the perspective of the VM
     // implementations.
@@ -229,19 +243,6 @@ evmc::Result transition(
             });
     }
 
-    // Post-transaction clean-up.
-    // - Set accounts and their storage access status to cold.
-    // - Clear the "just created" account flag.
-    for (auto &[addr, acc] : state.get_accounts()) {
-        acc.transient_storage.clear();
-        acc.access_status = EVMC_ACCESS_COLD;
-        acc.just_created = false;
-        for (auto &[key, val] : acc.storage) {
-            val.access_status = EVMC_ACCESS_COLD;
-            val.original = val.current;
-        }
-    }
-
     return result;
 }
 
@@ -262,6 +263,16 @@ void clean_storage(State &state)
             if (v.current == evmc::bytes32{} && v.original == evmc::bytes32{} &&
                 v.access_status == EVMC_ACCESS_COLD) {
                 it = acc.storage.erase(it);
+            }
+            else {
+                ++it;
+            }
+        }
+        for (auto it = acc.transient_storage.begin();
+             it != acc.transient_storage.end();) {
+            auto const &[k, v] = *it;
+            if (v == evmc::bytes32{}) {
+                it = acc.transient_storage.erase(it);
             }
             else {
                 ++it;
@@ -358,13 +369,13 @@ evmc_status_code fuzz_iteration(
 
     if (evmone_result.status_code != EVMC_SUCCESS) {
         evmone_state.rollback(evmone_checkpoint);
-        clean_storage(evmone_state);
     }
+    clean_storage(evmone_state);
 
     if (compiler_result.status_code != EVMC_SUCCESS) {
         compiler_state.rollback(compiler_checkpoint);
-        clean_storage(compiler_state);
     }
+    clean_storage(compiler_state);
 
     assert_equal(evmone_state, compiler_state);
     return evmone_result.status_code;
@@ -378,7 +389,7 @@ void log(
 {
     using namespace std::chrono;
 
-    if (i > 0 && i % args.log_freq == 0) {
+    if ((i + 1) % args.log_freq == 0) {
         constexpr auto ns_factor = duration_cast<nanoseconds>(1s).count();
 
         auto const end = high_resolution_clock::now();
