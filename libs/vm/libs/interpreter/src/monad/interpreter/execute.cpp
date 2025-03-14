@@ -1,4 +1,3 @@
-#include <monad/evm/opcodes.hpp>
 #include <monad/interpreter/debug.hpp>
 #include <monad/interpreter/execute.hpp>
 #include <monad/interpreter/instruction_table.hpp>
@@ -34,32 +33,6 @@ namespace monad::interpreter
 {
     namespace
     {
-        template <evmc_revision Rev>
-        void charge_static_gas(std::uint8_t const instr, runtime::Context &ctx)
-        {
-            ctx.gas_remaining -= compiler::opcode_table<Rev>[instr].min_gas;
-
-            if (MONAD_COMPILER_UNLIKELY(ctx.gas_remaining < 0)) {
-                ctx.exit(runtime::StatusCode::Error);
-            }
-        }
-
-        template <evmc_revision Rev>
-        void check_stack(
-            std::uint8_t const instr, runtime::Context &ctx, State &state,
-            utils::uint256_t const *stack_bottom)
-        {
-            auto const &info = compiler::opcode_table<Rev>[instr];
-            auto const stack_size = state.stack_top - stack_bottom;
-
-            if (MONAD_COMPILER_UNLIKELY(
-                    stack_size < info.min_stack ||
-                    (stack_size - info.min_stack + info.increases_stack >
-                     1024))) {
-                ctx.exit(runtime::StatusCode::Error);
-            }
-        }
-
         template <evmc_revision Rev>
         void core_loop_impl(runtime::Context &ctx, State &state)
         {
