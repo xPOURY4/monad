@@ -8,6 +8,7 @@
 #include <intx/intx.hpp>
 
 #include <cstdint>
+#include <memory>
 
 namespace monad::interpreter
 {
@@ -596,6 +597,18 @@ namespace monad::interpreter
     {
         using subword_t = utils::uint256_t::word_type;
 
+        // We need to do this memcpy dance to avoid triggering UB when reading
+        // whole words from potentially unaligned addresses in the instruction
+        // stream. The compilers seem able to optimise this out effectively, and
+        // the generated code doesn't appear different to the UB-triggering
+        // version.
+        constexpr auto read_unaligned = [](std::uint8_t const *ptr) {
+            alignas(subword_t) std::uint8_t aligned_mem[sizeof(subword_t)];
+            std::memcpy(&aligned_mem[0], ptr, sizeof(subword_t));
+            return std::byteswap(
+                *reinterpret_cast<subword_t *>(&aligned_mem[0]));
+        };
+
         static constexpr auto whole_words = N / 8;
         static constexpr auto leading_part = N % 8;
 
@@ -607,14 +620,10 @@ namespace monad::interpreter
         else if constexpr (whole_words == 4) {
             static_assert(leading_part == 0);
             state.push(utils::uint256_t{
-                std::byteswap(*reinterpret_cast<subword_t const *>(
-                    state.instr_ptr + 1 + 24)),
-                std::byteswap(*reinterpret_cast<subword_t const *>(
-                    state.instr_ptr + 1 + 16)),
-                std::byteswap(*reinterpret_cast<subword_t const *>(
-                    state.instr_ptr + 1 + 8)),
-                std::byteswap(
-                    *reinterpret_cast<subword_t const *>(state.instr_ptr + 1)),
+                read_unaligned(state.instr_ptr + 1 + 24),
+                read_unaligned(state.instr_ptr + 1 + 16),
+                read_unaligned(state.instr_ptr + 1 + 8),
+                read_unaligned(state.instr_ptr + 1),
             });
         }
         else {
@@ -639,8 +648,7 @@ namespace monad::interpreter
             }
             else if constexpr (whole_words == 1) {
                 state.push(utils::uint256_t{
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + leading_part)),
+                    read_unaligned(state.instr_ptr + 1 + leading_part),
                     leading_word,
                     0,
                     0,
@@ -648,22 +656,17 @@ namespace monad::interpreter
             }
             else if constexpr (whole_words == 2) {
                 state.push(utils::uint256_t{
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + 8 + leading_part)),
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + leading_part)),
+                    read_unaligned(state.instr_ptr + 1 + 8 + leading_part),
+                    read_unaligned(state.instr_ptr + 1 + leading_part),
                     leading_word,
                     0,
                 });
             }
             else if constexpr (whole_words == 3) {
                 state.push(utils::uint256_t{
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + 16 + leading_part)),
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + 8 + leading_part)),
-                    std::byteswap(*reinterpret_cast<subword_t const *>(
-                        state.instr_ptr + 1 + leading_part)),
+                    read_unaligned(state.instr_ptr + 1 + 16 + leading_part),
+                    read_unaligned(state.instr_ptr + 1 + 8 + leading_part),
+                    read_unaligned(state.instr_ptr + 1 + leading_part),
                     leading_word,
                 });
             }
