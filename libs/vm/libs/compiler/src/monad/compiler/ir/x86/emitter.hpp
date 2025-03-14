@@ -568,6 +568,14 @@ namespace monad::compiler::native
         template <typename... LiveSet>
         bool is_live(StackElemRef, std::tuple<LiveSet...> const &);
 
+        template <typename... LiveSet, size_t... Is>
+        bool is_live(
+            GeneralReg, std::tuple<LiveSet...> const &,
+            std::index_sequence<Is...>);
+
+        template <typename... LiveSet>
+        bool is_live(GeneralReg, std::tuple<LiveSet...> const &);
+
         bool block_prologue(basic_blocks::Block const &);
         template <bool preserve_eflags>
         void adjust_by_stack_delta();
@@ -758,8 +766,10 @@ namespace monad::compiler::native
         void mul_with_bit_size_and_has_32_bit_by_rax(
             size_t bit_size, asmjit::x86::Gpq const *dst, Operand const &left,
             std::optional<int32_t> value_of_rax);
+        template <typename... LiveSet>
         StackElemRef mul_with_bit_size(
-            size_t bit_size, StackElemRef, MulEmitter::RightMulArg const &);
+            size_t bit_size, StackElemRef, MulEmitter::RightMulArg,
+            std::tuple<LiveSet...> const &);
         bool mul_optimized();
 
         template <typename... LiveSet>
@@ -942,6 +952,7 @@ namespace monad::compiler::native
         bool keep_stack_in_next_block_;
         std::array<Gpq256, 3> gpq256_regs_;
         GeneralReg rcx_general_reg;
+        GeneralReg rdx_general_reg;
         uint8_t rcx_general_reg_index; // must be 0 or 3
         uint8_t rdx_general_reg_index; // must be 1 or 2
         uint64_t bytecode_size_;

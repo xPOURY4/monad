@@ -440,10 +440,11 @@ namespace monad::compiler::native
         , error_label_{as_.newNamedLabel("Error")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
         , keep_stack_in_next_block_{}
-        , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rdx, x86::rsi, x86::rdi}}
+        , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rsi, x86::rdx, x86::rdi}}
         , rcx_general_reg{2}
+        , rdx_general_reg{2}
         , rcx_general_reg_index{}
-        , rdx_general_reg_index{1}
+        , rdx_general_reg_index{2}
         , bytecode_size_{codesize}
     {
         contract_prologue();
@@ -794,6 +795,22 @@ namespace monad::compiler::native
     {
         return is_live(
             std::move(elem), live, std::index_sequence_for<LiveSet...>{});
+    }
+
+    template <typename... LiveSet, size_t... Is>
+    bool Emitter::is_live(
+        GeneralReg reg, std::tuple<LiveSet...> const &live,
+        std::index_sequence<Is...>)
+    {
+        return stack_.is_general_reg_on_stack(reg) ||
+               (... ||
+                (std::optional{reg} == std::get<Is>(live)->general_reg()));
+    }
+
+    template <typename... LiveSet>
+    bool Emitter::is_live(GeneralReg reg, std::tuple<LiveSet...> const &live)
+    {
+        return is_live(reg, live, std::index_sequence_for<LiveSet...>{});
     }
 
     bool Emitter::block_prologue(basic_blocks::Block const &b)
@@ -3142,6 +3159,8 @@ namespace monad::compiler::native
         if (dst_has_rcx) {
             std::swap(dst_gpq[last_i], dst_gpq[rcx_general_reg_index]);
             rcx_general_reg_index = last_i;
+            MONAD_COMPILER_DEBUG_ASSERT(
+                rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
         }
 
         auto cmp_reg = x86::rcx;
@@ -4450,11 +4469,16 @@ namespace monad::compiler::native
         }
     }
 
+    // If right is `Gpq256`, then make sure the general register is
+    // reserved with `GeneralRegReserv`.
+    template <typename... LiveSet>
     StackElemRef Emitter::mul_with_bit_size(
-        size_t bit_size, StackElemRef left,
-        MulEmitter::RightMulArg const &right)
+        size_t bit_size, StackElemRef left, MulEmitter::RightMulArg right,
+        std::tuple<LiveSet...> const &live)
     {
         MONAD_COMPILER_DEBUG_ASSERT(bit_size > 0 && bit_size <= 256);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
 
         size_t const dst_word_count = div64_ceil(bit_size);
 
@@ -4521,11 +4545,15 @@ namespace monad::compiler::native
 
         bool preserve_dst_rdx = false;
         bool preserve_left_rdx = false;
+        bool preserve_right_rdx = false;
+        bool preserve_stack_rdx = false;
 
         if (needs_mulx) {
             auto &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
             auto &tmp_gpq = general_reg_to_gpq256(*tmp->general_reg());
             if (dst_gpq[rdx_general_reg_index] == x86::rdx) {
+                MONAD_COMPILER_DEBUG_ASSERT(
+                    *dst->general_reg() == rdx_general_reg);
                 preserve_dst_rdx = true;
             }
             if (preserve_dst_rdx) {
@@ -4543,21 +4571,58 @@ namespace monad::compiler::native
                     }
                 }
             }
-            else if (left->general_reg()) {
-                if (tmp != dst) {
-                    spill_gpq = tmp_gpq[rdx_general_reg_index];
+            else {
+                if (left->general_reg()) {
+                    auto &left_gpq =
+                        general_reg_to_gpq256(*left->general_reg());
+                    if (left_gpq[rdx_general_reg_index] == x86::rdx) {
+                        MONAD_COMPILER_DEBUG_ASSERT(
+                            *left->general_reg() == rdx_general_reg);
+                        if (tmp != dst) {
+                            spill_gpq = tmp_gpq[rdx_general_reg_index];
+                        }
+                        preserve_left_rdx = true;
+                        if (spill_gpq) {
+                            as_.mov(*spill_gpq, x86::rdx);
+                            left_gpq[rdx_general_reg_index] = *spill_gpq;
+                        }
+                        else {
+                            as_.push(reg_context);
+                            as_.mov(reg_context, x86::rdx);
+                            left_gpq[rdx_general_reg_index] = reg_context;
+                        }
+                    }
                 }
-                auto &left_gpq = general_reg_to_gpq256(*left->general_reg());
-                if (left_gpq[rdx_general_reg_index] == x86::rdx) {
-                    preserve_left_rdx = true;
+                if (std::holds_alternative<Gpq256>(right) &&
+                    dst_word_count > rdx_general_reg_index) {
+                    auto &right_gpq = std::get<Gpq256>(right);
+                    if (right_gpq[rdx_general_reg_index] == x86::rdx) {
+                        if (tmp != dst) {
+                            spill_gpq = tmp_gpq[rdx_general_reg_index];
+                        }
+                        preserve_right_rdx = true;
+                        if (spill_gpq) {
+                            as_.mov(*spill_gpq, x86::rdx);
+                            right_gpq[rdx_general_reg_index] = *spill_gpq;
+                        }
+                        else {
+                            as_.push(reg_context);
+                            as_.mov(reg_context, x86::rdx);
+                            right_gpq[rdx_general_reg_index] = reg_context;
+                        }
+                    }
+                }
+                if (!preserve_left_rdx && !preserve_right_rdx &&
+                    is_live(rdx_general_reg, live)) {
+                    auto const &q = general_reg_to_gpq256(rdx_general_reg);
+                    MONAD_COMPILER_DEBUG_ASSERT(
+                        q[rdx_general_reg_index] == x86::rdx);
+                    preserve_stack_rdx = true;
                     if (spill_gpq) {
                         as_.mov(*spill_gpq, x86::rdx);
-                        left_gpq[rdx_general_reg_index] = *spill_gpq;
                     }
                     else {
-                        as_.push(reg_context);
-                        as_.mov(reg_context, x86::rdx);
-                        left_gpq[rdx_general_reg_index] = reg_context;
+                        as_.push(x86::rdx);
                     }
                 }
             }
@@ -4603,7 +4668,15 @@ namespace monad::compiler::native
             as_.xor_(dst_gpq[i], dst_gpq[i]);
         }
 
-        if (preserve_dst_rdx) {
+        if (preserve_stack_rdx) {
+            if (spill_gpq) {
+                as_.mov(x86::rdx, *spill_gpq);
+            }
+            else {
+                as_.pop(x86::rdx);
+            }
+        }
+        else if (preserve_dst_rdx) {
             if (spill_gpq) {
                 as_.mov(x86::rdx, *spill_gpq);
                 dst_gpq[rdx_general_reg_index] = x86::rdx;
@@ -4623,6 +4696,15 @@ namespace monad::compiler::native
             else {
                 as_.mov(x86::rdx, reg_context);
                 left_gpq[rdx_general_reg_index] = x86::rdx;
+                as_.pop(reg_context);
+            }
+        }
+        else if (preserve_right_rdx) {
+            if (spill_gpq) {
+                as_.mov(x86::rdx, *spill_gpq);
+            }
+            else {
+                as_.mov(x86::rdx, reg_context);
                 as_.pop(reg_context);
             }
         }
@@ -4685,7 +4767,7 @@ namespace monad::compiler::native
             // multiplication instruction.
             stack_.pop();
             stack_.pop();
-            stack_.push(mul_with_bit_size(256, std::move(b_elem), a));
+            stack_.push(mul_with_bit_size(256, std::move(b_elem), a, {}));
             return true;
         }
 
@@ -4815,7 +4897,8 @@ namespace monad::compiler::native
         }
         else {
             MONAD_COMPILER_DEBUG_ASSERT(sh->avx_reg().has_value());
-            dst = stack_.release_avx_reg(sh);
+            mov_avx_reg_to_stack_offset(sh);
+            dst = stack_.release_stack_offset(sh);
         }
 
         if (dst->general_reg()) {
@@ -4826,10 +4909,6 @@ namespace monad::compiler::native
             }
         }
         else {
-            if (!dst->stack_offset()) {
-                MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
-                mov_avx_reg_to_stack_offset(dst);
-            }
             MONAD_COMPILER_DEBUG_ASSERT(dst->stack_offset().has_value());
             auto mem = stack_offset_to_mem(*dst->stack_offset());
             as_.add(mem, x86::rax);
@@ -5761,30 +5840,30 @@ namespace monad::compiler::native
         //    multiplication instruction.
         if (b_elem->literal()) {
             auto b = b_elem->literal()->value & mask;
-            if (last_ix <= inline_threshold) {
-                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
-                return;
-            }
             bool has_zero = false;
             for (size_t i = 0; i <= last_ix; ++i) {
                 has_zero |= b[i] == 0;
             }
-            if (has_zero) {
-                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+            if (last_ix <= inline_threshold || has_zero) {
+                b_elem.reset(); // Clear registers.
+                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b, {}));
                 return;
             }
         }
         else if (last_ix <= inline_threshold) {
             if (b_elem->general_reg()) {
                 auto const &b = general_reg_to_gpq256(*b_elem->general_reg());
-                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+                GeneralRegReserv const b_reserv{b_elem};
+                stack_.push(mul_with_bit_size(
+                    exp, std::move(a_elem), b, std::make_tuple(b_elem)));
             }
             else {
                 if (!b_elem->stack_offset()) {
                     mov_avx_reg_to_stack_offset(b_elem);
                 }
                 auto const &b = stack_offset_to_mem(*b_elem->stack_offset());
-                stack_.push(mul_with_bit_size(exp, std::move(a_elem), b));
+                stack_.push(mul_with_bit_size(
+                    exp, std::move(a_elem), b, std::make_tuple(b_elem)));
             }
             return;
         }
