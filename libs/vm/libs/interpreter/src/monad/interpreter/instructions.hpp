@@ -594,13 +594,79 @@ namespace monad::interpreter
         requires(N <= 32)
     void push(runtime::Context &ctx, State &state)
     {
+        using subword_t = utils::uint256_t::word_type;
+
+        static constexpr auto whole_words = N / 8;
+        static constexpr auto leading_part = N % 8;
+
         check_requirements<PUSH0 + N, Rev>(ctx, state);
 
         if constexpr (N == 0) {
             state.push(0);
         }
+        else if constexpr (whole_words == 4) {
+            static_assert(leading_part == 0);
+            state.push(utils::uint256_t{
+                std::byteswap(*reinterpret_cast<subword_t const *>(
+                    state.instr_ptr + 1 + 24)),
+                std::byteswap(*reinterpret_cast<subword_t const *>(
+                    state.instr_ptr + 1 + 16)),
+                std::byteswap(*reinterpret_cast<subword_t const *>(
+                    state.instr_ptr + 1 + 8)),
+                std::byteswap(
+                    *reinterpret_cast<subword_t const *>(state.instr_ptr + 1)),
+            });
+        }
         else {
-            state.push(runtime::uint256_load_immediate<N>(state.instr_ptr + 1));
+            auto const leading_word = [&state] {
+                auto word = subword_t{0};
+
+                if constexpr (leading_part == 0) {
+                    return word;
+                }
+
+                std::memcpy(
+                    reinterpret_cast<std::uint8_t *>(&word) +
+                        (8 - leading_part),
+                    state.instr_ptr + 1,
+                    leading_part);
+
+                return std::byteswap(word);
+            }();
+
+            if constexpr (whole_words == 0) {
+                state.push(utils::uint256_t{leading_word, 0, 0, 0});
+            }
+            else if constexpr (whole_words == 1) {
+                state.push(utils::uint256_t{
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + leading_part)),
+                    leading_word,
+                    0,
+                    0,
+                });
+            }
+            else if constexpr (whole_words == 2) {
+                state.push(utils::uint256_t{
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + 8 + leading_part)),
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + leading_part)),
+                    leading_word,
+                    0,
+                });
+            }
+            else if constexpr (whole_words == 3) {
+                state.push(utils::uint256_t{
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + 16 + leading_part)),
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + 8 + leading_part)),
+                    std::byteswap(*reinterpret_cast<subword_t const *>(
+                        state.instr_ptr + 1 + leading_part)),
+                    leading_word,
+                });
+            }
         }
 
         state.instr_ptr += N + 1;
