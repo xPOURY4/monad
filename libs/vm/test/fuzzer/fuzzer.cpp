@@ -11,6 +11,7 @@
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
 
+#include <evmone/constants.hpp>
 #include <evmone/evmone.h>
 
 #include <evmc/evmc.h>
@@ -162,10 +163,9 @@ evmc::address deploy_contract(
 
     auto res =
         transition(state, block, tx, EVMC_CANCUN, vm, block_gas_limit, 0);
-    MONAD_COMPILER_DEBUG_ASSERT(
-        std::holds_alternative<TransactionReceipt>(res));
+    MONAD_COMPILER_ASSERT(std::holds_alternative<TransactionReceipt>(res));
+    MONAD_COMPILER_ASSERT(state.find(create_address) != nullptr);
 
-    MONAD_COMPILER_DEBUG_ASSERT(state.find(create_address) != nullptr);
     return create_address;
 }
 
@@ -288,10 +288,9 @@ struct arguments
     using seed_t = random_engine_t::result_type;
     static constexpr seed_t default_seed = std::numeric_limits<seed_t>::max();
 
-    std::size_t iterations_per_run = 100;
+    std::int64_t iterations_per_run = 100;
     std::size_t messages = 256;
     seed_t seed = default_seed;
-    std::int64_t log_freq = 1000;
     std::size_t runs = std::numeric_limits<std::size_t>::max();
     bool print_stats = false;
 
@@ -322,9 +321,6 @@ arguments parse_args(int const argc, char **const argv)
         "--seed",
         args.seed,
         "Seed to use for reproducible fuzzing (random by default)");
-
-    app.add_option(
-        "--log-freq", args.log_freq, "Print logging every N iterations");
 
     app.add_option(
         "-r,--runs",
@@ -382,40 +378,35 @@ evmc_status_code fuzz_iteration(
 }
 
 void log(
-    std::chrono::high_resolution_clock::time_point &start,
-    arguments const &args,
+    std::chrono::high_resolution_clock::time_point start, arguments const &args,
     std::unordered_map<evmc_status_code, std::size_t> const &exit_code_stats,
-    std::int64_t const i, std::size_t const total_messages)
+    std::size_t const run_index, std::size_t const total_messages)
 {
     using namespace std::chrono;
 
-    if ((i + 1) % args.log_freq == 0) {
-        constexpr auto ns_factor = duration_cast<nanoseconds>(1s).count();
+    constexpr auto ns_factor = duration_cast<nanoseconds>(1s).count();
 
-        auto const end = high_resolution_clock::now();
-        auto const diff = (end - start).count();
-        auto const per_contract = diff / args.log_freq;
+    auto const end = high_resolution_clock::now();
+    auto const diff = (end - start).count();
+    auto const per_contract = diff / args.iterations_per_run;
 
-        std::cerr << std::format(
-            "[{}]: {:.4f}s / iteration\n",
-            i,
-            static_cast<double>(per_contract) / ns_factor);
+    std::cerr << std::format(
+        "[{}]: {:.4f}s / iteration\n",
+        run_index + 1,
+        static_cast<double>(per_contract) / ns_factor);
 
-        if (args.print_stats) {
-            for (auto const &[k, v] : exit_code_stats) {
-                auto const percentage = (static_cast<double>(v) /
-                                         static_cast<double>(total_messages)) *
-                                        100;
-                std::cerr << std::format(
-                    "  {:<21}: {:.2f}%\n", to_string(k), percentage);
-            }
+    if (args.print_stats) {
+        for (auto const &[k, v] : exit_code_stats) {
+            auto const percentage =
+                (static_cast<double>(v) / static_cast<double>(total_messages)) *
+                100;
+            std::cerr << std::format(
+                "  {:<21}: {:.2f}%\n", to_string(k), percentage);
         }
-
-        start = end;
     }
 }
 
-void do_run(arguments const &args)
+void do_run(std::size_t const run_index, arguments const &args)
 {
     constexpr auto rev = EVMC_CANCUN;
 
@@ -434,21 +425,32 @@ void do_run(arguments const &args)
     auto exit_code_stats = std::unordered_map<evmc_status_code, std::size_t>{};
     auto total_messages = std::size_t{0};
 
-    auto last_start = std::chrono::high_resolution_clock::now();
+    auto start_time = std::chrono::high_resolution_clock::now();
 
-    for (auto i = 0u; i < args.iterations_per_run; ++i) {
-        auto const contract =
-            monad::fuzzing::generate_program(engine, contract_addresses);
+    for (auto i = 0; i < args.iterations_per_run; ++i) {
+        for (;;) {
+            auto const contract =
+                monad::fuzzing::generate_program(engine, contract_addresses);
+            if (contract.size() > evmone::MAX_CODE_SIZE) {
+                // The evmone host will fail when we attempt to deploy
+                // contracts of this size. It rarely happens that we
+                // generate contract this large.
+                std::cerr << "Skipping contract of size: " << contract.size()
+                          << " bytes" << std::endl;
+                continue;
+            }
 
-        auto const a =
-            deploy_contract(evmone_state, evmone_vm, genesis_address, contract);
-        auto const a1 = deploy_contract(
-            compiler_state, compiler_vm, genesis_address, contract);
+            auto const a = deploy_contract(
+                evmone_state, evmone_vm, genesis_address, contract);
+            auto const a1 = deploy_contract(
+                compiler_state, compiler_vm, genesis_address, contract);
+            MONAD_COMPILER_ASSERT(a == a1);
 
-        MONAD_COMPILER_ASSERT(a == a1);
-        assert_equal(evmone_state, compiler_state);
+            assert_equal(evmone_state, compiler_state);
 
-        contract_addresses.push_back(a);
+            contract_addresses.push_back(a);
+            break;
+        }
 
         for (auto j = 0u; j < args.messages; ++j) {
             auto promise = std::promise<evmc_status_code>{};
@@ -480,9 +482,9 @@ void do_run(arguments const &args)
                 compiler_vm);
             ++exit_code_stats[ec];
         }
-
-        log(last_start, args, exit_code_stats, i, total_messages);
     }
+
+    log(start_time, args, exit_code_stats, run_index, total_messages);
 }
 
 int main(int argc, char **argv)
@@ -490,7 +492,7 @@ int main(int argc, char **argv)
     auto args = parse_args(argc, argv);
 
     for (auto i = 0u; i < args.runs; ++i) {
-        do_run(args);
+        do_run(i, args);
         args.seed = random_engine_t(args.seed)();
     }
 

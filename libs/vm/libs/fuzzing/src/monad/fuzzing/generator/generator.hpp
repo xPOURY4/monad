@@ -183,9 +183,21 @@ namespace monad::fuzzing
     using Instruction = std::variant<NonTerminator, Terminator, Push, Call>;
 
     template <typename Engine>
-    NonTerminator generate_safe_non_terminator(Engine &eng)
+    NonTerminator generate_common_non_terminator(Engine &eng)
     {
-        return NonTerminator{uniform_sample(eng, safe_non_terminators)};
+        return NonTerminator{uniform_sample(eng, common_non_terminators)};
+    }
+
+    template <typename Engine>
+    NonTerminator generate_uncommon_non_terminator(Engine &eng)
+    {
+        return NonTerminator{uniform_sample(eng, uncommon_non_terminators)};
+    }
+
+    template <typename Engine>
+    NonTerminator generate_dup(Engine &eng)
+    {
+        return NonTerminator{uniform_sample(eng, dup_non_terminator)};
     }
 
     template <typename Engine>
@@ -208,32 +220,52 @@ namespace monad::fuzzing
     std::vector<Instruction>
     generate_block(Engine &eng, bool const is_exit, bool const is_main)
     {
-        static constexpr std::size_t max_block_insts = 1000;
+        static constexpr std::size_t max_block_insts = 10000;
 
         auto program = std::vector<Instruction>{};
 
-        // Parameters chosen based on the initial fuzzer specification. Because
-        // we generate pushes using a different method to other non-terminator
-        // instructions, we need to weight their generation probability
-        // proportionately to the total number of EVM opcodes. This could be
-        // changed in the future to reconfigure the number of pushes vs. other
-        // instructions.
-        static constexpr auto total_non_term_prob = 0.90;
-        static constexpr auto push_weight = (32.0 / 148.0);
+        // We want a high probability of emitting a non-terminator,
+        // because large basic blocks are more likely to explore
+        // complex code paths in the emitter. We prefer few large
+        // basic blocks over many small.
+        static constexpr auto total_non_term_prob = 0.99;
+
+        // We want push to be common, to increase probability
+        // of triggering emitter optimizations.
+        static constexpr auto push_weight = (37.0 / 148.0); // 25%
+        // We want dup opcode to be common, because it increases
+        // probability of stack elements being live, which are tricky
+        // cases. Also serves as a way to avoid stack underflows.
+        static constexpr auto dup_weight = (37.0 / 148.0); // 25%
         // The call weight is small, because the are all similar,
         // and they increase the number of out-of-gas errors.
-        static constexpr auto call_weight = (1.0 / 148.0);
-        static constexpr auto non_term_weight =
-            1.0 - (push_weight + call_weight);
+        static constexpr auto call_weight = (0.06 / 148.0); // 0.05%
+        // The uncommon non-terminators have simple emitter
+        // implementations, so we want low probability of these to
+        // increase probability of the more complex code paths.
+        static constexpr auto uncommon_non_term_weight = (4.5 / 148.0); // 3%
+        // The common non-terminators have high probability, because
+        // they have or aid with complex code paths in the emitter.
+        static constexpr auto common_non_term_weight =
+            1.0 -
+            (push_weight + dup_weight + call_weight + uncommon_non_term_weight);
+        // 100% - 25% - 25% - 0.05% - 3% = 46.95%
 
         static constexpr auto push_prob = total_non_term_prob * push_weight;
+        static constexpr auto dup_prob = total_non_term_prob * dup_weight;
         static constexpr auto call_prob = total_non_term_prob * call_weight;
-        static constexpr auto non_term_prob =
-            total_non_term_prob * non_term_weight;
+        static constexpr auto uncommon_non_term_prob =
+            total_non_term_prob * uncommon_non_term_weight;
+        static constexpr auto common_non_term_prob =
+            total_non_term_prob * common_non_term_weight;
 
-        static constexpr auto random_byte_prob = 0.000001;
+        static constexpr auto random_byte_prob = 0.00001; // 1/100k
         static constexpr auto terminate_prob =
             (1 - total_non_term_prob) - random_byte_prob;
+
+        with_probability(eng, 0.66, [&](auto &) {
+            program.push_back(NonTerminator{JUMPDEST});
+        });
 
         if (is_main) {
             // Leave a 5% chance to not generate any pushes in the main block.
@@ -252,8 +284,28 @@ namespace monad::fuzzing
             });
         }
 
-        with_probability(eng, 0.8, [&](auto &) {
-            program.push_back(NonTerminator{JUMPDEST});
+        // With 10% probability, use 13 of the 15 available avx
+        // registers immediately, to increase probability of running
+        // out of avx registers.
+        with_probability(eng, 0.1, [&](auto &) {
+            program.push_back(NonTerminator{CALLVALUE}); // uses 1 avx register
+            program.push_back(NonTerminator{DUP1});
+            // Use 12 more avx registers:
+            for (int i = 0; i < 12; ++i) {
+                // [PREV, CALLVALUE, ...]
+                program.push_back(NonTerminator{DUP2});
+                // [CALLVALUE, PREV, CALLVALUE, ...]
+                program.push_back(NonTerminator{DUP2});
+                // [PREV, CALLVALUE, PREV, CALLVALUE, ...]
+                program.push_back(NonTerminator{AND});
+                // [PREV & CALLVALUE, PREV, CALLVALUE, ...]
+                program.push_back(NonTerminator{SWAP1});
+                // [PREV, PREV & CALLVALUE, CALLVALUE, ...]
+                program.push_back(NonTerminator{SWAP2});
+                // [CALLVALUE, PREV & CALLVALUE, PREV, ...]
+                program.push_back(NonTerminator{SWAP1});
+                // [PREV & CALLVALUE, CALLVALUE, PREV, ...]
+            }
         });
 
         for (auto terminated = false;
@@ -262,10 +314,16 @@ namespace monad::fuzzing
                 eng,
                 [](auto &g) { return generate_random_byte(g); },
                 Choice(
-                    non_term_prob,
-                    [](auto &g) { return generate_safe_non_terminator(g); }),
+                    common_non_term_prob,
+                    [](auto &g) { return generate_common_non_terminator(g); }),
                 Choice(push_prob, [](auto &g) { return generate_push(g); }),
+                Choice(dup_prob, [](auto &g) { return generate_dup(g); }),
                 Choice(call_prob, [](auto &g) { return generate_call(g); }),
+                Choice(
+                    uncommon_non_term_prob,
+                    [](auto &g) {
+                        return generate_uncommon_non_terminator(g);
+                    }),
                 Choice(terminate_prob, [&](auto &g) {
                     return generate_terminator(g, is_exit);
                 }));
@@ -280,12 +338,16 @@ namespace monad::fuzzing
                         program.push_back(ValidJumpDest{});
                     });
                 }
-                else if (is_exit_terminator(op)) {
-                    for (auto op : {SSTORE, MSTORE, TSTORE}) {
-                        with_probability(eng, 0.5, [&](auto &) {
-                            program.push_back(NonTerminator{op});
-                        });
-                    }
+                else if (op == RETURN || op == REVERT) {
+                    with_probability(eng, 0.75, [&](auto &) {
+                        program.push_back(memory_constant(eng));
+                        program.push_back(memory_constant(eng));
+                    });
+                }
+                else if (op == SELFDESTRUCT) {
+                    with_probability(eng, 0.66, [&](auto &) {
+                        program.push_back(ValidAddress{});
+                    });
                 }
             }
 
@@ -333,25 +395,25 @@ namespace monad::fuzzing
         Engine &eng, std::vector<std::uint8_t> &program, Call const &call,
         std::vector<evmc::address> const &valid_addresses)
     {
-        if (valid_addresses.empty()) {
-            return;
-        }
+        double fix_prob = valid_addresses.empty() ? 0 : 0.90;
 
-        compile_constant(program, call.retSize);
-        compile_constant(program, call.retOffset);
-        compile_constant(program, call.argsSize);
-        compile_constant(program, call.argsOffset);
+        with_probability(eng, fix_prob, [&](auto &) {
+            compile_constant(program, call.retSize);
+            compile_constant(program, call.retOffset);
+            compile_constant(program, call.argsSize);
+            compile_constant(program, call.argsOffset);
 
-        if (call.opcode == CALL || call.opcode == CALLCODE) {
-            program.push_back(BALANCE);
-            compile_percent(program, call.balance_pct);
-        }
+            if (call.opcode == CALL || call.opcode == CALLCODE) {
+                program.push_back(BALANCE);
+                compile_percent(program, call.balance_pct);
+            }
 
-        compile_address(eng, program, valid_addresses);
+            compile_address(eng, program, valid_addresses);
 
-        // send some percentage of available gas
-        program.push_back(GAS);
-        compile_percent(program, call.gas_pct);
+            // send some percentage of available gas
+            program.push_back(GAS);
+            compile_percent(program, call.gas_pct);
+        });
         program.push_back(call.opcode);
     }
 
@@ -521,8 +583,11 @@ namespace monad::fuzzing
             // or due to generating a loop. So in this case we will generate a
             // return instead of a jump(i) instruction with 90% probability.
             auto const return_prob = valid_jumpdests.size() > 1 ? 0 : 0.9;
-            with_probability(
-                eng, return_prob, [&](auto &) { program[patch + 5] = RETURN; });
+            with_probability(eng, return_prob, [&](auto &) {
+                program[patch] = PUSH1;
+                program[patch + 2] = PUSH1;
+                program[patch + 4] = RETURN;
+            });
         }
     }
 
@@ -532,7 +597,9 @@ namespace monad::fuzzing
     {
         auto prog = std::vector<std::uint8_t>{};
 
-        auto blocks_dist = std::geometric_distribution(0.1);
+        auto blocks_dist = std::geometric_distribution(0.20);
+        // Approximately 33% probability of 6 or more basic blocks,
+        // and 20% probability of just 1 basic block.
         auto const n_blocks = 1 + blocks_dist(eng);
 
         auto exit_blocks_dist = std::uniform_int_distribution(1, n_blocks);
