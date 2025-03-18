@@ -126,8 +126,8 @@ namespace
     }
 
     // This benchmark runner assumes that no state is modified during execution,
-    // as it re-uses the same stae between all the runs. For aynthing other that
-    // micro-benchmarks of e.g. specific opcodes, use the JSON format with
+    // as it re-uses the same state between all the runs. For anything other
+    // that micro-benchmarks of e.g. specific opcodes, use the JSON format with
     // `run_benchmark_json`
     void run_benchmark(
         benchmark::State &state, BlockchainTestVM::Implementation const impl,

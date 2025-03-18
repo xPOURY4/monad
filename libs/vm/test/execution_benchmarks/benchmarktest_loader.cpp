@@ -16,22 +16,22 @@ namespace monad::test
 {
     using namespace evmone::test;
 
-    static TestBlock load_test_block(json::json const &j)
-    {
-        using namespace evmone::state;
-        TestBlock tb;
-
-        if (auto it = j.find("transactions"); it != j.end()) {
-            for (auto const &tx : *it) {
-                tb.transactions.emplace_back(from_json<Transaction>(tx));
-            }
-        }
-
-        return tb;
-    }
-
     namespace
     {
+        TestBlock load_test_block(json::json const &j)
+        {
+            using namespace evmone::state;
+            TestBlock tb;
+
+            if (auto it = j.find("transactions"); it != j.end()) {
+                for (auto const &tx : *it) {
+                    tb.transactions.emplace_back(from_json<Transaction>(tx));
+                }
+            }
+
+            return tb;
+        }
+
         BenchmarkTest
         load_benchmark_test_case(std::string const &name, json::json const &j)
         {
@@ -47,6 +47,7 @@ namespace monad::test
 
             return bt;
         }
+
     } // namespace
 
     static void from_json(json::json const &j, std::vector<BenchmarkTest> &o)
