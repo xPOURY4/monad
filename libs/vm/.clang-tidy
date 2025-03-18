@@ -45,8 +45,18 @@
                     modernize-use-nullptr,
                     modernize-use-transparent-functors,
                     readability-isolate-declaration,
-                    readability-qualified-auto,
-                    readability-redundant-member-init'
+                    readability-qualified-auto'
+  WarningsAsErrors: '*,
+                    -bugprone-use-after-move,
+                    -clang-analyzer-deadcode.DeadStores,
+                    -clang-analyzer-optin.cplusplus.UninitializedObject,
+                    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+                    -clang-diagnostic-invalid-constexpr,
+                    -google-explicit-constructor,
+                    -misc-const-correctness,
+                    -modernize-use-equals-default,
+                    -modernize-use-transparent-functors,
+                    -readability-qualified-auto'
   CheckOptions:
     - key:          bugprone-assert-side-effect.AssertMacros
       value:        assert,MONAD_DEBUG_ASSERT

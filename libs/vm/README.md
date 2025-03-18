@@ -327,7 +327,12 @@ After running the desired executable, use `gcovr .` to gather coverage statistic
 
 ## Linting & Formatting
 
-To run the linter, call:
+To run the linter:
+```console
+scripts/check-clang-tidy.sh
+```
+
+Automatic fixes can be applied to a clean working tree with:
 ```console
 scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-19
 ```
@@ -336,6 +341,8 @@ To run the formatter, call:
 ```console
 find {cmd,libs,test} -iname '*.h*' -o -iname '*.c*' | xargs clang-format-19 -i
 ```
+Care should be taken to make sure that automatically-fixed code compiles and is
+correct.
 
 ## Dumping assembly
 

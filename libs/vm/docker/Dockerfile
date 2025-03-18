@@ -67,4 +67,4 @@ RUN cmake -S . -B build           \
   -DCMAKE_C_COMPILER=clang-19     \
   -DCMAKE_CXX_COMPILER=clang++-19
 
-RUN ./scripts/ci-clang-tidy.sh
+RUN ./scripts/check-clang-tidy.sh

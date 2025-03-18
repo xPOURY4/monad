@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+
 if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
   printf "FATAL: Do not run this on a git repo with uncommitted changes\n\n\n" >&2
   git status --untracked-files=no
@@ -26,9 +28,12 @@ if [[ ! -f "${BUILDDIR}compile_commands.json" ]]; then
   echo "FATAL:Pass the path to the cmake build directory containing 'compile_commands.json' as the first argument" >&2
   exit 1
 fi
-pushd "$BUILDDIR"
-"$RUN_CLANG_TIDY" -fix -format "^((?!/third_party/).)+\.(c|cpp|cxx)$" | tee apply-clang-tidy-fixes.log
-popd
+
+"${SCRIPT_DIR}/check-clang-tidy.sh" \
+  --build-dir "${BUILDDIR}"         \
+  --driver "${RUN_CLANG_TIDY}"      \
+  -- -fix -format | tee "${BUILDDIR}/apply-clang-tidy-fixes.log"
+
 if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
   git status --untracked-files=no
   printf "\nFixes were applied, make sure everything compiles and works then do 'git commit --amend'\n"
