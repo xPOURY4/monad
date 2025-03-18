@@ -32,7 +32,6 @@
 #include <cstdlib>
 #include <format>
 #include <functional>
-#include <future>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -453,9 +452,6 @@ void do_run(std::size_t const run_index, arguments const &args)
         }
 
         for (auto j = 0u; j < args.messages; ++j) {
-            auto promise = std::promise<evmc_status_code>{};
-            auto future = promise.get_future();
-
             auto const target =
                 monad::fuzzing::uniform_sample(engine, contract_addresses);
             auto msg = monad::fuzzing::generate_message(
