@@ -507,19 +507,15 @@ namespace monad::compiler::native
                 static_assert(sizeof(void *) == sizeof(uint64_t));
                 as_.embedUInt64(reinterpret_cast<uint64_t>(f));
             }
-
             // We are 8 byte aligned.
             as_.bind(jump_table_label_);
             for (size_t bid = 0; bid < bytecode_size_; ++bid) {
                 auto lbl = jump_dests_.find(bid);
                 if (lbl != jump_dests_.end()) {
-                    as_.embedLabel(lbl->second);
-                    // as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
+                    as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
                 }
                 else {
-                    as_.embedLabel(error_label_);
-                    // as_.embedLabelDelta(bad_jumpdest_label_,
-                    // jump_table_label_, 4);
+                    as_.embedLabelDelta(error_label_, jump_table_label_, 4);
                 }
             }
 
@@ -534,6 +530,7 @@ namespace monad::compiler::native
         if (err != asmjit::kErrorOk) {
             throw Error{asmjit::DebugUtils::errorAsString(err)};
         }
+
         return contract_main;
     }
 
@@ -2395,8 +2392,11 @@ namespace monad::compiler::native
             as_.sbb(gpq[2], 0);
             as_.sbb(gpq[3], 0);
             as_.jnb(error_label_);
+
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
-            as_.jmp(x86::ptr(x86::rax, gpq[0], 3));
+            as_.movsxd(x86::rcx, x86::dword_ptr(x86::rax, gpq[0], 2));
+            as_.add(x86::rax, x86::rcx);
+            as_.jmp(x86::rax);
         }
         else {
             MONAD_COMPILER_DEBUG_ASSERT(
@@ -2417,7 +2417,10 @@ namespace monad::compiler::native
             }
             as_.jnb(error_label_);
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
-            as_.jmp(x86::ptr(x86::rax, x86::rcx, 3));
+
+            as_.movsxd(x86::rcx, x86::dword_ptr(x86::rax, x86::rcx, 2));
+            as_.add(x86::rax, x86::rcx);
+            as_.jmp(x86::rax);
         }
     }
 
