@@ -4,6 +4,7 @@
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/runtime/math.hpp>
+#include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
@@ -184,6 +185,22 @@ namespace
                       << ')';
         }
         std::cout << std::endl;
+    }
+
+    void runtime_store_input_stack_impl(
+        runtime::Context const *ctx, monad::utils::uint256_t *stack,
+        uint64_t stack_size, uint64_t offset)
+    {
+        for (uint64_t i = 0; i < stack_size; ++i) {
+            auto const key = evmc::bytes32{0xdeb009 + i + offset};
+            auto const value =
+                monad::runtime::bytes32_from_uint256(stack[-i - 1]);
+            // we need to call access_storage here otherwise the journaling will
+            // not work correctly for >=EVMC_BERLIN
+            ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
+            ctx->host->set_storage(
+                ctx->context, &ctx->env.recipient, &key, &value);
+        }
     }
 
     void runtime_print_top2_impl(
@@ -621,6 +638,58 @@ namespace monad::compiler::native
         as_.mov(x86::rsi, reg_stack);
         as_.mov(x86::rdx, x86::qword_ptr(x86::rsp, sp_offset_stack_size));
         as_.vzeroupper();
+        as_.call(x86::qword_ptr(fn_lbl));
+    }
+
+    /**
+     * We call the runtime_store_input_stack_impl twice. The first time we
+     * temporarily dump the virtual stack of the current block, at [rsp -
+     * 32*current_stack_size,...rsp], which we use as scratch memory. Once we
+     * call runtime_store_input_stack_impl and save the current block's partial
+     * stack, we can dump the contents of the rest of the evm stack from
+     * previous blocks by calling runtime_store_input_stack_impl again, this
+     * time passing the pointer to the stack offset back by the current virtual
+     * stack's min_delta, which ensures that we don't save stale values that
+     * might have been modified by the current block.
+     */
+    void Emitter::runtime_store_input_stack()
+    {
+        auto fn_lbl = as_.newLabel();
+        external_functions_.emplace_back(
+            fn_lbl, reinterpret_cast<void *>(runtime_store_input_stack_impl));
+
+        discharge_deferred_comparison();
+        spill_caller_save_regs(true);
+
+        auto const current_stack_size =
+            stack_.top_index() - stack_.min_delta() + 1;
+        as_.mov(x86::rsi, x86::rsp);
+        as_.sub(x86::rsp, current_stack_size * 32);
+
+        auto j = 0;
+        for (int32_t i = stack_.min_delta(); i <= stack_.top_index(); ++i) {
+            mov_stack_elem_to_unaligned_mem(
+                stack_.get(i), x86::qword_ptr(x86::rsp, j));
+            j += 32;
+        }
+
+        as_.mov(x86::rdi, reg_context);
+        as_.mov(x86::rdx, current_stack_size);
+        as_.mov(x86::rcx, 0);
+        as_.vzeroupper();
+        as_.call(x86::qword_ptr(fn_lbl));
+
+        as_.add(x86::rsp, current_stack_size * 32);
+
+        as_.mov(x86::rdi, reg_context);
+        as_.mov(x86::rsi, reg_stack);
+        as_.add(x86::rsi, 32 * stack_.min_delta());
+
+        as_.mov(x86::rdx, x86::qword_ptr(x86::rsp, sp_offset_stack_size));
+        as_.add(x86::rdx, stack_.min_delta());
+
+        as_.mov(x86::rcx, current_stack_size);
+
         as_.call(x86::qword_ptr(fn_lbl));
     }
 
@@ -2236,6 +2305,9 @@ namespace monad::compiler::native
     // No discharge
     void Emitter::stop()
     {
+#ifdef SAVE_EVM_STACK_ON_EXIT
+        runtime_store_input_stack();
+#endif
         status_code(runtime::StatusCode::Success);
         as_.jmp(epilogue_label_);
     }
@@ -2249,6 +2321,9 @@ namespace monad::compiler::native
     // Discharge through `return_with_status_code`
     void Emitter::return_()
     {
+#ifdef SAVE_EVM_STACK_ON_EXIT
+        runtime_store_input_stack();
+#endif
         return_with_status_code(runtime::StatusCode::Success);
     }
 

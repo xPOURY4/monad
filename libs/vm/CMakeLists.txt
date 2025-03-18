@@ -12,6 +12,8 @@ option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
 option(MONAD_COMPILER_COVERAGE "Build with coverage" OFF)
 option(MONAD_COMPILER_TESTING "Build compiler tests" ON)
 
+option(MONAD_COMPILER_FUZZING "Build compiler and evmone with SAVE_EVM_STACK_ON_EXIT" OFF)
+
 include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)
@@ -32,6 +34,11 @@ if(MONAD_COMPILER_STANDALONE)
     add_subdirectory(third_party/intx)
     add_subdirectory(third_party/nlohmann_json)
 endif()
+
+if (MONAD_COMPILER_FUZZING)
+  add_definitions(-DSAVE_EVM_STACK_ON_EXIT)
+endif()
+
 
 # evmone
 set(BUILD_SHARED_LIBS OFF)

@@ -162,6 +162,16 @@ will print type inference errors to standard error and print contract type
 information to standard out. If it prints to standard error, there is bug
 somewhere.
 
+### Fuzzing
+
+Configure with
+
+```
+$ cmake -S . -B build -DMONAD_COMPILER_FUZZING=ON
+```
+
+to enable saving the EVM stack for both evmone and the compiler on the `STOP`, `RETURN` and `SELFDESTRUCT` opcodes.
+
 ## Structure
 
 There are four main components:

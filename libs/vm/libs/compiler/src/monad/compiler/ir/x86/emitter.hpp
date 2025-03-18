@@ -144,6 +144,7 @@ namespace monad::compiler::native
         bool is_debug_enabled();
         void runtime_print_gas_remaining(std::string const &msg);
         void runtime_print_input_stack(std::string const &msg);
+        void runtime_store_input_stack();
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
 
@@ -492,6 +493,9 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void selfdestruct(int32_t remaining_base_gas)
         {
+#ifdef SAVE_EVM_STACK_ON_EXIT
+            runtime_store_input_stack();
+#endif
             call_runtime(
                 remaining_base_gas, true, monad::runtime::selfdestruct<rev>);
         }

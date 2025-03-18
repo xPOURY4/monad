@@ -138,7 +138,7 @@ evmc_result BlockchainTestVM::execute_compiler(
         f = monad_vm_.compile(rev, code, code_size, file.str().c_str());
     }
     else {
-        f = monad_vm_.compile(rev, code, code_size, nullptr);
+        f = monad_vm_.compile(rev, code, code_size);
     }
 
     if (!f) {
