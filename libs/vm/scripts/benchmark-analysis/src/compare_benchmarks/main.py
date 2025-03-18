@@ -17,30 +17,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--after', type=pathlib.Path, required=True, help='New benchmark results (after PR applied)')
 
     parser.add_argument(
+        '-i', '--implementation', type=str, required=False, default='compiler', help='Implementation to compare'
+    )
+
+    parser.add_argument(
         '--type', choices=['run', 'compile'], required=True, help='Which set of benchmark data to compare'
     )
 
     return parser.parse_args()
 
 
-def load_single_runtime_results(path: pathlib.Path, label: str) -> pd.DataFrame:
+def load_single_runtime_results(impl: str) -> Callable[[pathlib.Path, str], pd.DataFrame]:
     def _split_benchmark_impl(row: pd.Series) -> tuple[str, str]:
         parts = row['name'].split('/')
-        return (parts[0], parts[1])
+        return ('/'.join(parts[:-1]), parts[-1])
 
-    with open(path, 'r') as f:
-        json_data = json.load(f)
+    def _curried(path: pathlib.Path, label: str) -> pd.DataFrame:
+        with open(path, 'r') as f:
+            json_data = json.load(f)
 
-    df = pd.json_normalize(json_data['benchmarks'])
+        df = pd.json_normalize(json_data['benchmarks'])
 
-    df = df[df.name.str.endswith('_mean')]
-    df.name = df.name.str.removesuffix('_mean')
+        df = df[df.name.str.endswith('_mean')]
+        df.name = df.name.str.removesuffix('_mean')
 
-    df['version'] = label
-    df[['name', 'implementation']] = df.apply(_split_benchmark_impl, axis='columns', result_type='expand')
-    df = df[df.implementation == 'compiled']
+        df['version'] = label
+        df[['name', 'implementation']] = df.apply(_split_benchmark_impl, axis='columns', result_type='expand')
+        df = df[df.implementation == impl]
 
-    return df
+        return df
+
+    return _curried
 
 
 def load_single_compile_results(path: pathlib.Path, label: str) -> pd.DataFrame:
@@ -106,10 +113,10 @@ def to_markdown_with_stats(df: pd.DataFrame) -> str:
     return f'{main_table}\n{geomean_row}'
 
 
-def loader(type: str) -> Callable[[pathlib.Path, str], pd.DataFrame]:
-    if type == 'run':
-        return load_single_runtime_results
-    elif type == 'compile':
+def loader(args: argparse.Namespace) -> Callable[[pathlib.Path, str], pd.DataFrame]:
+    if args.type == 'run':
+        return load_single_runtime_results(args.implementation)
+    elif args.type == 'compile':
         return load_single_compile_results
     else:
         raise ValueError
@@ -118,7 +125,7 @@ def loader(type: str) -> Callable[[pathlib.Path, str], pd.DataFrame]:
 def main() -> None:
     args = parse_args()
 
-    df = load_json_results(loader(args.type), args.before, args.after)
+    df = load_json_results(loader(args), args.before, args.after)
     df = compute_ratio(df)
     df = relabel_for_printing(df)
     print(to_markdown_with_stats(df))
