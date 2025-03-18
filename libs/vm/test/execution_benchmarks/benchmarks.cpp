@@ -5,17 +5,23 @@
 #include <test_resource_data.h>
 #include <test_vm.hpp>
 
+#include "benchmarktest.hpp"
+
+#include <evmc/bytes.hpp>
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-#include "benchmarktest.hpp"
 #include "host.hpp"
 #include "state.hpp"
 #include "test_state.hpp"
 
+#include <intx/intx.hpp>
+
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <format>
@@ -23,7 +29,6 @@
 #include <ios>
 #include <iterator>
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <span>
 #include <string>
 #include <string_view>
@@ -236,7 +241,7 @@ namespace
     void register_benchmark_json(std::vector<BenchmarkTest> const &tests)
     {
 
-        for (auto &test : tests) {
+        for (auto const &test : tests) {
             for (size_t block_no = 0; block_no < test.test_blocks.size();
                  ++block_no) {
                 auto const &block = test.test_blocks[block_no];

@@ -1,6 +1,14 @@
 #include "benchmarktest.hpp"
 
+#include "state.hpp"
+#include "statetest.hpp"
+
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+
+#include <istream>
+#include <string>
+#include <vector>
 
 namespace json = nlohmann;
 
