@@ -9,6 +9,7 @@
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
 #include <monad/utils/assert.h>
+#include <monad/utils/debug.hpp>
 #include <monad/utils/uint256.hpp>
 
 #include <evmone/constants.hpp>
@@ -51,7 +52,7 @@ using namespace std::chrono_literals;
 
 using enum monad::compiler::EvmOpCode;
 
-constexpr std::string_view to_string(evmc_status_code const sc) noexcept
+static constexpr std::string_view to_string(evmc_status_code const sc) noexcept
 {
     switch (sc) {
     case EVMC_SUCCESS:
@@ -95,26 +96,26 @@ constexpr std::string_view to_string(evmc_status_code const sc) noexcept
     }
 }
 
-constexpr auto genesis_address =
+static constexpr auto genesis_address =
     0xBEEFCAFE000000000000000000000000BA5EBA11_address;
 
-constexpr auto block_gas_limit = 300'000'000;
+static constexpr auto block_gas_limit = 300'000'000;
 
-Account genesis_account() noexcept
+static Account genesis_account() noexcept
 {
     auto acct = Account{};
     acct.balance = std::numeric_limits<utils::uint256_t>::max();
     return acct;
 }
 
-State initial_state()
+static State initial_state()
 {
     auto init = State{};
     init.insert(genesis_address, genesis_account());
     return init;
 }
 
-Transaction tx_from(State &state, evmc::address const &addr) noexcept
+static Transaction tx_from(State &state, evmc::address const &addr) noexcept
 {
     auto tx = Transaction{};
     tx.gas_limit = block_gas_limit;
@@ -123,7 +124,7 @@ Transaction tx_from(State &state, evmc::address const &addr) noexcept
     return tx;
 }
 
-constexpr auto deploy_prefix() noexcept
+static constexpr auto deploy_prefix() noexcept
 {
     return std::array<std::uint8_t, 11>{
         PUSH1,
@@ -140,7 +141,7 @@ constexpr auto deploy_prefix() noexcept
     };
 }
 
-evmc::address deploy_contract(
+static evmc::address deploy_contract(
     State &state, evmc::VM &vm, evmc::address const &from,
     std::span<std::uint8_t const> const code)
 {
@@ -171,7 +172,7 @@ evmc::address deploy_contract(
 // Derived from the evmone transition implementation; transaction-related
 // book-keeping is elided here to keep the implementation simple and allow us to
 // send arbitrary messages to update the state.
-evmc::Result transition(
+static evmc::Result transition(
     State &state, evmc_message const &msg, evmc_revision const rev,
     evmc::VM &vm, std::int64_t const block_gas_left)
 {
@@ -253,7 +254,7 @@ evmc::Result transition(
 // `K |-> 0` for some key `K`. This won't directly compare equal to the _empty_
 // state that the compiler has, and so we need to normalise the states after
 // execution to remove cold zero slots.
-void clean_storage(State &state)
+static void clean_storage(State &state)
 {
     for (auto &[addr, acc] : state.get_accounts()) {
         for (auto it = acc.storage.begin(); it != acc.storage.end();) {
@@ -282,26 +283,30 @@ void clean_storage(State &state)
 
 using random_engine_t = std::mt19937_64;
 
-struct arguments
+namespace
 {
-    using seed_t = random_engine_t::result_type;
-    static constexpr seed_t default_seed = std::numeric_limits<seed_t>::max();
-
-    std::int64_t iterations_per_run = 100;
-    std::size_t messages = 256;
-    seed_t seed = default_seed;
-    std::size_t runs = std::numeric_limits<std::size_t>::max();
-    bool print_stats = false;
-
-    void set_random_seed_if_default()
+    struct arguments
     {
-        if (seed == default_seed) {
-            seed = std::random_device()();
-        }
-    }
-};
+        using seed_t = random_engine_t::result_type;
+        static constexpr seed_t default_seed =
+            std::numeric_limits<seed_t>::max();
 
-arguments parse_args(int const argc, char **const argv)
+        std::int64_t iterations_per_run = 100;
+        std::size_t messages = 256;
+        seed_t seed = default_seed;
+        std::size_t runs = std::numeric_limits<std::size_t>::max();
+        bool print_stats = false;
+
+        void set_random_seed_if_default()
+        {
+            if (seed == default_seed) {
+                seed = std::random_device()();
+            }
+        }
+    };
+}
+
+static arguments parse_args(int const argc, char **const argv)
 {
     auto app = CLI::App("Fuzz-test Monad EVM compiler");
     auto args = arguments{};
@@ -343,7 +348,7 @@ arguments parse_args(int const argc, char **const argv)
     return args;
 }
 
-evmc_status_code fuzz_iteration(
+static evmc_status_code fuzz_iteration(
     evmc_message const &msg, evmc_revision const rev, State &evmone_state,
     evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm)
 {
@@ -376,8 +381,8 @@ evmc_status_code fuzz_iteration(
     return evmone_result.status_code;
 }
 
-void log(
-    std::chrono::high_resolution_clock::time_point start, arguments const &args,
+static void
+log(std::chrono::high_resolution_clock::time_point start, arguments const &args,
     std::unordered_map<evmc_status_code, std::size_t> const &exit_code_stats,
     std::size_t const run_index, std::size_t const total_messages)
 {
@@ -405,7 +410,7 @@ void log(
     }
 }
 
-void do_run(std::size_t const run_index, arguments const &args)
+static void do_run(std::size_t const run_index, arguments const &args)
 {
     constexpr auto rev = EVMC_CANCUN;
 
@@ -483,14 +488,24 @@ void do_run(std::size_t const run_index, arguments const &args)
     log(start_time, args, exit_code_stats, run_index, total_messages);
 }
 
-int main(int argc, char **argv)
+static void run_loop(int argc, char **argv)
 {
     auto args = parse_args(argc, argv);
-
     for (auto i = 0u; i < args.runs; ++i) {
         do_run(i, args);
         args.seed = random_engine_t(args.seed)();
     }
+}
 
-    return 0;
+int main(int argc, char **argv)
+{
+    if (monad::utils::debug_save_stack) {
+        run_loop(argc, argv);
+        return 0;
+    }
+    std::cerr << "\nFuzzer not started:\n"
+                 "Make sure to configure with -DMONAD_COMPILER_FUZZING=ON and\n"
+                 "set environment variable SAVE_EVM_STACK_ON_EXIT=1 before\n"
+                 "starting the fuzzer\n";
+    return 1;
 }

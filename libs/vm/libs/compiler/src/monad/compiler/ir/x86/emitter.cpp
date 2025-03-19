@@ -7,6 +7,7 @@
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
 #include <monad/utils/assert.h>
+#include <monad/utils/debug.hpp>
 #include <monad/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
@@ -195,10 +196,7 @@ namespace
             auto const key = evmc::bytes32{0xdeb009 + i + offset};
             auto const value =
                 monad::runtime::bytes32_from_uint256(stack[-i - 1]);
-            // we need to call access_storage here otherwise the journaling will
-            // not work correctly for >=EVMC_BERLIN
-            ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
-            ctx->host->set_storage(
+            ctx->host->set_transient_storage(
                 ctx->context, &ctx->env.recipient, &key, &value);
         }
     }
@@ -495,51 +493,52 @@ namespace monad::compiler::native
         static auto const ro_section_name_len = 2;
         static auto const ro_section_index = 1;
 
+        asmjit::Section *ro_section;
+        code_holder_.newSection(
+            &ro_section,
+            ro_section_name,
+            ro_section_name_len,
+            asmjit::SectionFlags::kReadOnly,
+            32,
+            ro_section_index);
+
+        as_.section(ro_section);
+        as_.align(asmjit::AlignMode::kData, 32);
+        for (auto [lbl, lit] : literals_) {
+            as_.bind(lbl);
+            as_.embed(&lit.value[0], 32);
+        }
+
+        for (auto [lbl, f] : external_functions_) {
+            as_.bind(lbl);
+            static_assert(sizeof(void *) == sizeof(uint64_t));
+            as_.embedUInt64(reinterpret_cast<uint64_t>(f));
+        }
+        // We are 8 byte aligned.
+        as_.bind(jump_table_label_);
+        for (size_t bid = 0; bid < bytecode_size_; ++bid) {
+            auto lbl = jump_dests_.find(bid);
+            if (lbl != jump_dests_.end()) {
+                as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
+            }
+            else {
+                as_.embedLabelDelta(error_label_, jump_table_label_, 4);
+            }
+        }
+
+        for (auto const &[lbl, msg] : debug_messages_) {
+            as_.bind(lbl);
+            as_.embed(msg.c_str(), msg.size() + 1);
+        }
+
         // Inside asmjit, if a section is emitted with no actual data in it, a
         // call to memcpy with a null source is made. This is technically UB,
         // and will get flagged by ubsan as such, even if it is technically
         // harmless in practice. The only way that we can emit an empty section
-        // is if the compiled contract is completely empty: if there are any
-        // code bytes at all, the ro section will have some data in it and the
-        // UB won't occur.
-        if (bytecode_size_ > 0) {
-            asmjit::Section *ro_section;
-            code_holder_.newSection(
-                &ro_section,
-                ro_section_name,
-                ro_section_name_len,
-                asmjit::SectionFlags::kReadOnly,
-                32,
-                ro_section_index);
-
-            as_.section(ro_section);
-            as_.align(asmjit::AlignMode::kData, 32);
-            for (auto [lbl, lit] : literals_) {
-                as_.bind(lbl);
-                as_.embed(&lit.value[0], 32);
-            }
-
-            for (auto [lbl, f] : external_functions_) {
-                as_.bind(lbl);
-                static_assert(sizeof(void *) == sizeof(uint64_t));
-                as_.embedUInt64(reinterpret_cast<uint64_t>(f));
-            }
-            // We are 8 byte aligned.
-            as_.bind(jump_table_label_);
-            for (size_t bid = 0; bid < bytecode_size_; ++bid) {
-                auto lbl = jump_dests_.find(bid);
-                if (lbl != jump_dests_.end()) {
-                    as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
-                }
-                else {
-                    as_.embedLabelDelta(error_label_, jump_table_label_, 4);
-                }
-            }
-
-            for (auto const &[lbl, msg] : debug_messages_) {
-                as_.bind(lbl);
-                as_.embed(msg.c_str(), msg.size() + 1);
-            }
+        // is if the compiled contract is empty. In this case we will emit a
+        // single zero byte to make the section non-empty.
+        if (bytecode_size_ == 0) {
+            as_.embedInt8(0);
         }
 
         entrypoint_t contract_main;
@@ -654,6 +653,10 @@ namespace monad::compiler::native
      */
     void Emitter::runtime_store_input_stack()
     {
+        if (!utils::debug_save_stack) {
+            return;
+        }
+
         auto fn_lbl = as_.newLabel();
         external_functions_.emplace_back(
             fn_lbl, reinterpret_cast<void *>(runtime_store_input_stack_impl));
@@ -2305,9 +2308,7 @@ namespace monad::compiler::native
     // No discharge
     void Emitter::stop()
     {
-#ifdef SAVE_EVM_STACK_ON_EXIT
         runtime_store_input_stack();
-#endif
         status_code(runtime::StatusCode::Success);
         as_.jmp(epilogue_label_);
     }
@@ -2321,9 +2322,7 @@ namespace monad::compiler::native
     // Discharge through `return_with_status_code`
     void Emitter::return_()
     {
-#ifdef SAVE_EVM_STACK_ON_EXIT
         runtime_store_input_stack();
-#endif
         return_with_status_code(runtime::StatusCode::Success);
     }
 

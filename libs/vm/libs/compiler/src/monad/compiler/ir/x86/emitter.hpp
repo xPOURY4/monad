@@ -493,9 +493,7 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void selfdestruct(int32_t remaining_base_gas)
         {
-#ifdef SAVE_EVM_STACK_ON_EXIT
             runtime_store_input_stack();
-#endif
             call_runtime(
                 remaining_base_gas, true, monad::runtime::selfdestruct<rev>);
         }

@@ -6,6 +6,8 @@ target_sources(utils PRIVATE
     "src/monad/utils/assert.c"
     "src/monad/utils/assert.h"
     "src/monad/utils/cases.hpp"
+    "src/monad/utils/debug.cpp"
+    "src/monad/utils/debug.hpp"
     "src/monad/utils/load_program.hpp"
     "src/monad/utils/rc_ptr.hpp"
     "src/monad/utils/uint256.cpp"

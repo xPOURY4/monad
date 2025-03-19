@@ -170,6 +170,12 @@ Configure with
 $ cmake -S . -B build -DMONAD_COMPILER_FUZZING=ON
 ```
 
+and set envoronment variable
+
+```
+export SAVE_EVM_STACK_ON_EXIT=1
+```
+
 to enable saving the EVM stack for both evmone and the compiler on the `STOP`, `RETURN` and `SELFDESTRUCT` opcodes.
 
 ## Structure
