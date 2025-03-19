@@ -1500,6 +1500,8 @@ TEST(Emitter, sdiv)
     uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
     uint256_t bit255{0, 0, 0, static_cast<uint64_t>(1) << 62};
     uint256_t bit64{static_cast<uint64_t>(1) << 63};
+    uint256_t bit65{0, 1, 0, 0};
+    uint256_t bit193{0, 0, 0, 1};
     uint256_t const bit63{static_cast<uint64_t>(1) << 62};
     std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
@@ -1521,6 +1523,14 @@ TEST(Emitter, sdiv)
         {bit256 + 16, bit64},
         {bit256, -bit64},
         {bit256 + 16, -bit64},
+        {bit256, bit65},
+        {bit256 + 16, bit65},
+        {bit256, -bit65},
+        {bit256 + 16, -bit65},
+        {-bit256, bit193},
+        {-(bit256 + 16), bit193},
+        {-bit256, -bit193},
+        {-(bit256 + 16), -bit193},
         {bit64 * 3, bit64},
         {bit64 * 3, -bit64},
         {bit64 * 3 + bit63, bit64},
