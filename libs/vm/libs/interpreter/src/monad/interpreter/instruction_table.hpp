@@ -12,7 +12,8 @@
 
 namespace monad::interpreter
 {
-    using InstrEval = void (*)(runtime::Context &, State &);
+    using InstrEval =
+        void (*)(runtime::Context &, State &, utils::uint256_t const *);
     using InstrTable = std::array<InstrEval, 256>;
 
     template <evmc_revision Rev>

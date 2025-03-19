@@ -36,6 +36,8 @@ namespace monad::interpreter
         template <evmc_revision Rev>
         void core_loop_impl(runtime::Context &ctx, State &state)
         {
+            auto const *stack_bottom = state.stack_bottom;
+
             while (true) {
                 auto const instr = *state.instr_ptr;
 
@@ -43,7 +45,7 @@ namespace monad::interpreter
                     trace<Rev>(instr, ctx, state);
                 }
 
-                instruction_table<Rev>[instr](ctx, state);
+                instruction_table<Rev>[instr](ctx, state, stack_bottom);
             }
         }
 
