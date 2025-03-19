@@ -112,50 +112,16 @@ namespace monad::compiler::native
                 void (*f)(Args...))
                 : RuntimeImpl(e, remaining_base_gas, spill_avx, f)
             {
-                static_assert(
-                    monad::runtime::detail::uses_context_v<Args...> ||
-                    monad::runtime::detail::uses_remaining_gas_v<Args...>);
+            }
+
+            Runtime(Emitter *e, bool spill_avx, void (*f)(Args...))
+                : Runtime(e, 0, spill_avx, f)
+            {
             }
 
             void call()
             {
                 em_->call_runtime_impl(*this);
-            }
-        };
-
-        template <typename... Args>
-        class Runtime<uint256_t *, Args...> : public RuntimeImpl
-        {
-        public:
-            Runtime(
-                Emitter *e, int32_t remaining_base_gas, bool spill_avx,
-                void (*f)(uint256_t *, Args...))
-                : RuntimeImpl(e, remaining_base_gas, spill_avx, f)
-            {
-                static_assert(monad::runtime::detail::is_result_v<uint256_t *>);
-                static_assert(!monad::runtime::detail::uses_context_v<Args...>);
-                static_assert(
-                    !monad::runtime::detail::uses_remaining_gas_v<Args...>);
-            }
-
-            Runtime(Emitter *e, bool spill_avx, void (*f)(uint256_t *, Args...))
-                : Runtime(e, 0, spill_avx, f)
-            {
-            }
-
-            uint256_t static_call(Args... args)
-            {
-                uint256_t result;
-                auto f = reinterpret_cast<void (*)(uint256_t *, Args...)>(
-                    runtime_fun_);
-                f(&result, args...);
-                return result;
-            }
-
-            void call()
-            {
-                em_->call_runtime_pure(
-                    *this, std::index_sequence_for<Args...>{});
             }
         };
 
@@ -680,27 +646,6 @@ namespace monad::compiler::native
         void negate_gpq256(Gpq256 const &);
 
         void call_runtime_impl(RuntimeImpl &rt);
-
-        template <typename... Args, size_t... Is>
-        void call_runtime_pure(
-            Runtime<uint256_t *, Args...> &rt, std::index_sequence<Is...>)
-        {
-            std::array<StackElemRef, sizeof...(Args)> elems;
-            ((std::get<Is>(elems) = stack_.pop()), ...);
-            if ((... && std::get<Is>(elems)->literal())) {
-                auto args =
-                    std::make_tuple(&std::get<Is>(elems)->literal()->value...);
-                push(std::apply(
-                    [&rt](Args... args) { return rt.static_call(args...); },
-                    args));
-            }
-            else {
-                discharge_deferred_comparison();
-                spill_caller_save_regs(rt.spill_avx_regs());
-                (rt.pass(std::move(std::get<Is>(elems))), ...);
-                rt.call_impl();
-            }
-        }
 
         void status_code(monad::runtime::StatusCode);
         void error_block(asmjit::Label &, monad::runtime::StatusCode);
