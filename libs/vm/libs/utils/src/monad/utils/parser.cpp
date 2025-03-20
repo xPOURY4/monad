@@ -31,13 +31,13 @@ using namespace monad::compiler;
 namespace monad::utils
 {
 
-    constexpr auto push_ops = std::array{
+    constexpr auto push_ops_with_arg = std::array{
         "PUSH", // generic push
-        "PUSH0",  "PUSH1",  "PUSH2",  "PUSH3",  "PUSH4",  "PUSH5",  "PUSH6",
-        "PUSH7",  "PUSH8",  "PUSH9",  "PUSH10", "PUSH11", "PUSH12", "PUSH13",
-        "PUSH14", "PUSH15", "PUSH16", "PUSH17", "PUSH18", "PUSH19", "PUSH20",
-        "PUSH21", "PUSH22", "PUSH23", "PUSH24", "PUSH25", "PUSH26", "PUSH27",
-        "PUSH28", "PUSH29", "PUSH30", "PUSH31", "PUSH32",
+        "PUSH1",  "PUSH2",  "PUSH3",  "PUSH4",  "PUSH5",  "PUSH6",  "PUSH7",
+        "PUSH8",  "PUSH9",  "PUSH10", "PUSH11", "PUSH12", "PUSH13", "PUSH14",
+        "PUSH15", "PUSH16", "PUSH17", "PUSH18", "PUSH19", "PUSH20", "PUSH21",
+        "PUSH22", "PUSH23", "PUSH24", "PUSH25", "PUSH26", "PUSH27", "PUSH28",
+        "PUSH29", "PUSH30", "PUSH31", "PUSH32",
     };
 
     char const *try_parse_line_comment(char const *input)
@@ -139,9 +139,11 @@ namespace monad::utils
         return input;
     }
 
-    bool is_push(std::string_view op)
+    bool is_push_with_arg(std::string_view op)
     {
-        return (find(push_ops.begin(), push_ops.end(), op) != push_ops.end());
+        return (
+            find(push_ops_with_arg.begin(), push_ops_with_arg.end(), op) !=
+            push_ops_with_arg.end());
     }
 
     struct OpName
@@ -387,7 +389,10 @@ namespace monad::utils
                 auto op = std::string(input, p);
                 std::transform(op.begin(), op.end(), op.begin(), ::toupper);
                 input = p;
-                if (is_push(op)) {
+                if (op == "PUSH0") {
+                    tokens.push_back(Push{.opname = op, .arg = uint256_t{}});
+                }
+                else if (is_push_with_arg(op)) {
                     auto r = parse_constant_or_label(input);
                     input = r.first;
                     tokens.push_back(Push{.opname = op, .arg = r.second});
