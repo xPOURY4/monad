@@ -78,7 +78,8 @@ jobs:
                     libcli11-dev        \
                     libgmock-dev        \
                     libgtest-dev        \
-                    ninja-build
+                    ninja-build         \
+                    valgrind
 
             # There's a missing #include in evmc's tests that causes some of its
             # code to break when compiled against the C++ standard library

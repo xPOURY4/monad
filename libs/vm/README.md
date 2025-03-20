@@ -227,6 +227,7 @@ scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
 
 To apply the formatter, use:
 ```console
+find cmd -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
 find libs -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
 find test -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
 ```

@@ -444,4 +444,42 @@ namespace monad::compiler::native
             return std::nullopt;
         }
     }
+
+    std::optional<entrypoint_t> compile_basic_blocks(
+        evmc_revision rev, asmjit::JitRuntime &rt,
+        basic_blocks::BasicBlocksIR const &ir, char const *asm_log)
+    {
+        switch (rev) {
+        case EVMC_FRONTIER:
+            return ::compile_basic_blocks<EVMC_FRONTIER>(rt, ir, asm_log);
+        case EVMC_HOMESTEAD:
+            return ::compile_basic_blocks<EVMC_HOMESTEAD>(rt, ir, asm_log);
+        case EVMC_TANGERINE_WHISTLE:
+            return ::compile_basic_blocks<EVMC_TANGERINE_WHISTLE>(
+                rt, ir, asm_log);
+        case EVMC_SPURIOUS_DRAGON:
+            return ::compile_basic_blocks<EVMC_SPURIOUS_DRAGON>(
+                rt, ir, asm_log);
+        case EVMC_BYZANTIUM:
+            return ::compile_basic_blocks<EVMC_BYZANTIUM>(rt, ir, asm_log);
+        case EVMC_CONSTANTINOPLE:
+            return ::compile_basic_blocks<EVMC_CONSTANTINOPLE>(rt, ir, asm_log);
+        case EVMC_PETERSBURG:
+            return ::compile_basic_blocks<EVMC_PETERSBURG>(rt, ir, asm_log);
+        case EVMC_ISTANBUL:
+            return ::compile_basic_blocks<EVMC_ISTANBUL>(rt, ir, asm_log);
+        case EVMC_BERLIN:
+            return ::compile_basic_blocks<EVMC_BERLIN>(rt, ir, asm_log);
+        case EVMC_LONDON:
+            return ::compile_basic_blocks<EVMC_LONDON>(rt, ir, asm_log);
+        case EVMC_PARIS:
+            return ::compile_basic_blocks<EVMC_PARIS>(rt, ir, asm_log);
+        case EVMC_SHANGHAI:
+            return ::compile_basic_blocks<EVMC_SHANGHAI>(rt, ir, asm_log);
+        case EVMC_CANCUN:
+            return ::compile_basic_blocks<EVMC_CANCUN>(rt, ir, asm_log);
+        default:
+            return std::nullopt;
+        }
+    }
 }

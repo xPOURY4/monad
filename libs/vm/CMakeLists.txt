@@ -49,10 +49,13 @@ set(EVMC_TESTING NO)
 set(ethash_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
 set(intx_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
 set(nlohmann_json_DIR "${CMAKE_CURRENT_LIST_DIR}/cmake/dummy")
+
 add_subdirectory(third_party/evmone)
+
 unset(ethash_DIR)
 unset(intx_DIR)
 unset(nlohmann_json_DIR)
+
 
 target_link_libraries(evmone_precompiles PUBLIC ethash::keccak)
 target_link_libraries(evmone PUBLIC ethash::keccak intx::intx)
@@ -82,6 +85,7 @@ add_subdirectory(libs/runtime)
 add_subdirectory(libs/utils)
 add_subdirectory(libs/vm)
 add_subdirectory(cmd/parser)
+add_subdirectory(cmd/mce)
 
 if(MONAD_COMPILER_TESTING)
     add_subdirectory(test)
