@@ -20,7 +20,6 @@
 #include <benchmark/benchmark.h>
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -216,14 +215,15 @@ namespace
     {
         auto ret = std::vector<benchmark_case>{};
 
-        for (auto const &p : fs::directory_iterator(execution_benchmarks_dir)) {
+        for (auto const &p :
+             fs::directory_iterator(execution_benchmarks_dir / "basic")) {
             ret.emplace_back(load_benchmark(p));
         }
 
         return ret;
     }
 
-    auto make_benchmark_json(std::filesystem::path const &json_test_file)
+    auto load_benchmark_json(std::filesystem::path const &json_test_file)
     {
         std::ifstream f{json_test_file};
         return load_benchmark_tests(f);
@@ -231,11 +231,18 @@ namespace
 
     auto benchmarks_json()
     {
-        return std::array{
-            make_benchmark_json(vm_performance_dir / "loopExp.json"),
-            make_benchmark_json(vm_performance_dir / "loopMul.json"),
-            make_benchmark_json(vm_performance_dir / "performanceTester.json"),
+        auto ret = std::vector<std::vector<BenchmarkTest>>{
+            load_benchmark_json(vm_performance_dir / "loopExp.json"),
+            load_benchmark_json(vm_performance_dir / "loopMul.json"),
+            load_benchmark_json(vm_performance_dir / "performanceTester.json"),
         };
+
+        for (auto const &p :
+             fs::directory_iterator(execution_benchmarks_dir / "json")) {
+            ret.emplace_back(load_benchmark_json(p));
+        }
+
+        return ret;
     }
 
     void register_benchmark_json(std::vector<BenchmarkTest> const &tests)
