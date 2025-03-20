@@ -507,9 +507,17 @@ namespace monad::compiler::native
             insert_avx_reg(StackElemRef);
 
         /**
+         * Find a stack element holding an AVX register from the stack,
+         * which can be spilled from the stack element. It is required
+         * that at least one stack element is holding an avx register
+         * which can be spilled.
+         */
+        StackElem *find_stack_elem_for_avx_reg_spill();
+
+        /**
          * Find an AVX register from the stack and spill it by adding it to
          * the set `free_avx_regs_`.
-         * If a non-null stack element is returnen, then make sure to emit
+         * If a non-null stack element is returned, then make sure to emit
          * mov instruction from the spilled AVX register to the stack element's
          * stack offset. The stack offset which is guaranteed to be a location
          * of the stack element.
@@ -565,7 +573,7 @@ namespace monad::compiler::native
         /**
          * Find an general register from the stack and spill it by adding it to
          * the set `free_general_regs_`.
-         * If a non-null stack element is returnen, then make sure to emit mov
+         * If a non-null stack element is returned, then make sure to emit mov
          * instruction from the spilled general register to the stack element's
          * stack offset. The stack offset which is guaranteed to be a location
          * of the stack element.
@@ -599,6 +607,13 @@ namespace monad::compiler::native
          * containing the AVX register.
          */
         StackElemRef release_avx_reg(StackElemRef elem);
+
+        /**
+         * Move the avx register in `src` to `dst`. It is required that
+         * `src` does not need to spill its value to another location, even
+         * if general register is the only location.
+         */
+        void move_avx_reg(StackElem &src, StackElem &dst);
 
         /**
          * Spill all caller save general registers to persistent storage.

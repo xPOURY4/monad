@@ -560,7 +560,7 @@ namespace monad::compiler::native
         return {*available_stack_offsets_.begin()};
     }
 
-    StackElem *Stack::spill_avx_reg()
+    StackElem *Stack::find_stack_elem_for_avx_reg_spill()
     {
         MONAD_COMPILER_ASSERT(free_avx_regs_.empty());
         for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
@@ -568,9 +568,14 @@ namespace monad::compiler::native
             if (e == nullptr || e->reserve_avx_reg_count_ != 0) {
                 continue;
             }
-            return spill_avx_reg(e);
+            return e;
         }
         MONAD_COMPILER_ASSERT(false);
+    }
+
+    StackElem *Stack::spill_avx_reg()
+    {
+        return spill_avx_reg(find_stack_elem_for_avx_reg_spill());
     }
 
     StackElem *Stack::spill_avx_reg(StackElemRef e)
@@ -826,11 +831,17 @@ namespace monad::compiler::native
     StackElemRef Stack::release_avx_reg(StackElemRef elem)
     {
         auto dst = new_stack_elem();
-        AvxReg const reg = *elem->avx_reg_;
-        dst->avx_reg_ = reg;
-        elem->avx_reg_ = std::nullopt;
-        avx_reg_stack_elems_[reg.reg] = dst.get();
+        move_avx_reg(*elem, *dst);
         return dst;
+    }
+
+    void Stack::move_avx_reg(StackElem &src, StackElem &dst)
+    {
+        AvxReg const reg = *src.avx_reg_;
+        MONAD_COMPILER_ASSERT(avx_reg_stack_elems_[reg.reg] == &src);
+        dst.avx_reg_ = reg;
+        src.avx_reg_ = std::nullopt;
+        avx_reg_stack_elems_[reg.reg] = &dst;
     }
 
     StackElemRef Stack::release_general_reg(StackElemRef elem)

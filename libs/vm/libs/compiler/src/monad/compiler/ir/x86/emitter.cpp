@@ -952,10 +952,25 @@ namespace monad::compiler::native
             return;
         }
 
-        // Reserve an AVX register which we will use for temporary values
-        auto [init1, init1_reserv] = alloc_avx_reg();
-        auto init_yx1 = avx_reg_to_ymm(*init1->avx_reg());
+        // Reserve an AVX register which we will use for temporary values.
+        // Note that if `spill_elem` is not nullptr, then the spill needs
+        // be reverted later to undo the state change to the stack.
+        StackElem *spill_elem = nullptr;
+        bool spill_elem_has_new_mem_location = false;
+        if (!stack_.has_free_avx_reg()) {
+            spill_elem = stack_.find_stack_elem_for_avx_reg_spill();
+            spill_elem_has_new_mem_location =
+                stack_.spill_avx_reg(spill_elem) != nullptr;
+        }
+        auto [init1, init1_reserv, init1_spill] = stack_.alloc_avx_reg();
+        MONAD_COMPILER_DEBUG_ASSERT(!init1_spill);
+        auto const init_yx1 = avx_reg_to_ymm(*init1->avx_reg());
         auto yx1 = init_yx1;
+        if (spill_elem_has_new_mem_location) {
+            MONAD_COMPILER_DEBUG_ASSERT(spill_elem->stack_offset().has_value());
+            as_.vmovaps(
+                stack_offset_to_mem(*spill_elem->stack_offset()), init_yx1);
+        }
 
         // Definition. Stack element `e` depends on stack element `d` if
         //   * `d` is located on some stack offset `i` and
@@ -1136,6 +1151,15 @@ namespace monad::compiler::native
             }
             for (int32_t const i : e->stack_indices()) {
                 as_.vmovaps(stack_offset_to_mem(StackOffset{i}), yx1);
+            }
+        }
+
+        if (spill_elem != nullptr) {
+            // Reset the state change to the stack caused by spilling the
+            // avx register in `spill_elem`.
+            stack_.move_avx_reg(*init1, *spill_elem);
+            if (spill_elem_has_new_mem_location) {
+                stack_.remove_stack_offset(*spill_elem);
             }
         }
     }
