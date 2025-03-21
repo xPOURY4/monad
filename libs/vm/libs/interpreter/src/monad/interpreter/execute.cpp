@@ -37,6 +37,7 @@ namespace monad::interpreter
         void core_loop_impl(runtime::Context &ctx, State &state)
         {
             auto const *stack_bottom = state.stack_bottom;
+            auto gas_remaining = ctx.gas_remaining;
 
             while (true) {
                 auto const instr = *state.instr_ptr;
@@ -45,7 +46,8 @@ namespace monad::interpreter
                     trace<Rev>(instr, ctx, state);
                 }
 
-                instruction_table<Rev>[instr](ctx, state, stack_bottom);
+                gas_remaining = instruction_table<Rev>[instr](
+                    ctx, state, stack_bottom, gas_remaining);
             }
         }
 

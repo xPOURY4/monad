@@ -8,8 +8,9 @@ namespace monad::interpreter
 {
     template <typename... FnArgs>
     [[gnu::always_inline]]
-    inline void
-    call_runtime(void (*f)(FnArgs...), runtime::Context &ctx, State &state)
+    inline std::int64_t call_runtime(
+        void (*f)(FnArgs...), runtime::Context &ctx, State &state,
+        std::int64_t gas_remaining)
     {
         using namespace monad::runtime;
 
@@ -62,6 +63,7 @@ namespace monad::interpreter
             }
         }();
 
+        ctx.gas_remaining = gas_remaining;
         std::apply(f, all_args);
 
         static_assert(
@@ -69,5 +71,7 @@ namespace monad::interpreter
         constexpr std::ptrdiff_t stack_adjustment =
             static_cast<std::ptrdiff_t>(stack_arg_count) - (use_result ? 1 : 0);
         state.stack_top -= stack_adjustment;
+
+        return ctx.gas_remaining;
     }
 }
