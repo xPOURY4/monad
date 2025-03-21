@@ -146,8 +146,8 @@ namespace monad::fuzzing
     struct Call
     {
         std::uint8_t opcode;
-        uint8_t gas_pct;
-        uint8_t balance_pct;
+        uint8_t gasPct;
+        uint8_t balancePct;
         Constant argsOffset;
         Constant argsSize;
         Constant retOffset;
@@ -162,12 +162,42 @@ namespace monad::fuzzing
 
         return Call{
             .opcode = uniform_sample(eng, call_non_terminators),
-            .gas_pct = uniform_sample(eng, pcts),
-            .balance_pct = uniform_sample(eng, pcts),
+            .gasPct = uniform_sample(eng, pcts),
+            .balancePct = uniform_sample(eng, pcts),
             .argsOffset = memory_constant(eng),
             .argsSize = memory_constant(eng),
             .retOffset = memory_constant(eng),
             .retSize = memory_constant(eng)};
+    }
+
+    struct ReturnDataCopy
+    {
+        Constant destOffset;
+        uint8_t sizePct; // percent of return data size
+        uint8_t offsetPct; // percent of return data size
+    };
+
+    template <typename Engine>
+    ReturnDataCopy generate_returndatacopy(Engine &eng)
+    {
+        auto r = ReturnDataCopy{
+            .destOffset = memory_constant(eng),
+            .sizePct = 10, // mostly 10, sometimes < 0..9, rarely 11
+            .offsetPct = 0, // mostly 0, sometimes < 1..9, rarely 10
+        };
+        with_probability(eng, 0.05, [&](auto &) {
+            auto dist = std::uniform_int_distribution(0, 9);
+            r.sizePct = static_cast<uint8_t>(dist(eng));
+        });
+        with_probability(eng, 0.0005, [&](auto &) { r.sizePct = 11; });
+
+        with_probability(eng, 0.05, [&](auto &) {
+            auto dist = std::uniform_int_distribution(1, 9);
+            r.offsetPct = static_cast<uint8_t>(dist(eng));
+        });
+        with_probability(eng, 0.0005, [&](auto &) { r.offsetPct = 10; });
+
+        return r;
     }
 
     struct NonTerminator
@@ -180,7 +210,8 @@ namespace monad::fuzzing
         std::uint8_t opcode;
     };
 
-    using Instruction = std::variant<NonTerminator, Terminator, Push, Call>;
+    using Instruction =
+        std::variant<NonTerminator, Terminator, Push, Call, ReturnDataCopy>;
 
     template <typename Engine>
     NonTerminator generate_common_non_terminator(Engine &eng)
@@ -320,6 +351,9 @@ namespace monad::fuzzing
                 Choice(dup_prob, [](auto &g) { return generate_dup(g); }),
                 Choice(call_prob, [](auto &g) { return generate_call(g); }),
                 Choice(
+                    call_prob,
+                    [](auto &g) { return generate_returndatacopy(g); }),
+                Choice(
                     uncommon_non_term_prob,
                     [](auto &g) {
                         return generate_uncommon_non_terminator(g);
@@ -390,6 +424,19 @@ namespace monad::fuzzing
         program.push_back(DIV);
     }
 
+    void compile_returndatacopy(
+        std::vector<std::uint8_t> &program, ReturnDataCopy const &rdc)
+    {
+
+        program.push_back(RETURNDATASIZE);
+        compile_percent(program, rdc.sizePct);
+        program.push_back(RETURNDATASIZE);
+        compile_percent(program, rdc.offsetPct);
+        compile_constant(program, rdc.destOffset);
+        program.push_back(RETURNDATASIZE);
+        program.push_back(RETURNDATACOPY);
+    }
+
     template <typename Engine>
     void compile_call(
         Engine &eng, std::vector<std::uint8_t> &program, Call const &call,
@@ -405,14 +452,14 @@ namespace monad::fuzzing
 
             if (call.opcode == CALL || call.opcode == CALLCODE) {
                 program.push_back(BALANCE);
-                compile_percent(program, call.balance_pct);
+                compile_percent(program, call.balancePct);
             }
 
             compile_address(eng, program, valid_addresses);
 
             // send some percentage of available gas
             program.push_back(GAS);
-            compile_percent(program, call.gas_pct);
+            compile_percent(program, call.gasPct);
         });
         program.push_back(call.opcode);
     }
@@ -516,6 +563,9 @@ namespace monad::fuzzing
                     },
                     [&](Call const &c) {
                         compile_call(eng, program, c, valid_addresses);
+                    },
+                    [&](ReturnDataCopy const &r) {
+                        compile_returndatacopy(program, r);
                     },
                 },
                 inst);
