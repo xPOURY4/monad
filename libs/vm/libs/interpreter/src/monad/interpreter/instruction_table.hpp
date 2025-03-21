@@ -12,7 +12,7 @@
 
 namespace monad::interpreter
 {
-    using InstrEval = std::int64_t (*)(
+    using InstrEval = OpcodeResult (*)(
         runtime::Context &, State &, utils::uint256_t const *, std::int64_t);
     using InstrTable = std::array<InstrEval, 256>;
 

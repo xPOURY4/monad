@@ -46,8 +46,9 @@ namespace monad::interpreter
                     trace<Rev>(instr, ctx, state);
                 }
 
-                gas_remaining = instruction_table<Rev>[instr](
+                auto const [gas_rem] = instruction_table<Rev>[instr](
                     ctx, state, stack_bottom, gas_remaining);
+                gas_remaining = gas_rem;
             }
         }
 

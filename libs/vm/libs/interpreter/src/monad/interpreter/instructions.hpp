@@ -15,6 +15,17 @@ namespace monad::interpreter
     using enum runtime::StatusCode;
     using enum compiler::EvmOpCode;
 
+    /**
+     * Contains the state updated by each instruction, so that they can be put
+     * explicitly in registers. Note that this structure is intended to be
+     * returned by value in %rax and %rdx, and so must always be exactly 16
+     * bytes in size.
+     */
+    struct OpcodeResult
+    {
+        std::int64_t gas_remaining;
+    };
+
     template <std::uint8_t Instr, evmc_revision Rev>
     [[gnu::always_inline]] inline std::int64_t check_requirements(
         runtime::Context &ctx, State &state,
@@ -54,7 +65,7 @@ namespace monad::interpreter
 
     // Arithmetic
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     add(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -63,11 +74,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = runtime::unrolled_add(a, b);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     mul(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -76,11 +87,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(monad_runtime_mul, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     sub(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -89,11 +100,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a - b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t udiv(
+    OpcodeResult udiv(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -101,11 +112,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::udiv, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t sdiv(
+    OpcodeResult sdiv(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -113,11 +124,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::sdiv, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t umod(
+    OpcodeResult umod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -125,11 +136,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::umod, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t smod(
+    OpcodeResult smod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -138,11 +149,11 @@ namespace monad::interpreter
 
         gas_remaining = call_runtime(runtime::smod, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t addmod(
+    OpcodeResult addmod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -151,11 +162,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::addmod, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t mulmod(
+    OpcodeResult mulmod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -164,11 +175,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::mulmod, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     exp(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -177,11 +188,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::exp<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t signextend(
+    OpcodeResult signextend(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -190,12 +201,12 @@ namespace monad::interpreter
         auto &&[b, x] = state.pop_for_overwrite();
         x = monad::utils::signextend(b, x);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Boolean
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     lt(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -204,11 +215,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a < b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     gt(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -217,11 +228,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a > b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     slt(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -230,11 +241,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = intx::slt(a, b);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     sgt(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -243,11 +254,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = intx::slt(b, a); // note swapped arguments
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     eq(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -256,11 +267,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = (a == b);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t iszero(
+    OpcodeResult iszero(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -269,12 +280,12 @@ namespace monad::interpreter
         auto &a = state.top();
         a = (a == 0);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Bitwise
     template <evmc_revision Rev>
-    std::int64_t and_(
+    OpcodeResult and_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -283,11 +294,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a & b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     or_(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -296,11 +307,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a | b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t xor_(
+    OpcodeResult xor_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -309,11 +320,11 @@ namespace monad::interpreter
         auto &&[a, b] = state.pop_for_overwrite();
         b = a ^ b;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t not_(
+    OpcodeResult not_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -322,11 +333,11 @@ namespace monad::interpreter
         auto &a = state.top();
         a = ~a;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t byte(
+    OpcodeResult byte(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -335,11 +346,11 @@ namespace monad::interpreter
         auto &&[i, x] = state.pop_for_overwrite();
         x = utils::byte(i, x);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     shl(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -348,11 +359,11 @@ namespace monad::interpreter
         auto &&[shift, value] = state.pop_for_overwrite();
         value <<= shift;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     shr(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -361,11 +372,11 @@ namespace monad::interpreter
         auto &&[shift, value] = state.pop_for_overwrite();
         value >>= shift;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     sar(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -374,12 +385,12 @@ namespace monad::interpreter
         auto &&[shift, value] = state.pop_for_overwrite();
         value = monad::utils::sar(shift, value);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Data
     template <evmc_revision Rev>
-    std::int64_t sha3(
+    OpcodeResult sha3(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -387,11 +398,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::sha3, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t address(
+    OpcodeResult address(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -399,11 +410,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(runtime::uint256_from_address(ctx.env.recipient));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t balance(
+    OpcodeResult balance(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -412,11 +423,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::balance<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t origin(
+    OpcodeResult origin(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -424,11 +435,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(runtime::uint256_from_address(ctx.env.tx_context.tx_origin));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t caller(
+    OpcodeResult caller(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -436,11 +447,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(runtime::uint256_from_address(ctx.env.sender));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t callvalue(
+    OpcodeResult callvalue(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -448,11 +459,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(runtime::uint256_from_bytes32(ctx.env.value));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t calldataload(
+    OpcodeResult calldataload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -461,11 +472,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::calldataload, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t calldatasize(
+    OpcodeResult calldatasize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -473,11 +484,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.input_data_size);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t calldatacopy(
+    OpcodeResult calldatacopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -486,11 +497,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::calldatacopy, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t codesize(
+    OpcodeResult codesize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -498,11 +509,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.code_size);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t codecopy(
+    OpcodeResult codecopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -511,11 +522,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::codecopy, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t gasprice(
+    OpcodeResult gasprice(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -524,11 +535,11 @@ namespace monad::interpreter
         state.push(
             runtime::uint256_from_bytes32(ctx.env.tx_context.tx_gas_price));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t extcodesize(
+    OpcodeResult extcodesize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -537,11 +548,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::extcodesize<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t extcodecopy(
+    OpcodeResult extcodecopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -550,11 +561,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::extcodecopy<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t returndatasize(
+    OpcodeResult returndatasize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -562,11 +573,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.return_data_size);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t returndatacopy(
+    OpcodeResult returndatacopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -575,11 +586,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::returndatacopy, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t extcodehash(
+    OpcodeResult extcodehash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -588,11 +599,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::extcodehash<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t blockhash(
+    OpcodeResult blockhash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -601,11 +612,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::blockhash, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t coinbase(
+    OpcodeResult coinbase(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -614,11 +625,11 @@ namespace monad::interpreter
         state.push(
             runtime::uint256_from_address(ctx.env.tx_context.block_coinbase));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t timestamp(
+    OpcodeResult timestamp(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -626,11 +637,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.tx_context.block_timestamp);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t number(
+    OpcodeResult number(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -638,11 +649,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.tx_context.block_number);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t prevrandao(
+    OpcodeResult prevrandao(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -651,11 +662,11 @@ namespace monad::interpreter
         state.push(runtime::uint256_from_bytes32(
             ctx.env.tx_context.block_prev_randao));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t gaslimit(
+    OpcodeResult gaslimit(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -663,11 +674,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.env.tx_context.block_gas_limit);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t chainid(
+    OpcodeResult chainid(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -675,11 +686,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(runtime::uint256_from_bytes32(ctx.env.tx_context.chain_id));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t selfbalance(
+    OpcodeResult selfbalance(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -688,11 +699,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::selfbalance, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t basefee(
+    OpcodeResult basefee(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -701,11 +712,11 @@ namespace monad::interpreter
         state.push(
             runtime::uint256_from_bytes32(ctx.env.tx_context.block_base_fee));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t blobhash(
+    OpcodeResult blobhash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -714,11 +725,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::blobhash, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t blobbasefee(
+    OpcodeResult blobbasefee(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -727,12 +738,12 @@ namespace monad::interpreter
         state.push(
             runtime::uint256_from_bytes32(ctx.env.tx_context.blob_base_fee));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Memory & Storage
     template <evmc_revision Rev>
-    std::int64_t mload(
+    OpcodeResult mload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -740,11 +751,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::mload, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t mstore(
+    OpcodeResult mstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -753,11 +764,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::mstore, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t mstore8(
+    OpcodeResult mstore8(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -766,11 +777,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::mstore8, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t mcopy(
+    OpcodeResult mcopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -778,11 +789,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::mcopy, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t tload(
+    OpcodeResult tload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -790,11 +801,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining = call_runtime(runtime::tload, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t sstore(
+    OpcodeResult sstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -803,11 +814,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::sstore<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t sload(
+    OpcodeResult sload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -816,11 +827,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::sload<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t tstore(
+    OpcodeResult tstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -829,12 +840,12 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::tstore, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Execution State
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     pc(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -842,11 +853,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(state.instr_ptr - state.analysis.code());
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t msize(
+    OpcodeResult msize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -854,11 +865,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(ctx.memory.size);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     gas(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -866,13 +877,13 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    std::int64_t push(
+    OpcodeResult push(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -955,11 +966,11 @@ namespace monad::interpreter
         }
 
         state.instr_ptr += N + 1;
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t
+    OpcodeResult
     pop(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -967,12 +978,12 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         --state.stack_top;
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    std::int64_t
+    OpcodeResult
     dup(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -980,12 +991,12 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         state.push(*(state.stack_top - (N - 1)));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    std::int64_t swap(
+    OpcodeResult swap(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -993,7 +1004,7 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         std::swap(state.top(), *(state.stack_top - N));
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Control Flow
@@ -1017,7 +1028,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    std::int64_t jump(
+    OpcodeResult jump(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1025,11 +1036,11 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         auto const &target = state.pop();
         jump_impl(ctx, state, target);
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t jumpi(
+    OpcodeResult jumpi(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1040,29 +1051,29 @@ namespace monad::interpreter
 
         if (cond) {
             jump_impl(ctx, state, target);
-            return gas_remaining;
+            return {gas_remaining};
         }
         else {
             state.next();
-            return gas_remaining;
+            return {gas_remaining};
         }
     }
 
     template <evmc_revision Rev>
-    std::int64_t jumpdest(
+    OpcodeResult jumpdest(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
         gas_remaining = check_requirements<JUMPDEST, Rev>(
             ctx, state, stack_bottom, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
-    std::int64_t
+    OpcodeResult
     log(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1079,12 +1090,12 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(std::get<N>(impls), ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // Call & Create
     template <evmc_revision Rev>
-    std::int64_t create(
+    OpcodeResult create(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1093,11 +1104,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::create<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t call(
+    OpcodeResult call(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1106,11 +1117,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::call<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t callcode(
+    OpcodeResult callcode(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1119,11 +1130,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::callcode<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t delegatecall(
+    OpcodeResult delegatecall(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1132,11 +1143,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::delegatecall<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t create2(
+    OpcodeResult create2(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1145,11 +1156,11 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::create2<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     template <evmc_revision Rev>
-    std::int64_t staticcall(
+    OpcodeResult staticcall(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1158,7 +1169,7 @@ namespace monad::interpreter
         gas_remaining =
             call_runtime(runtime::staticcall<Rev>, ctx, state, gas_remaining);
         state.next();
-        return gas_remaining;
+        return {gas_remaining};
     }
 
     // VM Control
@@ -1181,7 +1192,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    std::int64_t return_(
+    OpcodeResult return_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1191,7 +1202,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    std::int64_t revert(
+    OpcodeResult revert(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1201,7 +1212,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    std::int64_t selfdestruct(
+    OpcodeResult selfdestruct(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, std::int64_t gas_remaining)
     {
@@ -1209,10 +1220,10 @@ namespace monad::interpreter
             ctx, state, stack_bottom, gas_remaining);
         gas_remaining =
             call_runtime(runtime::selfdestruct<Rev>, ctx, state, gas_remaining);
-        return gas_remaining;
+        return {gas_remaining};
     }
 
-    inline std::int64_t stop(
+    inline OpcodeResult stop(
         runtime::Context &ctx, State &, utils::uint256_t const *,
         std::int64_t gas_remaining)
     {
@@ -1220,7 +1231,7 @@ namespace monad::interpreter
         ctx.exit(Success);
     }
 
-    inline std::int64_t invalid(
+    inline OpcodeResult invalid(
         runtime::Context &ctx, State &, utils::uint256_t const *,
         std::int64_t gas_remaining)
     {
