@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/interpreter/state.hpp>
+#include <monad/interpreter/types.hpp>
 #include <monad/runtime/detail.hpp>
 #include <monad/runtime/types.hpp>
 
@@ -8,9 +9,9 @@ namespace monad::interpreter
 {
     template <typename... FnArgs>
     [[gnu::always_inline]]
-    inline std::int64_t call_runtime(
-        void (*f)(FnArgs...), runtime::Context &ctx, State &state,
-        std::int64_t gas_remaining)
+    inline OpcodeResult call_runtime(
+        void (*f)(FnArgs...), runtime::Context &ctx,
+        utils::uint256_t *stack_top, std::int64_t gas_remaining)
     {
         using namespace monad::runtime;
 
@@ -24,14 +25,14 @@ namespace monad::interpreter
                 std::array{use_context, use_result, use_base_gas}, true);
 
         auto const stack_args =
-            [&state]<std::size_t... Is>(std::index_sequence<Is...>) {
-                return std::tuple{(state.stack_top - Is)...};
+            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+                return std::tuple{(stack_top - Is)...};
             }(std::make_index_sequence<stack_arg_count>());
 
         auto const with_result_args = [&] {
             if constexpr (use_result) {
                 if constexpr (stack_arg_count == 0) {
-                    return std::tuple(state.stack_top + 1);
+                    return std::tuple(stack_top + 1);
                 }
                 else {
                     return std::tuple_cat(
@@ -70,8 +71,8 @@ namespace monad::interpreter
             stack_arg_count <= std::numeric_limits<std::ptrdiff_t>::max());
         constexpr std::ptrdiff_t stack_adjustment =
             static_cast<std::ptrdiff_t>(stack_arg_count) - (use_result ? 1 : 0);
-        state.stack_top -= stack_adjustment;
+        stack_top -= stack_adjustment;
 
-        return ctx.gas_remaining;
+        return {ctx.gas_remaining, stack_top};
     }
 }

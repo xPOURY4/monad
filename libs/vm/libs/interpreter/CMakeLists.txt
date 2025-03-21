@@ -15,6 +15,7 @@ target_sources(monad-interpreter PRIVATE
   "src/monad/interpreter/intercode.cpp"
   "src/monad/interpreter/intercode.hpp"
   "src/monad/interpreter/state.hpp"
+  "src/monad/interpreter/types.hpp"
 )
 
 monad_compile_options(monad-interpreter)

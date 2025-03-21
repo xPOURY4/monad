@@ -37,18 +37,27 @@ namespace monad::interpreter
         void core_loop_impl(runtime::Context &ctx, State &state)
         {
             auto const *stack_bottom = state.stack_bottom;
+            auto *stack_top = state.stack_top;
             auto gas_remaining = ctx.gas_remaining;
 
             while (true) {
                 auto const instr = *state.instr_ptr;
 
                 if constexpr (debug_enabled) {
-                    trace<Rev>(instr, ctx, state);
+                    trace<Rev>(
+                        instr,
+                        ctx,
+                        state,
+                        stack_bottom,
+                        stack_top,
+                        gas_remaining);
                 }
 
-                auto const [gas_rem] = instruction_table<Rev>[instr](
-                    ctx, state, stack_bottom, gas_remaining);
+                auto const [gas_rem, top] = instruction_table<Rev>[instr](
+                    ctx, state, stack_bottom, stack_top, gas_remaining);
+
                 gas_remaining = gas_rem;
+                stack_top = top;
             }
         }
 

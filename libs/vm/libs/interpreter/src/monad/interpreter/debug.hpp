@@ -23,25 +23,25 @@ namespace monad::interpreter
     template <evmc_revision Rev>
     void trace(
         std::uint8_t const instr, runtime::Context const &ctx,
-        State const &state)
+        State const &state, utils::uint256_t const *stack_bottom,
+        utils::uint256_t const *stack_top, std::uint64_t gas_remaining)
     {
         auto const &info = compiler::opcode_table<Rev>[instr];
+        auto const stack_size = stack_top - stack_bottom;
 
         std::cerr << std::format(
             "{{\"pc\":{},\"op\":{},\"gas\":\"0x{:x}\",\"gasCost\":\"0x{"
             ":x}\",\"memSize\":{},\"stack\":[",
             state.instr_ptr - state.analysis.code(),
             instr,
-            ctx.gas_remaining,
+            gas_remaining,
             info.dynamic_gas ? 0 : info.min_gas,
             ctx.memory.size);
 
         auto comma = "";
-        for (auto i = state.stack_size() - 1; i >= 0; --i) {
+        for (auto i = stack_size - 1; i >= 0; --i) {
             std::cerr << std::format(
-                "{}\"0x{}\"",
-                comma,
-                intx::to_string(*(state.stack_top - i), 16));
+                "{}\"0x{}\"", comma, intx::to_string(*(stack_top - i), 16));
             comma = ",";
         }
 

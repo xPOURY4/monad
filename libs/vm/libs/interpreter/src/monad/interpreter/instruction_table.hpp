@@ -3,6 +3,7 @@
 #include <monad/evm/opcodes.hpp>
 #include <monad/interpreter/instructions.hpp>
 #include <monad/interpreter/state.hpp>
+#include <monad/interpreter/types.hpp>
 #include <monad/runtime/types.hpp>
 
 #include <evmc/evmc.h>
@@ -12,10 +13,6 @@
 
 namespace monad::interpreter
 {
-    using InstrEval = OpcodeResult (*)(
-        runtime::Context &, State &, utils::uint256_t const *, std::int64_t);
-    using InstrTable = std::array<InstrEval, 256>;
-
     template <evmc_revision Rev>
     consteval InstrTable make_instruction_table()
     {
