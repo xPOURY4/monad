@@ -59,7 +59,7 @@ namespace
 
         for (auto _ : state) {
             auto fn = monad::compiler::native::compile(
-                rt, program, EVMC_LATEST_STABLE_REVISION, nullptr);
+                rt, program, EVMC_LATEST_STABLE_REVISION);
 
             if (!fn) {
                 return state.SkipWithError("Failed to compile contract");
@@ -94,7 +94,7 @@ namespace
 
         for (auto _ : state) {
             auto fn = monad::compiler::native::compile(
-                rt, program, EVMC_LATEST_STABLE_REVISION, nullptr);
+                rt, program, EVMC_LATEST_STABLE_REVISION);
 
             if (!fn) {
                 return state.SkipWithError("Failed to compile contract");

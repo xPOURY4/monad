@@ -31,6 +31,7 @@ target_sources(monad-compiler PRIVATE
     "src/monad/compiler/ir/x86.cpp"
     "src/monad/compiler/ir/x86/emitter.cpp"
     "src/monad/compiler/ir/x86/emitter.hpp"
+    "src/monad/compiler/ir/x86/types.hpp"
     "src/monad/compiler/ir/x86/virtual_stack.cpp"
     "src/monad/compiler/ir/x86/virtual_stack.hpp"
 )

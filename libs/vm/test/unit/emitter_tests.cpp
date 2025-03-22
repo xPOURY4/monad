@@ -1,6 +1,6 @@
 #include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/evm/opcodes.hpp>

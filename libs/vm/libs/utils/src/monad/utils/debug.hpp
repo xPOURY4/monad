@@ -2,9 +2,9 @@
 
 namespace monad::utils
 {
-#ifdef SAVE_EVM_STACK_ON_EXIT
-    extern bool const debug_save_stack;
+#ifdef MONAD_COMPILER_TESTING
+    extern bool const is_fuzzing_monad_compiler;
 #else
-    static constexpr bool debug_save_stack = false;
+    static constexpr bool is_fuzzing_monad_compiler = false;
 #endif
 }

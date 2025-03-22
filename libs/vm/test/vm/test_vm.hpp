@@ -38,7 +38,10 @@ public:
         Evmone,
     };
 
-    BlockchainTestVM(Implementation impl = Implementation::Compiler);
+    BlockchainTestVM(
+        Implementation impl,
+        monad::compiler::native::EmitterHook post_instruction_emit_hook =
+            nullptr);
 
     evmc_result execute(
         evmc_host_interface const *host, evmc_host_context *context,
@@ -53,6 +56,7 @@ private:
     monad::compiler::VM monad_vm_;
     CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
+    monad::compiler::native::CompilerConfig base_config;
 
     evmc_result execute_compiler(
         evmc_host_interface const *host, evmc_host_context *context,

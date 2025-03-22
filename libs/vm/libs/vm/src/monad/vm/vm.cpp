@@ -1,4 +1,5 @@
 #include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/runtime/types.hpp>
 #include <monad/utils/assert.h>
 #include <monad/utils/uint256.hpp>
@@ -18,9 +19,9 @@ namespace monad::compiler
 {
     std::optional<native::entrypoint_t> VM::compile(
         evmc_revision rev, uint8_t const *code, size_t code_size,
-        char const *asm_log)
+        native::CompilerConfig const &config)
     {
-        return native::compile(runtime_, {code, code_size}, rev, asm_log);
+        return native::compile(runtime_, {code, code_size}, rev, config);
     }
 
     evmc_result VM::execute(
@@ -49,9 +50,9 @@ namespace monad::compiler
     evmc_result VM::compile_and_execute(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-        size_t code_size, char const *asm_log)
+        size_t code_size, native::CompilerConfig const &config)
     {
-        if (auto f = compile(rev, code, code_size, asm_log)) {
+        if (auto f = compile(rev, code, code_size, config)) {
             auto r = execute(*f, host, context, msg, code, code_size);
             runtime_.release(*f);
             return r;

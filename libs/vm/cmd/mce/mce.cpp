@@ -8,7 +8,7 @@
 #include <instrumentable_vm.hpp>
 #include <intx/intx.hpp>
 #include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/types.hpp>
 
 #include <algorithm>

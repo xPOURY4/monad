@@ -1,6 +1,6 @@
 #include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/runtime/math.hpp>
@@ -449,8 +449,10 @@ namespace monad::compiler::native
     }
 
     Emitter::Emitter(
-        asmjit::JitRuntime const &rt, uint64_t codesize, char const *log_path)
-        : as_{init_code_holder(rt, log_path)}
+        asmjit::JitRuntime const &rt, uint64_t codesize,
+        CompilerConfig const &config)
+        : runtime_debug_trace_{config.runtime_debug_trace}
+        , as_{init_code_holder(rt, config.asm_log_path)}
         , epilogue_label_{as_.newNamedLabel("ContractEpilogue")}
         , error_label_{as_.newNamedLabel("Error")}
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
@@ -602,11 +604,6 @@ namespace monad::compiler::native
         as_.ret();
     }
 
-    bool Emitter::is_debug_enabled()
-    {
-        return debug_logger_.file() != nullptr;
-    }
-
     void Emitter::runtime_print_gas_remaining(std::string const &msg)
     {
         auto msg_lbl = as_.newLabel();
@@ -653,7 +650,7 @@ namespace monad::compiler::native
      */
     void Emitter::runtime_store_input_stack()
     {
-        if (!utils::debug_save_stack) {
+        if (!utils::is_fuzzing_monad_compiler) {
             return;
         }
 
@@ -740,6 +737,13 @@ namespace monad::compiler::native
         as_.int3();
     }
 
+    void Emitter::checked_debug_comment(std::string const &msg)
+    {
+        if (debug_logger_.file()) {
+            unchecked_debug_comment(msg);
+        }
+    }
+
     Stack &Emitter::get_stack()
     {
         return stack_;
@@ -757,8 +761,8 @@ namespace monad::compiler::native
 
     bool Emitter::begin_new_block(basic_blocks::Block const &b)
     {
-        if (is_debug_enabled()) {
-            debug_comment(std::format("{}", b));
+        if (debug_logger_.file()) {
+            unchecked_debug_comment(std::format("{}", b));
         }
         if (keep_stack_in_next_block_) {
             stack_.continue_block(b);
@@ -892,7 +896,7 @@ namespace monad::compiler::native
             as_.bind(it->second);
         }
 
-        if (!keep_stack && is_debug_enabled()) {
+        if (runtime_debug_trace_ && !keep_stack) {
             runtime_print_gas_remaining(
                 std::format("Block 0x{:02x}", b.offset));
         }
@@ -1033,6 +1037,10 @@ namespace monad::compiler::native
             auto const &is = d->stack_indices();
             MONAD_COMPILER_DEBUG_ASSERT(is.size() >= 1);
             auto it = is.begin();
+            if (d->avx_reg()) {
+                // Stack element d is located in an AVX register we can use.
+                yx1 = avx_reg_to_ymm(*d->avx_reg());
+            }
             if (is.size() == 1 && d->stack_offset().has_value() &&
                 d->stack_offset()->offset == *it) {
                 // Stack element d is already located on the final stack offset.
@@ -1058,11 +1066,6 @@ namespace monad::compiler::native
                         as_.vmovaps(yx1, m);
                     }
                 }
-            }
-            else {
-                // Stack element d is already located in an AVX register,
-                // which we can use.
-                yx1 = avx_reg_to_ymm(*d->avx_reg());
             }
             // Move to remaining final stack offsets:
             for (; it != is.end(); ++it) {
@@ -1179,9 +1182,9 @@ namespace monad::compiler::native
         }
     }
 
-    void Emitter::debug_comment(std::string const &msg)
+    void Emitter::unchecked_debug_comment(std::string const &msg)
     {
-        MONAD_COMPILER_ASSERT(is_debug_enabled());
+        MONAD_COMPILER_ASSERT(debug_logger_.file());
         std::stringstream ss{msg};
         std::string line;
         while (std::getline(ss, line, '\n')) {
@@ -4835,7 +4838,8 @@ namespace monad::compiler::native
             return false;
         }
 
-        auto a = std::move(a_elem)->literal()->value;
+        auto a = a_elem->literal()->value;
+        a_elem.reset(); // Clear locations
         if (a == 0) {
             stack_.pop();
             stack_.pop();
@@ -5025,8 +5029,8 @@ namespace monad::compiler::native
     template <bool is_sdiv>
     bool Emitter::div_optimized()
     {
-        auto const a_elem = stack_.get(stack_.top_index());
-        auto const b_elem = stack_.get(stack_.top_index() - 1);
+        auto a_elem = stack_.get(stack_.top_index());
+        auto b_elem = stack_.get(stack_.top_index() - 1);
 
         if (a_elem->literal()) {
             auto const &a = a_elem->literal()->value;
@@ -5054,7 +5058,8 @@ namespace monad::compiler::native
             return false;
         }
 
-        auto b = std::move(b_elem)->literal()->value;
+        auto b = b_elem->literal()->value;
+        b_elem.reset(); // Clear locations
         if (b == 0) {
             stack_.pop();
             stack_.pop();
@@ -5078,10 +5083,11 @@ namespace monad::compiler::native
             auto shift = monad::utils::countr_zero(b);
             auto dst = [&] {
                 if constexpr (is_sdiv) {
-                    return sdiv_by_sar(a_elem, shift, {});
+                    return sdiv_by_sar(std::move(a_elem), shift, {});
                 }
                 else {
-                    return shift_by_literal<ShiftType::SHR>(shift, a_elem, {});
+                    return shift_by_literal<ShiftType::SHR>(
+                        shift, std::move(a_elem), {});
                 }
             }();
             if (needs_negation) {
@@ -5160,8 +5166,8 @@ namespace monad::compiler::native
     template <bool is_smod>
     bool Emitter::mod_optimized()
     {
-        auto const a_elem = stack_.get(stack_.top_index());
-        auto const b_elem = stack_.get(stack_.top_index() - 1);
+        auto a_elem = stack_.get(stack_.top_index());
+        auto b_elem = stack_.get(stack_.top_index() - 1);
 
         if (a_elem->literal()) {
             auto const &a = a_elem->literal()->value;
@@ -5189,7 +5195,8 @@ namespace monad::compiler::native
             return false;
         }
 
-        auto b = std::move(b_elem)->literal()->value;
+        auto b = b_elem->literal()->value;
+        b_elem.reset(); // Clear locations
         if constexpr (is_smod) {
             if (b[3] & (static_cast<uint64_t>(1) << 63)) {
                 b = -b;
@@ -5485,7 +5492,8 @@ namespace monad::compiler::native
         if (!m_elem->literal()) {
             return false;
         }
-        auto const &m = m_elem->literal()->value;
+        auto m = m_elem->literal()->value;
+        m_elem.reset(); // Clear locations
 
         // The trivial group
         if (m == 0 || m == 1) {

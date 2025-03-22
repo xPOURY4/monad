@@ -40,11 +40,15 @@ void __attribute__((noreturn)) monad_compiler_assertion_failed(
     #define MONAD_COMPILER_DEBUG_ASSERT(expr) MONAD_DEBUG_ASSERT(expr)
 #else
     #ifdef NDEBUG
-        #define MONAD_COMPILER_DEBUG_ASSERT(x)                                 \
-            do {                                                               \
-                (void)sizeof(x);                                               \
-            }                                                                  \
-            while (0)
+        #ifdef MONAD_COMPILER_TESTING
+            #define MONAD_COMPILER_DEBUG_ASSERT(x) MONAD_COMPILER_ASSERT(x)
+        #else
+            #define MONAD_COMPILER_DEBUG_ASSERT(x)                             \
+                do {                                                           \
+                    (void)sizeof(x);                                           \
+                }                                                              \
+                while (0)
+        #endif
     #else
         #define MONAD_COMPILER_DEBUG_ASSERT(x) MONAD_COMPILER_ASSERT(x)
     #endif

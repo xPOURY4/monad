@@ -24,7 +24,7 @@ namespace monad::compiler
         /// is printed to this file, and runtime debug logging is enabled.
         std::optional<native::entrypoint_t> compile(
             evmc_revision, uint8_t const *code, size_t code_size,
-            char const *asm_log_file_path = nullptr);
+            native::CompilerConfig const & = {});
 
         /// Execute an entry point returned by `compile`.
         evmc_result execute(
@@ -39,7 +39,7 @@ namespace monad::compiler
         evmc_result compile_and_execute(
             evmc_host_interface const *host, evmc_host_context *context,
             evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-            size_t code_size, char const *asm_log_file_path = nullptr);
+            size_t code_size, native::CompilerConfig const & = {});
 
     private:
         asmjit::JitRuntime runtime_;

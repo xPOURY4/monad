@@ -35,10 +35,9 @@ if(MONAD_COMPILER_STANDALONE)
     add_subdirectory(third_party/nlohmann_json)
 endif()
 
-if (MONAD_COMPILER_FUZZING)
-  add_definitions(-DSAVE_EVM_STACK_ON_EXIT)
+if(MONAD_COMPILER_TESTING)
+    add_definitions(-DMONAD_COMPILER_TESTING)
 endif()
-
 
 # evmone
 set(BUILD_SHARED_LIBS OFF)

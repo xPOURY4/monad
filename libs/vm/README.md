@@ -36,7 +36,7 @@ $ cmake --build build
 
 The ethereum blockchain tests can be executed with the command
 ```
-$ build/src/test/blockchain/blockchain-tests
+$ build/test/blockchain/compiler-blockchain-tests
 ```
 It will implicitly skip blockchain tests which
 * contain invalid blocks and
@@ -45,21 +45,28 @@ It will implicitly skip blockchain tests which
 
 Use the `--gtest_filter` flag to enable or disable specific tests. See
 ```
-$ build/src/test/blockchain/blockchain-tests --help
+$ build/test/blockchain/compiler-blockchain-tests --help
 ```
 
-### Debugging Ethereum Tests
+### Configuring blockchain test VM
 
-Environment variables can be used for debugging failing tests.
+Environment variables can be used for debugging tests based on the
+blockchain test vm. Both the fuzzer and the etherum tests are based on
+the blockchain test vm.
 
-By setting the `MONAD_BLOCKCHAIN_TEST_DEBUG_DIR` environment
+By setting the `MONAD_COMPILER_ASM_DIR` environment
 variable to a valid directory, the compiler will print contract
-assembly code in files to this directory. The resulting assembly
-code will contain calls to a runtime function, which prints gas
-remaining for each basic block entered. For example,
+assembly code in files to this directory.
+
+The `MONAD_COMPILER_DEBUG_TRACE=1` environment variable can be
+used to enable a runtime debug trace. The generated assembly code
+will contain calls to a runtime function, which prints gas
+remaining when a jump destination is reached. For example,
 ```
-$ export MONAD_BLOCKCHAIN_TEST_DEBUG_DIR=/tmp/debug
-$ build/src/test/blockchain/blockchain-tests --gtest_filter="*.jumpiNonConst"
+$ export MONAD_COMPILER_ASM_DIR=/tmp/debug
+$ export MONAD_COMPILER_DEBUG_TRACE=1
+$ build/test/blockchain/compiler-blockchain-tests \
+    --gtest_filter="*.jumpiNonConst"
 ```
 will print something like
 ```
@@ -69,53 +76,33 @@ Block 0x2d: gas remaining: 378784
 Block 0x00: gas remaining: 379000
 ...
 ```
-and create assembly file with name the address of the called contract
+and create assembly file with name the address of the called contract,
 ```
-$ cat /tmp/debug/095E7BAEA6A6C7C4C2DFEB977EFAC326AF552D87
-push rbp
-push rbx
-push r12
-push r13
-push r14
-push r15
-mov rbx, rdi
-mov rbp, rsi
-mov [rbx+280], rsp
-sub rsp, 56
-mov qword ptr [rsp+48], 0
-//   0x00:
-//       PUSH20 0x95e7baea6a6c7c4c2dfeb977efac326af552d87
-//       BALANCE
-//       PUSH20 0x95e7baea6a6c7c4c2dfeb977efac326af552d87
-//       BALANCE
-//     JumpI 1
-lea rdi, qword ptr [L5]
-mov rsi, rbx
-call qword ptr [L6]
-cmp qword ptr [rsp+48], 1022
-ja OutOfBounds
-...
+/tmp/debug/095e7baea6a6c7c4c2dfeb977efac326af552d87
 ```
 
-To run the tests using evmone instead of monad-compiler, define
-the `EVMONE_VM_ONLY` environment variable. For instance
+To run the blockchain test vm using only evmone without compiler,
+define the `MONAD_COMPILER_EVMONE_ONLY=1` environment variable:
 ```
-$ export EVMONE_VM_ONLY=1
-$ build/src/test/blockchain/blockchain-tests
+$ export MONAD_COMPILER_EVMONE_ONLY=1
+$ build/test/blockchain/compiler-blockchain-tests
 ```
 
-If the project is configured with `EVMONE_DEBUG_MODE` enabled, e.g.
+### The `MONAD_COMPILER_TESTING` configuration
+
+If the project is configured with `MONAD_COMPILER_TESTING` enabled, e.g.
 ```
-$ cmake -S . -B build -DEVMONE_DEBUG_MODE=ON
+$ cmake -S . -B build -DMONAD_COMPILER_TESTING=ON
 ```
-then one can define the `EVMONE_DEBUG_MODE` environment variable
-to get runtime debug information from evmone and the test host,
-defined in the evmone project. For example
+then debug assertions will be enabled even when the `NDEBUG` macro is
+defined. With `MONAD_COMPILER_TESTING` configuration one can also define
+the `EVMONE_DEBUG_TRACE=1` environment variable to get runtime debug
+information from evmone and the test host, defined in the evmone project.
+For example
 ```
-$ unset EVMONE_VM_ONLY
-$ export MONAD_BLOCKCHAIN_TEST_DEBUG_DIR=/tmp/debug
-$ export EVMONE_DEBUG_MODE=1
-$ build/src/test/blockchain/blockchain-tests \
+$ export MONAD_COMPILER_DEBUG_TRACE=1
+$ export EVMONE_DEBUG_TRACE=1
+$ build/test/blockchain/compiler-blockchain-tests \
     --gtest_filter="*.jumpiNonConst"
 ...
 offset: 0x59  opcode: 0x90  gas_left: 29977858
@@ -139,14 +126,42 @@ END baseline_execute address 095E7BAEA6A6C7C4C2DFEB977EFAC326AF552D87
 ```
 
 Note that evmone is being used for executing certain contracts, even when
-the `EVMONE_VM_ONLY` environment variable is not defined. For example,
-`CREATE` and `CREATE2` calls are always executed with evmone.
+the `MONAD_COMPILER_EVMONE_ONLY=1` environment variable is not set.
+For example, `CREATE` and `CREATE2` calls are always executed with evmone.
 
 The lines starting with `offset` contain runtime debug information from
 evmone, with one line for each instruction executed by evmone. The
 `START` and `END` lines contain information about which contracts are
 executing. Lines starting with `Block` contain runtime debug output
 from `monad-compiler`.
+
+### Fuzzer
+
+Configure with
+
+```
+$ cmake -S . -B build -DMONAD_COMPILER_FUZZING=ON
+```
+
+and set envoronment variable
+
+```
+export MONAD_COMPILER_FUZZING=1
+```
+
+to enable saving the EVM stack for both evmone and the compiler on
+the `STOP`, `RETURN` and `SELFDESTRUCT` opcodes.
+
+Run the fuzzer with
+```
+./build/test/fuzzer/monad-compiler-fuzzer --help
+```
+for more information.
+
+Remember to unset or change the value of the `MONAD_COMPILER_FUZZING`
+environment variable before running other tests, because having
+`MONAD_COMPILER_FUZZING=1` during units tests or ethereum tests,
+will make the tests fail.
 
 ### Directory Type Check Test
 
@@ -161,22 +176,6 @@ build/src/test/utils/directory-type-check my/contracts-dir
 will print type inference errors to standard error and print contract type
 information to standard out. If it prints to standard error, there is bug
 somewhere.
-
-### Fuzzing
-
-Configure with
-
-```
-$ cmake -S . -B build -DMONAD_COMPILER_FUZZING=ON
-```
-
-and set envoronment variable
-
-```
-export SAVE_EVM_STACK_ON_EXIT=1
-```
-
-to enable saving the EVM stack for both evmone and the compiler on the `STOP`, `RETURN` and `SELFDESTRUCT` opcodes.
 
 ## Structure
 
@@ -229,11 +228,4 @@ After running the desired executable, use `gcovr .` to gather coverage statistic
 To run the linter, call:
 ```console
 scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
-```
-
-To apply the formatter, use:
-```console
-find cmd -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
-find libs -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
-find test -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
 ```

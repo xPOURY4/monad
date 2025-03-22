@@ -35,7 +35,8 @@ namespace
 
         auto vm = [] {
             if constexpr (compile) {
-                return evmc::VM{new BlockchainTestVM};
+                return evmc::VM{new BlockchainTestVM{
+                    BlockchainTestVM::Implementation::Compiler}};
             }
             else {
                 return evmc::VM{evmc_create_evmone()};

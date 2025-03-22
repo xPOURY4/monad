@@ -2,6 +2,7 @@
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/emitter.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/utils/assert.h>
 
@@ -286,8 +287,23 @@ namespace
         }
     }
 
+    [[gnu::always_inline]]
+    inline void
+    post_instruction_emit(Emitter &emit, CompilerConfig const &config)
+    {
+        (void)emit;
+        (void)config;
+#ifdef MONAD_COMPILER_TESTING
+        if (config.post_instruction_emit_hook) {
+            config.post_instruction_emit_hook(emit);
+        }
+#endif
+    }
+
     template <evmc_revision rev>
-    void emit_instrs(Emitter &emit, Block const &block, int32_t instr_gas)
+    void emit_instrs(
+        Emitter &emit, Block const &block, int32_t instr_gas,
+        CompilerConfig const &config)
     {
         MONAD_COMPILER_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
         int32_t remaining_base_gas = instr_gas;
@@ -296,6 +312,7 @@ namespace
                 remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -= instr.static_gas_cost();
             emit_instr<rev>(emit, instr, remaining_base_gas);
+            post_instruction_emit(emit, config);
         }
     }
 
@@ -365,9 +382,10 @@ namespace
 
     template <evmc_revision rev>
     entrypoint_t compile_basic_blocks(
-        asmjit::JitRuntime &rt, BasicBlocksIR const &ir, char const *asm_log)
+        asmjit::JitRuntime &rt, BasicBlocksIR const &ir,
+        CompilerConfig const &config)
     {
-        Emitter emit{rt, ir.codesize, asm_log};
+        Emitter emit{rt, ir.codesize, config};
         for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
@@ -378,7 +396,7 @@ namespace
                 int32_t const base_gas = block_base_gas<rev>(block);
                 emit_gas_decrement(
                     emit, ir, block, base_gas, &accumulated_base_gas);
-                emit_instrs<rev>(emit, block, base_gas);
+                emit_instrs<rev>(emit, block, base_gas, config);
                 emit_terminator<rev>(emit, ir, block);
             }
         }
@@ -388,10 +406,10 @@ namespace
     template <evmc_revision Rev>
     entrypoint_t compile_contract(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
-        char const *asm_log)
+        CompilerConfig const &config)
     {
         auto ir = BasicBlocksIR(basic_blocks::make_ir<Rev>(contract));
-        return compile_basic_blocks<Rev>(rt, ir, asm_log);
+        return compile_basic_blocks<Rev>(rt, ir, config);
     }
 }
 
@@ -399,42 +417,40 @@ namespace monad::compiler::native
 {
     std::optional<entrypoint_t> compile(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
-        evmc_revision rev, char const *asm_log)
+        evmc_revision rev, CompilerConfig const &config)
     {
         try {
             switch (rev) {
             case EVMC_FRONTIER:
-                return ::compile_contract<EVMC_FRONTIER>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_FRONTIER>(rt, contract, config);
             case EVMC_HOMESTEAD:
-                return ::compile_contract<EVMC_HOMESTEAD>(
-                    rt, contract, asm_log);
+                return ::compile_contract<EVMC_HOMESTEAD>(rt, contract, config);
             case EVMC_TANGERINE_WHISTLE:
                 return ::compile_contract<EVMC_TANGERINE_WHISTLE>(
-                    rt, contract, asm_log);
+                    rt, contract, config);
             case EVMC_SPURIOUS_DRAGON:
                 return ::compile_contract<EVMC_SPURIOUS_DRAGON>(
-                    rt, contract, asm_log);
+                    rt, contract, config);
             case EVMC_BYZANTIUM:
-                return ::compile_contract<EVMC_BYZANTIUM>(
-                    rt, contract, asm_log);
+                return ::compile_contract<EVMC_BYZANTIUM>(rt, contract, config);
             case EVMC_CONSTANTINOPLE:
                 return ::compile_contract<EVMC_CONSTANTINOPLE>(
-                    rt, contract, asm_log);
+                    rt, contract, config);
             case EVMC_PETERSBURG:
                 return ::compile_contract<EVMC_PETERSBURG>(
-                    rt, contract, asm_log);
+                    rt, contract, config);
             case EVMC_ISTANBUL:
-                return ::compile_contract<EVMC_ISTANBUL>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_ISTANBUL>(rt, contract, config);
             case EVMC_BERLIN:
-                return ::compile_contract<EVMC_BERLIN>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_BERLIN>(rt, contract, config);
             case EVMC_LONDON:
-                return ::compile_contract<EVMC_LONDON>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_LONDON>(rt, contract, config);
             case EVMC_PARIS:
-                return ::compile_contract<EVMC_PARIS>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_PARIS>(rt, contract, config);
             case EVMC_SHANGHAI:
-                return ::compile_contract<EVMC_SHANGHAI>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_SHANGHAI>(rt, contract, config);
             case EVMC_CANCUN:
-                return ::compile_contract<EVMC_CANCUN>(rt, contract, asm_log);
+                return ::compile_contract<EVMC_CANCUN>(rt, contract, config);
             default:
                 return std::nullopt;
             }
@@ -447,37 +463,36 @@ namespace monad::compiler::native
 
     std::optional<entrypoint_t> compile_basic_blocks(
         evmc_revision rev, asmjit::JitRuntime &rt,
-        basic_blocks::BasicBlocksIR const &ir, char const *asm_log)
+        basic_blocks::BasicBlocksIR const &ir, CompilerConfig const &config)
     {
         switch (rev) {
         case EVMC_FRONTIER:
-            return ::compile_basic_blocks<EVMC_FRONTIER>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_FRONTIER>(rt, ir, config);
         case EVMC_HOMESTEAD:
-            return ::compile_basic_blocks<EVMC_HOMESTEAD>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_HOMESTEAD>(rt, ir, config);
         case EVMC_TANGERINE_WHISTLE:
             return ::compile_basic_blocks<EVMC_TANGERINE_WHISTLE>(
-                rt, ir, asm_log);
+                rt, ir, config);
         case EVMC_SPURIOUS_DRAGON:
-            return ::compile_basic_blocks<EVMC_SPURIOUS_DRAGON>(
-                rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_SPURIOUS_DRAGON>(rt, ir, config);
         case EVMC_BYZANTIUM:
-            return ::compile_basic_blocks<EVMC_BYZANTIUM>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_BYZANTIUM>(rt, ir, config);
         case EVMC_CONSTANTINOPLE:
-            return ::compile_basic_blocks<EVMC_CONSTANTINOPLE>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_CONSTANTINOPLE>(rt, ir, config);
         case EVMC_PETERSBURG:
-            return ::compile_basic_blocks<EVMC_PETERSBURG>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_PETERSBURG>(rt, ir, config);
         case EVMC_ISTANBUL:
-            return ::compile_basic_blocks<EVMC_ISTANBUL>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_ISTANBUL>(rt, ir, config);
         case EVMC_BERLIN:
-            return ::compile_basic_blocks<EVMC_BERLIN>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_BERLIN>(rt, ir, config);
         case EVMC_LONDON:
-            return ::compile_basic_blocks<EVMC_LONDON>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_LONDON>(rt, ir, config);
         case EVMC_PARIS:
-            return ::compile_basic_blocks<EVMC_PARIS>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_PARIS>(rt, ir, config);
         case EVMC_SHANGHAI:
-            return ::compile_basic_blocks<EVMC_SHANGHAI>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_SHANGHAI>(rt, ir, config);
         case EVMC_CANCUN:
-            return ::compile_basic_blocks<EVMC_CANCUN>(rt, ir, asm_log);
+            return ::compile_basic_blocks<EVMC_CANCUN>(rt, ir, config);
         default:
             return std::nullopt;
         }

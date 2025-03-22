@@ -5,6 +5,7 @@
 #include "host.hpp"
 #include "state.hpp"
 
+#include <monad/compiler/ir/x86/emitter.hpp>
 #include <monad/evm/opcodes.hpp>
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
@@ -418,8 +419,66 @@ static void do_run(std::size_t const run_index, arguments const &args)
 
     auto engine = random_engine_t(args.seed);
 
+    auto post_instruction_emit_hook = [&](compiler::native::Emitter &emit) {
+        // The fuzzer has a hard time exploring edge case virtual stack
+        // states. To circumvent this we will artificially change the state
+        // of the stack to increase probability of having stack elements in
+        // multiple locations at the same time.
+
+        auto &stack = emit.get_stack();
+        if (stack.top_index() < stack.min_delta()) {
+            // Do nothing when the stack is empty.
+            return;
+        }
+
+        auto choose_index = [&] -> std::int32_t {
+            // Choose a top 16 stack index
+            int32_t const top_index = stack.top_index();
+            int32_t const bottom_index =
+                std::max(stack.min_delta(), top_index - 15);
+            auto dist = std::uniform_int_distribution<std::int32_t>{
+                bottom_index, top_index};
+            return dist(engine);
+        };
+
+        static constexpr std::array<double, 4> artificial_mov_probs = {
+            0, 0.33, 0.67, 1};
+        double const artificial_mov_prop =
+            uniform_sample(engine, artificial_mov_probs);
+
+        with_probability(engine, artificial_mov_prop, [&](auto &) {
+            auto i = choose_index();
+            if (!stack.has_deferred_comparison_at(i) &&
+                !stack.get(i)->general_reg()) {
+                emit.checked_debug_comment(
+                    std::format("stack index {} to general reg", i));
+                emit.mov_stack_index_to_general_reg(i);
+            }
+        });
+        with_probability(engine, artificial_mov_prop, [&](auto &) {
+            auto i = choose_index();
+            if (!stack.has_deferred_comparison_at(i) &&
+                !stack.get(i)->avx_reg()) {
+                emit.checked_debug_comment(
+                    std::format("stack index {} to avx reg", i));
+                emit.mov_stack_index_to_avx_reg(i);
+            }
+        });
+        with_probability(engine, artificial_mov_prop, [&](auto &) {
+            auto i = choose_index();
+            if (!stack.has_deferred_comparison_at(i) &&
+                !stack.get(i)->stack_offset()) {
+                emit.checked_debug_comment(
+                    std::format("stack index {} to stack offset", i));
+                emit.mov_stack_index_to_stack_offset(i);
+            }
+        });
+    };
+
     auto evmone_vm = evmc::VM(evmc_create_evmone());
-    auto compiler_vm = evmc::VM(new BlockchainTestVM());
+    auto compiler_vm = evmc::VM(new BlockchainTestVM(
+        BlockchainTestVM::Implementation::Compiler,
+        post_instruction_emit_hook));
 
     auto evmone_state = initial_state();
     auto compiler_state = initial_state();
@@ -499,13 +558,13 @@ static void run_loop(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    if (monad::utils::debug_save_stack) {
+    if (monad::utils::is_fuzzing_monad_compiler) {
         run_loop(argc, argv);
         return 0;
     }
     std::cerr << "\nFuzzer not started:\n"
-                 "Make sure to configure with -DMONAD_COMPILER_FUZZING=ON and\n"
-                 "set environment variable SAVE_EVM_STACK_ON_EXIT=1 before\n"
+                 "Make sure to configure with -DMONAD_COMPILER_TESTING=ON and\n"
+                 "set environment variable MONAD_COMPILER_FUZZING=1 before\n"
                  "starting the fuzzer\n";
     return 1;
 }

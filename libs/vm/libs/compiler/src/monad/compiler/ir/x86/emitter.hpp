@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/runtime/detail.hpp>
 #include <monad/runtime/types.hpp>
@@ -133,7 +133,7 @@ namespace monad::compiler::native
 
         Emitter(
             asmjit::JitRuntime const &, uint64_t bytecode_size,
-            char const *debug_log_file = nullptr);
+            CompilerConfig const & = {});
 
         ~Emitter();
 
@@ -141,12 +141,12 @@ namespace monad::compiler::native
 
         ////////// Debug functionality //////////
 
-        bool is_debug_enabled();
         void runtime_print_gas_remaining(std::string const &msg);
         void runtime_print_input_stack(std::string const &msg);
         void runtime_store_input_stack();
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
+        void checked_debug_comment(std::string const &msg);
 
         ////////// Core emit functionality //////////
 
@@ -524,7 +524,7 @@ namespace monad::compiler::native
 
         ////////// Private debug functionality //////////
 
-        void debug_comment(std::string const &msg);
+        void unchecked_debug_comment(std::string const &msg);
 
         ////////// Private core emit functionality //////////
 
@@ -891,6 +891,7 @@ namespace monad::compiler::native
         EmitErrorHandler error_handler_;
         asmjit::CodeHolder code_holder_;
         asmjit::FileLogger debug_logger_;
+        bool runtime_debug_trace_;
         asmjit::x86::Assembler as_;
         asmjit::Label epilogue_label_;
         asmjit::Label error_label_;
@@ -906,7 +907,6 @@ namespace monad::compiler::native
         std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
         std::vector<std::pair<asmjit::Label, Literal>> literals_;
         std::vector<std::pair<asmjit::Label, void *>> external_functions_;
-
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
         std::vector<std::pair<asmjit::Label, std::string>> debug_messages_;

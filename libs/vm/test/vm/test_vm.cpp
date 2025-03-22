@@ -1,6 +1,6 @@
 #include "test_vm.hpp"
 
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/compiler/ir/x86/types.hpp>
 #include <monad/interpreter/execute.hpp>
 #include <monad/utils/assert.h>
 #include <monad/vm/vm.hpp>
@@ -54,11 +54,23 @@ namespace
     BlockchainTestVM::Implementation
     impl_from_env(BlockchainTestVM::Implementation const impl) noexcept
     {
-        if (std::getenv("EVMONE_VM_ONLY") != nullptr) {
+        static auto *const evmone_vm_only_env =
+            std::getenv("MONAD_COMPILER_EVMONE_ONLY");
+        static bool const evmone_vm_only =
+            evmone_vm_only_env && std::strcmp(evmone_vm_only_env, "1") == 0;
+        if (evmone_vm_only) {
             return BlockchainTestVM::Implementation::Evmone;
         }
-
         return impl;
+    }
+
+    bool is_compiler_runtime_debug_trace_enabled()
+    {
+        static auto *const debug_trace_env =
+            std::getenv("MONAD_COMPILER_DEBUG_TRACE");
+        static bool const debug_trace =
+            debug_trace_env && std::strcmp(debug_trace_env, "1") == 0;
+        return debug_trace;
     }
 }
 
@@ -86,11 +98,15 @@ bool CompiledContractEqual::operator()(
     return d == e && std::memcmp(x.bytes, y.bytes, sizeof(x.bytes)) == 0;
 }
 
-BlockchainTestVM::BlockchainTestVM(Implementation impl)
+BlockchainTestVM::BlockchainTestVM(
+    Implementation impl, native::EmitterHook post_hook)
     : evmc_vm{EVMC_ABI_VERSION, "monad-compiler-blockchain-test-vm", "0.0.0", ::destroy, ::execute, ::get_capabilities, nullptr}
     , impl_{impl_from_env(impl)}
     , evmone_vm_{evmc_create_evmone()}
-    , debug_dir_{std::getenv("MONAD_BLOCKCHAIN_TEST_DEBUG_DIR")}
+    , debug_dir_{std::getenv("MONAD_COMPILER_ASM_DIR")}
+    , base_config{
+          .runtime_debug_trace = is_compiler_runtime_debug_trace_enabled(),
+          .post_instruction_emit_hook = post_hook}
 {
     MONAD_COMPILER_ASSERT(!debug_dir_ || fs::is_directory(debug_dir_));
 }
@@ -133,12 +149,15 @@ evmc_result BlockchainTestVM::execute_compiler(
         file.str(debug_dir_);
         file << '/';
         for (auto b : msg->code_address.bytes) {
-            file << std::format("{:02X}", (int)b);
+            file << std::format("{:02x}", (int)b);
         }
-        f = monad_vm_.compile(rev, code, code_size, file.str().c_str());
+        native::CompilerConfig config{base_config};
+        auto asm_log_path = file.str();
+        config.asm_log_path = asm_log_path.c_str();
+        f = monad_vm_.compile(rev, code, code_size, config);
     }
     else {
-        f = monad_vm_.compile(rev, code, code_size);
+        f = monad_vm_.compile(rev, code, code_size, base_config);
     }
 
     if (!f) {

@@ -321,10 +321,10 @@ namespace monad::fuzzing
             });
         }
 
-        // With 10% probability, use 13 of the 15 available avx
+        // With 50% probability, use 13 of the 15 available avx
         // registers immediately, to increase probability of running
         // out of avx registers.
-        with_probability(eng, 0.1, [&](auto &) {
+        with_probability(eng, 0.50, [&](auto &) {
             program.push_back(NonTerminator{CALLVALUE}); // uses 1 avx register
             program.push_back(NonTerminator{DUP1});
             // Use 12 more avx registers:

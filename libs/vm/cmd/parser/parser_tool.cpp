@@ -115,7 +115,10 @@ int main(int argc, char **argv)
         if (args.compile) {
             auto rt = asmjit::JitRuntime{};
             monad::compiler::native::compile(
-                rt, opcodes, EVMC_LATEST_STABLE_REVISION, "out.asm");
+                rt,
+                opcodes,
+                EVMC_LATEST_STABLE_REVISION,
+                {.asm_log_path = "out.asm"});
         }
     }
 
@@ -141,7 +144,7 @@ int main(int argc, char **argv)
                     rt,
                     opcodes,
                     EVMC_LATEST_STABLE_REVISION,
-                    outfile_asm.c_str());
+                    {.asm_log_path = outfile_asm.c_str()});
             }
         }
     }

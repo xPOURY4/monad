@@ -24,17 +24,15 @@ public:
         evmc_revision rev,
         monad::compiler::basic_blocks::BasicBlocksIR const &ir)
     {
-        char const *asm_log = nullptr;
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;
-            auto ans = monad::compiler::native::compile_basic_blocks(
-                rev, rt_, ir, asm_log);
+            auto ans =
+                monad::compiler::native::compile_basic_blocks(rev, rt_, ir);
             CACHEGRIND_STOP_INSTRUMENTATION;
             return ans;
         }
         else {
-            return monad::compiler::native::compile_basic_blocks(
-                rev, rt_, ir, asm_log);
+            return monad::compiler::native::compile_basic_blocks(rev, rt_, ir);
         }
     }
 
