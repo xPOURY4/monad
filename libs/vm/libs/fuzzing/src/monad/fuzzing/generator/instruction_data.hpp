@@ -15,16 +15,6 @@ namespace monad::fuzzing
         STATICCALL,
     };
 
-    // TODO RETURNDATACOPY and CREATE* opcodes are not being
-    // generated at the moment. They need better input stack
-    // generation, to make it lees likely they will result in
-    // uninteresting behavior. Similar to CALL* instructions.
-
-    constexpr auto create_non_terminators = std::array{
-        CREATE,
-        CREATE2,
-    };
-
     constexpr auto dup_non_terminator = std::array{
         DUP1,
         DUP2,

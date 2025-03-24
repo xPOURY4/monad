@@ -203,6 +203,40 @@ namespace monad::fuzzing
         return r;
     }
 
+    struct Create
+    {
+        std::uint8_t opcode;
+        uint8_t balancePct;
+        Constant offset;
+        Constant size;
+        Constant salt;
+        bool isTrivial; // sometimes just emit a simple CREATE/CREATE2
+    };
+
+    template <typename Engine>
+    Create generate_create(Engine &eng)
+    {
+        static constexpr auto create_non_terminators = std::array{
+            CREATE,
+            CREATE2,
+        };
+
+        static constexpr auto pcts =
+            std::array<uint8_t, 12>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+        auto r = Create{
+            .opcode = uniform_sample(eng, create_non_terminators),
+            .balancePct = uniform_sample(eng, pcts),
+            .offset = memory_constant(eng),
+            .size = memory_constant(eng),
+            .salt = random_constant(eng),
+            .isTrivial = false,
+        };
+
+        with_probability(eng, 0.05, [&](auto &) { r.isTrivial = true; });
+        return r;
+    }
+
     struct NonTerminator
     {
         std::uint8_t opcode;
@@ -213,8 +247,8 @@ namespace monad::fuzzing
         std::uint8_t opcode;
     };
 
-    using Instruction =
-        std::variant<NonTerminator, Terminator, Push, Call, ReturnDataCopy>;
+    using Instruction = std::variant<
+        NonTerminator, Terminator, Push, Call, ReturnDataCopy, Create>;
 
     template <typename Engine>
     NonTerminator generate_common_non_terminator(Engine &eng)
@@ -275,6 +309,7 @@ namespace monad::fuzzing
         // and they increase the number of out-of-gas errors.
         static constexpr auto call_weight = (0.06 / 148.0); // 0.05%
         static constexpr auto returndatacopy_weight = (0.06 / 148.0); // 0.05%
+        static constexpr auto create_weight = (0.06 / 148.0); // 0.05%
         // The uncommon non-terminators have simple emitter
         // implementations, so we want low probability of these to
         // increase probability of the more complex code paths.
@@ -282,8 +317,9 @@ namespace monad::fuzzing
         // The common non-terminators have high probability, because
         // they have or aid with complex code paths in the emitter.
         static constexpr auto common_non_term_weight =
-            1.0 - (push_weight + dup_weight + call_weight +
-                   returndatacopy_weight + uncommon_non_term_weight);
+            1.0 -
+            (push_weight + dup_weight + call_weight + returndatacopy_weight +
+             create_weight + uncommon_non_term_weight);
         // 100% - 25% - 25% - 0.05% - 0.05% - 3% = 46.90%
 
         static constexpr auto push_prob = total_non_term_prob * push_weight;
@@ -291,6 +327,7 @@ namespace monad::fuzzing
         static constexpr auto call_prob = total_non_term_prob * call_weight;
         static constexpr auto returndatacopy_prob =
             total_non_term_prob * returndatacopy_weight;
+        static constexpr auto create_prob = total_non_term_prob * create_weight;
         static constexpr auto uncommon_non_term_prob =
             total_non_term_prob * uncommon_non_term_weight;
         static constexpr auto common_non_term_prob =
@@ -359,6 +396,7 @@ namespace monad::fuzzing
                 Choice(
                     returndatacopy_prob,
                     [](auto &g) { return generate_returndatacopy(g); }),
+                Choice(create_prob, [](auto &g) { return generate_create(g); }),
                 Choice(
                     uncommon_non_term_prob,
                     [](auto &g) {
@@ -443,6 +481,21 @@ namespace monad::fuzzing
             program.push_back(RETURNDATASIZE);
         }
         program.push_back(RETURNDATACOPY);
+    }
+
+    void compile_create(std::vector<std::uint8_t> &program, Create const &c)
+    {
+        if (!c.isTrivial) {
+            if (c.opcode == CREATE2) {
+                compile_constant(program, c.salt);
+            }
+            compile_constant(program, c.size);
+            compile_constant(program, c.offset);
+            program.push_back(BALANCE);
+            compile_percent(program, c.balancePct);
+        }
+
+        program.push_back(c.opcode);
     }
 
     template <typename Engine>
@@ -575,6 +628,7 @@ namespace monad::fuzzing
                     [&](ReturnDataCopy const &r) {
                         compile_returndatacopy(program, r);
                     },
+                    [&](Create const &c) { compile_create(program, c); },
                 },
                 inst);
         }
