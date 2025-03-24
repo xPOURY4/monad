@@ -175,6 +175,7 @@ namespace monad::fuzzing
         Constant destOffset;
         uint8_t sizePct; // percent of return data size
         uint8_t offsetPct; // percent of return data size
+        bool isTrivial; // sometimes just emit a simple RETURNDATACOPY
     };
 
     template <typename Engine>
@@ -184,6 +185,7 @@ namespace monad::fuzzing
             .destOffset = memory_constant(eng),
             .sizePct = 10, // mostly 10, sometimes < 0..9, rarely 11
             .offsetPct = 0, // mostly 0, sometimes < 1..9, rarely 10
+            .isTrivial = false,
         };
         with_probability(eng, 0.05, [&](auto &) {
             auto dist = std::uniform_int_distribution(0, 9);
@@ -196,6 +198,7 @@ namespace monad::fuzzing
             r.offsetPct = static_cast<uint8_t>(dist(eng));
         });
         with_probability(eng, 0.0005, [&](auto &) { r.offsetPct = 10; });
+        with_probability(eng, 0.05, [&](auto &) { r.isTrivial = true; });
 
         return r;
     }
@@ -271,6 +274,7 @@ namespace monad::fuzzing
         // The call weight is small, because the are all similar,
         // and they increase the number of out-of-gas errors.
         static constexpr auto call_weight = (0.06 / 148.0); // 0.05%
+        static constexpr auto returndatacopy_weight = (0.06 / 148.0); // 0.05%
         // The uncommon non-terminators have simple emitter
         // implementations, so we want low probability of these to
         // increase probability of the more complex code paths.
@@ -278,13 +282,15 @@ namespace monad::fuzzing
         // The common non-terminators have high probability, because
         // they have or aid with complex code paths in the emitter.
         static constexpr auto common_non_term_weight =
-            1.0 -
-            (push_weight + dup_weight + call_weight + uncommon_non_term_weight);
-        // 100% - 25% - 25% - 0.05% - 3% = 46.95%
+            1.0 - (push_weight + dup_weight + call_weight +
+                   returndatacopy_weight + uncommon_non_term_weight);
+        // 100% - 25% - 25% - 0.05% - 0.05% - 3% = 46.90%
 
         static constexpr auto push_prob = total_non_term_prob * push_weight;
         static constexpr auto dup_prob = total_non_term_prob * dup_weight;
         static constexpr auto call_prob = total_non_term_prob * call_weight;
+        static constexpr auto returndatacopy_prob =
+            total_non_term_prob * returndatacopy_weight;
         static constexpr auto uncommon_non_term_prob =
             total_non_term_prob * uncommon_non_term_weight;
         static constexpr auto common_non_term_prob =
@@ -351,7 +357,7 @@ namespace monad::fuzzing
                 Choice(dup_prob, [](auto &g) { return generate_dup(g); }),
                 Choice(call_prob, [](auto &g) { return generate_call(g); }),
                 Choice(
-                    call_prob,
+                    returndatacopy_prob,
                     [](auto &g) { return generate_returndatacopy(g); }),
                 Choice(
                     uncommon_non_term_prob,
@@ -428,12 +434,14 @@ namespace monad::fuzzing
         std::vector<std::uint8_t> &program, ReturnDataCopy const &rdc)
     {
 
-        program.push_back(RETURNDATASIZE);
-        compile_percent(program, rdc.sizePct);
-        program.push_back(RETURNDATASIZE);
-        compile_percent(program, rdc.offsetPct);
-        compile_constant(program, rdc.destOffset);
-        program.push_back(RETURNDATASIZE);
+        if (!rdc.isTrivial) {
+            program.push_back(RETURNDATASIZE);
+            compile_percent(program, rdc.sizePct);
+            program.push_back(RETURNDATASIZE);
+            compile_percent(program, rdc.offsetPct);
+            compile_constant(program, rdc.destOffset);
+            program.push_back(RETURNDATASIZE);
+        }
         program.push_back(RETURNDATACOPY);
     }
 
