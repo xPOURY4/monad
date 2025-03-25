@@ -23,21 +23,23 @@
  */
 extern "C" void interpreter_runtime_trampoline(
     void *, evmc_revision, monad::runtime::Context *,
-    monad::interpreter::State *);
+    monad::interpreter::State *, monad::utils::uint256_t *);
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision, monad::runtime::Context *,
-    monad::interpreter::State *);
+    monad::interpreter::State *, monad::utils::uint256_t *);
 
 namespace monad::interpreter
 {
     namespace
     {
         template <evmc_revision Rev>
-        void core_loop_impl(runtime::Context &ctx, State &state)
+        void core_loop_impl(
+            runtime::Context &ctx, State &state, utils::uint256_t *stack_ptr)
         {
-            auto const *stack_bottom = state.stack_bottom;
-            auto *stack_top = state.stack_top;
+            auto *stack_top = stack_ptr - 1;
+            auto const *stack_bottom = stack_top;
+
             auto gas_remaining = ctx.gas_remaining;
 
             while (true) {
@@ -79,46 +81,52 @@ namespace monad::interpreter
 
         auto const stack_ptr = allocate_stack();
         auto const analysis = Intercode(code);
-        auto state = State{analysis, stack_ptr.get()};
+        auto state = State(analysis);
 
-        interpreter_runtime_trampoline(&ctx.exit_stack_ptr, rev, &ctx, &state);
+        interpreter_runtime_trampoline(
+            &ctx.exit_stack_ptr,
+            rev,
+            &ctx,
+            &state,
+            reinterpret_cast<utils::uint256_t *>(stack_ptr.get()));
+
         return ctx.copy_to_evmc_result();
     }
 }
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision rev, monad::runtime::Context *ctx,
-    monad::interpreter::State *state)
+    monad::interpreter::State *state, monad::utils::uint256_t *stack_ptr)
 {
     using namespace monad::interpreter;
 
     switch (rev) {
     case EVMC_FRONTIER:
-        return core_loop_impl<EVMC_FRONTIER>(*ctx, *state);
+        return core_loop_impl<EVMC_FRONTIER>(*ctx, *state, stack_ptr);
     case EVMC_HOMESTEAD:
-        return core_loop_impl<EVMC_HOMESTEAD>(*ctx, *state);
+        return core_loop_impl<EVMC_HOMESTEAD>(*ctx, *state, stack_ptr);
     case EVMC_TANGERINE_WHISTLE:
-        return core_loop_impl<EVMC_TANGERINE_WHISTLE>(*ctx, *state);
+        return core_loop_impl<EVMC_TANGERINE_WHISTLE>(*ctx, *state, stack_ptr);
     case EVMC_SPURIOUS_DRAGON:
-        return core_loop_impl<EVMC_SPURIOUS_DRAGON>(*ctx, *state);
+        return core_loop_impl<EVMC_SPURIOUS_DRAGON>(*ctx, *state, stack_ptr);
     case EVMC_BYZANTIUM:
-        return core_loop_impl<EVMC_BYZANTIUM>(*ctx, *state);
+        return core_loop_impl<EVMC_BYZANTIUM>(*ctx, *state, stack_ptr);
     case EVMC_CONSTANTINOPLE:
-        return core_loop_impl<EVMC_CONSTANTINOPLE>(*ctx, *state);
+        return core_loop_impl<EVMC_CONSTANTINOPLE>(*ctx, *state, stack_ptr);
     case EVMC_PETERSBURG:
-        return core_loop_impl<EVMC_PETERSBURG>(*ctx, *state);
+        return core_loop_impl<EVMC_PETERSBURG>(*ctx, *state, stack_ptr);
     case EVMC_ISTANBUL:
-        return core_loop_impl<EVMC_ISTANBUL>(*ctx, *state);
+        return core_loop_impl<EVMC_ISTANBUL>(*ctx, *state, stack_ptr);
     case EVMC_BERLIN:
-        return core_loop_impl<EVMC_BERLIN>(*ctx, *state);
+        return core_loop_impl<EVMC_BERLIN>(*ctx, *state, stack_ptr);
     case EVMC_LONDON:
-        return core_loop_impl<EVMC_LONDON>(*ctx, *state);
+        return core_loop_impl<EVMC_LONDON>(*ctx, *state, stack_ptr);
     case EVMC_PARIS:
-        return core_loop_impl<EVMC_PARIS>(*ctx, *state);
+        return core_loop_impl<EVMC_PARIS>(*ctx, *state, stack_ptr);
     case EVMC_SHANGHAI:
-        return core_loop_impl<EVMC_SHANGHAI>(*ctx, *state);
+        return core_loop_impl<EVMC_SHANGHAI>(*ctx, *state, stack_ptr);
     case EVMC_CANCUN:
-        return core_loop_impl<EVMC_CANCUN>(*ctx, *state);
+        return core_loop_impl<EVMC_CANCUN>(*ctx, *state, stack_ptr);
     default:
         MONAD_COMPILER_ASSERT(false);
     }
