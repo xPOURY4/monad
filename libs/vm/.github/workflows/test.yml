@@ -89,14 +89,14 @@ jobs:
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
               run: |
-                ulimit -s 32768
+                ulimit -s 131072
                 ./build/test/blockchain/compiler-blockchain-tests
 
             - name: Run interpreter Ethereum tests
               env:
                 UBSAN_OPTIONS: "halt_on_error=1"
               run: |
-                ulimit -s 32768
+                ulimit -s 131072
                 ./build/test/blockchain/interpreter-blockchain-tests
 
     code-quality:
