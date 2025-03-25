@@ -40,9 +40,9 @@ namespace monad::interpreter
             runtime::Context &ctx, State &state, utils::uint256_t *stack_ptr)
         {
             static constexpr auto dispatch_table = std::array{
-#define ON_EVM_OPCODE(op) &&LABEL_##op,
-                EVM_ALL_OPCODES
-#undef ON_EVM_OPCODE
+#define MONAD_COMPILER_ON_EVM_OPCODE(op) &&LABEL_##op,
+                MONAD_COMPILER_EVM_ALL_OPCODES
+#undef MONAD_COMPILER_ON_EVM_OPCODE
             };
             static_assert(dispatch_table.size() == 256);
 
@@ -53,7 +53,7 @@ namespace monad::interpreter
 
             goto *dispatch_table[*state.instr_ptr];
 
-#define ON_EVM_OPCODE(op)                                                      \
+#define MONAD_COMPILER_ON_EVM_OPCODE(op)                                       \
     LABEL_##op:                                                                \
     {                                                                          \
         if constexpr (debug_enabled) {                                         \
@@ -61,16 +61,17 @@ namespace monad::interpreter
                 op, ctx, state, stack_bottom, stack_top, gas_remaining);       \
         }                                                                      \
                                                                                \
-        auto const [gas_rem, top] = instruction_table<Rev>[op](                \
-            ctx, state, stack_bottom, stack_top, gas_remaining);               \
+        static constexpr auto eval = instruction_table<Rev>[op];               \
+        auto const [gas_rem, top] =                                            \
+            eval(ctx, state, stack_bottom, stack_top, gas_remaining);          \
                                                                                \
         gas_remaining = gas_rem;                                               \
         stack_top = top;                                                       \
                                                                                \
         goto *dispatch_table[*state.instr_ptr];                                \
     }
-            EVM_ALL_OPCODES
-#undef ON_EVM_OPCODE
+            MONAD_COMPILER_EVM_ALL_OPCODES
+#undef MONAD_COMPILER_ON_EVM_OPCODE
 
             MONAD_COMPILER_ASSERT(false);
         }
