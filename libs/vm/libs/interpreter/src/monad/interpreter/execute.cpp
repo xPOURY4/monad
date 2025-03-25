@@ -1,3 +1,4 @@
+#include <monad/evm/opcodes_xmacro.hpp>
 #include <monad/interpreter/debug.hpp>
 #include <monad/interpreter/execute.hpp>
 #include <monad/interpreter/instruction_table.hpp>
@@ -9,6 +10,7 @@
 
 #include <evmc/evmc.h>
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -37,30 +39,40 @@ namespace monad::interpreter
         void core_loop_impl(
             runtime::Context &ctx, State &state, utils::uint256_t *stack_ptr)
         {
+            static constexpr auto dispatch_table = std::array{
+#define ON_EVM_OPCODE(op) &&LABEL_##op,
+                EVM_ALL_OPCODES
+#undef ON_EVM_OPCODE
+            };
+            static_assert(dispatch_table.size() == 256);
+
             auto *stack_top = stack_ptr - 1;
             auto const *stack_bottom = stack_top;
 
             auto gas_remaining = ctx.gas_remaining;
 
-            while (true) {
-                auto const instr = *state.instr_ptr;
+            goto *dispatch_table[*state.instr_ptr];
 
-                if constexpr (debug_enabled) {
-                    trace<Rev>(
-                        instr,
-                        ctx,
-                        state,
-                        stack_bottom,
-                        stack_top,
-                        gas_remaining);
-                }
+#define ON_EVM_OPCODE(op)                                                      \
+    LABEL_##op:                                                                \
+    {                                                                          \
+        if constexpr (debug_enabled) {                                         \
+            trace<Rev>(                                                        \
+                op, ctx, state, stack_bottom, stack_top, gas_remaining);       \
+        }                                                                      \
+                                                                               \
+        auto const [gas_rem, top] = instruction_table<Rev>[op](                \
+            ctx, state, stack_bottom, stack_top, gas_remaining);               \
+                                                                               \
+        gas_remaining = gas_rem;                                               \
+        stack_top = top;                                                       \
+                                                                               \
+        goto *dispatch_table[*state.instr_ptr];                                \
+    }
+            EVM_ALL_OPCODES
+#undef ON_EVM_OPCODE
 
-                auto const [gas_rem, top] = instruction_table<Rev>[instr](
-                    ctx, state, stack_bottom, stack_top, gas_remaining);
-
-                gas_remaining = gas_rem;
-                stack_top = top;
-            }
+            MONAD_COMPILER_ASSERT(false);
         }
 
         std::unique_ptr<std::uint8_t, decltype(std::free) *> allocate_stack()
