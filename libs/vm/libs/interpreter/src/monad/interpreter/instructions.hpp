@@ -86,7 +86,7 @@ namespace monad::interpreter
 
     // Arithmetic
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     add(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -100,7 +100,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     mul(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -115,7 +115,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     sub(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -129,7 +129,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult udiv(
+    [[gnu::noinline]] OpcodeResult udiv(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -139,7 +139,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sdiv(
+    [[gnu::noinline]] OpcodeResult sdiv(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -149,7 +149,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult umod(
+    [[gnu::noinline]] OpcodeResult umod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -159,7 +159,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult smod(
+    [[gnu::noinline]] OpcodeResult smod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -169,7 +169,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult addmod(
+    [[gnu::noinline]] OpcodeResult addmod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -184,7 +184,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mulmod(
+    [[gnu::noinline]] OpcodeResult mulmod(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -199,7 +199,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     exp(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -214,7 +214,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult signextend(
+    [[gnu::noinline]] OpcodeResult signextend(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -229,7 +229,7 @@ namespace monad::interpreter
 
     // Boolean
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     lt(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining)
@@ -243,7 +243,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     gt(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining)
@@ -257,7 +257,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     slt(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -271,7 +271,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     sgt(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -285,7 +285,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     eq(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining)
@@ -299,7 +299,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult iszero(
+    [[gnu::noinline]] OpcodeResult iszero(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -314,7 +314,7 @@ namespace monad::interpreter
 
     // Bitwise
     template <evmc_revision Rev>
-    OpcodeResult and_(
+    [[gnu::noinline]] OpcodeResult and_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -328,7 +328,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     or_(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -342,7 +342,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult xor_(
+    [[gnu::noinline]] OpcodeResult xor_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -356,7 +356,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult not_(
+    [[gnu::noinline]] OpcodeResult not_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -370,7 +370,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult byte(
+    [[gnu::noinline]] OpcodeResult byte(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -384,7 +384,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     shl(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -398,7 +398,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     shr(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -412,7 +412,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     sar(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -427,7 +427,7 @@ namespace monad::interpreter
 
     // Data
     template <evmc_revision Rev>
-    OpcodeResult sha3(
+    [[gnu::noinline]] OpcodeResult sha3(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -437,7 +437,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult address(
+    [[gnu::noinline]] OpcodeResult address(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -450,7 +450,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult balance(
+    [[gnu::noinline]] OpcodeResult balance(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -465,7 +465,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult origin(
+    [[gnu::noinline]] OpcodeResult origin(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -480,7 +480,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult caller(
+    [[gnu::noinline]] OpcodeResult caller(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -493,7 +493,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult callvalue(
+    [[gnu::noinline]] OpcodeResult callvalue(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -506,7 +506,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldataload(
+    [[gnu::noinline]] OpcodeResult calldataload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -521,7 +521,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldatasize(
+    [[gnu::noinline]] OpcodeResult calldatasize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -534,7 +534,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldatacopy(
+    [[gnu::noinline]] OpcodeResult calldatacopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -549,7 +549,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult codesize(
+    [[gnu::noinline]] OpcodeResult codesize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -562,7 +562,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult codecopy(
+    [[gnu::noinline]] OpcodeResult codecopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -577,7 +577,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult gasprice(
+    [[gnu::noinline]] OpcodeResult gasprice(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -592,7 +592,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodesize(
+    [[gnu::noinline]] OpcodeResult extcodesize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -607,7 +607,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodecopy(
+    [[gnu::noinline]] OpcodeResult extcodecopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -622,7 +622,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult returndatasize(
+    [[gnu::noinline]] OpcodeResult returndatasize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -635,7 +635,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult returndatacopy(
+    [[gnu::noinline]] OpcodeResult returndatacopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -650,7 +650,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodehash(
+    [[gnu::noinline]] OpcodeResult extcodehash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -665,7 +665,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blockhash(
+    [[gnu::noinline]] OpcodeResult blockhash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -680,7 +680,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult coinbase(
+    [[gnu::noinline]] OpcodeResult coinbase(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -695,7 +695,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult timestamp(
+    [[gnu::noinline]] OpcodeResult timestamp(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -708,7 +708,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult number(
+    [[gnu::noinline]] OpcodeResult number(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -721,7 +721,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult prevrandao(
+    [[gnu::noinline]] OpcodeResult prevrandao(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -737,7 +737,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult gaslimit(
+    [[gnu::noinline]] OpcodeResult gaslimit(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -750,7 +750,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult chainid(
+    [[gnu::noinline]] OpcodeResult chainid(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -765,7 +765,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult selfbalance(
+    [[gnu::noinline]] OpcodeResult selfbalance(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -780,7 +780,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult basefee(
+    [[gnu::noinline]] OpcodeResult basefee(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -795,7 +795,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blobhash(
+    [[gnu::noinline]] OpcodeResult blobhash(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -810,7 +810,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blobbasefee(
+    [[gnu::noinline]] OpcodeResult blobbasefee(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -826,7 +826,7 @@ namespace monad::interpreter
 
     // Memory & Storage
     template <evmc_revision Rev>
-    OpcodeResult mload(
+    [[gnu::noinline]] OpcodeResult mload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -836,7 +836,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mstore(
+    [[gnu::noinline]] OpcodeResult mstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -851,7 +851,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mstore8(
+    [[gnu::noinline]] OpcodeResult mstore8(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -866,7 +866,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mcopy(
+    [[gnu::noinline]] OpcodeResult mcopy(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -876,7 +876,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sstore(
+    [[gnu::noinline]] OpcodeResult sstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -891,7 +891,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sload(
+    [[gnu::noinline]] OpcodeResult sload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -906,7 +906,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult tstore(
+    [[gnu::noinline]] OpcodeResult tstore(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -921,7 +921,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult tload(
+    [[gnu::noinline]] OpcodeResult tload(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -932,7 +932,7 @@ namespace monad::interpreter
 
     // Execution State
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     pc(runtime::Context &ctx, State &state,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining)
@@ -945,7 +945,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult msize(
+    [[gnu::noinline]] OpcodeResult msize(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -958,7 +958,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     gas(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -973,7 +973,7 @@ namespace monad::interpreter
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    OpcodeResult push(
+    [[gnu::noinline]] OpcodeResult push(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1069,7 +1069,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     pop(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1083,7 +1083,7 @@ namespace monad::interpreter
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     dup(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1100,7 +1100,7 @@ namespace monad::interpreter
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult swap(
+    [[gnu::noinline]] OpcodeResult swap(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1133,7 +1133,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jump(
+    [[gnu::noinline]] OpcodeResult jump(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1146,7 +1146,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jumpi(
+    [[gnu::noinline]] OpcodeResult jumpi(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1167,7 +1167,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jumpdest(
+    [[gnu::noinline]] OpcodeResult jumpdest(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1181,7 +1181,7 @@ namespace monad::interpreter
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
-    OpcodeResult
+    [[gnu::noinline]] OpcodeResult
     log(runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1205,7 +1205,7 @@ namespace monad::interpreter
 
     // Call & Create
     template <evmc_revision Rev>
-    OpcodeResult create(
+    [[gnu::noinline]] OpcodeResult create(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1220,7 +1220,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult call(
+    [[gnu::noinline]] OpcodeResult call(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1235,7 +1235,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult callcode(
+    [[gnu::noinline]] OpcodeResult callcode(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1250,7 +1250,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult delegatecall(
+    [[gnu::noinline]] OpcodeResult delegatecall(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1265,7 +1265,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult create2(
+    [[gnu::noinline]] OpcodeResult create2(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1280,7 +1280,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult staticcall(
+    [[gnu::noinline]] OpcodeResult staticcall(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1314,7 +1314,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult return_(
+    [[gnu::noinline]] OpcodeResult return_(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1325,7 +1325,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult revert(
+    [[gnu::noinline]] OpcodeResult revert(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1336,7 +1336,7 @@ namespace monad::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult selfdestruct(
+    [[gnu::noinline]] OpcodeResult selfdestruct(
         runtime::Context &ctx, State &state,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining)
@@ -1350,7 +1350,7 @@ namespace monad::interpreter
             gas_remaining);
     }
 
-    inline OpcodeResult stop(
+    [[gnu::noinline]] inline OpcodeResult stop(
         runtime::Context &ctx, State &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t gas_remaining)
     {
@@ -1358,7 +1358,7 @@ namespace monad::interpreter
         ctx.exit(Success);
     }
 
-    inline OpcodeResult invalid(
+    [[gnu::noinline]] inline OpcodeResult invalid(
         runtime::Context &ctx, State &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t gas_remaining)
     {
