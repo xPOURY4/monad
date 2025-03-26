@@ -2,25 +2,44 @@
 
 #include <monad/utils/assert.h>
 #include <monad/utils/load_program.hpp>
+#include <monad/utils/parser.hpp>
 
 #include <valgrind/cachegrind.h>
 
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 template <bool instrument>
 class InstrumentableDecoder
 {
 public:
-    std::vector<uint8_t> decode(std::string const &filename)
+    std::vector<uint8_t> decode(fs::path const &filename)
     {
-        std::vector<char> bytes = read_file(filename);
+        std::vector<char> const bytes = read_file(filename);
+        if (filename.extension() == ".mevm") {
+            std::string contents(bytes.begin(), bytes.end());
+            if constexpr (instrument) {
+                CACHEGRIND_START_INSTRUMENTATION;
+                std::vector<uint8_t> const code =
+                    monad::utils::parse_opcodes(contents);
+                CACHEGRIND_STOP_INSTRUMENTATION;
+                return code;
+            }
+            else {
+                return monad::utils::parse_opcodes(contents);
+            }
+        }
+
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;
-            std::vector<uint8_t> code = monad::utils::parse_hex_program(bytes);
+            std::vector<uint8_t> const code =
+                monad::utils::parse_hex_program(bytes);
             CACHEGRIND_STOP_INSTRUMENTATION;
             return code;
         }
