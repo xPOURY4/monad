@@ -765,6 +765,68 @@ namespace monad::compiler::native
         }
     }
 
+    void Emitter::swap_rdx_general_reg_if_free()
+    {
+        MONAD_COMPILER_ASSERT(
+            rdx_general_reg.reg == 1 || rdx_general_reg.reg == 2);
+        MONAD_COMPILER_ASSERT(
+            rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
+        if (stack_.is_general_reg_on_stack(GeneralReg{1}) ||
+            stack_.is_general_reg_on_stack(GeneralReg{2})) {
+            return;
+        }
+        std::swap(
+            gpq256_regs_[1][rdx_general_reg_index],
+            gpq256_regs_[2][rdx_general_reg_index]);
+        rdx_general_reg =
+            rdx_general_reg.reg == 1 ? GeneralReg{2} : GeneralReg{1};
+    }
+
+    void Emitter::swap_rdx_general_reg_index_if_free()
+    {
+        MONAD_COMPILER_ASSERT(
+            rdx_general_reg.reg == 1 || rdx_general_reg.reg == 2);
+        MONAD_COMPILER_ASSERT(
+            rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
+        if (stack_.is_general_reg_on_stack(rdx_general_reg)) {
+            return;
+        }
+        auto &r = gpq256_regs_[rdx_general_reg.reg];
+        std::swap(r[1], r[2]);
+        rdx_general_reg_index = rdx_general_reg_index == 1 ? 2 : 1;
+    }
+
+    void Emitter::swap_rcx_general_reg_if_free()
+    {
+        MONAD_COMPILER_ASSERT(
+            rcx_general_reg.reg == 1 || rcx_general_reg.reg == 2);
+        MONAD_COMPILER_ASSERT(
+            rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
+        if (stack_.is_general_reg_on_stack(GeneralReg{1}) ||
+            stack_.is_general_reg_on_stack(GeneralReg{2})) {
+            return;
+        }
+        std::swap(
+            gpq256_regs_[1][rcx_general_reg_index],
+            gpq256_regs_[2][rcx_general_reg_index]);
+        rcx_general_reg =
+            rcx_general_reg.reg == 1 ? GeneralReg{2} : GeneralReg{1};
+    }
+
+    void Emitter::swap_rcx_general_reg_index_if_free()
+    {
+        MONAD_COMPILER_ASSERT(
+            rcx_general_reg.reg == 1 || rcx_general_reg.reg == 2);
+        MONAD_COMPILER_ASSERT(
+            rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
+        if (stack_.is_general_reg_on_stack(rcx_general_reg)) {
+            return;
+        }
+        auto &r = gpq256_regs_[rcx_general_reg.reg];
+        std::swap(r[0], r[3]);
+        rcx_general_reg_index = rcx_general_reg_index == 0 ? 3 : 0;
+    }
+
     Stack &Emitter::get_stack()
     {
         return stack_;
@@ -3221,6 +3283,12 @@ namespace monad::compiler::native
         StackElemRef shift, StackElemRef value,
         std::tuple<LiveSet...> const &live)
     {
+        MONAD_COMPILER_DEBUG_ASSERT(
+            rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            gpq256_regs_[rcx_general_reg.reg][rcx_general_reg_index] ==
+            x86::rcx);
+
         if (value->literal()) {
             MONAD_COMPILER_DEBUG_ASSERT(!shift->literal().has_value());
             if (value->literal()->value == 0) {
@@ -4604,8 +4672,15 @@ namespace monad::compiler::native
         MONAD_COMPILER_DEBUG_ASSERT(bit_size > 0 && bit_size <= 256);
         MONAD_COMPILER_DEBUG_ASSERT(
             rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
+        MONAD_COMPILER_DEBUG_ASSERT(
+            gpq256_regs_[rdx_general_reg.reg][rdx_general_reg_index] ==
+            x86::rdx);
 
         size_t const dst_word_count = div64_ceil(bit_size);
+
+        // This is currently assumed to simplify register allocations:
+        MONAD_COMPILER_DEBUG_ASSERT(
+            !std::holds_alternative<Gpq256>(right) || dst_word_count <= 2);
 
         MONAD_COMPILER_DEBUG_ASSERT(!left->literal().has_value());
 
@@ -4722,19 +4797,24 @@ namespace monad::compiler::native
                     dst_word_count > rdx_general_reg_index) {
                     auto &right_gpq = std::get<Gpq256>(right);
                     if (right_gpq[rdx_general_reg_index] == x86::rdx) {
-                        if (tmp != dst) {
-                            spill_gpq = tmp_gpq[rdx_general_reg_index];
-                        }
-                        preserve_right_rdx = true;
-                        if (spill_gpq) {
-                            as_.mov(*spill_gpq, x86::rdx);
-                            right_gpq[rdx_general_reg_index] = *spill_gpq;
-                        }
-                        else {
+                        // Due to the limited size of `dst_word_count <= 2`
+                        // when `right` holds register, we have the
+                        // following two invariants.
+                        MONAD_COMPILER_DEBUG_ASSERT(tmp == dst);
+                        MONAD_COMPILER_DEBUG_ASSERT(
+                            preserve_left_rdx || !spill_gpq.has_value());
+                        // If left and right are the same register, then
+                        // we only need to emit the `rdx` perserving
+                        // instructions once. So if `preserve_left_rdx`
+                        // is true, we do not need to emit the instructions
+                        // to preserve `rdx` again here, and therefore can
+                        // set `preserve_right_rdx` to false in this case.
+                        preserve_right_rdx = !preserve_left_rdx;
+                        if (preserve_right_rdx) {
                             as_.push(reg_context);
                             as_.mov(reg_context, x86::rdx);
-                            right_gpq[rdx_general_reg_index] = reg_context;
                         }
+                        right_gpq[rdx_general_reg_index] = reg_context;
                     }
                 }
                 if (!preserve_left_rdx && !preserve_right_rdx &&
@@ -4792,6 +4872,11 @@ namespace monad::compiler::native
         for (size_t i = dst_word_count; i < 4; ++i) {
             as_.xor_(dst_gpq[i], dst_gpq[i]);
         }
+
+        MONAD_COMPILER_DEBUG_ASSERT(
+            preserve_stack_rdx + preserve_dst_rdx + preserve_left_rdx +
+                preserve_right_rdx <=
+            1);
 
         if (preserve_stack_rdx) {
             if (spill_gpq) {

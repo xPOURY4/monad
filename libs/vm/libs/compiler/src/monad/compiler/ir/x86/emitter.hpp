@@ -147,6 +147,10 @@ namespace monad::compiler::native
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
         void checked_debug_comment(std::string const &msg);
+        void swap_rdx_general_reg_if_free();
+        void swap_rdx_general_reg_index_if_free();
+        void swap_rcx_general_reg_if_free();
+        void swap_rcx_general_reg_index_if_free();
 
         ////////// Core emit functionality //////////
 
@@ -899,8 +903,8 @@ namespace monad::compiler::native
         Stack stack_;
         bool keep_stack_in_next_block_;
         std::array<Gpq256, 3> gpq256_regs_;
-        GeneralReg rcx_general_reg;
-        GeneralReg rdx_general_reg;
+        GeneralReg rcx_general_reg; // must be 1 or 2
+        GeneralReg rdx_general_reg; // must be 1 or 2
         uint8_t rcx_general_reg_index; // must be 0 or 3
         uint8_t rdx_general_reg_index; // must be 1 or 2
         uint64_t bytecode_size_;

@@ -443,10 +443,10 @@ static void do_run(std::size_t const run_index, arguments const &args)
 
         static constexpr std::array<double, 4> artificial_mov_probs = {
             0, 0.33, 0.67, 1};
-        double const artificial_mov_prop =
+        double const artificial_mov_prob =
             uniform_sample(engine, artificial_mov_probs);
 
-        with_probability(engine, artificial_mov_prop, [&](auto &) {
+        with_probability(engine, artificial_mov_prob, [&](auto &) {
             auto i = choose_index();
             if (!stack.has_deferred_comparison_at(i) &&
                 !stack.get(i)->general_reg()) {
@@ -455,7 +455,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
                 emit.mov_stack_index_to_general_reg(i);
             }
         });
-        with_probability(engine, artificial_mov_prop, [&](auto &) {
+        with_probability(engine, artificial_mov_prob, [&](auto &) {
             auto i = choose_index();
             if (!stack.has_deferred_comparison_at(i) &&
                 !stack.get(i)->avx_reg()) {
@@ -464,7 +464,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
                 emit.mov_stack_index_to_avx_reg(i);
             }
         });
-        with_probability(engine, artificial_mov_prop, [&](auto &) {
+        with_probability(engine, artificial_mov_prob, [&](auto &) {
             auto i = choose_index();
             if (!stack.has_deferred_comparison_at(i) &&
                 !stack.get(i)->stack_offset()) {
@@ -472,6 +472,24 @@ static void do_run(std::size_t const run_index, arguments const &args)
                     std::format("stack index {} to stack offset", i));
                 emit.mov_stack_index_to_stack_offset(i);
             }
+        });
+
+        static constexpr std::array<double, 4> artificial_swap_probs = {
+            0, 0.15, 0.30, 0.45};
+        double const artificial_swap_prob =
+            uniform_sample(engine, artificial_swap_probs);
+
+        with_probability(engine, artificial_swap_prob, [&](auto &) {
+            emit.swap_rdx_general_reg_if_free();
+        });
+        with_probability(engine, artificial_swap_prob, [&](auto &) {
+            emit.swap_rdx_general_reg_index_if_free();
+        });
+        with_probability(engine, artificial_swap_prob, [&](auto &) {
+            emit.swap_rcx_general_reg_if_free();
+        });
+        with_probability(engine, artificial_swap_prob, [&](auto &) {
+            emit.swap_rcx_general_reg_index_if_free();
         });
     };
 
