@@ -84,9 +84,21 @@ namespace monad::runtime
             static_cast<uint32_t>(offset_word));
 
         auto memory_end = offset + size;
-        auto *output_buf = reinterpret_cast<std::uint8_t *>(std::malloc(*size));
+
+        // We want to avoid preallocating the output buffer: if we run out of
+        // gas, then we need to immediately free the buffer if it was allocated
+        // ahead of time, which is inefficient. To keep the gas check in-line as
+        // a single subtraction and comparison with zero, we use this lambda to
+        // deduplicate the two cases in which we need to allocate an output
+        // buffer (when the memory is already big enough, and when we've paid
+        // the cost of a necessary expansion).
+        std::uint8_t *output_buf = nullptr;
+        auto allocate_output_buf = [size] {
+            return reinterpret_cast<std::uint8_t *>(std::malloc(*size));
+        };
 
         if (*memory_end <= memory.size) {
+            output_buf = allocate_output_buf();
             std::memcpy(output_buf, memory.data + *offset, *size);
         }
         else {
@@ -95,9 +107,10 @@ namespace monad::runtime
             gas_remaining -= memory_cost - memory.cost;
 
             if (gas_remaining < 0) {
-                std::free(output_buf);
                 return EVMC_OUT_OF_GAS;
             }
+
+            output_buf = allocate_output_buf();
 
             if (*offset < memory.size) {
                 auto n = memory.size - *offset;
