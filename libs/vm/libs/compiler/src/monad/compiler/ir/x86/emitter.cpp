@@ -491,56 +491,77 @@ namespace monad::compiler::native
 
         error_block(error_label_, runtime::StatusCode::Error);
 
+        // By putting jump table in the text section, we can use the
+        // `code_holder_.labelOffset` function to compute the relative
+        // distance between the `error_label_` and the
+        // `jump_table_label_` instead of using the built in
+        // `as_.embedLabelDelta` functionality when emitting the jump
+        // table. Saves significant compile time to calculate this
+        // relative label distance ourselves, instead of asmjit doing the
+        // same calculation again and again for `as_.embedLabelDelta`.
+        as_.align(asmjit::AlignMode::kData, 4);
+        as_.bind(jump_table_label_);
+        int32_t const error_offset = [&] {
+            int64_t const x = std::bit_cast<int64_t>(
+                code_holder_.labelOffset(error_label_) -
+                code_holder_.labelOffset(jump_table_label_));
+            MONAD_COMPILER_DEBUG_ASSERT(
+                x <= std::numeric_limits<int32_t>::max() &&
+                x >= std::numeric_limits<int32_t>::min());
+            return static_cast<int32_t>(x);
+        }();
+        size_t error_offset_repeat_count = 0;
+        for (size_t bid = 0; bid < bytecode_size_; ++bid) {
+            auto lbl = jump_dests_.find(bid);
+            if (lbl != jump_dests_.end()) {
+                as_.embedInt32(error_offset, error_offset_repeat_count);
+                error_offset_repeat_count = 0;
+                as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
+            }
+            else {
+                ++error_offset_repeat_count;
+            }
+        }
+        as_.embedInt32(error_offset, error_offset_repeat_count);
+
         static char const *const ro_section_name = "ro";
         static auto const ro_section_name_len = 2;
         static auto const ro_section_index = 1;
 
-        asmjit::Section *ro_section;
-        code_holder_.newSection(
-            &ro_section,
-            ro_section_name,
-            ro_section_name_len,
-            asmjit::SectionFlags::kReadOnly,
-            32,
-            ro_section_index);
-
-        as_.section(ro_section);
-        as_.align(asmjit::AlignMode::kData, 32);
-        for (auto [lbl, lit] : literals_) {
-            as_.bind(lbl);
-            as_.embed(&lit.value[0], 32);
-        }
-
-        for (auto [lbl, f] : external_functions_) {
-            as_.bind(lbl);
-            static_assert(sizeof(void *) == sizeof(uint64_t));
-            as_.embedUInt64(reinterpret_cast<uint64_t>(f));
-        }
-        // We are 8 byte aligned.
-        as_.bind(jump_table_label_);
-        for (size_t bid = 0; bid < bytecode_size_; ++bid) {
-            auto lbl = jump_dests_.find(bid);
-            if (lbl != jump_dests_.end()) {
-                as_.embedLabelDelta(lbl->second, jump_table_label_, 4);
-            }
-            else {
-                as_.embedLabelDelta(error_label_, jump_table_label_, 4);
-            }
-        }
-
-        for (auto const &[lbl, msg] : debug_messages_) {
-            as_.bind(lbl);
-            as_.embed(msg.c_str(), msg.size() + 1);
-        }
+        bool const is_ro_section_empty =
+            (literals_.size() | external_functions_.size() |
+             debug_messages_.size()) == 0;
 
         // Inside asmjit, if a section is emitted with no actual data in it, a
         // call to memcpy with a null source is made. This is technically UB,
         // and will get flagged by ubsan as such, even if it is technically
-        // harmless in practice. The only way that we can emit an empty section
-        // is if the compiled contract is empty. In this case we will emit a
-        // single zero byte to make the section non-empty.
-        if (bytecode_size_ == 0) {
-            as_.embedInt8(0);
+        // harmless in practice. So only emit ro section if non-empty.
+        if (!is_ro_section_empty) {
+            asmjit::Section *ro_section;
+            code_holder_.newSection(
+                &ro_section,
+                ro_section_name,
+                ro_section_name_len,
+                asmjit::SectionFlags::kReadOnly,
+                32,
+                ro_section_index);
+            as_.section(ro_section);
+
+            for (auto [lbl, lit] : literals_) {
+                as_.bind(lbl);
+                as_.embed(&lit.value[0], 32);
+            }
+
+            for (auto [lbl, f] : external_functions_) {
+                as_.bind(lbl);
+                static_assert(sizeof(void *) == sizeof(uint64_t));
+                as_.embedUInt64(reinterpret_cast<uint64_t>(f));
+            }
+
+            for (auto const &[lbl, msg] : debug_messages_) {
+                as_.bind(lbl);
+                as_.embed(msg.c_str(), msg.size() + 1);
+            }
         }
 
         entrypoint_t contract_main;
