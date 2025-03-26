@@ -52,6 +52,7 @@ jobs:
 
             - name: Install dependencies
               run: |
+                sudo apt update
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
@@ -131,6 +132,7 @@ jobs:
 
             - name: Install dependencies
               run: |
+                sudo apt update
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
@@ -181,6 +183,7 @@ jobs:
 
             - name: Install Doxygen
               run: |
+                sudo apt update
                 sudo apt install -y doxygen
 
             - name: Build documentation

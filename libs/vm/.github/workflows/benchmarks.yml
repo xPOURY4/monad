@@ -71,6 +71,7 @@ jobs:
 
             - name: Install dependencies
               run: |
+                sudo apt update
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
