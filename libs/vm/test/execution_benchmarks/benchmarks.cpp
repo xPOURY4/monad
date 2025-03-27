@@ -163,11 +163,10 @@ namespace
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
-        auto const *const code_acc =
-            test_state.to_intra_state().find(msg.code_address);
-        auto const code = code_acc != nullptr
-                              ? evmc::bytes_view{code_acc->code}
-                              : evmc::bytes_view{msg.code, msg.code_size};
+        auto intra_state = test_state.to_intra_state();
+        auto const *const code_acc = intra_state.find(msg.code_address);
+        MONAD_COMPILER_DEBUG_ASSERT(code_acc != nullptr);
+        auto const code = evmc::bytes_view{code_acc->code};
 
         for (auto _ : state) {
             state.PauseTiming();
@@ -232,8 +231,6 @@ namespace
     auto benchmarks_json()
     {
         auto ret = std::vector<std::vector<BenchmarkTest>>{
-            load_benchmark_json(vm_performance_dir / "loopExp.json"),
-            load_benchmark_json(vm_performance_dir / "loopMul.json"),
             load_benchmark_json(vm_performance_dir / "performanceTester.json"),
         };
 
