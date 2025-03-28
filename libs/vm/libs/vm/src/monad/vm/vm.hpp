@@ -7,6 +7,7 @@
 
 namespace monad::vm
 {
+
     class VM
     {
         Compiler compiler_;

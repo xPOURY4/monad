@@ -178,6 +178,8 @@ namespace monad::vm::compiler::basic_blocks
          *   `JUMPI` instruction or an implicit fallthrough.
          */
         bool is_valid() const;
+        std::tuple<std::int32_t, std::int32_t, std::int32_t>
+        stack_deltas() const;
     };
 
     bool operator==(Block const &a, Block const &b);
@@ -371,6 +373,19 @@ namespace monad::vm::compiler::basic_blocks
             info.index,
             info.stack_increase,
             info.dynamic_gas);
+    }
+
+    template <evmc_revision Rev>
+    int32_t block_base_gas(Block const &block)
+    {
+        int32_t base_gas = 0;
+        for (auto const &instr : block.instrs) {
+            base_gas += instr.static_gas_cost();
+        }
+        auto term_gas =
+            basic_blocks::terminator_static_gas<Rev>(block.terminator);
+        // This is also correct for fall through and invalid instruction:
+        return base_gas + term_gas;
     }
 
     template <evmc_revision Rev>

@@ -24,19 +24,6 @@ using namespace monad::vm::compiler::native;
 
 namespace
 {
-    template <evmc_revision Rev>
-    int32_t block_base_gas(Block const &block)
-    {
-        int32_t base_gas = 0;
-        for (auto const &instr : block.instrs) {
-            base_gas += instr.static_gas_cost();
-        }
-        auto term_gas =
-            basic_blocks::terminator_static_gas<Rev>(block.terminator);
-        // This is also correct for fall through and invalid instruction:
-        return base_gas + term_gas;
-    }
-
     template <evmc_revision rev>
     void emit_instr(
         Emitter &emit, Instruction const &instr, int32_t remaining_base_gas)

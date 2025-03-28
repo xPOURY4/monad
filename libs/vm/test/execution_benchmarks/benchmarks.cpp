@@ -169,6 +169,7 @@ namespace
         evmone::test::TestState const &initial_test_state,
         evmc_message const msg)
     {
+
         auto vm = evmc::VM(new BlockchainTestVM(impl));
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
@@ -199,7 +200,7 @@ namespace
 
     void register_benchmark(std::string_view const name, evmc_message const msg)
     {
-        for (auto const impl : {Interpreter, Compiler, Evmone}) {
+        for (auto const impl : {Interpreter, Compiler, LLVM, Evmone}) {
             benchmark::RegisterBenchmark(
                 std::format(
                     "execute/{}/{}", name, BlockchainTestVM::impl_name(impl)),
@@ -270,7 +271,8 @@ namespace
                         .code_size = 0,
                     };
 
-                    for (auto const impl : {Interpreter, Compiler, Evmone}) {
+                    for (auto const impl :
+                         {Interpreter, Compiler, LLVM, Evmone}) {
                         benchmark::RegisterBenchmark(
                             std::format(
                                 "execute/{}/{}/{}/{}",
@@ -291,6 +293,8 @@ namespace
 
 int main(int argc, char **argv)
 {
+    init_llvm();
+
     auto const all_bms = benchmarks();
 
     for (auto const &bm : all_bms) {

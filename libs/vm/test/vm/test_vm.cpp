@@ -5,8 +5,14 @@
 #include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
+
 #include <monad/vm/utils/evmc_utils.hpp>
 #include <monad/vm/vm.hpp>
+
+#ifdef MONAD_COMPILER_LLVM
+    #include <llvm-c/Target.h>
+    #include <monad/vm/llvm/llvm.hpp>
+#endif
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
@@ -29,8 +35,21 @@ using namespace evmc::literals;
 
 namespace fs = std::filesystem;
 
+#ifdef MONAD_COMPILER_LLVM
+void init_llvm()
+{
+    LLVMInitializeNativeTarget();
+    LLVMInitializeNativeAsmPrinter();
+}
+#endif
+
 namespace
 {
+
+#ifdef MONAD_COMPILER_LLVM
+    using namespace monad::vm::llvm;
+#endif
+
     constexpr auto SYSTEM_ADDRESS =
         0xfffffffffffffffffffffffffffffffffffffffe_address;
 
@@ -64,6 +83,7 @@ namespace
         if (evmone_vm_only) {
             return BlockchainTestVM::Implementation::Evmone;
         }
+
         return impl;
     }
 
@@ -106,6 +126,11 @@ evmc::Result BlockchainTestVM::execute(
     else if (impl_ == Implementation::Compiler) {
         return execute_compiler(host, context, rev, msg, code, code_size);
     }
+#ifdef MONAD_COMPILER_LLVM
+    else if (impl_ == Implementation::LLVM) {
+        return execute_llvm(host, context, rev, msg, code, code_size);
+    }
+#endif
     else {
         MONAD_VM_ASSERT(impl_ == Implementation::Interpreter);
         return execute_interpreter(host, context, rev, msg, code, code_size);
@@ -175,6 +200,9 @@ void BlockchainTestVM::precompile_contracts(
         auto const &code_size = account.code.size();
         (void)get_code_analysis(code_hash, code, code_size);
         (void)get_intercode_nativecode(rev, code_hash, code, code_size);
+#ifdef MONAD_COMPILER_LLVM
+        cache_llvm(rev, code_hash, code, code_size);
+#endif
     }
 }
 
@@ -202,6 +230,26 @@ evmc::Result BlockchainTestVM::execute_compiler(
     return monad_vm_.execute_native_entrypoint(
         host, context, msg, icode, ncode->entrypoint());
 }
+
+#ifdef MONAD_COMPILER_LLVM
+void BlockchainTestVM::cache_llvm(
+    evmc_revision const rev, evmc::bytes32 const &code_hash,
+    uint8_t const *code, size_t code_size)
+{
+    llvm_vm_.cache_llvm(rev, code, code_size, code_hash);
+}
+
+evmc::Result BlockchainTestVM::execute_llvm(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    auto code_hash = host->get_code_hash(context, &msg->code_address);
+
+    return llvm_vm_.execute_llvm(
+        rev, host, context, msg, code, code_size, code_hash);
+}
+#endif
 
 evmc::Result BlockchainTestVM::execute_interpreter(
     evmc_host_interface const *host, evmc_host_context *context,

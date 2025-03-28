@@ -6,6 +6,14 @@ option(HUNTER_ENABLED OFF)
 
 include(CTest)
 
+option(MONAD_COMPILER_LLVM "Build llvm backend" ON)
+
+if(MONAD_COMPILER_LLVM)
+    include(cmake/LinkLLVM.cmake)
+    find_package(LLVM 19.1.7 REQUIRED CONFIG)
+    add_definitions(-DMONAD_COMPILER_LLVM)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
@@ -110,6 +118,9 @@ add_subdirectory(libs/core)
 add_subdirectory(libs/evm)
 add_subdirectory(libs/fuzzing)
 add_subdirectory(libs/interpreter)
+if(MONAD_COMPILER_LLVM)
+    add_subdirectory(libs/llvm)
+endif()
 add_subdirectory(libs/runtime)
 add_subdirectory(libs/utils)
 add_subdirectory(libs/vm)

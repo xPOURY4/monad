@@ -3,17 +3,22 @@
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/interpreter/execute.hpp>
+
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/vm.hpp>
 
-#include <cstddef>
-#include <cstdint>
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <span>
 
 namespace monad::vm
 {
+    using namespace monad::vm::utils;
+
     VM::VM(std::size_t max_stack_cache, std::size_t max_memory_cache)
         : stack_allocator_{max_stack_cache}
         , memory_allocator_{max_memory_cache}

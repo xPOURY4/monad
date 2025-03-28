@@ -10,8 +10,6 @@
 #include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/debug.hpp>
 
-#include <evmc/evmc.h>
-
 #include <asmjit/core/api-config.h>
 #include <asmjit/core/codeholder.h>
 #include <asmjit/core/emitter.h>
@@ -52,75 +50,6 @@ namespace
 
     constexpr auto reg_context = x86::rbx;
     constexpr auto reg_stack = x86::rbp;
-
-    constexpr auto context_offset_gas_remaining =
-        offsetof(runtime::Context, gas_remaining);
-    constexpr auto context_offset_exit_stack_ptr =
-        offsetof(runtime::Context, exit_stack_ptr);
-    constexpr auto context_offset_env_recipient =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, recipient);
-    constexpr auto context_offset_env_sender =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, sender);
-    constexpr auto context_offset_env_value =
-        offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
-    constexpr auto context_offset_env_input_data_size =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, input_data_size);
-    constexpr auto context_offset_env_return_data_size =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, return_data_size);
-    constexpr auto context_offset_env_tx_context_origin =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, tx_origin);
-    constexpr auto context_offset_env_tx_context_tx_gas_price =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, tx_gas_price);
-    constexpr auto context_offset_env_tx_context_block_gas_limit =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_gas_limit);
-    constexpr auto context_offset_env_tx_context_block_coinbase =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_coinbase);
-    constexpr auto context_offset_env_tx_context_block_timestamp =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_timestamp);
-    constexpr auto context_offset_env_tx_context_block_number =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_number);
-    constexpr auto context_offset_env_tx_context_block_prev_randao =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_prev_randao);
-    constexpr auto context_offset_env_tx_context_chain_id =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, chain_id);
-    constexpr auto context_offset_env_tx_context_block_base_fee =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, block_base_fee);
-    constexpr auto context_offset_env_tx_context_blob_base_fee =
-        offsetof(runtime::Context, env) +
-        offsetof(runtime::Environment, tx_context) +
-        offsetof(evmc_tx_context, blob_base_fee);
-    constexpr auto context_offset_memory_size =
-        offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
-    constexpr auto context_offset_memory_data =
-        offsetof(runtime::Context, memory) + offsetof(runtime::Memory, data);
-    constexpr auto context_offset_result_offset =
-        offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
-    constexpr auto context_offset_result_size =
-        offsetof(runtime::Context, result) + offsetof(runtime::Result, size);
-    constexpr auto context_offset_result_status =
-        offsetof(runtime::Context, result) + offsetof(runtime::Result, status);
 
     constexpr auto sp_offset_arg1 = 0;
     constexpr auto sp_offset_arg2 = sp_offset_arg1 + 8;
@@ -609,7 +538,9 @@ namespace monad::vm::compiler::native
 
         as_.mov(reg_context, x86::rdi);
         as_.mov(reg_stack, x86::rsi);
-        as_.mov(x86::ptr(reg_context, context_offset_exit_stack_ptr), x86::rsp);
+        as_.mov(
+            x86::ptr(reg_context, runtime::context_offset_exit_stack_ptr),
+            x86::rsp);
 
         static_assert(stack_frame_size % 16 == 8);
         as_.sub(x86::rsp, stack_frame_size); // 16 byte aligned
@@ -865,7 +796,9 @@ namespace monad::vm::compiler::native
 
     void Emitter::gas_decrement_no_check(int32_t gas)
     {
-        as_.sub(x86::qword_ptr(reg_context, context_offset_gas_remaining), gas);
+        as_.sub(
+            x86::qword_ptr(reg_context, runtime::context_offset_gas_remaining),
+            gas);
     }
 
     void Emitter::gas_decrement_check_non_negative(int32_t gas)
@@ -2510,7 +2443,8 @@ namespace monad::vm::compiler::native
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
         as_.mov(
-            gpq[0], x86::qword_ptr(reg_context, context_offset_gas_remaining));
+            gpq[0],
+            x86::qword_ptr(reg_context, runtime::context_offset_gas_remaining));
         as_.add(gpq[0], remaining_base_gas);
         as_.xor_(gpq[1].r32(), gpq[1].r32());
         as_.xor_(gpq[2].r32(), gpq[2].r32());
@@ -2521,19 +2455,19 @@ namespace monad::vm::compiler::native
     // No discharge
     void Emitter::address()
     {
-        read_context_address(context_offset_env_recipient);
+        read_context_address(runtime::context_offset_env_recipient);
     }
 
     // No discharge
     void Emitter::caller()
     {
-        read_context_address(context_offset_env_sender);
+        read_context_address(runtime::context_offset_env_sender);
     }
 
     // No discharge
     void Emitter::callvalue()
     {
-        read_context_word(context_offset_env_value);
+        read_context_word(runtime::context_offset_env_value);
     }
 
     // No discharge
@@ -2541,7 +2475,8 @@ namespace monad::vm::compiler::native
     {
         static_assert(
             sizeof(runtime::Environment::input_data_size) == sizeof(uint32_t));
-        read_context_uint32_to_word(context_offset_env_input_data_size);
+        read_context_uint32_to_word(
+            runtime::context_offset_env_input_data_size);
     }
 
     // No discharge
@@ -2549,14 +2484,15 @@ namespace monad::vm::compiler::native
     {
         static_assert(
             sizeof(runtime::Environment::return_data_size) == sizeof(uint64_t));
-        read_context_uint64_to_word(context_offset_env_return_data_size);
+        read_context_uint32_to_word(
+            runtime::context_offset_env_return_data_size);
     }
 
     // No discharge
     void Emitter::msize()
     {
         static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
-        read_context_uint32_to_word(context_offset_memory_size);
+        read_context_uint32_to_word(runtime::context_offset_memory_size);
     }
 
     // No discharge
@@ -2568,63 +2504,67 @@ namespace monad::vm::compiler::native
     // No discharge
     void Emitter::origin()
     {
-        read_context_address(context_offset_env_tx_context_origin);
+        read_context_address(runtime::context_offset_env_tx_context_origin);
     }
 
     // No discharge
     void Emitter::gasprice()
     {
-        read_context_word(context_offset_env_tx_context_tx_gas_price);
+        read_context_word(runtime::context_offset_env_tx_context_tx_gas_price);
     }
 
     // No discharge
     void Emitter::gaslimit()
     {
         read_context_uint64_to_word(
-            context_offset_env_tx_context_block_gas_limit);
+            runtime::context_offset_env_tx_context_block_gas_limit);
     }
 
     // No discharge
     void Emitter::coinbase()
     {
-        read_context_address(context_offset_env_tx_context_block_coinbase);
+        read_context_address(
+            runtime::context_offset_env_tx_context_block_coinbase);
     }
 
     // No discharge
     void Emitter::timestamp()
     {
         read_context_uint64_to_word(
-            context_offset_env_tx_context_block_timestamp);
+            runtime::context_offset_env_tx_context_block_timestamp);
     }
 
     // No discharge
     void Emitter::number()
     {
-        read_context_uint64_to_word(context_offset_env_tx_context_block_number);
+        read_context_uint64_to_word(
+            runtime::context_offset_env_tx_context_block_number);
     }
 
     // No discharge
     void Emitter::prevrandao()
     {
-        read_context_word(context_offset_env_tx_context_block_prev_randao);
+        read_context_word(
+            runtime::context_offset_env_tx_context_block_prev_randao);
     }
 
     // No discharge
     void Emitter::chainid()
     {
-        read_context_word(context_offset_env_tx_context_chain_id);
+        read_context_word(runtime::context_offset_env_tx_context_chain_id);
     }
 
     // No discharge
     void Emitter::basefee()
     {
-        read_context_word(context_offset_env_tx_context_block_base_fee);
+        read_context_word(
+            runtime::context_offset_env_tx_context_block_base_fee);
     }
 
     // No discharge
     void Emitter::blobbasefee()
     {
-        read_context_word(context_offset_env_tx_context_blob_base_fee);
+        read_context_word(runtime::context_offset_env_tx_context_blob_base_fee);
     }
 
     // Discharge through `touch_memory`.
@@ -2762,7 +2702,9 @@ namespace monad::vm::compiler::native
     void Emitter::status_code(runtime::StatusCode status)
     {
         int32_t const c = static_cast<int32_t>(status);
-        as_.mov(x86::qword_ptr(reg_context, context_offset_result_status), c);
+        as_.mov(
+            x86::qword_ptr(reg_context, runtime::context_offset_result_status),
+            c);
     }
 
     void Emitter::error_block(asmjit::Label &lbl, runtime::StatusCode status)
@@ -2782,9 +2724,10 @@ namespace monad::vm::compiler::native
         RegReserv const size_avx_reserv{size};
         status_code(status);
         mov_stack_elem_to_unaligned_mem<true>(
-            offset, qword_ptr(reg_context, context_offset_result_offset));
+            offset,
+            qword_ptr(reg_context, runtime::context_offset_result_offset));
         mov_stack_elem_to_unaligned_mem<true>(
-            size, qword_ptr(reg_context, context_offset_result_size));
+            size, qword_ptr(reg_context, runtime::context_offset_result_size));
         as_.jmp(epilogue_label_);
     }
 
@@ -4269,7 +4212,8 @@ namespace monad::vm::compiler::native
 
             static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
             as_.cmp(
-                x86::dword_ptr(reg_context, context_offset_memory_size),
+                x86::dword_ptr(
+                    reg_context, runtime::context_offset_memory_size),
                 read_end);
             as_.jae(after_increase_label);
             as_.mov(x86::rdi, read_end);
@@ -4292,7 +4236,8 @@ namespace monad::vm::compiler::native
                 static_assert(
                     sizeof(runtime::Memory::size) == sizeof(uint32_t));
                 as_.cmp(
-                    x86::dword_ptr(reg_context, context_offset_memory_size),
+                    x86::dword_ptr(
+                        reg_context, runtime::context_offset_memory_size),
                     x86::edi);
                 as_.jae(after_increase_label);
             }
@@ -4311,7 +4256,8 @@ namespace monad::vm::compiler::native
                 static_assert(
                     sizeof(runtime::Memory::size) == sizeof(uint32_t));
                 as_.cmp(
-                    x86::dword_ptr(reg_context, context_offset_memory_size),
+                    x86::dword_ptr(
+                        reg_context, runtime::context_offset_memory_size),
                     x86::edi);
                 as_.jae(after_increase_label);
             }
@@ -4340,7 +4286,8 @@ namespace monad::vm::compiler::native
             as_.lea(x86::rdi, x86::byte_ptr(x86::rax, read_size));
             static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
             as_.cmp(
-                x86::dword_ptr(reg_context, context_offset_memory_size),
+                x86::dword_ptr(
+                    reg_context, runtime::context_offset_memory_size),
                 x86::edi);
             as_.jae(after_increase_label);
         }
@@ -4354,7 +4301,8 @@ namespace monad::vm::compiler::native
         if (std::holds_alternative<int32_t>(offset_op)) {
             as_.mov(
                 x86::rax,
-                x86::qword_ptr(reg_context, context_offset_memory_data));
+                x86::qword_ptr(
+                    reg_context, runtime::context_offset_memory_data));
             auto i = std::get<int32_t>(offset_op);
             return x86::qword_ptr(x86::rax, i);
         }
@@ -4364,7 +4312,8 @@ namespace monad::vm::compiler::native
             static_assert(sizeof(runtime::Memory::data) == sizeof(uint64_t));
             as_.add(
                 x86::rax,
-                x86::qword_ptr(reg_context, context_offset_memory_data));
+                x86::qword_ptr(
+                    reg_context, runtime::context_offset_memory_data));
             return x86::qword_ptr(x86::rax);
         }
     }

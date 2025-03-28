@@ -2,6 +2,7 @@
 #include <monad/vm/compiler/types.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -16,6 +17,32 @@ namespace monad::vm::compiler::basic_blocks
     {
         return is_fallthrough_terminator(terminator) ==
                (fallthrough_dest != INVALID_BLOCK_ID);
+    }
+
+    // returns at tuple of:
+    // the minimum delta the stack will decrease
+    // the overall delta of the stack
+    // the maximum delta the stack will increase
+    std::tuple<std::int32_t, std::int32_t, std::int32_t>
+    Block::stack_deltas() const
+    {
+        std::int32_t min_delta = 0;
+        std::int32_t delta = 0;
+        std::int32_t max_delta = 0;
+
+        for (auto const &instr : instrs) {
+            delta -= instr.stack_args();
+            min_delta = std::min(delta, min_delta);
+
+            delta += instr.stack_increase();
+            max_delta = std::max(delta, max_delta);
+        }
+
+        delta -= static_cast<std::int32_t>(
+            basic_blocks::terminator_inputs(terminator));
+        min_delta = std::min(delta, min_delta);
+
+        return {min_delta, delta, max_delta};
     }
 
     bool operator==(Block const &a, Block const &b)

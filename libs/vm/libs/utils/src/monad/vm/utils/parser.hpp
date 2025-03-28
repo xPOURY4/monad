@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cstdint>
 #include <iterator>
+#include <span>
 #include <stdexcept>
 #include <system_error>
 #include <vector>

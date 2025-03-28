@@ -8,6 +8,7 @@
 
 #include <evmc/evmc.hpp>
 
+#include <cstddef>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -242,6 +243,64 @@ namespace monad::vm::runtime
     static_assert(offsetof(Memory, size) == 8);
     static_assert(offsetof(Memory, capacity) == 12);
     static_assert(offsetof(Memory, cost) == 24);
+
+    constexpr auto context_offset_gas_remaining =
+        offsetof(Context, gas_remaining);
+    constexpr auto context_offset_exit_stack_ptr =
+        offsetof(Context, exit_stack_ptr);
+    constexpr auto context_offset_env_recipient =
+        offsetof(Context, env) + offsetof(Environment, recipient);
+    constexpr auto context_offset_env_sender =
+        offsetof(Context, env) + offsetof(Environment, sender);
+    constexpr auto context_offset_env_value =
+        offsetof(Context, env) + offsetof(Environment, value);
+    constexpr auto context_offset_env_code_size =
+        offsetof(Context, env) + offsetof(Environment, code_size);
+    constexpr auto context_offset_env_input_data_size =
+        offsetof(Context, env) + offsetof(Environment, input_data_size);
+    constexpr auto context_offset_env_return_data_size =
+        offsetof(Context, env) + offsetof(Environment, return_data_size);
+    constexpr auto context_offset_env_tx_context_origin =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, tx_origin);
+    constexpr auto context_offset_env_tx_context_tx_gas_price =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, tx_gas_price);
+    constexpr auto context_offset_env_tx_context_block_gas_limit =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_gas_limit);
+    constexpr auto context_offset_env_tx_context_block_coinbase =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_coinbase);
+    constexpr auto context_offset_env_tx_context_block_timestamp =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_timestamp);
+    constexpr auto context_offset_env_tx_context_block_number =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_number);
+    constexpr auto context_offset_env_tx_context_block_prev_randao =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_prev_randao);
+    constexpr auto context_offset_env_tx_context_chain_id =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, chain_id);
+    constexpr auto context_offset_env_tx_context_block_base_fee =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, block_base_fee);
+    constexpr auto context_offset_env_tx_context_blob_base_fee =
+        offsetof(Context, env) + offsetof(Environment, tx_context) +
+        offsetof(evmc_tx_context, blob_base_fee);
+    constexpr auto context_offset_memory_size =
+        offsetof(Context, memory) + offsetof(Memory, size);
+    constexpr auto context_offset_memory_data =
+        offsetof(Context, memory) + offsetof(Memory, data);
+    constexpr auto context_offset_result_offset =
+        offsetof(Context, result) + offsetof(Result, offset);
+    constexpr auto context_offset_result_size =
+        offsetof(Context, result) + offsetof(Result, size);
+    constexpr auto context_offset_result_status =
+        offsetof(Context, result) + offsetof(Result, status);
+
 }
 
 extern "C" void monad_vm_runtime_increase_capacity(

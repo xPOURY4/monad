@@ -1,5 +1,4 @@
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
-#include <monad/vm/compiler/ir/instruction.hpp>
 #include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
@@ -17,31 +16,6 @@
 #include <vector>
 
 using namespace monad::vm::compiler;
-
-namespace
-{
-    std::tuple<std::int32_t, std::int32_t, std::int32_t>
-    block_stack_deltas(basic_blocks::Block const &block)
-    {
-        std::int32_t min_delta = 0;
-        std::int32_t delta = 0;
-        std::int32_t max_delta = 0;
-
-        for (auto const &instr : block.instrs) {
-            delta -= instr.stack_args();
-            min_delta = std::min(delta, min_delta);
-
-            delta += instr.stack_increase();
-            max_delta = std::max(delta, max_delta);
-        }
-
-        delta -= static_cast<std::int32_t>(
-            basic_blocks::terminator_inputs(block.terminator));
-        min_delta = std::min(delta, min_delta);
-
-        return {min_delta, delta, max_delta};
-    }
-}
 
 namespace monad::vm::compiler::native
 {
@@ -303,7 +277,7 @@ namespace monad::vm::compiler::native
         top_index_ = -1;
 
         auto const [new_min_delta, new_delta, new_max_delta] =
-            block_stack_deltas(block);
+            block.stack_deltas();
 
         negative_elems_.reserve(static_cast<std::size_t>(-new_min_delta));
         for (auto i = -1; i >= new_min_delta; --i) {
@@ -328,7 +302,7 @@ namespace monad::vm::compiler::native
     void Stack::continue_block(basic_blocks::Block const &block)
     {
         auto const [pre_min_delta, pre_delta, pre_max_delta] =
-            block_stack_deltas(block);
+            block.stack_deltas();
         auto new_min_delta = std::min(delta_ + pre_min_delta, min_delta_);
         auto new_delta = delta_ + pre_delta;
         auto new_max_delta = std::max(delta_ + pre_max_delta, max_delta_);

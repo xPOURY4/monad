@@ -17,12 +17,12 @@ target_include_directories(execution-benchmarks
 )
 
 target_link_libraries(execution-benchmarks
-    benchmark::benchmark
-    blockchain-test-vm
-    evmone::state
-    evmone::statetestutils
-    evmone-blockchaintest-lib
-    nlohmann_json::nlohmann_json
+    PRIVATE benchmark::benchmark
+    PRIVATE blockchain-test-vm
+    PRIVATE evmone::state
+    PRIVATE evmone::statetestutils
+    PRIVATE evmone-blockchaintest-lib
+    PRIVATE nlohmann_json::nlohmann_json
 )
 
 # TODO(BSC): fix this via evmone
