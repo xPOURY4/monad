@@ -1,3 +1,5 @@
+#pragma once
+
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
 
