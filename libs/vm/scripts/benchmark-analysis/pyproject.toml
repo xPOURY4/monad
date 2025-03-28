@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 compare-benchmarks = "compare_benchmarks.main:main"
+compare-implementations = "compare_implementations.main:main"
 
 [tool.uv]
 package = true
