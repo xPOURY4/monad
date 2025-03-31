@@ -20,7 +20,9 @@ TEST(FuzzTest, Demo)
     auto eng = std::mt19937_64(rd());
 
     auto p = generate_program(
-        eng, {0x0000000000000000000000000000000000001234_address});
+        monad::fuzzing::GeneratorFocus::Generic,
+        eng,
+        {0x0000000000000000000000000000000000001234_address});
     auto bb = BasicBlocksIR(p);
 
     std::cout << std::format("{}\n", bb);

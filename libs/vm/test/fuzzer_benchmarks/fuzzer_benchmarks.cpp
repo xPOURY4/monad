@@ -16,7 +16,9 @@ namespace
 
         for (auto _ : state) {
             auto prog = monad::fuzzing::generate_program(
-                eng, {0x0000000000000000000000000000000000001234_address});
+                monad::fuzzing::GeneratorFocus::Generic,
+                eng,
+                {0x0000000000000000000000000000000000001234_address});
             benchmark::DoNotOptimize(prog);
         }
     }

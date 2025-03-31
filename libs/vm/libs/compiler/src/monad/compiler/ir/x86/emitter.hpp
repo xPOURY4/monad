@@ -147,6 +147,7 @@ namespace monad::compiler::native
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
         void checked_debug_comment(std::string const &msg);
+        void swap_general_regs(StackElem &, StackElem &);
         void swap_rdx_general_reg_if_free();
         void swap_rdx_general_reg_index_if_free();
         void swap_rcx_general_reg_if_free();

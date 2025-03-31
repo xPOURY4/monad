@@ -20,6 +20,13 @@ using namespace evmc::literals;
 
 namespace monad::fuzzing
 {
+    enum class GeneratorFocus
+    {
+        Generic,
+        Pow2,
+        DynJump
+    };
+
     struct ValidAddress
     {
     };
@@ -47,8 +54,34 @@ namespace monad::fuzzing
     }
 
     template <typename Engine>
+    Constant small_constant(Engine &gen)
+    {
+        // For testing byte,signextend
+        auto dist = std::uniform_int_distribution(0, 257);
+        return Constant{dist(gen)};
+    }
+
+    template <typename Engine>
+    Constant power_of_32_constant(Engine &gen)
+    {
+        // Special power of two constants for boundary cases in
+        // mulmod/addmod/mul/div/sdiv/mod/smod optimization
+        auto dist = std::uniform_int_distribution(1, 8);
+        auto shift = 32 * dist(gen);
+        return Constant{utils::uint256_t{1} << shift};
+    }
+
+    template <typename Engine>
+    Constant negated_power_of_32_constant(Engine &gen)
+    {
+        // Special boundary cases for mul/sdiv/smod optimization
+        return Constant{-power_of_32_constant(gen).value};
+    }
+
+    template <typename Engine>
     Constant power_of_two_constant(Engine &gen)
     {
+        // To trigger mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 254);
         return Constant{
             intx::exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
@@ -57,6 +90,7 @@ namespace monad::fuzzing
     template <typename Engine>
     Constant negated_power_of_two_constant(Engine &gen)
     {
+        // To trigger mul/sdiv/smod optimization
         return Constant{-power_of_two_constant(gen).value};
     }
 
@@ -98,6 +132,7 @@ namespace monad::fuzzing
     template <typename Engine>
     Constant random_constant_with_cleared_words(Engine &gen)
     {
+        // To trigger inline mul optimization
         auto c = random_constant(gen);
         for (size_t i = 0; i < 4; ++i) {
             with_probability(gen, 0.5, [&](auto &) { c.value[i] = 0; });
@@ -115,32 +150,76 @@ namespace monad::fuzzing
     using Push = std::variant<ValidAddress, ValidJumpDest, Constant>;
 
     template <typename Engine>
-    Push generate_push(Engine &eng)
+    Push generate_push(GeneratorFocus focus, Engine &eng)
     {
+        double valid_jumpdest_prob = 0.0;
+        double valid_address_prob = 0.0;
+        double random_constant_with_cleared_words_prob = 0.0;
+        double meaningful_constant_prob = 0.0;
+        double small_constant_prob = 0.0;
+        double power_of_two_constant_prob = 0.0;
+        double power_of_32_constant_prob = 0.0;
+        double negated_power_of_32_constant_prob = 0.0;
+        double negated_power_of_two_constant_prob = 0.0;
+        switch (focus) {
+        case GeneratorFocus::Generic:
+            valid_jumpdest_prob = 0.25;
+            valid_address_prob = 0.10;
+            random_constant_with_cleared_words_prob = 0.10;
+            meaningful_constant_prob = 0.10;
+            small_constant_prob = 0.10;
+            power_of_two_constant_prob = 0.10;
+            power_of_32_constant_prob = 0.10;
+            negated_power_of_32_constant_prob = 0.05;
+            negated_power_of_two_constant_prob = 0.05;
+            break;
+        case GeneratorFocus::Pow2:
+            power_of_two_constant_prob = 0.25;
+            power_of_32_constant_prob = 0.25;
+            negated_power_of_32_constant_prob = 0.15;
+            negated_power_of_two_constant_prob = 0.15;
+            break;
+        case GeneratorFocus::DynJump:
+            valid_jumpdest_prob = 0.50;
+            small_constant_prob = 0.20;
+            meaningful_constant_prob = 0.20;
+            break;
+        }
         return discrete_choice<Push>(
             eng,
             [](auto &g) { return random_constant(g); },
-            Choice(0.25, [](auto &) { return ValidJumpDest{}; }),
-            Choice(0.20, [](auto &) { return ValidAddress{}; }),
+            Choice(valid_jumpdest_prob, [](auto &) { return ValidJumpDest{}; }),
+            Choice(valid_address_prob, [](auto &) { return ValidAddress{}; }),
             Choice(
-                0.05,
+                random_constant_with_cleared_words_prob,
                 [](auto &g) { return random_constant_with_cleared_words(g); }),
-            Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
-            Choice(0.20, [](auto &g) { return power_of_two_constant(g); }),
-            Choice(0.05, [](auto &g) {
+            Choice(
+                meaningful_constant_prob,
+                [](auto &g) { return meaningful_constant(g); }),
+            Choice(
+                small_constant_prob, [](auto &g) { return small_constant(g); }),
+            Choice(
+                power_of_two_constant_prob,
+                [](auto &g) { return power_of_two_constant(g); }),
+            Choice(
+                power_of_32_constant_prob,
+                [](auto &g) { return power_of_32_constant(g); }),
+            Choice(
+                negated_power_of_32_constant_prob,
+                [](auto &g) { return negated_power_of_32_constant(g); }),
+            Choice(negated_power_of_two_constant_prob, [](auto &g) {
                 return negated_power_of_two_constant(g);
             }));
     }
 
     template <typename Engine>
-    Push generate_calldata_item(Engine &eng)
+    Push generate_calldata_item(GeneratorFocus focus, Engine &eng)
     {
-        return discrete_choice<Push>(
-            eng,
-            [](auto &g) { return random_constant(g); },
-            Choice(0.25, [](auto &) { return ValidAddress{}; }),
-            Choice(0.20, [](auto &g) { return meaningful_constant(g); }),
-            Choice(0.20, [](auto &g) { return power_of_two_constant(g); }));
+        return std::visit(
+            utils::Cases{
+                [&](ValidJumpDest) -> Push { return random_constant(eng); },
+                [](Push const &x) -> Push { return x; }},
+            generate_push(focus, eng));
     }
 
     struct Call
@@ -152,6 +231,7 @@ namespace monad::fuzzing
         Constant argsSize;
         Constant retOffset;
         Constant retSize;
+        bool isTrivial;
     };
 
     template <typename Engine>
@@ -159,15 +239,17 @@ namespace monad::fuzzing
     {
         static constexpr auto pcts =
             std::array<uint8_t, 12>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
-
-        return Call{
+        auto r = Call{
             .opcode = uniform_sample(eng, call_non_terminators),
             .gasPct = uniform_sample(eng, pcts),
             .balancePct = uniform_sample(eng, pcts),
             .argsOffset = memory_constant(eng),
             .argsSize = memory_constant(eng),
             .retOffset = memory_constant(eng),
-            .retSize = memory_constant(eng)};
+            .retSize = memory_constant(eng),
+            .isTrivial = false};
+        with_probability(eng, 0.05, [&](auto &) { r.isTrivial = true; });
+        return r;
     }
 
     struct ReturnDataCopy
@@ -285,8 +367,9 @@ namespace monad::fuzzing
     }
 
     template <typename Engine>
-    std::vector<Instruction>
-    generate_block(Engine &eng, bool const is_exit, bool const is_main)
+    std::vector<Instruction> generate_block(
+        GeneratorFocus focus, Engine &eng, bool const is_exit,
+        bool const is_main)
     {
         static constexpr std::size_t max_block_insts = 10000;
 
@@ -304,12 +387,12 @@ namespace monad::fuzzing
         // We want dup opcode to be common, because it increases
         // probability of stack elements being live, which are tricky
         // cases. Also serves as a way to avoid stack underflows.
-        static constexpr auto dup_weight = (37.0 / 148.0); // 25%
+        static constexpr auto dup_weight = (49.0 / 148.0); // 33%
         // The call weight is small, because the are all similar,
         // and they increase the number of out-of-gas errors.
-        static constexpr auto call_weight = (0.06 / 148.0); // 0.05%
-        static constexpr auto returndatacopy_weight = (0.06 / 148.0); // 0.05%
-        static constexpr auto create_weight = (0.06 / 148.0); // 0.05%
+        static constexpr auto call_weight = (0.03 / 148.0); // 0.02%
+        static constexpr auto returndatacopy_weight = (0.03 / 148.0); // 0.02%
+        static constexpr auto create_weight = (0.03 / 148.0); // 0.02%
         // The uncommon non-terminators have simple emitter
         // implementations, so we want low probability of these to
         // increase probability of the more complex code paths.
@@ -320,7 +403,7 @@ namespace monad::fuzzing
             1.0 -
             (push_weight + dup_weight + call_weight + returndatacopy_weight +
              create_weight + uncommon_non_term_weight);
-        // 100% - 25% - 25% - 0.05% - 0.05% - 3% = 46.90%
+        // 100% - 25% - 33% - 0.02% - 0.02% - 0.02% - 3% = 39.94%
 
         static constexpr auto push_prob = total_non_term_prob * push_weight;
         static constexpr auto dup_prob = total_non_term_prob * dup_weight;
@@ -341,31 +424,14 @@ namespace monad::fuzzing
             program.push_back(NonTerminator{JUMPDEST});
         });
 
-        if (is_main) {
-            // Leave a 5% chance to not generate any pushes in the main block.
-            with_probability(eng, 0.95, [&](auto &g) {
-                // Parameters chosen by eye:
-                // - centered at around 65,
-                // - roughly 10% chance of 55 or less,
-                // - roughly 10% chance of 75 or more.
-                auto main_pushes_dist =
-                    std::binomial_distribution<std::size_t>(650, 0.1);
-                auto const main_initial_pushes = main_pushes_dist(g);
-
-                for (auto i = 0u; i < main_initial_pushes; ++i) {
-                    program.push_back(generate_push(g));
-                }
-            });
-        }
-
-        // With 50% probability, use 13 of the 15 available avx
+        // With 75% probability, use 13 of the 15 available avx
         // registers immediately, to increase probability of running
         // out of avx registers.
-        with_probability(eng, 0.50, [&](auto &) {
+        with_probability(eng, 0.75, [&](auto &) {
             program.push_back(NonTerminator{CALLVALUE}); // uses 1 avx register
-            program.push_back(NonTerminator{DUP1});
-            // Use 12 more avx registers:
-            for (int i = 0; i < 12; ++i) {
+            program.push_back(NonTerminator{GASPRICE}); // uses 1 avx register
+            // Use 11 more avx registers:
+            for (int i = 0; i < 11; ++i) {
                 // [PREV, CALLVALUE, ...]
                 program.push_back(NonTerminator{DUP2});
                 // [CALLVALUE, PREV, CALLVALUE, ...]
@@ -382,6 +448,23 @@ namespace monad::fuzzing
             }
         });
 
+        if (is_main) {
+            // Leave a 5% chance to not generate any pushes in the main block.
+            with_probability(eng, 0.95, [&](auto &g) {
+                // Parameters chosen by eye:
+                // - centered at around 65,
+                // - roughly 10% chance of 55 or less,
+                // - roughly 10% chance of 75 or more.
+                auto main_pushes_dist =
+                    std::binomial_distribution<std::size_t>(650, 0.1);
+                auto const main_initial_pushes = main_pushes_dist(g);
+
+                for (auto i = 0u; i < main_initial_pushes; ++i) {
+                    program.push_back(generate_push(focus, g));
+                }
+            });
+        }
+
         for (auto terminated = false;
              !terminated && program.size() <= max_block_insts;) {
             auto next_inst = discrete_choice<Instruction>(
@@ -390,7 +473,9 @@ namespace monad::fuzzing
                 Choice(
                     common_non_term_prob,
                     [](auto &g) { return generate_common_non_terminator(g); }),
-                Choice(push_prob, [](auto &g) { return generate_push(g); }),
+                Choice(
+                    push_prob,
+                    [focus](auto &g) { return generate_push(focus, g); }),
                 Choice(dup_prob, [](auto &g) { return generate_dup(g); }),
                 Choice(call_prob, [](auto &g) { return generate_call(g); }),
                 Choice(
@@ -412,7 +497,19 @@ namespace monad::fuzzing
                 auto op = term->opcode;
 
                 if (op == JUMP || op == JUMPI) {
-                    with_probability(eng, 0.9, [&](auto &) {
+                    double valid_jump_prob = 0.0;
+                    switch (focus) {
+                    case GeneratorFocus::Generic:
+                        valid_jump_prob = 0.90;
+                        break;
+                    case GeneratorFocus::Pow2:
+                        valid_jump_prob = 1.0;
+                        break;
+                    case GeneratorFocus::DynJump:
+                        valid_jump_prob = 0;
+                        break;
+                    }
+                    with_probability(eng, valid_jump_prob, [&](auto &) {
                         program.push_back(ValidJumpDest{});
                     });
                 }
@@ -503,9 +600,9 @@ namespace monad::fuzzing
         Engine &eng, std::vector<std::uint8_t> &program, Call const &call,
         std::vector<evmc::address> const &valid_addresses)
     {
-        double fix_prob = valid_addresses.empty() ? 0 : 0.90;
+        bool isTrivial = call.isTrivial || valid_addresses.empty();
 
-        with_probability(eng, fix_prob, [&](auto &) {
+        if (!isTrivial) {
             compile_constant(program, call.retSize);
             compile_constant(program, call.retOffset);
             compile_constant(program, call.argsSize);
@@ -521,7 +618,7 @@ namespace monad::fuzzing
             // send some percentage of available gas
             program.push_back(GAS);
             compile_percent(program, call.gasPct);
-        });
+        }
         program.push_back(call.opcode);
     }
 
@@ -705,7 +802,8 @@ namespace monad::fuzzing
 
     template <typename Engine>
     std::vector<std::uint8_t> generate_program(
-        Engine &eng, std::vector<evmc::address> const &valid_addresses)
+        GeneratorFocus focus, Engine &eng,
+        std::vector<evmc::address> const &valid_addresses)
     {
         auto prog = std::vector<std::uint8_t>{};
 
@@ -724,7 +822,7 @@ namespace monad::fuzzing
             auto const is_main = (i == 0);
             auto const is_exit = (i > n_blocks - n_exit_blocks);
 
-            auto const block = generate_block(eng, is_exit, is_main);
+            auto const block = generate_block(focus, eng, is_exit, is_main);
 
             compile_block(
                 eng,
@@ -786,7 +884,7 @@ namespace monad::fuzzing
      */
     template <typename Engine>
     std::uint8_t const *generate_input_data(
-        Engine &eng, std::size_t const size,
+        GeneratorFocus focus, Engine &eng, std::size_t const size,
         std::vector<evmc::address> const &known_addresses)
     {
         if (size == 0) {
@@ -797,7 +895,7 @@ namespace monad::fuzzing
         data.reserve(size);
 
         while (data.size() < size) {
-            auto const next_item = generate_calldata_item(eng);
+            auto const next_item = generate_calldata_item(focus, eng);
             compile_push(eng, data, next_item, known_addresses);
         }
 
@@ -822,7 +920,7 @@ namespace monad::fuzzing
      */
     template <typename Engine, typename LookupFunc>
     message_ptr generate_message(
-        Engine &eng, evmc::address const &target,
+        GeneratorFocus focus, Engine &eng, evmc::address const &target,
         std::vector<evmc::address> const &known_addresses,
         std::vector<evmc::address> const &known_eoas,
         LookupFunc address_lookup) noexcept
@@ -860,7 +958,7 @@ namespace monad::fuzzing
         auto const input_size =
             std::uniform_int_distribution<std::size_t>(0, 1024)(eng);
         auto const *input_data =
-            generate_input_data(eng, input_size, known_addresses);
+            generate_input_data(focus, eng, input_size, known_addresses);
 
         auto const value = discrete_choice<utils::uint256_t>(
             eng, [](auto &) { return 0; }, Choice(0.9, [&](auto &g) {

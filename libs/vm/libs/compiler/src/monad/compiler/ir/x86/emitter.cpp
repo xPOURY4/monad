@@ -765,6 +765,20 @@ namespace monad::compiler::native
         }
     }
 
+    void Emitter::swap_general_regs(StackElem &x, StackElem &y)
+    {
+        MONAD_COMPILER_ASSERT(x.general_reg().has_value());
+        MONAD_COMPILER_ASSERT(y.general_reg().has_value());
+        auto xg = general_reg_to_gpq256(*x.general_reg());
+        auto yg = general_reg_to_gpq256(*y.general_reg());
+        for (size_t i = 0; i < 4; ++i) {
+            as_.mov(x86::rax, xg[i]);
+            as_.mov(xg[i], yg[i]);
+            as_.mov(yg[i], x86::rax);
+        }
+        stack_.swap_general_regs(x, y);
+    }
+
     void Emitter::swap_rdx_general_reg_if_free()
     {
         MONAD_COMPILER_ASSERT(

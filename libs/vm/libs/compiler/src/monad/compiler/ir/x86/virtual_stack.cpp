@@ -860,6 +860,22 @@ namespace monad::compiler::native
         general_reg_stack_elems_[reg.reg] = &dst;
     }
 
+    void Stack::swap_general_regs(StackElem &e1, StackElem &e2)
+    {
+        MONAD_COMPILER_ASSERT(e1.general_reg_.has_value());
+        MONAD_COMPILER_ASSERT(e2.general_reg_.has_value());
+
+        GeneralReg const reg1 = *e1.general_reg_;
+        GeneralReg const reg2 = *e2.general_reg_;
+        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg1.reg] == &e1);
+        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg2.reg] == &e2);
+
+        e1.general_reg_ = reg2;
+        e2.general_reg_ = reg1;
+        general_reg_stack_elems_[reg1.reg] = &e2;
+        general_reg_stack_elems_[reg2.reg] = &e1;
+    }
+
     void Stack::remove_general_reg(StackElem &e)
     {
         MONAD_COMPILER_ASSERT(e.general_reg_.has_value());

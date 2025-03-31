@@ -543,6 +543,13 @@ namespace monad::compiler::native
         void move_general_reg(StackElem &src, StackElem &dst);
 
         /**
+         * Swap the general registers in the stack elements. It is
+         * required that both of the stack elements are having
+         * general register locations.
+         */
+        void swap_general_regs(StackElem &, StackElem &);
+
+        /**
          * Remove the general register. It is required that the
          * `StackElem` does not need to spill its value to another
          * location, even if general register is the only location.
@@ -654,6 +661,12 @@ namespace monad::compiler::native
         bool has_free_general_reg()
         {
             return !free_general_regs_.empty();
+        }
+
+        /** Null or the stack element holding the general reg. */
+        StackElem *general_reg_stack_elem(GeneralReg r)
+        {
+            return general_reg_stack_elems_[r.reg];
         }
 
         /** Whether the given general register is currently on the stack. */
