@@ -1,0 +1,184 @@
+// This benchmark was adapted from the BurntPix Benchmark - EVM killer 2.0
+// see: https://github.com/karalabe/burntpix-benchmark
+
+#include "code_0a743ba7304efcc9e384ece9be7631e2470e401e.hpp"
+#include "code_49206861766520746f6f206d7563682074696d65.hpp"
+#include "code_c917e98213a05d271adc5d93d2fee6c1f1006f75.hpp"
+#include "code_f529c70db0800449ebd81fbc6e4221523a989f05.hpp"
+#include <test_vm.hpp>
+
+#include "account.hpp"
+#include "host.hpp"
+#include "state.hpp"
+#include "test_state.hpp"
+
+#include <benchmark/benchmark.h>
+#include <evmc/bytes.hpp>
+#include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
+#include <monad/utils/assert.h>
+
+#include <cstdint>
+#include <format>
+#include <limits>
+
+using namespace evmc::literals;
+using namespace evmone::state;
+
+using enum BlockchainTestVM::Implementation;
+
+namespace
+{
+
+    static evmone::state::State burntpix_state()
+    {
+        evmone::state::State state;
+        state.insert(
+            0x0a743ba7304efcc9e384ece9be7631e2470e401e_address,
+            {.nonce = 0,
+             .balance = 0,
+             .storage = {},
+             .transient_storage = {},
+             .code = bytes{
+                 code_0a743ba7304efcc9e384ece9be7631e2470e401e,
+                 code_0a743ba7304efcc9e384ece9be7631e2470e401e_len}});
+
+        auto &intra_acc = state.insert(
+            0x49206861766520746f6f206d7563682074696d65_address,
+            {.nonce = 0,
+             .balance = 0,
+             .storage = {},
+             .transient_storage = {},
+             .code = bytes{
+                 code_49206861766520746f6f206d7563682074696d65,
+                 code_49206861766520746f6f206d7563682074696d65_len}});
+        auto &storage = intra_acc.storage;
+        auto val0 =
+            0x000000000000000000000000f529c70db0800449ebd81fbc6e4221523a989f05_bytes32;
+        storage[bytes32{0}] = {.current = val0, .original = val0};
+        auto val1 =
+            0x0000000000000000000000000a743ba7304efcc9e384ece9be7631e2470e401e_bytes32;
+        storage[bytes32{1}] = {.current = val1, .original = val1};
+        auto val2 =
+            0x000000000000000000000000c917e98213a05d271adc5d93d2fee6c1f1006f75_bytes32;
+        storage[bytes32{2}] = {.current = val2, .original = val2};
+
+        state.insert(
+            0xc917e98213a05d271adc5d93d2fee6c1f1006f75_address,
+            {.nonce = 0,
+             .balance = 0,
+             .storage = {},
+             .transient_storage = {},
+             .code = bytes{
+                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75,
+                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75_len}});
+
+        state.insert(
+            0xf529c70db0800449ebd81fbc6e4221523a989f05_address,
+            {.nonce = 0,
+             .balance = 0,
+             .storage = {},
+             .transient_storage = {},
+             .code = bytes{
+                 code_f529c70db0800449ebd81fbc6e4221523a989f05,
+                 code_f529c70db0800449ebd81fbc6e4221523a989f05_len}});
+
+        return state;
+    }
+
+    struct InputData
+    {
+        unsigned char func[4] = {0xa4, 0xde, 0x9a, 0xb4};
+        bytes32 seed;
+        bytes32 iterations;
+    };
+
+    void run_benchmark(
+        benchmark::State &state, BlockchainTestVM::Implementation const impl,
+        uint64_t const seed, uint64_t const iterations)
+    {
+        auto vm = evmc::VM(new BlockchainTestVM(impl));
+        auto *vm_ptr =
+            reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
+
+        auto intra_state = burntpix_state();
+        constexpr auto addr =
+            0x49206861766520746f6f206d7563682074696d65_address;
+        constexpr auto sender =
+            0x49206861766520746f6f206d7563682074696f01_address;
+
+        auto const *const code_acc = intra_state.find(addr);
+        auto const code = evmc::bytes_view{code_acc->code};
+
+        InputData input_data{
+            .seed = bytes32{seed}, .iterations = bytes32{iterations}};
+
+        auto msg = evmc_message{
+            .kind = EVMC_CALL,
+            .flags = 0,
+            .depth = 0,
+            .gas = std::numeric_limits<int64_t>::max(),
+            .recipient = addr,
+            .sender = sender,
+            .input_data = reinterpret_cast<uint8_t const *>(&input_data),
+            .input_size = sizeof(InputData),
+            .value = {},
+            .create2_salt = {},
+            .code_address = addr,
+            .code = nullptr,
+            .code_size = 0,
+        };
+
+        for (auto _ : state) {
+            state.PauseTiming();
+            auto evm_state = burntpix_state();
+            auto host =
+                Host(EVMC_CANCUN, vm, evm_state, BlockInfo{}, Transaction{});
+            auto const *interface = &host.get_interface();
+            auto *ctx = host.to_context();
+            state.ResumeTiming();
+
+            auto const result = evmc::Result{vm_ptr->execute(
+                interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
+
+            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
+        }
+    }
+
+    void register_benchmark(uint64_t seed, uint64_t iterations)
+    {
+        for (auto const impl : {Interpreter, Compiler, Evmone}) {
+            benchmark::RegisterBenchmark(
+                std::format(
+                    "burntpix/{:#x}/{:#x}/{}",
+                    seed,
+                    iterations,
+                    BlockchainTestVM::impl_name(impl)),
+                run_benchmark,
+                impl,
+                seed,
+                iterations);
+        }
+    }
+}
+
+int main(int argc, char **argv)
+{
+    register_benchmark(0x0, 0x7A120);
+    register_benchmark(0xD0FC9AE, 0x7A120);
+    register_benchmark(0xF1FD58E, 0x7A120);
+    register_benchmark(0x2456635E, 0x7A120);
+    register_benchmark(0x25FAAB93, 0x7A120);
+    register_benchmark(0x287FBB44, 0x7A120);
+    register_benchmark(0x3F502349, 0x7A120);
+    register_benchmark(0x58F5D174, 0x7A120);
+    register_benchmark(0xBAB62971, 0x7A120);
+    register_benchmark(0xCD3BAB83, 0x7A120);
+    register_benchmark(0xD72C0032, 0x7A120);
+    register_benchmark(0xFCC0C87B, 0x7A120);
+
+    benchmark::Initialize(&argc, argv);
+    benchmark::RunSpecifiedBenchmarks();
+    benchmark::Shutdown();
+    return 0;
+}

@@ -148,8 +148,8 @@ namespace
         auto const code_size = msg.code_size;
 
         for (auto _ : state) {
-            auto const result = vm_ptr->execute(
-                interface, ctx, EVMC_CANCUN, &msg, code, code_size);
+            auto const result = evmc::Result{vm_ptr->execute(
+                interface, ctx, EVMC_CANCUN, &msg, code, code_size)};
 
             MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
@@ -177,33 +177,19 @@ namespace
             auto *ctx = host.to_context();
             state.ResumeTiming();
 
-            auto const result = vm_ptr->execute(
-                interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size());
+            auto const result = evmc::Result{vm_ptr->execute(
+                interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
 
             MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
-    }
-
-    constexpr std::string_view
-    impl_name(BlockchainTestVM::Implementation const impl) noexcept
-    {
-        switch (impl) {
-        case Interpreter:
-            return "interpreter";
-        case Compiler:
-            return "compiler";
-        case Evmone:
-            return "evmone";
-        }
-
-        std::unreachable();
     }
 
     void register_benchmark(std::string_view const name, evmc_message const msg)
     {
         for (auto const impl : {Interpreter, Compiler, Evmone}) {
             benchmark::RegisterBenchmark(
-                std::format("execute/{}/{}", name, impl_name(impl)),
+                std::format(
+                    "execute/{}/{}", name, BlockchainTestVM::impl_name(impl)),
                 run_benchmark,
                 impl,
                 msg);
@@ -278,7 +264,7 @@ namespace
                                 test.name,
                                 block_no,
                                 i,
-                                impl_name(impl)),
+                                BlockchainTestVM::impl_name(impl)),
                             run_benchmark_json,
                             impl,
                             test.pre_state,

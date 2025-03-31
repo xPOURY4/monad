@@ -50,6 +50,21 @@ public:
 
     evmc_capabilities_flagset get_capabilities() const;
 
+    static constexpr std::string_view
+    impl_name(BlockchainTestVM::Implementation const impl) noexcept
+    {
+        switch (impl) {
+        case Implementation::Interpreter:
+            return "interpreter";
+        case Implementation::Compiler:
+            return "compiler";
+        case Implementation::Evmone:
+            return "evmone";
+        }
+
+        std::unreachable();
+    };
+
 private:
     Implementation impl_;
     evmc::VM evmone_vm_;
