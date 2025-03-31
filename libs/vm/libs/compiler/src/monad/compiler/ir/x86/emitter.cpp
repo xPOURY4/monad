@@ -4814,7 +4814,12 @@ namespace monad::compiler::native
                             as_.push(reg_context);
                             as_.mov(reg_context, x86::rdx);
                         }
-                        right_gpq[rdx_general_reg_index] = reg_context;
+                        if (spill_gpq) {
+                            right_gpq[rdx_general_reg_index] = *spill_gpq;
+                        }
+                        else {
+                            right_gpq[rdx_general_reg_index] = reg_context;
+                        }
                     }
                 }
                 if (!preserve_left_rdx && !preserve_right_rdx &&
