@@ -77,6 +77,8 @@ jobs:
                   -G Ninja                                                                    \
                   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/${{ matrix.build.TOOLCHAIN }}.cmake \
                   -DCMAKE_BUILD_TYPE=${{ matrix.build.CMAKE_BUILD_TYPE }}                     \
+                  -DMONAD_COMPILER_BENCHMARKS=OFF                                             \
+                  -DMONAD_COMPILER_TESTING=ON                                                 \
                   -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}                                \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
                 cmake --build build

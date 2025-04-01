@@ -93,25 +93,29 @@ jobs:
             - name: Build base compiler
               working-directory: base-compiler
               run: |
-                cmake -S . -B build                                 \
-                  -G Ninja                                          \
-                  -DCMAKE_BUILD_TYPE=Release                        \
-                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
+                cmake -S . -B build                                       \
+                  -G Ninja                                                \
+                  -DCMAKE_BUILD_TYPE=Release                              \
+                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
+                  -DMONAD_COMPILER_BENCHMARKS=ON                          \
+                  -DMONAD_COMPILER_TESTING=OFF                            \
+                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}            \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build             \
-                  -t blockchain-test-benchmarks \
+                cmake --build build      \
                   -t compile-benchmarks
 
             - name: Build head compiler
               working-directory: head-compiler
               run: |
-                cmake -S . -B build                                 \
-                  -G Ninja                                          \
-                  -DCMAKE_BUILD_TYPE=Release                        \
-                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}      \
+                cmake -S . -B build                                       \
+                  -G Ninja                                                \
+                  -DCMAKE_BUILD_TYPE=Release                              \
+                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
+                  -DMONAD_COMPILER_BENCHMARKS=ON                          \
+                  -DMONAD_COMPILER_TESTING=OFF                            \
+                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}            \
                   -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build             \
-                  -t blockchain-test-benchmarks \
+                cmake --build build      \
                   -t compile-benchmarks
 
             - name: Run compile benchmarks
