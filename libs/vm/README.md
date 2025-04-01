@@ -177,6 +177,58 @@ will print type inference errors to standard error and print contract type
 information to standard out. If it prints to standard error, there is bug
 somewhere.
 
+## Benchmarks
+
+The project contains several sets of performance benchmarks that are not built
+by default. To enable them, set `MONAD_COMPILER_BENCHMARKS=ON` via CMake. This
+option is orthogonal to `MONAD_COMPILER_TESTING`; it's possible to build the
+benchmark executables with debug assertions enabled, but the results obtained
+will not be accurate.
+
+Benchmark executables are:
+- `execution-benchmarks`: Run a combination of opcode-specific microbenchmarks
+  and summarised transactions from Ethereum history as a benchmark of "real world"
+  performance.
+- `burntpix-benchmark`: Run the [BurntPix](https://burntpix.com/) generative art
+  program with a large cycle count as a "pure computation" benchmark.
+- `compile-benchmarks`: Establish how long the native X86 compiler takes to
+  compile a set of real and synthetic contracts.
+
+These executables are all implemented using [Google
+Benchmark](https://github.com/google/benchmark), and can be controlled
+accordingly with command-line arguments.
+
+### Reference Build
+
+As an example, to set up and run the BurntPix benchmarks using GCC 13:
+```console
+$ CC=gcc-13 CXX=g++-13 cmake                                \
+    -S . -B build                                           \
+    -G Ninja                                                \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
+    -DCMAKE_BUILD_TYPE=Release                              \
+    -DMONAD_COMPILER_TESTING=Off                            \
+    -DMONAD_COMPILER_BENCHMARKS=On
+$ cmake --build build
+$ build/test/burntpix_benchmark/burntpix-benchmark
+----------------------------------------------------------------------------------
+Benchmark                                        Time             CPU   Iterations
+----------------------------------------------------------------------------------
+burntpix/0x0/0x7a120/interpreter        1025652212 ns   1025644766 ns            1
+burntpix/0x0/0x7a120/compiler            509836576 ns    509846789 ns            1
+burntpix/0x0/0x7a120/evmone              802911097 ns    802921406 ns            1
+...
+```
+
+Note the most important points for achieving accurate results (release build,
+testing mode disabled, AVX2 toolchain file selected).
+
+### Analysis Scripts
+
+See [here](scripts/benchmark_analysis/README.md) for documentation on a set of
+Python scripts that can be used to analyse the results obtained from these
+benchmarks.
+
 ## Structure
 
 There are four main components:
