@@ -5,6 +5,7 @@
 #include "code_49206861766520746f6f206d7563682074696d65.hpp"
 #include "code_c917e98213a05d271adc5d93d2fee6c1f1006f75.hpp"
 #include "code_f529c70db0800449ebd81fbc6e4221523a989f05.hpp"
+#include "code_snailtracer.hpp"
 #include <test_vm.hpp>
 
 #include "account.hpp"
@@ -93,7 +94,7 @@ namespace
         bytes32 iterations;
     };
 
-    void run_benchmark(
+    void run_burntpix(
         benchmark::State &state, BlockchainTestVM::Implementation const impl,
         uint64_t const seed, uint64_t const iterations)
     {
@@ -145,7 +146,7 @@ namespace
         }
     }
 
-    void register_benchmark(uint64_t seed, uint64_t iterations)
+    void register_burntpix(uint64_t seed, uint64_t iterations)
     {
         for (auto const impl : {Interpreter, Compiler, Evmone}) {
             benchmark::RegisterBenchmark(
@@ -154,28 +155,99 @@ namespace
                     seed,
                     iterations,
                     BlockchainTestVM::impl_name(impl)),
-                run_benchmark,
+                run_burntpix,
                 impl,
                 seed,
                 iterations);
+        }
+    }
+
+    static evmone::state::State snailtracer_state()
+    {
+        evmone::state::State state;
+
+        state.insert(
+            0x49206861766520746f6f206d7563682074696d65_address,
+            {.nonce = 0,
+             .balance = 0,
+             .storage = {},
+             .transient_storage = {},
+             .code = bytes{code_snailtracer, code_snailtracer_len}});
+        return state;
+    }
+
+    void run_snailtracer(
+        benchmark::State &state, BlockchainTestVM::Implementation const impl)
+    {
+        auto vm = evmc::VM(new BlockchainTestVM(impl));
+        auto *vm_ptr =
+            reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
+
+        auto intra_state = snailtracer_state();
+        constexpr auto addr =
+            0x49206861766520746f6f206d7563682074696d65_address;
+        constexpr auto sender =
+            0x49206861766520746f6f206d7563682074696f01_address;
+
+        auto const *const code_acc = intra_state.find(addr);
+        auto const code = evmc::bytes_view{code_acc->code};
+
+        uint8_t func[4] = {0x30, 0x62, 0x7b, 0x7c};
+
+        auto msg = evmc_message{
+            .kind = EVMC_CALL,
+            .flags = 0,
+            .depth = 0,
+            .gas = std::numeric_limits<int64_t>::max(),
+            .recipient = addr,
+            .sender = sender,
+            .input_data = reinterpret_cast<uint8_t const *>(&func),
+            .input_size = 4,
+            .value = {},
+            .create2_salt = {},
+            .code_address = addr,
+            .code = nullptr,
+            .code_size = 0,
+        };
+
+        for (auto _ : state) {
+            state.PauseTiming();
+            auto evm_state = snailtracer_state();
+            auto host =
+                Host(EVMC_CANCUN, vm, evm_state, BlockInfo{}, Transaction{});
+            auto const *interface = &host.get_interface();
+            auto *ctx = host.to_context();
+            state.ResumeTiming();
+
+            auto const result = evmc::Result{vm_ptr->execute(
+                interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
+
+            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
     }
 }
 
 int main(int argc, char **argv)
 {
-    register_benchmark(0x0, 0x7A120);
-    register_benchmark(0xD0FC9AE, 0x7A120);
-    register_benchmark(0xF1FD58E, 0x7A120);
-    register_benchmark(0x2456635E, 0x7A120);
-    register_benchmark(0x25FAAB93, 0x7A120);
-    register_benchmark(0x287FBB44, 0x7A120);
-    register_benchmark(0x3F502349, 0x7A120);
-    register_benchmark(0x58F5D174, 0x7A120);
-    register_benchmark(0xBAB62971, 0x7A120);
-    register_benchmark(0xCD3BAB83, 0x7A120);
-    register_benchmark(0xD72C0032, 0x7A120);
-    register_benchmark(0xFCC0C87B, 0x7A120);
+    register_burntpix(0x0, 0x7A120);
+    register_burntpix(0xD0FC9AE, 0x7A120);
+    register_burntpix(0xF1FD58E, 0x7A120);
+    register_burntpix(0x2456635E, 0x7A120);
+    register_burntpix(0x25FAAB93, 0x7A120);
+    register_burntpix(0x287FBB44, 0x7A120);
+    register_burntpix(0x3F502349, 0x7A120);
+    register_burntpix(0x58F5D174, 0x7A120);
+    register_burntpix(0xBAB62971, 0x7A120);
+    register_burntpix(0xCD3BAB83, 0x7A120);
+    register_burntpix(0xD72C0032, 0x7A120);
+    register_burntpix(0xFCC0C87B, 0x7A120);
+
+    for (auto const impl : {Interpreter, Compiler, Evmone}) {
+        benchmark::RegisterBenchmark(
+            std::format("snailtracer/{}", BlockchainTestVM::impl_name(impl)),
+            run_snailtracer,
+            impl);
+    }
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();
