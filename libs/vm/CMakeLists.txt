@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
 option(MONAD_COMPILER_COVERAGE "Build with coverage" OFF)
 option(MONAD_COMPILER_TESTING "Build compiler tests" ON)
+option(MONAD_COMPILER_BENCHMARKS "Build compiler benchmarks" OFF)
 
 option(MONAD_COMPILER_FUZZING "Build compiler and evmone with SAVE_EVM_STACK_ON_EXIT" OFF)
 
@@ -20,6 +21,9 @@ find_package(CLI11 REQUIRED)
 
 if(MONAD_COMPILER_TESTING)
     find_package(GTest REQUIRED)
+endif()
+
+if(MONAD_COMPILER_BENCHMARKS)
     find_package(benchmark REQUIRED)
 endif()
 
@@ -41,7 +45,16 @@ endif()
 
 # evmone
 set(BUILD_SHARED_LIBS OFF)
-set(EVMONE_TESTING "${MONAD_COMPILER_TESTING}")
+
+# Both the test suite and the benchmark executables rely on the evmone state
+# library, which is only built if `EVMONE_TESTING` is true. We don't want to
+# build that code if we're in a client integration build.
+if (MONAD_COMPILER_TESTING OR MONAD_COMPILER_BENCHMARKS)
+    set(EVMONE_TESTING YES)
+else()
+    set(EVMONE_TESTING NO)
+endif()
+
 set(EVMONE_RUN_TESTS NO)
 set(EVMC_TESTING NO)
 
@@ -68,7 +81,7 @@ set_source_files_properties(
         COMPILE_OPTIONS -O2
 )
 
-if(MONAD_COMPILER_TESTING)
+if(MONAD_COMPILER_TESTING OR MONAD_COMPILER_BENCHMARKS)
     target_link_libraries(evmone-state PUBLIC ethash::keccak intx::intx nlohmann_json::nlohmann_json)
     target_link_libraries(evmone-statetestutils PUBLIC nlohmann_json::nlohmann_json)
 endif()
@@ -84,8 +97,11 @@ add_subdirectory(libs/runtime)
 add_subdirectory(libs/utils)
 add_subdirectory(libs/vm)
 add_subdirectory(cmd/parser)
-add_subdirectory(cmd/mce)
 
-if(MONAD_COMPILER_TESTING)
+if(MONAD_COMPILER_BENCHMARKS)
+    add_subdirectory(cmd/mce)
+endif()
+
+if(MONAD_COMPILER_TESTING OR MONAD_COMPILER_BENCHMARKS)
     add_subdirectory(test)
 endif()
