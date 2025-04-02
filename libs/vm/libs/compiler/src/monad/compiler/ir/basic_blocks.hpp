@@ -363,7 +363,7 @@ namespace monad::compiler::basic_blocks
             info.min_gas,
             info.min_stack,
             info.index,
-            info.increases_stack,
+            info.stack_increase > 0,
             info.dynamic_gas);
     }
 

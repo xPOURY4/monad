@@ -99,13 +99,13 @@ namespace monad::compiler
     public:
         constexpr Instruction(
             std::uint32_t pc, OpCode opcode, std::uint16_t static_gas_cost,
-            std::uint8_t stack_args, std::uint8_t index, bool increases_stack,
-            bool dynamic_gas);
+            std::uint8_t stack_args, std::uint8_t index,
+            std::uint8_t stack_increase, bool dynamic_gas);
 
         constexpr Instruction(
             std::uint32_t pc, OpCode opcode, utils::uint256_t immediate_value,
             std::uint16_t static_gas_cost, std::uint8_t stack_args,
-            std::uint8_t index, bool increases_stack, bool dynamic_gas);
+            std::uint8_t index, std::uint8_t stack_increase, bool dynamic_gas);
 
         constexpr utils::uint256_t const &immediate_value() const noexcept;
         constexpr std::uint32_t pc() const noexcept;
@@ -114,6 +114,7 @@ namespace monad::compiler
         constexpr std::uint8_t stack_args() const noexcept;
         constexpr std::uint8_t index() const noexcept;
         constexpr bool increases_stack() const noexcept;
+        constexpr std::uint8_t stack_increase() const noexcept;
         constexpr bool dynamic_gas() const noexcept;
 
         friend constexpr bool
@@ -128,7 +129,7 @@ namespace monad::compiler
         OpCode opcode_;
         std::uint8_t stack_args_;
         std::uint8_t index_;
-        bool increases_stack_;
+        std::uint8_t stack_increase_;
         bool dynamic_gas_;
     };
 
@@ -138,10 +139,10 @@ namespace monad::compiler
 
     constexpr Instruction::Instruction(
         std::uint32_t pc, OpCode op, std::uint16_t static_gas_cost,
-        std::uint8_t stack_args, std::uint8_t index, bool increases_stack,
-        bool dynamic_gas)
+        std::uint8_t stack_args, std::uint8_t index,
+        std::uint8_t stack_increase, bool dynamic_gas)
         : Instruction(
-              pc, op, 0, static_gas_cost, stack_args, index, increases_stack,
+              pc, op, 0, static_gas_cost, stack_args, index, stack_increase,
               dynamic_gas)
     {
     }
@@ -149,14 +150,14 @@ namespace monad::compiler
     constexpr Instruction::Instruction(
         std::uint32_t pc, OpCode op, utils::uint256_t immediate_value,
         std::uint16_t static_gas_cost, std::uint8_t stack_args,
-        std::uint8_t index, bool increases_stack, bool dynamic_gas)
+        std::uint8_t index, std::uint8_t stack_increase, bool dynamic_gas)
         : immediate_value_(immediate_value)
         , pc_(pc)
         , static_gas_cost_(static_gas_cost)
         , opcode_(op)
         , stack_args_(stack_args)
         , index_(index)
-        , increases_stack_(increases_stack)
+        , stack_increase_(stack_increase)
         , dynamic_gas_(dynamic_gas)
     {
         MONAD_COMPILER_DEBUG_ASSERT(
@@ -200,7 +201,12 @@ namespace monad::compiler
 
     constexpr bool Instruction::increases_stack() const noexcept
     {
-        return increases_stack_;
+        return stack_increase_ > 0;
+    }
+
+    constexpr std::uint8_t Instruction::stack_increase() const noexcept
+    {
+        return stack_increase_;
     }
 
     constexpr bool Instruction::dynamic_gas() const noexcept
@@ -217,7 +223,7 @@ namespace monad::compiler
             opcode_,
             stack_args_,
             index_,
-            increases_stack_,
+            stack_increase_,
             dynamic_gas_);
     }
 

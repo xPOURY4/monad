@@ -32,7 +32,7 @@ namespace monad::interpreter
             }
         }
 
-        if constexpr (info.min_stack == 0 && !info.increases_stack) {
+        if constexpr (info.min_stack == 0 && info.stack_increase == 0) {
             return;
         }
 
@@ -44,7 +44,7 @@ namespace monad::interpreter
             }
         }
 
-        if constexpr (info.increases_stack) {
+        if constexpr (info.stack_increase > 0) {
             static constexpr auto size_end = 1024 + info.min_stack;
             if (MONAD_COMPILER_UNLIKELY(stack_size >= size_end)) {
                 ctx.exit(Error);
