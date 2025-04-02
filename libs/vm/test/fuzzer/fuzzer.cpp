@@ -428,13 +428,12 @@ static void do_run(std::size_t const run_index, arguments const &args)
     double const artificial_peak_prob =
         uniform_sample(engine, artificial_peak_probs);
 
-    static constexpr std::array<double, 3> artificial_avx_probs = {
-        0, 0.33, 0.67};
+    static constexpr std::array<double, 3> artificial_avx_probs = {0, 0.5, 1.0};
     double const artificial_avx_prob =
         uniform_sample(engine, artificial_avx_probs);
 
     static constexpr std::array<double, 3> artificial_general_probs = {
-        0, 0.33, 0.67};
+        0, 0.5, 1.0};
     double const artificial_general_prob =
         uniform_sample(engine, artificial_general_probs);
 
@@ -445,7 +444,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
         // The fuzzer has a hard time exploring edge case virtual stack
         // states. To circumvent this we will artificially change the state
         // of the stack to increase probability of having stack elements in
-        // multiple locations at the same time.
+        // different locations.
 
         using monad::compiler::native::GENERAL_REG_COUNT;
         using monad::compiler::native::GeneralReg;
@@ -588,8 +587,8 @@ static void do_run(std::size_t const run_index, arguments const &args)
         }
 
         with_probability(engine, artificial_avx_prob, [&](auto &) {
-            // Try to write 12 to 15 stack elems to avx reg location.
-            auto ndist = std::uniform_int_distribution<std::int32_t>{12, 15};
+            // Try to write 13 to 16 stack elems to avx reg location.
+            auto ndist = std::uniform_int_distribution<std::int32_t>{13, 16};
             auto const n = ndist(engine);
             auto offdist = std::uniform_int_distribution<std::int32_t>{2, 5};
             auto off = offdist(engine);

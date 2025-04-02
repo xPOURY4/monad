@@ -424,14 +424,14 @@ namespace monad::fuzzing
             program.push_back(NonTerminator{JUMPDEST});
         });
 
-        // With 75% probability, use 13 of the 15 available avx
+        // With 75% probability, use 14 of the 16 available avx
         // registers immediately, to increase probability of running
         // out of avx registers.
         with_probability(eng, 0.75, [&](auto &) {
             program.push_back(NonTerminator{CALLVALUE}); // uses 1 avx register
             program.push_back(NonTerminator{GASPRICE}); // uses 1 avx register
-            // Use 11 more avx registers:
-            for (int i = 0; i < 11; ++i) {
+            // Use 12 more avx registers:
+            for (int i = 0; i < 12; ++i) {
                 // [PREV, CALLVALUE, ...]
                 program.push_back(NonTerminator{DUP2});
                 // [CALLVALUE, PREV, CALLVALUE, ...]

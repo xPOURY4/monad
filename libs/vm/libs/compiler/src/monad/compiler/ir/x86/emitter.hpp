@@ -143,7 +143,7 @@ namespace monad::compiler::native
 
         void runtime_print_gas_remaining(std::string const &msg);
         void runtime_print_input_stack(std::string const &msg);
-        void runtime_store_input_stack();
+        void runtime_store_input_stack(uint64_t);
         void runtime_print_top2(std::string const &msg);
         void breakpoint();
         void checked_debug_comment(std::string const &msg);
@@ -498,7 +498,7 @@ namespace monad::compiler::native
         template <evmc_revision rev>
         void selfdestruct(int32_t remaining_base_gas)
         {
-            runtime_store_input_stack();
+            runtime_store_input_stack(bytecode_size_);
             call_runtime(
                 remaining_base_gas, true, monad::runtime::selfdestruct<rev>);
         }

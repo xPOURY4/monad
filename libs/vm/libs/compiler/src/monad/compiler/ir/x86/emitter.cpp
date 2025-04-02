@@ -188,17 +188,35 @@ namespace
         std::cout << std::endl;
     }
 
-    void runtime_store_input_stack_impl(
+    uint64_t runtime_store_input_stack_impl(
         runtime::Context const *ctx, monad::utils::uint256_t *stack,
-        uint64_t stack_size, uint64_t offset)
+        uint64_t stack_size, uint64_t offset, uint64_t base_offset)
     {
+        auto const magic = monad::utils::uint256_t{0xdeb009};
+        auto const base = (magic + base_offset) * 1024;
+        if (offset == 0) {
+            auto const base_key = monad::runtime::bytes32_from_uint256(base);
+            auto const base_value = ctx->host->get_transient_storage(
+                ctx->context, &ctx->env.recipient, &base_key);
+            if (base_value != evmc::bytes32{}) {
+                // If this transient storage location has already been written,
+                // then we are likely in a loop. We return early in this case
+                // to avoid repeatedly saving stack to transient storage.
+                return 0;
+            }
+        }
         for (uint64_t i = 0; i < stack_size; ++i) {
-            auto const key = evmc::bytes32{0xdeb009 + i + offset};
-            auto const value =
-                monad::runtime::bytes32_from_uint256(stack[-i - 1]);
+            auto const key =
+                monad::runtime::bytes32_from_uint256(base + i + offset);
+            auto const &x = stack[-i - 1];
+            // Make sure we do not store zero, because incorrect non-zero is
+            // more likely to be noticed, due to zero being the default:
+            auto const s = x < magic ? x + 1 : x;
+            auto const value = monad::runtime::bytes32_from_uint256(s);
             ctx->host->set_transient_storage(
                 ctx->context, &ctx->env.recipient, &key, &value);
         }
+        return 1;
     }
 
     void runtime_print_top2_impl(
@@ -669,11 +687,13 @@ namespace monad::compiler::native
      * stack's min_delta, which ensures that we don't save stale values that
      * might have been modified by the current block.
      */
-    void Emitter::runtime_store_input_stack()
+    void Emitter::runtime_store_input_stack(uint64_t base_offset)
     {
         if (!utils::is_fuzzing_monad_compiler) {
             return;
         }
+
+        checked_debug_comment("Store stack in transient storage");
 
         auto fn_lbl = as_.newLabel();
         external_functions_.emplace_back(
@@ -697,10 +717,15 @@ namespace monad::compiler::native
         as_.mov(x86::rdi, reg_context);
         as_.mov(x86::rdx, current_stack_size);
         as_.mov(x86::rcx, 0);
+        as_.mov(x86::r8, base_offset);
         as_.vzeroupper();
         as_.call(x86::qword_ptr(fn_lbl));
 
         as_.add(x86::rsp, current_stack_size * 32);
+
+        auto skip_lbl = as_.newLabel();
+        as_.test(x86::al, x86::al);
+        as_.jz(skip_lbl);
 
         as_.mov(x86::rdi, reg_context);
         as_.mov(x86::rsi, reg_stack);
@@ -710,8 +735,11 @@ namespace monad::compiler::native
         as_.add(x86::rdx, stack_.min_delta());
 
         as_.mov(x86::rcx, current_stack_size);
+        as_.mov(x86::r8, base_offset);
 
         as_.call(x86::qword_ptr(fn_lbl));
+
+        as_.bind(skip_lbl);
     }
 
     void Emitter::runtime_print_top2(std::string const &msg)
@@ -1013,6 +1041,11 @@ namespace monad::compiler::native
             as_.cmp(size_mem, 1024 - max_delta);
             as_.ja(error_label_);
         }
+
+        if (it != jump_dests_.end()) {
+            runtime_store_input_stack(b.offset);
+        }
+
         return true;
     }
 
@@ -1794,6 +1827,7 @@ namespace monad::compiler::native
         slt(std::move(right), std::move(left));
     }
 
+    // Discharge through `sub` overload
     void Emitter::sub()
     {
         auto left = stack_.pop();
@@ -1835,6 +1869,7 @@ namespace monad::compiler::native
         return dst;
     }
 
+    // Discharge through `add` overload
     void Emitter::add()
     {
         auto left = stack_.pop();
@@ -1948,6 +1983,7 @@ namespace monad::compiler::native
         signextend_stack_elem_ix(std::move(ix), src, {});
     }
 
+    // Discharge through `shl` overload
     void Emitter::shl()
     {
         auto left = stack_.pop();
@@ -1971,6 +2007,7 @@ namespace monad::compiler::native
             std::move(shift), std::move(value), live);
     }
 
+    // Discharge through `shr` overload
     void Emitter::shr()
     {
         auto left = stack_.pop();
@@ -1994,6 +2031,7 @@ namespace monad::compiler::native
             std::move(shift), std::move(value), live);
     }
 
+    // Discharge through `sar` overload
     void Emitter::sar()
     {
         auto left = stack_.pop();
@@ -2017,6 +2055,7 @@ namespace monad::compiler::native
             std::move(shift), std::move(value), live);
     }
 
+    // Discharge through `and_` overload
     void Emitter::and_()
     {
         auto left = stack_.pop();
@@ -2073,6 +2112,7 @@ namespace monad::compiler::native
         return dst;
     }
 
+    // Discharge through `or_` overload
     void Emitter::or_()
     {
         auto left = stack_.pop();
@@ -2131,6 +2171,7 @@ namespace monad::compiler::native
         return dst;
     }
 
+    // Discharge through `xor_` overload
     void Emitter::xor_()
     {
         auto left = stack_.pop();
@@ -2432,7 +2473,7 @@ namespace monad::compiler::native
     // No discharge
     void Emitter::stop()
     {
-        runtime_store_input_stack();
+        runtime_store_input_stack(bytecode_size_);
         status_code(runtime::StatusCode::Success);
         as_.jmp(epilogue_label_);
     }
@@ -2446,7 +2487,7 @@ namespace monad::compiler::native
     // Discharge through `return_with_status_code`
     void Emitter::return_()
     {
-        runtime_store_input_stack();
+        runtime_store_input_stack(bytecode_size_);
         return_with_status_code(runtime::StatusCode::Success);
     }
 
