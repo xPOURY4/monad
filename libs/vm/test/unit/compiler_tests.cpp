@@ -30,7 +30,7 @@ Instruction i(std::uint32_t pc, Op evm_opcode, Args &&...args)
         info.min_gas,
         info.min_stack,
         info.index,
-        info.stack_increase > 0,
+        info.stack_increase,
         info.dynamic_gas);
 }
 

@@ -10,6 +10,7 @@
 
 #include <intx/intx.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>

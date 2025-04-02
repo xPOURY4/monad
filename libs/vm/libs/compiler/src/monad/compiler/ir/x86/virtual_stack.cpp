@@ -31,17 +31,7 @@ namespace
             delta -= instr.stack_args();
             min_delta = std::min(delta, min_delta);
 
-            // We need to treat SWAP and DUP slightly differently to other
-            // instructions; they require that the minimum delta is adjusted to
-            // ensure a big enough input stack, but because they don't actually
-            // consume these elements, this change shouldn't be reflected in the
-            // net delta.
-            if (instr.opcode() == OpCode::Swap ||
-                instr.opcode() == OpCode::Dup) {
-                delta += instr.stack_args();
-            }
-
-            delta += instr.increases_stack();
+            delta += instr.stack_increase();
             max_delta = std::max(delta, max_delta);
         }
 

@@ -20,8 +20,6 @@ namespace monad::interpreter
         runtime::Context &ctx, State &, utils::uint256_t const *stack_bottom,
         utils::uint256_t *stack_top, std::int64_t &gas_remaining)
     {
-        (void)stack_top;
-
         static constexpr auto info = compiler::opcode_table<Rev>[Instr];
 
         if constexpr (info.min_gas > 0) {
@@ -37,6 +35,7 @@ namespace monad::interpreter
         }
 
         auto const stack_size = stack_top - stack_bottom;
+        MONAD_COMPILER_DEBUG_ASSERT(stack_size <= 1024);
 
         if constexpr (info.min_stack > 0) {
             if (MONAD_COMPILER_UNLIKELY(stack_size < info.min_stack)) {
@@ -45,9 +44,17 @@ namespace monad::interpreter
         }
 
         if constexpr (info.stack_increase > 0) {
-            static constexpr auto size_end = 1024 + info.min_stack;
-            if (MONAD_COMPILER_UNLIKELY(stack_size >= size_end)) {
-                ctx.exit(Error);
+            static constexpr auto delta = info.stack_increase - info.min_stack;
+            static constexpr auto max_safe_size = 1024 - delta;
+
+            // We only need to emit the overflow check if this instruction could
+            // actually cause an overflow; if the instruction could only leave
+            // the stack with >1024 elements if it _began_ with >1024, then we
+            // assume that the input stack was valid and elide the check.
+            if constexpr (max_safe_size <= 1024) {
+                if (MONAD_COMPILER_UNLIKELY(stack_size > max_safe_size)) {
+                    ctx.exit(Error);
+                }
             }
         }
     }
