@@ -21,6 +21,7 @@ namespace monad::compiler::test
         enum Implementation
         {
             Compiler,
+            Interpreter,
             Evmone,
         };
 

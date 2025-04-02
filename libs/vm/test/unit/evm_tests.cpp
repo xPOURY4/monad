@@ -223,6 +223,17 @@ TEST_F(EvmTest, MissingRemoveStackOffsetInFallthroughStack)
     execute_and_compare(1'000'000, bytecode, calldata);
 }
 
+TEST_F(EvmTest, DupStackOverflow)
+{
+    auto bytecode = std::vector<std::uint8_t>{};
+    std::fill_n(std::back_inserter(bytecode), 1024, GAS);
+    bytecode.push_back(DUP4);
+
+    execute(bytecode, {}, Implementation::Interpreter);
+
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
+}
+
 INSTANTIATE_TEST_SUITE_P(
     EvmTest, EvmFile,
     ::testing::ValuesIn(std::vector<fs::directory_entry>{
