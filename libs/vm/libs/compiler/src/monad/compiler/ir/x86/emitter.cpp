@@ -123,8 +123,10 @@ constexpr auto sp_offset_arg4 = sp_offset_arg3 + 8;
 constexpr auto sp_offset_arg5 = sp_offset_arg4 + 8;
 constexpr auto sp_offset_arg6 = sp_offset_arg5 + 8;
 constexpr auto sp_offset_stack_size = sp_offset_arg6 + 8;
+constexpr auto sp_offset_temp_word1 = sp_offset_stack_size + 8;
+constexpr auto sp_offset_temp_word2 = sp_offset_temp_word1 + 32;
 
-constexpr auto stack_frame_size = sp_offset_stack_size + 8;
+constexpr auto stack_frame_size = sp_offset_temp_word2 + 32;
 
 namespace
 {
@@ -2599,7 +2601,7 @@ namespace monad::compiler::native
         }
         else if (!dest->stack_offset()) {
             MONAD_COMPILER_DEBUG_ASSERT(dest->avx_reg().has_value());
-            x86::Mem const m = x86::qword_ptr(x86::rsp, -32);
+            x86::Mem const m = x86::qword_ptr(x86::rsp, sp_offset_temp_word1);
             mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
             op = m;
         }
@@ -3012,11 +3014,9 @@ namespace monad::compiler::native
 
     template <typename... LiveSet>
     bool Emitter::cmp_stack_elem_to_int32(
-        StackElemRef e, int32_t i, x86::Mem flag,
-        std::tuple<LiveSet...> const &live)
+        StackElemRef e, int32_t i, std::tuple<LiveSet...> const &live)
     {
         MONAD_COMPILER_DEBUG_ASSERT(!e->literal().has_value());
-        flag.setSize(4);
         if (e->general_reg()) {
             auto const &gpq = general_reg_to_gpq256(*e->general_reg());
             as_.cmp(gpq[0], i);
@@ -3028,7 +3028,7 @@ namespace monad::compiler::native
             }
             else {
                 as_.mov(x86::rax, gpq[1]);
-                as_.cmovnb(x86::rax, flag);
+                as_.cmovnb(x86::rax, gpq[0]);
                 as_.or_(x86::rax, gpq[2]);
                 as_.or_(x86::rax, gpq[3]);
                 return false;
@@ -3050,8 +3050,9 @@ namespace monad::compiler::native
             else {
                 mem.addOffset(8);
                 as_.mov(x86::rax, mem);
-                as_.cmovnb(x86::rax, flag);
-                mem.addOffset(8);
+                mem.addOffset(-8);
+                as_.cmovnb(x86::rax, mem);
+                mem.addOffset(16);
                 as_.or_(x86::rax, mem);
                 mem.addOffset(8);
                 as_.or_(x86::rax, mem);
@@ -3069,7 +3070,8 @@ namespace monad::compiler::native
         }
 
         int32_t const byte_ix = static_cast<int32_t>(ix);
-        int32_t const stack_ix = -byte_ix - 33;
+        static constexpr int32_t byte_off = sp_offset_temp_word2 - 1;
+        int32_t const stack_ix = byte_off - byte_ix;
 
         mov_stack_elem_to_unaligned_mem(src, x86::ptr(x86::rsp, stack_ix));
 
@@ -3077,11 +3079,11 @@ namespace monad::compiler::native
         auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
 
         // Broadcast sign byte to all bytes in `dst_ymm`:
-        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, -33));
+        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, byte_off));
         // Shift arithmetic right to fill `dst_ymm` with sign bit:
         as_.vpsraw(dst_ymm, dst_ymm, 15);
         // Override most significant bytes of `src` on the stack:
-        as_.vmovups(x86::ptr(x86::rsp, -32), dst_ymm);
+        as_.vmovups(x86::ptr(x86::rsp, sp_offset_temp_word2), dst_ymm);
         // Load the result:
         as_.vmovups(dst_ymm, x86::ptr(x86::rsp, stack_ix));
 
@@ -3096,8 +3098,9 @@ namespace monad::compiler::native
 
         auto const &bound_lbl = append_literal(Literal{31});
         auto bound_mem = x86::qword_ptr(bound_lbl);
-        bool const nb =
-            cmp_stack_elem_to_int32(ix, 32, bound_mem, std::make_tuple(src));
+        bool const nb = cmp_stack_elem_to_int32(ix, 32, std::make_tuple(src));
+
+        static constexpr int32_t byte_off = sp_offset_temp_word2 - 1;
 
         x86::Mem stack_mem;
         if (ix->general_reg()) {
@@ -3114,7 +3117,7 @@ namespace monad::compiler::native
                 as_.cmovnz(byte_ix, bound_mem);
             }
             as_.neg(byte_ix);
-            stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, -33);
+            stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, byte_off);
         }
         else {
             MONAD_COMPILER_DEBUG_ASSERT(ix->stack_offset().has_value());
@@ -3127,7 +3130,7 @@ namespace monad::compiler::native
                 as_.cmovnz(x86::eax, bound_mem);
             }
             as_.neg(x86::rax);
-            stack_mem = x86::qword_ptr(x86::rsp, x86::rax, 0, -33);
+            stack_mem = x86::qword_ptr(x86::rsp, x86::rax, 0, byte_off);
         }
 
         mov_stack_elem_to_unaligned_mem(src, stack_mem);
@@ -3136,9 +3139,9 @@ namespace monad::compiler::native
         auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
 
         // See `signextend_literal_ix`
-        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, -33));
+        as_.vpbroadcastb(dst_ymm, x86::byte_ptr(x86::rsp, byte_off));
         as_.vpsraw(dst_ymm, dst_ymm, 15);
-        as_.vmovups(x86::ptr(x86::rsp, -32), dst_ymm);
+        as_.vmovups(x86::ptr(x86::rsp, sp_offset_temp_word2), dst_ymm);
         as_.vmovups(dst_ymm, stack_mem);
 
         stack_.push(std::move(dst));
@@ -3174,29 +3177,34 @@ namespace monad::compiler::native
     {
         MONAD_COMPILER_DEBUG_ASSERT(additional_byte_count <= 32);
 
+        static constexpr int32_t base_offset = sp_offset_temp_word2 + 32;
+
         if constexpr (shift_type == ShiftType::SHL) {
             if (additional_byte_count <= 8) {
-                as_.mov(qword_ptr(x86::rsp, -40), 0);
+                as_.mov(qword_ptr(x86::rsp, base_offset - 40), 0);
             }
             else {
                 mov_literal_to_unaligned_mem(
-                    Literal{0}, qword_ptr(x86::rsp, -64));
+                    Literal{0}, qword_ptr(x86::rsp, base_offset - 64));
             }
-            mov_stack_elem_to_unaligned_mem(value, qword_ptr(x86::rsp, -32));
+            mov_stack_elem_to_unaligned_mem(
+                value, qword_ptr(x86::rsp, base_offset - 32));
         }
         else if constexpr (shift_type == ShiftType::SHR) {
-            mov_stack_elem_to_unaligned_mem(value, qword_ptr(x86::rsp, -64));
+            mov_stack_elem_to_unaligned_mem(
+                value, qword_ptr(x86::rsp, base_offset - 64));
             if (additional_byte_count <= 8) {
-                as_.mov(qword_ptr(x86::rsp, -32), 0);
+                as_.mov(qword_ptr(x86::rsp, base_offset - 32), 0);
             }
             else {
                 mov_literal_to_unaligned_mem(
-                    Literal{0}, qword_ptr(x86::rsp, -32));
+                    Literal{0}, qword_ptr(x86::rsp, base_offset - 32));
             }
         }
         else {
             static_assert(shift_type == ShiftType::SAR);
-            mov_stack_elem_to_unaligned_mem(value, qword_ptr(x86::rsp, -64));
+            mov_stack_elem_to_unaligned_mem(
+                value, qword_ptr(x86::rsp, base_offset - 64));
             auto reg = x86::rax;
             if (value->general_reg()) {
                 if (is_live(value, live)) {
@@ -3208,10 +3216,10 @@ namespace monad::compiler::native
                 }
             }
             else {
-                as_.mov(reg, qword_ptr(x86::rsp, -40));
+                as_.mov(reg, qword_ptr(x86::rsp, base_offset - 40));
             }
             as_.sar(reg, 63);
-            auto temp = x86::qword_ptr(x86::rsp, -32);
+            auto temp = x86::qword_ptr(x86::rsp, base_offset - 32);
             for (uint8_t i = 0; i < additional_byte_count; i += 8) {
                 as_.mov(temp, reg);
                 temp.addOffset(8);
@@ -3244,6 +3252,8 @@ namespace monad::compiler::native
         }
 
         discharge_deferred_comparison();
+
+        static constexpr int32_t base_offset = sp_offset_temp_word2 + 32;
 
         int32_t const s = static_cast<int32_t>(shift[0]);
         int8_t const c = static_cast<int8_t>(s & 7);
@@ -3287,10 +3297,12 @@ namespace monad::compiler::native
             MONAD_COMPILER_DEBUG_ASSERT(dst->avx_reg().has_value());
             x86::Ymm const dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
             if constexpr (shift_type == ShiftType::SHL) {
-                as_.vmovups(dst_ymm, x86::byte_ptr(x86::rsp, -32 - d));
+                as_.vmovups(
+                    dst_ymm, x86::byte_ptr(x86::rsp, base_offset - 32 - d));
             }
             else {
-                as_.vmovups(dst_ymm, x86::qword_ptr(x86::rsp, d - 64));
+                as_.vmovups(
+                    dst_ymm, x86::qword_ptr(x86::rsp, base_offset + d - 64));
             }
             return dst;
         }
@@ -3300,10 +3312,14 @@ namespace monad::compiler::native
         Gpq256 const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
         if constexpr (shift_type == ShiftType::SHL) {
             if (d > 0) {
-                as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, -8 - d));
-                as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, -16 - d));
-                as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, -24 - d));
-                as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, -32 - d));
+                as_.mov(
+                    dst_gpq[3], x86::qword_ptr(x86::rsp, base_offset - 8 - d));
+                as_.mov(
+                    dst_gpq[2], x86::qword_ptr(x86::rsp, base_offset - 16 - d));
+                as_.mov(
+                    dst_gpq[1], x86::qword_ptr(x86::rsp, base_offset - 24 - d));
+                as_.mov(
+                    dst_gpq[0], x86::qword_ptr(x86::rsp, base_offset - 32 - d));
             }
             as_.shld(dst_gpq[3], dst_gpq[2], c);
             as_.shld(dst_gpq[2], dst_gpq[1], c);
@@ -3312,10 +3328,14 @@ namespace monad::compiler::native
         }
         else {
             if (d > 0) {
-                as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, d - 40));
-                as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, d - 48));
-                as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, d - 56));
-                as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, d - 64));
+                as_.mov(
+                    dst_gpq[3], x86::qword_ptr(x86::rsp, base_offset + d - 40));
+                as_.mov(
+                    dst_gpq[2], x86::qword_ptr(x86::rsp, base_offset + d - 48));
+                as_.mov(
+                    dst_gpq[1], x86::qword_ptr(x86::rsp, base_offset + d - 56));
+                as_.mov(
+                    dst_gpq[0], x86::qword_ptr(x86::rsp, base_offset + d - 64));
             }
             as_.shrd(dst_gpq[0], dst_gpq[1], c);
             as_.shrd(dst_gpq[1], dst_gpq[2], c);
@@ -3369,8 +3389,7 @@ namespace monad::compiler::native
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
         auto const &bound_lbl = append_literal(Literal{256});
-        bool const nb =
-            cmp_stack_elem_to_int32(shift, 257, x86::qword_ptr(bound_lbl), {});
+        bool const nb = cmp_stack_elem_to_int32(shift, 257, {});
 
         // We only need to preserve rcx if it is in a stack element which is
         // currently on the virtual stack.
@@ -3455,22 +3474,40 @@ namespace monad::compiler::native
         as_.shr(offset_reg.r16(), 3);
         as_.and_(x86::cl, 7);
 
+        static constexpr int32_t base_offset = sp_offset_temp_word2 + 32;
+
         if constexpr (shift_type == ShiftType::SHL) {
             as_.neg(offset_reg);
-            as_.mov(dst_gpq[3], x86::qword_ptr(x86::rsp, offset_reg, 0, -8));
-            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, offset_reg, 0, -16));
-            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, offset_reg, 0, -24));
-            as_.mov(offset_reg, x86::qword_ptr(x86::rsp, offset_reg, 0, -32));
+            as_.mov(
+                dst_gpq[3],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 8));
+            as_.mov(
+                dst_gpq[2],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 16));
+            as_.mov(
+                dst_gpq[1],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 24));
+            as_.mov(
+                offset_reg,
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 32));
             as_.shld(dst_gpq[3], dst_gpq[2], x86::cl);
             as_.shld(dst_gpq[2], dst_gpq[1], x86::cl);
             as_.shld(dst_gpq[1], offset_reg, x86::cl);
             as_.shlx(dst_gpq[0], offset_reg, x86::cl);
         }
         else {
-            as_.mov(dst_gpq[0], x86::qword_ptr(x86::rsp, offset_reg, 0, -64));
-            as_.mov(dst_gpq[1], x86::qword_ptr(x86::rsp, offset_reg, 0, -56));
-            as_.mov(dst_gpq[2], x86::qword_ptr(x86::rsp, offset_reg, 0, -48));
-            as_.mov(offset_reg, x86::qword_ptr(x86::rsp, offset_reg, 0, -40));
+            as_.mov(
+                dst_gpq[0],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 64));
+            as_.mov(
+                dst_gpq[1],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 56));
+            as_.mov(
+                dst_gpq[2],
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 48));
+            as_.mov(
+                offset_reg,
+                x86::qword_ptr(x86::rsp, offset_reg, 0, base_offset - 40));
             as_.shrd(dst_gpq[0], dst_gpq[1], x86::cl);
             as_.shrd(dst_gpq[1], dst_gpq[2], x86::cl);
             as_.shrd(dst_gpq[2], offset_reg, x86::cl);
@@ -5119,7 +5156,7 @@ namespace monad::compiler::native
             mem.addOffset(24);
             as_.mov(x86::rax, static_cast<uint64_t>(1) << 63);
             as_.test(mem, x86::rax);
-            as_.setnz(x86::byte_ptr(x86::rsp, -1));
+            as_.setnz(x86::byte_ptr(x86::rsp, sp_offset_temp_word1));
 
             MONAD_COMPILER_DEBUG_ASSERT(index <= 3);
             mem.addOffset(static_cast<int64_t>(index) * 8 - 24);
@@ -5131,7 +5168,7 @@ namespace monad::compiler::native
             }
             as_.setnz(x86::al);
 
-            as_.and_(x86::al, x86::byte_ptr(x86::rsp, -1));
+            as_.and_(x86::al, x86::byte_ptr(x86::rsp, sp_offset_temp_word1));
             as_.movzx(x86::eax, x86::al);
         }
 

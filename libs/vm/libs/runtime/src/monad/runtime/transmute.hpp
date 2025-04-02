@@ -35,6 +35,7 @@ namespace monad::runtime
             std::byteswap(ts[0])};
     }
 
+    [[gnu::always_inline]]
     inline utils::uint256_t
     uint256_load_bounded_be(std::uint8_t const *bytes, std::uint32_t max_len)
     {
@@ -42,18 +43,7 @@ namespace monad::runtime
             return uint256_load_be(bytes);
         }
         std::uint64_t ts[4] = {};
-        std::size_t offset = 0;
-#pragma GCC unroll 5
-        for (std::int32_t i = 4; i >= 0; --i) {
-            std::uint32_t p = 1 << i;
-            if (max_len & p) {
-                std::memcpy(
-                    reinterpret_cast<uint8_t *>(ts) + offset,
-                    bytes + offset,
-                    p);
-                offset |= p;
-            }
-        }
+        std::memcpy(&ts, bytes, max_len);
         return {
             std::byteswap(ts[3]),
             std::byteswap(ts[2]),
@@ -64,7 +54,7 @@ namespace monad::runtime
     [[gnu::always_inline]]
     inline evmc::bytes32 bytes32_from_uint256(utils::uint256_t const &x)
     {
-        alignas(std::uint64_t) evmc_bytes32 ret;
+        evmc_bytes32 ret;
         uint256_store_be(ret.bytes, x);
         return ret;
     }
