@@ -1,6 +1,6 @@
 #include <monad/compiler/ir/poly_typed/kind.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/cases.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/cases.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -22,7 +22,7 @@ namespace
     bool
     kind_alpha_eq(PolyVarSubstMap &su1, Kind k1, PolyVarSubstMap &su2, Kind k2)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         if (k1->index() != k2->index()) {
             return false;
@@ -69,7 +69,7 @@ namespace
     bool cont_alpha_eq(
         PolyVarSubstMap &su1, ContKind c1, PolyVarSubstMap &su2, ContKind c2)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         if (c1->front.size() != c2->front.size()) {
             return false;
@@ -116,7 +116,7 @@ namespace
 
     bool can_specialize(SpecializeSubstMap &su, Kind generic, Kind specific)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         if (std::holds_alternative<KindVar>(*generic)) {
             auto new_k = su.kind_map.find(std::get<KindVar>(*generic).var);
@@ -231,7 +231,7 @@ namespace
             if (generic->front.size() > specific->front.size()) {
                 return false;
             }
-            MONAD_COMPILER_DEBUG_ASSERT(min_size == generic->front.size());
+            MONAD_VM_DEBUG_ASSERT(min_size == generic->front.size());
             VarName const v = std::get<ContVar>(generic->tail).var;
             auto it = su.cont_map.find(v);
             if (it != su.cont_map.end()) {
@@ -311,7 +311,7 @@ namespace monad::compiler::poly_typed
 
     void format_cont(ContKind const &cont, std::format_context &ctx)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         for (auto const &k : cont->front) {
             format_kind(k, ctx, true);
@@ -331,7 +331,7 @@ namespace monad::compiler::poly_typed
     void
     format_kind(Kind const &kind, std::format_context &ctx, bool use_parens)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         std::visit(
             Cases{
@@ -388,7 +388,7 @@ namespace monad::compiler::poly_typed
 
     bool weak_equal(Kind k1, Kind k2)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         if (k1->index() != k2->index()) {
             return false;
@@ -421,7 +421,7 @@ namespace monad::compiler::poly_typed
 
     bool weak_equal(ContKind c1, ContKind c2)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         if (c1->tail.index() != c2->tail.index()) {
             return false;

@@ -1,5 +1,5 @@
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>
@@ -45,7 +45,7 @@ public:
 
     evmc_result execute(evmc_revision rev, native::entrypoint_t entry)
     {
-        MONAD_COMPILER_ASSERT(entry != nullptr);
+        MONAD_VM_ASSERT(entry != nullptr);
         using namespace evmone::state;
 
         auto msg = new evmc_message{
@@ -81,7 +81,7 @@ public:
         auto ctx = runtime::Context::from(interface, context, msg, code_span);
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
-            std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
+            std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));
 
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;

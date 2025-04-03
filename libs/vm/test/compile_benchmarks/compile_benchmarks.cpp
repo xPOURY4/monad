@@ -1,5 +1,5 @@
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/load_program.hpp>
+#include <monad/vm/utils/load_program.hpp>
 
 #include <test_resource_data.h>
 
@@ -88,7 +88,7 @@ namespace
         std::vector<char> buffer(static_cast<size_t>(size));
         file.read(buffer.data(), size);
 
-        auto program = monad::utils::parse_hex_program(buffer);
+        auto program = monad::vm::utils::parse_hex_program(buffer);
 
         auto rt = asmjit::JitRuntime{};
 

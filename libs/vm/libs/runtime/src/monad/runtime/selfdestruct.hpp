@@ -2,8 +2,8 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -11,7 +11,7 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void selfdestruct
-        [[noreturn]] (Context *ctx, utils::uint256_t const *address_ptr)
+        [[noreturn]] (Context *ctx, vm::utils::uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
             ctx->exit(StatusCode::Error);

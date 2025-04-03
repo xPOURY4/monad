@@ -2,7 +2,7 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -11,8 +11,8 @@
 namespace monad::runtime
 {
     inline void blockhash(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *block_number_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *block_number_ptr)
     {
         if (!is_bounded_by_bits<63>(*block_number_ptr)) {
             *result_ptr = 0;
@@ -33,7 +33,7 @@ namespace monad::runtime
         }
     }
 
-    inline void selfbalance(Context *ctx, utils::uint256_t *result_ptr)
+    inline void selfbalance(Context *ctx, vm::utils::uint256_t *result_ptr)
     {
         auto balance =
             ctx->host->get_balance(ctx->context, &ctx->env.recipient);
@@ -41,8 +41,8 @@ namespace monad::runtime
     }
 
     inline void blobhash(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *index)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *index)
     {
         auto const &c = ctx->env.tx_context;
         *result_ptr = (*index < c.blob_hashes_count)

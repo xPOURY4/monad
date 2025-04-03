@@ -3,8 +3,8 @@
 #include <monad/runtime/bin.hpp>
 #include <monad/runtime/transmute.hpp>
 
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -70,7 +70,7 @@ namespace monad::runtime
         void set_return_data(
             std::uint8_t const *output_data, std::size_t output_size)
         {
-            MONAD_COMPILER_DEBUG_ASSERT(return_data_size == 0);
+            MONAD_VM_DEBUG_ASSERT(return_data_size == 0);
             return_data = output_data;
             return_data_size = output_size;
         }
@@ -184,7 +184,7 @@ namespace monad::runtime
         constexpr void deduct_gas(std::int64_t const gas) noexcept
         {
             gas_remaining -= gas;
-            if (MONAD_COMPILER_UNLIKELY(gas_remaining < 0)) {
+            if (MONAD_VM_UNLIKELY(gas_remaining < 0)) {
                 exit(StatusCode::Error);
             }
         }
@@ -209,7 +209,7 @@ namespace monad::runtime
                 auto wsize = shr_ceil<5>(min_size);
                 std::int64_t new_cost = memory_cost_from_word_count(wsize);
                 Bin<31> new_size = shl<5>(wsize);
-                MONAD_COMPILER_DEBUG_ASSERT(new_cost >= memory.cost);
+                MONAD_VM_DEBUG_ASSERT(new_cost >= memory.cost);
                 std::int64_t expansion_cost = new_cost - memory.cost;
                 // Gas check before expanding:
                 deduct_gas(expansion_cost);
@@ -217,7 +217,7 @@ namespace monad::runtime
                     // The `memory.capacity * 2` will not overflow
                     // `std::uint32_t`, because `new_size` is `Bin<31>`.
                     memory.capacity = std::max(memory.capacity * 2, *new_size);
-                    MONAD_COMPILER_DEBUG_ASSERT((memory.capacity & 31) == 0);
+                    MONAD_VM_DEBUG_ASSERT((memory.capacity & 31) == 0);
                     std::uint8_t *new_data = Memory::alloc(memory.capacity);
                     std::memcpy(new_data, memory.data, memory.size);
                     std::memset(
@@ -233,9 +233,9 @@ namespace monad::runtime
         }
 
         [[gnu::always_inline]]
-        Memory::Offset get_memory_offset(utils::uint256_t const &offset)
+        Memory::Offset get_memory_offset(vm::utils::uint256_t const &offset)
         {
-            if (MONAD_COMPILER_UNLIKELY(
+            if (MONAD_VM_UNLIKELY(
                     !is_bounded_by_bits<Memory::offset_bits>(offset))) {
                 exit(StatusCode::Error);
             }

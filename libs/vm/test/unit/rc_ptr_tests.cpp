@@ -1,9 +1,9 @@
-#include <monad/utils/rc_ptr.hpp>
+#include <monad/vm/utils/rc_ptr.hpp>
 #include <utility>
 
 #include <gtest/gtest.h>
 
-using namespace monad::utils;
+using namespace monad::vm::utils;
 
 namespace
 {

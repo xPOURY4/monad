@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <iterator>
 #include <optional>
@@ -55,7 +55,7 @@ namespace monad::fuzzing
                 }
             });
 
-        MONAD_COMPILER_DEBUG_ASSERT(result.has_value());
+        MONAD_VM_DEBUG_ASSERT(result.has_value());
         return *result;
     }
 
@@ -76,7 +76,7 @@ namespace monad::fuzzing
     {
         using diff_t = std::iterator_traits<Iterator>::difference_type;
 
-        MONAD_COMPILER_DEBUG_ASSERT(begin != end);
+        MONAD_VM_DEBUG_ASSERT(begin != end);
         auto dist = std::uniform_int_distribution<diff_t>(0, end - begin - 1);
         return *(begin + dist(eng));
     }

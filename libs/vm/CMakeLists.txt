@@ -90,6 +90,7 @@ endif()
 add_subdirectory(third_party/asmjit)
 
 add_subdirectory(libs/compiler)
+add_subdirectory(libs/core)
 add_subdirectory(libs/evm)
 add_subdirectory(libs/fuzzing)
 add_subdirectory(libs/interpreter)

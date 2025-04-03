@@ -23,9 +23,9 @@
 #include <evmc/evmc.h>
 
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/parser.hpp>
+#include <monad/vm/utils/parser.hpp>
 
-using namespace monad::utils;
+using namespace monad::vm::utils;
 
 struct arguments
 {

@@ -2,8 +2,8 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -12,8 +12,9 @@
 namespace monad::runtime
 {
     inline void sha3(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         Memory::Offset offset;
         auto size = ctx->get_memory_offset(*size_ptr);

@@ -3,8 +3,8 @@
 #include <monad/compiler/ir/local_stacks.hpp>
 #include <monad/compiler/types.hpp>
 
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
 
@@ -20,7 +20,7 @@ namespace
 {
     using namespace monad::compiler;
     using namespace monad::compiler::local_stacks;
-    using namespace monad::utils;
+    using namespace monad::vm::utils;
 
     void
     eval_instruction_fallback(Instruction const &tok, std::deque<Value> &stack)
@@ -255,7 +255,7 @@ namespace monad::compiler::local_stacks
             break;
         case ValueIs::PARAM_ID:
             static_assert(sizeof(size_t) <= sizeof(uint64_t));
-            MONAD_COMPILER_ASSERT(
+            MONAD_VM_ASSERT(
                 data <= uint256_t{std::numeric_limits<size_t>::max()});
             param = data[0];
         default:

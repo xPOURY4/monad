@@ -2,18 +2,18 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 namespace monad::runtime
 {
     template <evmc_revision Rev>
-    utils::uint256_t call_impl(
-        Context *ctx, utils::uint256_t const &gas_word,
-        utils::uint256_t const &address, bool has_value,
-        evmc_bytes32 const &value, utils::uint256_t const &args_offset_word,
-        utils::uint256_t const &args_size_word,
-        utils::uint256_t const &ret_offset_word,
-        utils::uint256_t const &ret_size_word, evmc_call_kind call_kind,
+    vm::utils::uint256_t call_impl(
+        Context *ctx, vm::utils::uint256_t const &gas_word,
+        vm::utils::uint256_t const &address, bool has_value,
+        evmc_bytes32 const &value, vm::utils::uint256_t const &args_offset_word,
+        vm::utils::uint256_t const &args_size_word,
+        vm::utils::uint256_t const &ret_offset_word,
+        vm::utils::uint256_t const &ret_size_word, evmc_call_kind call_kind,
         bool static_call, std::int64_t remaining_block_base_gas)
     {
         ctx->env.clear_return_data();
@@ -51,7 +51,7 @@ namespace monad::runtime
         }
 
         if (call_kind == EVMC_CALL) {
-            if (MONAD_COMPILER_UNLIKELY(
+            if (MONAD_VM_UNLIKELY(
                     has_value && ctx->env.evmc_flags == EVMC_STATIC)) {
                 ctx->exit(StatusCode::Error);
             }
@@ -68,7 +68,7 @@ namespace monad::runtime
 
         auto gas_left_here = ctx->gas_remaining + remaining_block_base_gas;
 
-        if (MONAD_COMPILER_UNLIKELY(gas_left_here < 0)) {
+        if (MONAD_VM_UNLIKELY(gas_left_here < 0)) {
             ctx->exit(StatusCode::Error);
         }
 
@@ -78,7 +78,7 @@ namespace monad::runtime
             gas = std::min(gas, gas_left_here - (gas_left_here / 64));
         }
         else {
-            if (MONAD_COMPILER_UNLIKELY(gas > gas_left_here)) {
+            if (MONAD_VM_UNLIKELY(gas > gas_left_here)) {
                 ctx->exit(StatusCode::Error);
             }
         }
@@ -88,7 +88,7 @@ namespace monad::runtime
             ctx->gas_remaining += 2300;
         }
 
-        if (MONAD_COMPILER_UNLIKELY(ctx->env.depth >= 1024)) {
+        if (MONAD_VM_UNLIKELY(ctx->env.depth >= 1024)) {
             return 0;
         }
 
@@ -126,13 +126,14 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void call(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
-        utils::uint256_t const *value_ptr,
-        utils::uint256_t const *args_offset_ptr,
-        utils::uint256_t const *args_size_ptr,
-        utils::uint256_t const *ret_offset_ptr,
-        utils::uint256_t const *ret_size_ptr,
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *gas_ptr,
+        vm::utils::uint256_t const *address_ptr,
+        vm::utils::uint256_t const *value_ptr,
+        vm::utils::uint256_t const *args_offset_ptr,
+        vm::utils::uint256_t const *args_size_ptr,
+        vm::utils::uint256_t const *ret_offset_ptr,
+        vm::utils::uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
@@ -152,13 +153,14 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void callcode(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
-        utils::uint256_t const *value_ptr,
-        utils::uint256_t const *args_offset_ptr,
-        utils::uint256_t const *args_size_ptr,
-        utils::uint256_t const *ret_offset_ptr,
-        utils::uint256_t const *ret_size_ptr,
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *gas_ptr,
+        vm::utils::uint256_t const *address_ptr,
+        vm::utils::uint256_t const *value_ptr,
+        vm::utils::uint256_t const *args_offset_ptr,
+        vm::utils::uint256_t const *args_size_ptr,
+        vm::utils::uint256_t const *ret_offset_ptr,
+        vm::utils::uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
@@ -178,12 +180,13 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void delegatecall(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
-        utils::uint256_t const *args_offset_ptr,
-        utils::uint256_t const *args_size_ptr,
-        utils::uint256_t const *ret_offset_ptr,
-        utils::uint256_t const *ret_size_ptr,
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *gas_ptr,
+        vm::utils::uint256_t const *address_ptr,
+        vm::utils::uint256_t const *args_offset_ptr,
+        vm::utils::uint256_t const *args_size_ptr,
+        vm::utils::uint256_t const *ret_offset_ptr,
+        vm::utils::uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
@@ -203,15 +206,16 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void staticcall(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *gas_ptr, utils::uint256_t const *address_ptr,
-        utils::uint256_t const *args_offset_ptr,
-        utils::uint256_t const *args_size_ptr,
-        utils::uint256_t const *ret_offset_ptr,
-        utils::uint256_t const *ret_size_ptr,
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *gas_ptr,
+        vm::utils::uint256_t const *address_ptr,
+        vm::utils::uint256_t const *args_offset_ptr,
+        vm::utils::uint256_t const *args_size_ptr,
+        vm::utils::uint256_t const *ret_offset_ptr,
+        vm::utils::uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(Rev >= EVMC_BYZANTIUM);
+        MONAD_VM_DEBUG_ASSERT(Rev >= EVMC_BYZANTIUM);
         *result_ptr = call_impl<Rev>(
             ctx,
             *gas_ptr,

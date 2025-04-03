@@ -1,7 +1,7 @@
 #include <monad/compiler/ir/poly_typed/infer_state.hpp>
 #include <monad/compiler/ir/poly_typed/strongly_connected_components.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <algorithm>
 #include <utility>
@@ -46,7 +46,7 @@ namespace monad::compiler::poly_typed
                 pst.lowlink = std::min(pst.lowlink, bst.lowlink);
             }
             else {
-                MONAD_COMPILER_DEBUG_ASSERT(
+                MONAD_VM_DEBUG_ASSERT(
                     b.successors_visited < bst.successors.size());
                 block_id const s = bst.successors[b.successors_visited];
                 ++b.successors_visited;

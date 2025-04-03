@@ -10,9 +10,9 @@
 #include <monad/evm/opcodes.hpp>
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/debug.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/debug.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmone/constants.hpp>
 #include <evmone/evmone.h>
@@ -106,7 +106,7 @@ static constexpr auto block_gas_limit = 300'000'000;
 static Account genesis_account() noexcept
 {
     auto acct = Account{};
-    acct.balance = std::numeric_limits<utils::uint256_t>::max();
+    acct.balance = std::numeric_limits<vm::utils::uint256_t>::max();
     return acct;
 }
 
@@ -149,7 +149,7 @@ static evmc::address deploy_contract(
 {
     auto const create_address =
         compute_create_address(from, state.get_or_insert(from).nonce);
-    MONAD_COMPILER_DEBUG_ASSERT(state.find(create_address) == nullptr);
+    MONAD_VM_DEBUG_ASSERT(state.find(create_address) == nullptr);
 
     constexpr auto prefix = deploy_prefix();
     auto calldata = bytes{};
@@ -165,8 +165,8 @@ static evmc::address deploy_contract(
 
     auto res =
         transition(state, block, tx, EVMC_CANCUN, vm, block_gas_limit, 0);
-    MONAD_COMPILER_ASSERT(std::holds_alternative<TransactionReceipt>(res));
-    MONAD_COMPILER_ASSERT(state.find(create_address) != nullptr);
+    MONAD_VM_ASSERT(std::holds_alternative<TransactionReceipt>(res));
+    MONAD_VM_ASSERT(state.find(create_address) != nullptr);
 
     return create_address;
 }
@@ -562,11 +562,11 @@ static void do_run(std::size_t const run_index, arguments const &args)
             }
             if (!gen && e->general_reg()) {
                 auto *s = stack.spill_general_reg(e);
-                MONAD_COMPILER_ASSERT(s == nullptr);
+                MONAD_VM_ASSERT(s == nullptr);
             }
             if (!avx && e->avx_reg()) {
                 auto *s = stack.spill_avx_reg(e);
-                MONAD_COMPILER_ASSERT(s == nullptr);
+                MONAD_VM_ASSERT(s == nullptr);
             }
             if (!sta && e->stack_offset()) {
                 stack.spill_stack_offset(e);
@@ -640,13 +640,13 @@ static void do_run(std::size_t const run_index, arguments const &args)
                 }
 
                 auto const &ixs = e->stack_indices();
-                MONAD_COMPILER_ASSERT(!ixs.empty());
+                MONAD_VM_ASSERT(!ixs.empty());
                 auto ix = *ixs.begin();
                 if (!e->literal() && !e->stack_offset() && !e->avx_reg()) {
                     emit.mov_stack_index_to_stack_offset(ix);
                 }
                 auto *s = stack.spill_general_reg(e);
-                MONAD_COMPILER_ASSERT(s == nullptr);
+                MONAD_VM_ASSERT(s == nullptr);
             }
         });
 
@@ -730,7 +730,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
                 evmone_state, evmone_vm, genesis_address, contract);
             auto const a1 = deploy_contract(
                 compiler_state, compiler_vm, genesis_address, contract);
-            MONAD_COMPILER_ASSERT(a == a1);
+            MONAD_VM_ASSERT(a == a1);
 
             assert_equal(evmone_state, compiler_state);
 
@@ -782,7 +782,7 @@ static void run_loop(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    if (monad::utils::is_fuzzing_monad_compiler) {
+    if (monad::vm::utils::is_fuzzing_monad_compiler) {
         run_loop(argc, argv);
         return 0;
     }

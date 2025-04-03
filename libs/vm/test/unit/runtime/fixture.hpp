@@ -2,7 +2,7 @@
 
 #include <monad/runtime/detail.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <gtest/gtest.h>
 
@@ -64,17 +64,18 @@ namespace monad::compiler::test
             return [f, this]<typename... Args>(Args &&...args)
                        -> std::conditional_t<
                            detail::uses_result_v<FnArgs...>,
-                           utils::uint256_t,
+                           vm::utils::uint256_t,
                            void> {
                 (void)this; // Prevent compile error when `this` is not used.
 
-                auto result = utils::uint256_t{};
+                auto result = vm::utils::uint256_t{};
 
-                auto uint_args = std::array<utils::uint256_t, sizeof...(Args)>{
-                    utils::uint256_t(std::forward<Args>(args))...};
+                auto uint_args =
+                    std::array<vm::utils::uint256_t, sizeof...(Args)>{
+                        vm::utils::uint256_t(std::forward<Args>(args))...};
 
-                auto arg_ptrs =
-                    std::array<utils::uint256_t const *, uint_args.size()>{};
+                auto arg_ptrs = std::
+                    array<vm::utils::uint256_t const *, uint_args.size()>{};
                 for (auto i = 0u; i < uint_args.size(); ++i) {
                     arg_ptrs[i] = &uint_args[i];
                 }
@@ -122,7 +123,8 @@ namespace monad::compiler::test
             return wrap(f)(std::forward<Args>(args)...);
         }
 
-        void set_balance(utils::uint256_t addr, utils::uint256_t balance);
+        void
+        set_balance(vm::utils::uint256_t addr, vm::utils::uint256_t balance);
 
         std::basic_string_view<uint8_t> result_data();
     };

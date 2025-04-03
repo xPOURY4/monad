@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
@@ -10,10 +10,10 @@ namespace monad::runtime
 {
     static_assert(sizeof(evmc_address) == 20);
     static_assert(sizeof(evmc_bytes32) == 32);
-    static_assert(sizeof(utils::uint256_t) == 32);
+    static_assert(sizeof(vm::utils::uint256_t) == 32);
 
     [[gnu::always_inline]]
-    inline void uint256_store_be(uint8_t *dest, utils::uint256_t const &x)
+    inline void uint256_store_be(uint8_t *dest, vm::utils::uint256_t const &x)
     {
         std::uint64_t ts[4] = {
             std::byteswap(x[3]),
@@ -24,7 +24,7 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline utils::uint256_t uint256_load_be(std::uint8_t const *bytes)
+    inline vm::utils::uint256_t uint256_load_be(std::uint8_t const *bytes)
     {
         std::uint64_t ts[4];
         std::memcpy(&ts, bytes, 32);
@@ -36,7 +36,7 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline utils::uint256_t
+    inline vm::utils::uint256_t
     uint256_load_bounded_be(std::uint8_t const *bytes, std::uint32_t max_len)
     {
         if (max_len >= 32) {
@@ -52,7 +52,7 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline evmc::bytes32 bytes32_from_uint256(utils::uint256_t const &x)
+    inline evmc::bytes32 bytes32_from_uint256(vm::utils::uint256_t const &x)
     {
         evmc_bytes32 ret;
         uint256_store_be(ret.bytes, x);
@@ -60,7 +60,7 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline evmc::address address_from_uint256(utils::uint256_t const &x)
+    inline evmc::address address_from_uint256(vm::utils::uint256_t const &x)
     {
         auto bytes = intx::as_bytes(x);
 
@@ -84,13 +84,13 @@ namespace monad::runtime
     }
 
     [[gnu::always_inline]]
-    inline utils::uint256_t uint256_from_bytes32(evmc::bytes32 const &x)
+    inline vm::utils::uint256_t uint256_from_bytes32(evmc::bytes32 const &x)
     {
         return uint256_load_be(x.bytes);
     }
 
     [[gnu::always_inline]]
-    inline utils::uint256_t uint256_from_address(evmc::address const &addr)
+    inline vm::utils::uint256_t uint256_from_address(evmc::address const &addr)
     {
         std::uint32_t t2;
         std::memcpy(&t2, addr.bytes, 4);
@@ -104,25 +104,25 @@ namespace monad::runtime
         std::memcpy(&t0, addr.bytes + 12, 8);
         t0 = std::byteswap(t0);
 
-        alignas(utils::uint256_t) uint8_t ret[32];
+        alignas(vm::utils::uint256_t) uint8_t ret[32];
         std::memcpy(ret, &t0, 8);
         std::memcpy(ret + 8, &t1, 8);
         std::memcpy(ret + 16, &t2, 4);
         std::memset(ret + 20, 0, 12);
-        return std::bit_cast<utils::uint256_t>(ret);
+        return std::bit_cast<vm::utils::uint256_t>(ret);
     }
 
     template <std::uint8_t N>
         requires(N < 64)
     [[gnu::always_inline]]
-    constexpr bool is_bounded_by_bits(utils::uint256_t const &x)
+    constexpr bool is_bounded_by_bits(vm::utils::uint256_t const &x)
     {
         return ((x[0] >> N) | x[1] | x[2] | x[3]) == 0;
     }
 
     template <typename T>
     [[gnu::always_inline]]
-    constexpr T clamp_cast(utils::uint256_t const &x) noexcept
+    constexpr T clamp_cast(vm::utils::uint256_t const &x) noexcept
     {
         return is_bounded_by_bits<std::numeric_limits<T>::digits>(x)
                    ? static_cast<T>(x)

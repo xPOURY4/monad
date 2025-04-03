@@ -1,9 +1,9 @@
 #include <cstddef>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <gtest/gtest.h>
 
-using namespace monad::utils;
+using namespace monad::vm::utils;
 
 TEST(uint256, signextend)
 {

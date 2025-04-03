@@ -2,8 +2,8 @@
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/rc_ptr.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/rc_ptr.hpp>
 
 #include <algorithm>
 #include <array>
@@ -114,9 +114,8 @@ namespace monad::compiler::native
 
     void StackElem::deferred_comparison(Comparison c)
     {
-        MONAD_COMPILER_ASSERT(
-            stack_.deferred_comparison_.stack_elem == nullptr);
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_ASSERT(stack_.deferred_comparison_.stack_elem == nullptr);
+        MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.stack_elem = this;
         stack_.deferred_comparison_.comparison = c;
@@ -124,65 +123,63 @@ namespace monad::compiler::native
 
     void StackElem::deferred_comparison()
     {
-        MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.stack_elem);
-        MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.negated_stack_elem);
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_ASSERT(!stack_.deferred_comparison_.stack_elem);
+        MONAD_VM_ASSERT(stack_.deferred_comparison_.negated_stack_elem);
+        MONAD_VM_DEBUG_ASSERT(
             stack_.deferred_comparison_.negated_stack_elem != this);
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.stack_elem = this;
     }
 
     void StackElem::negated_deferred_comparison()
     {
-        MONAD_COMPILER_ASSERT(!stack_.deferred_comparison_.negated_stack_elem);
-        MONAD_COMPILER_ASSERT(stack_.deferred_comparison_.stack_elem);
-        MONAD_COMPILER_DEBUG_ASSERT(
-            stack_.deferred_comparison_.stack_elem != this);
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_ASSERT(!stack_.deferred_comparison_.negated_stack_elem);
+        MONAD_VM_ASSERT(stack_.deferred_comparison_.stack_elem);
+        MONAD_VM_DEBUG_ASSERT(stack_.deferred_comparison_.stack_elem != this);
+        MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
         stack_.deferred_comparison_.negated_stack_elem = this;
     }
 
     void StackElem::discharge_deferred_comparison()
     {
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
-        MONAD_COMPILER_DEBUG_ASSERT(
-            stack_.deferred_comparison_.stack_elem == this);
+        MONAD_VM_DEBUG_ASSERT(stack_.deferred_comparison_.stack_elem == this);
         stack_.deferred_comparison_.stack_elem = nullptr;
     }
 
     void StackElem::discharge_negated_deferred_comparison()
     {
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             stack_.deferred_comparison_.negated_stack_elem == this);
         stack_.deferred_comparison_.negated_stack_elem = nullptr;
     }
 
     void StackElem::insert_literal(Literal x)
     {
-        MONAD_COMPILER_ASSERT(!literal_.has_value());
+        MONAD_VM_ASSERT(!literal_.has_value());
         literal_ = x;
     }
 
     void StackElem::insert_stack_offset(StackOffset x)
     {
-        MONAD_COMPILER_ASSERT(!stack_offset_.has_value());
+        MONAD_VM_ASSERT(!stack_offset_.has_value());
         stack_offset_ = x;
         auto removed = stack_.available_stack_offsets_.erase(x.offset);
-        MONAD_COMPILER_ASSERT(removed == 1);
+        MONAD_VM_ASSERT(removed == 1);
     }
 
     void StackElem::insert_avx_reg()
     {
-        MONAD_COMPILER_ASSERT(!avx_reg_.has_value());
+        MONAD_VM_ASSERT(!avx_reg_.has_value());
         auto x = stack_.free_avx_regs_.top();
         avx_reg_ = x;
         stack_.free_avx_regs_.pop();
-        MONAD_COMPILER_ASSERT(stack_.avx_reg_stack_elems_[x.reg] == nullptr);
+        MONAD_VM_ASSERT(stack_.avx_reg_stack_elems_[x.reg] == nullptr);
         stack_.avx_reg_stack_elems_[x.reg] = this;
     }
 
@@ -190,37 +187,36 @@ namespace monad::compiler::native
     {
         auto reg = stack_.free_general_regs_.top();
         stack_.free_general_regs_.pop();
-        MONAD_COMPILER_ASSERT(!general_reg_.has_value());
-        MONAD_COMPILER_ASSERT(
-            stack_.general_reg_stack_elems_[reg.reg] == nullptr);
+        MONAD_VM_ASSERT(!general_reg_.has_value());
+        MONAD_VM_ASSERT(stack_.general_reg_stack_elems_[reg.reg] == nullptr);
         general_reg_ = reg;
         stack_.general_reg_stack_elems_[reg.reg] = this;
     }
 
     void StackElem::free_avx_reg()
     {
-        MONAD_COMPILER_ASSERT(avx_reg_.has_value());
+        MONAD_VM_ASSERT(avx_reg_.has_value());
         stack_.free_avx_regs_.push(*avx_reg_);
         auto reg = avx_reg_->reg;
-        MONAD_COMPILER_ASSERT(stack_.avx_reg_stack_elems_[reg] == this);
+        MONAD_VM_ASSERT(stack_.avx_reg_stack_elems_[reg] == this);
         stack_.avx_reg_stack_elems_[reg] = nullptr;
     }
 
     void StackElem::free_general_reg()
     {
-        MONAD_COMPILER_ASSERT(general_reg_.has_value());
+        MONAD_VM_ASSERT(general_reg_.has_value());
         stack_.free_general_regs_.push(*general_reg_);
         auto reg = general_reg_->reg;
-        MONAD_COMPILER_ASSERT(stack_.general_reg_stack_elems_[reg] == this);
+        MONAD_VM_ASSERT(stack_.general_reg_stack_elems_[reg] == this);
         stack_.general_reg_stack_elems_[reg] = nullptr;
     }
 
     void StackElem::free_stack_offset()
     {
-        MONAD_COMPILER_ASSERT(stack_offset_.has_value());
+        MONAD_VM_ASSERT(stack_offset_.has_value());
         auto [_, inserted] =
             stack_.available_stack_offsets_.insert(stack_offset_->offset);
-        MONAD_COMPILER_ASSERT(inserted);
+        MONAD_VM_ASSERT(inserted);
     }
 
     void StackElem::remove_avx_reg()
@@ -285,10 +281,10 @@ namespace monad::compiler::native
         auto *rco = free_rc_objects_;
         if (rco) {
             do {
-                utils::RcObject<StackElem> *x = rco;
+                vm::utils::RcObject<StackElem> *x = rco;
                 static_assert(sizeof(std::size_t) == sizeof(void *));
                 rco = reinterpret_cast<decltype(x)>(x->ref_count);
-                utils::RcObject<StackElem>::default_deallocate(x);
+                vm::utils::RcObject<StackElem>::default_deallocate(x);
             }
             while (rco);
         }
@@ -364,14 +360,15 @@ namespace monad::compiler::native
         return StackElemRef::make(
             [this]() {
                 if (free_rc_objects_) {
-                    utils::RcObject<StackElem> *x = free_rc_objects_;
+                    vm::utils::RcObject<StackElem> *x = free_rc_objects_;
                     static_assert(sizeof(std::size_t) == sizeof(void *));
                     free_rc_objects_ =
                         reinterpret_cast<decltype(x)>(x->ref_count);
                     return x;
                 }
                 else {
-                    auto *x = utils::RcObject<StackElem>::default_allocate();
+                    auto *x =
+                        vm::utils::RcObject<StackElem>::default_allocate();
                     return x;
                 }
             },
@@ -380,7 +377,7 @@ namespace monad::compiler::native
 
     StackElemRef Stack::get(std::int32_t index)
     {
-        MONAD_COMPILER_ASSERT(index <= top_index_);
+        MONAD_VM_ASSERT(index <= top_index_);
         return at(index);
     }
 
@@ -388,12 +385,12 @@ namespace monad::compiler::native
     {
         if (index < 0) {
             auto i = static_cast<std::size_t>(-index - 1);
-            MONAD_COMPILER_ASSERT(i < negative_elems_.size());
+            MONAD_VM_ASSERT(i < negative_elems_.size());
             return negative_elems_[i];
         }
         else {
             auto i = static_cast<std::size_t>(index);
-            MONAD_COMPILER_ASSERT(i < positive_elems_.size());
+            MONAD_VM_ASSERT(i < positive_elems_.size());
             return positive_elems_[i];
         }
     }
@@ -408,7 +405,7 @@ namespace monad::compiler::native
         auto &e = at(top_index_);
 
         auto rem = e->stack_indices_.erase(top_index_);
-        MONAD_COMPILER_DEBUG_ASSERT(rem == 1);
+        MONAD_VM_DEBUG_ASSERT(rem == 1);
 
         // Note that it's valid for stack indices to become negative here.
         top_index_ -= 1;
@@ -420,7 +417,7 @@ namespace monad::compiler::native
     {
         top_index_ += 1;
         auto [_, ins] = e->stack_indices_.insert(top_index_);
-        MONAD_COMPILER_DEBUG_ASSERT(ins);
+        MONAD_VM_DEBUG_ASSERT(ins);
         at(top_index_) = std::move(e);
     }
 
@@ -441,7 +438,7 @@ namespace monad::compiler::native
             pop();
             if (dc.negated_stack_elem) {
                 auto i = dc.negated_stack_elem->stack_indices_.begin();
-                MONAD_COMPILER_DEBUG_ASSERT(
+                MONAD_VM_DEBUG_ASSERT(
                     i != dc.negated_stack_elem->stack_indices_.end());
                 push(at(*i));
             }
@@ -456,8 +453,7 @@ namespace monad::compiler::native
             pop();
             if (dc.stack_elem) {
                 auto i = dc.stack_elem->stack_indices_.begin();
-                MONAD_COMPILER_DEBUG_ASSERT(
-                    i != dc.stack_elem->stack_indices_.end());
+                MONAD_VM_DEBUG_ASSERT(i != dc.stack_elem->stack_indices_.end());
                 push(at(*i));
             }
             else {
@@ -480,28 +476,28 @@ namespace monad::compiler::native
 
     void Stack::dup(std::int32_t stack_index)
     {
-        MONAD_COMPILER_ASSERT(stack_index <= top_index_);
+        MONAD_VM_ASSERT(stack_index <= top_index_);
         push(at(stack_index));
     }
 
     void Stack::swap(std::int32_t swap_index)
     {
-        MONAD_COMPILER_ASSERT(swap_index < top_index_);
+        MONAD_VM_ASSERT(swap_index < top_index_);
 
         auto t = top();
         auto &e = at(swap_index);
 
         auto rem_t = t->stack_indices_.erase(top_index_);
-        MONAD_COMPILER_DEBUG_ASSERT(rem_t == 1);
+        MONAD_VM_DEBUG_ASSERT(rem_t == 1);
 
         auto rem_e = e->stack_indices_.erase(swap_index);
-        MONAD_COMPILER_DEBUG_ASSERT(rem_e == 1);
+        MONAD_VM_DEBUG_ASSERT(rem_e == 1);
 
         auto ins_t = t->stack_indices_.insert(swap_index);
-        MONAD_COMPILER_DEBUG_ASSERT(ins_t.second);
+        MONAD_VM_DEBUG_ASSERT(ins_t.second);
 
         auto ins_e = e->stack_indices_.insert(top_index_);
-        MONAD_COMPILER_DEBUG_ASSERT(ins_e.second);
+        MONAD_VM_DEBUG_ASSERT(ins_e.second);
 
         at(top_index_) = std::move(e);
         e = std::move(t);
@@ -546,13 +542,13 @@ namespace monad::compiler::native
         if (available_stack_offsets_.contains(preferred)) {
             return {preferred};
         }
-        MONAD_COMPILER_ASSERT(!available_stack_offsets_.empty());
+        MONAD_VM_ASSERT(!available_stack_offsets_.empty());
         return {*available_stack_offsets_.begin()};
     }
 
     StackElem *Stack::find_stack_elem_for_avx_reg_spill()
     {
-        MONAD_COMPILER_ASSERT(free_avx_regs_.empty());
+        MONAD_VM_ASSERT(free_avx_regs_.empty());
         for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
             auto *e = avx_reg_stack_elems_[i];
             if (e == nullptr || e->reserve_avx_reg_count_ != 0) {
@@ -560,7 +556,7 @@ namespace monad::compiler::native
             }
             return e;
         }
-        MONAD_COMPILER_ASSERT(false);
+        MONAD_VM_ASSERT(false);
     }
 
     StackElem *Stack::spill_avx_reg()
@@ -588,7 +584,7 @@ namespace monad::compiler::native
 
     void Stack::spill_stack_offset(StackElemRef e)
     {
-        MONAD_COMPILER_ASSERT(
+        MONAD_VM_ASSERT(
             e->avx_reg_.has_value() || e->general_reg_.has_value() ||
             e->literal_.has_value());
         e->remove_stack_offset();
@@ -596,7 +592,7 @@ namespace monad::compiler::native
 
     void Stack::spill_literal(StackElemRef e)
     {
-        MONAD_COMPILER_ASSERT(
+        MONAD_VM_ASSERT(
             e->avx_reg_.has_value() || e->general_reg_.has_value() ||
             e->stack_offset_.has_value());
         e->remove_literal();
@@ -604,7 +600,7 @@ namespace monad::compiler::native
 
     StackElem *Stack::spill_general_reg()
     {
-        MONAD_COMPILER_ASSERT(free_general_regs_.empty());
+        MONAD_VM_ASSERT(free_general_regs_.empty());
         std::uint8_t best_index = 0;
         std::int8_t best_score = -1;
         for (std::uint8_t i = 0; i < GENERAL_REG_COUNT; ++i) {
@@ -628,7 +624,7 @@ namespace monad::compiler::native
             }
         }
 
-        MONAD_COMPILER_ASSERT(best_score >= 0);
+        MONAD_VM_ASSERT(best_score >= 0);
 
         return spill_general_reg(general_reg_stack_elems_[best_index]);
     }
@@ -684,7 +680,7 @@ namespace monad::compiler::native
             if (e == nullptr) {
                 continue;
             }
-            MONAD_COMPILER_ASSERT(e->reserve_general_reg_count_ == 0);
+            MONAD_VM_ASSERT(e->reserve_general_reg_count_ == 0);
             GeneralReg const reg = *e->general_reg_;
             e->remove_general_reg();
             if (!e->stack_offset_.has_value() && !e->avx_reg_.has_value() &&
@@ -707,7 +703,7 @@ namespace monad::compiler::native
             if (e == nullptr) {
                 continue;
             }
-            MONAD_COMPILER_ASSERT(e->reserve_avx_reg_count_ == 0);
+            MONAD_VM_ASSERT(e->reserve_avx_reg_count_ == 0);
             AvxReg const reg = *e->avx_reg_;
             e->remove_avx_reg();
             if (!e->stack_offset_.has_value() && !e->general_reg_.has_value() &&
@@ -828,7 +824,7 @@ namespace monad::compiler::native
     void Stack::move_avx_reg(StackElem &src, StackElem &dst)
     {
         AvxReg const reg = *src.avx_reg_;
-        MONAD_COMPILER_ASSERT(avx_reg_stack_elems_[reg.reg] == &src);
+        MONAD_VM_ASSERT(avx_reg_stack_elems_[reg.reg] == &src);
         dst.avx_reg_ = reg;
         src.avx_reg_ = std::nullopt;
         avx_reg_stack_elems_[reg.reg] = &dst;
@@ -844,7 +840,7 @@ namespace monad::compiler::native
     void Stack::move_general_reg(StackElem &src, StackElem &dst)
     {
         GeneralReg const reg = *src.general_reg_;
-        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg.reg] == &src);
+        MONAD_VM_ASSERT(general_reg_stack_elems_[reg.reg] == &src);
         dst.general_reg_ = reg;
         src.general_reg_ = std::nullopt;
         general_reg_stack_elems_[reg.reg] = &dst;
@@ -852,13 +848,13 @@ namespace monad::compiler::native
 
     void Stack::swap_general_regs(StackElem &e1, StackElem &e2)
     {
-        MONAD_COMPILER_ASSERT(e1.general_reg_.has_value());
-        MONAD_COMPILER_ASSERT(e2.general_reg_.has_value());
+        MONAD_VM_ASSERT(e1.general_reg_.has_value());
+        MONAD_VM_ASSERT(e2.general_reg_.has_value());
 
         GeneralReg const reg1 = *e1.general_reg_;
         GeneralReg const reg2 = *e2.general_reg_;
-        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg1.reg] == &e1);
-        MONAD_COMPILER_ASSERT(general_reg_stack_elems_[reg2.reg] == &e2);
+        MONAD_VM_ASSERT(general_reg_stack_elems_[reg1.reg] == &e1);
+        MONAD_VM_ASSERT(general_reg_stack_elems_[reg2.reg] == &e2);
 
         e1.general_reg_ = reg2;
         e2.general_reg_ = reg1;
@@ -868,13 +864,13 @@ namespace monad::compiler::native
 
     void Stack::remove_general_reg(StackElem &e)
     {
-        MONAD_COMPILER_ASSERT(e.general_reg_.has_value());
+        MONAD_VM_ASSERT(e.general_reg_.has_value());
         e.remove_general_reg();
     }
 
     void Stack::remove_stack_offset(StackElem &e)
     {
-        MONAD_COMPILER_ASSERT(e.stack_offset().has_value());
+        MONAD_VM_ASSERT(e.stack_offset().has_value());
         e.remove_stack_offset();
     }
 

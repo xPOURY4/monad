@@ -1,8 +1,8 @@
 #pragma once
 
-#include <monad/utils/assert.h>
-#include <monad/utils/load_program.hpp>
-#include <monad/utils/parser.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/load_program.hpp>
+#include <monad/vm/utils/parser.hpp>
 
 #include <valgrind/cachegrind.h>
 
@@ -27,24 +27,24 @@ public:
             if constexpr (instrument) {
                 CACHEGRIND_START_INSTRUMENTATION;
                 std::vector<uint8_t> const code =
-                    monad::utils::parse_opcodes(contents);
+                    monad::vm::utils::parse_opcodes(contents);
                 CACHEGRIND_STOP_INSTRUMENTATION;
                 return code;
             }
             else {
-                return monad::utils::parse_opcodes(contents);
+                return monad::vm::utils::parse_opcodes(contents);
             }
         }
 
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;
             std::vector<uint8_t> const code =
-                monad::utils::parse_hex_program(bytes);
+                monad::vm::utils::parse_hex_program(bytes);
             CACHEGRIND_STOP_INSTRUMENTATION;
             return code;
         }
         else {
-            return monad::utils::parse_hex_program(bytes);
+            return monad::vm::utils::parse_hex_program(bytes);
         }
     }
 
@@ -71,7 +71,7 @@ private:
         // Get the file size
         std::streamsize size = file.tellg();
         file.seekg(0, std::ios::beg);
-        MONAD_COMPILER_ASSERT(size >= 0);
+        MONAD_VM_ASSERT(size >= 0);
 
         // Allocate buffer and read file contents
         std::vector<char> contents(static_cast<size_t>(size), 0);

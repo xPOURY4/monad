@@ -3,7 +3,7 @@
 #include <memory>
 #include <utility>
 
-namespace monad::utils
+namespace monad::vm::utils
 {
     template <typename T>
     struct RcObject
@@ -125,7 +125,7 @@ namespace monad::utils
         // Note: undefined when RcPtr is nullptr.
         T *get() const
         {
-            MONAD_COMPILER_DEBUG_ASSERT(rc_object != nullptr);
+            MONAD_VM_DEBUG_ASSERT(rc_object != nullptr);
             return &rc_object->object;
         }
 
@@ -156,8 +156,9 @@ namespace monad::utils
 namespace std
 {
     template <typename T, typename Deleter>
-    void
-    swap(monad::utils::RcPtr<T, Deleter> &x, monad::utils::RcPtr<T, Deleter> &y)
+    void swap(
+        monad::vm::utils::RcPtr<T, Deleter> &x,
+        monad::vm::utils::RcPtr<T, Deleter> &y)
     {
         x.swap(y);
     }

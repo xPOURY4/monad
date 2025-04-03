@@ -2,7 +2,7 @@
 
 #include <monad/interpreter/intercode.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <cstdint>
 #include <tuple>

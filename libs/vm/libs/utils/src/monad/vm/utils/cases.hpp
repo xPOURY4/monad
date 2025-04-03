@@ -1,6 +1,6 @@
 #pragma once
 
-namespace monad::utils
+namespace monad::vm::utils
 {
     template <class... Ts>
     struct Cases : Ts...

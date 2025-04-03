@@ -4,7 +4,7 @@
 #include <monad/compiler/ir/poly_typed/infer_state.hpp>
 #include <monad/compiler/ir/poly_typed/kind.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <cstdint>
 #include <iterator>
@@ -46,7 +46,7 @@ namespace
 
     ContKind refresh(InferState &state, PolyVarSubstMap &su, ContKind cont)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         std::vector<Kind> kinds;
         for (auto &k : cont->front) {
@@ -75,7 +75,7 @@ namespace
 
     Kind refresh(InferState &state, PolyVarSubstMap &su, Kind kind)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         return std::visit(
             Cases{
@@ -129,7 +129,7 @@ namespace monad::compiler::poly_typed
     ContKind InferState::get_type(block_id bid)
     {
         auto it = block_types.find(bid);
-        MONAD_COMPILER_DEBUG_ASSERT(it != block_types.end());
+        MONAD_VM_DEBUG_ASSERT(it != block_types.end());
         PolyVarSubstMap su;
         return refresh(*this, su, it->second);
     }
@@ -166,14 +166,14 @@ namespace monad::compiler::poly_typed
                 ret, *this, block.output.begin(), block.output.end());
             break;
         case basic_blocks::Terminator::JumpI:
-            MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 2);
+            MONAD_VM_DEBUG_ASSERT(block.output.size() >= 2);
             ret.push_back(block.fallthrough_dest);
             push_static_jumpdest(ret, *this, block.output[0]);
             push_static_jumpdests(
                 ret, *this, block.output.begin() + 2, block.output.end());
             break;
         case basic_blocks::Terminator::Jump:
-            MONAD_COMPILER_DEBUG_ASSERT(block.output.size() >= 1);
+            MONAD_VM_DEBUG_ASSERT(block.output.size() >= 1);
             push_static_jumpdests(
                 ret, *this, block.output.begin(), block.output.end());
             break;

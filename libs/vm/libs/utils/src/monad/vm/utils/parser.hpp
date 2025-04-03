@@ -7,7 +7,7 @@
 #include <system_error>
 #include <vector>
 
-namespace monad::utils
+namespace monad::vm::utils
 {
     /**
      * parse an evm opcode string and

@@ -2,7 +2,7 @@
 
 #include <monad/interpreter/state.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <array>
 #include <cstdint>
@@ -18,14 +18,14 @@ namespace monad::interpreter
     struct OpcodeResult
     {
         std::int64_t gas_remaining;
-        utils::uint256_t *stack_top;
+        vm::utils::uint256_t *stack_top;
     };
 
     static_assert(sizeof(OpcodeResult) == 16);
 
     using InstrEval = OpcodeResult (*)(
-        runtime::Context &, State &, utils::uint256_t const *,
-        utils::uint256_t *, std::int64_t);
+        runtime::Context &, State &, vm::utils::uint256_t const *,
+        vm::utils::uint256_t *, std::int64_t);
 
     using InstrTable = std::array<InstrEval, 256>;
 }

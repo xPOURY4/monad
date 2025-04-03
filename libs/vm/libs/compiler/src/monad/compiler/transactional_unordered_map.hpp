@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <optional>
 #include <unordered_map>
@@ -122,13 +122,13 @@ namespace monad::compiler
 
         void commit()
         {
-            MONAD_COMPILER_DEBUG_ASSERT(!checkpoints.empty());
+            MONAD_VM_DEBUG_ASSERT(!checkpoints.empty());
             checkpoints.pop_back();
         }
 
         void revert()
         {
-            MONAD_COMPILER_DEBUG_ASSERT(!checkpoints.empty());
+            MONAD_VM_DEBUG_ASSERT(!checkpoints.empty());
 
             size_t last_point = checkpoints.back();
             checkpoints.pop_back();

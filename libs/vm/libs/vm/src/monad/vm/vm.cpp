@@ -1,8 +1,8 @@
 #include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/types.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 #include <monad/vm/vm.hpp>
 
 #include <evmc/evmc.h>
@@ -29,16 +29,15 @@ namespace monad::compiler
         evmc_host_context *context, evmc_message const *msg,
         uint8_t const *code, size_t code_size)
     {
-        MONAD_COMPILER_ASSERT(
-            code_size <= std::numeric_limits<std::uint32_t>::max());
-        MONAD_COMPILER_ASSERT(
+        MONAD_VM_ASSERT(code_size <= std::numeric_limits<std::uint32_t>::max());
+        MONAD_VM_ASSERT(
             msg->input_size <= std::numeric_limits<std::uint32_t>::max());
 
         auto ctx =
             runtime::Context::from(host, context, msg, {code, code_size});
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
-            std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
+            std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));
 
         contract_main(&ctx, stack_ptr);
 

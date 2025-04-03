@@ -3,8 +3,8 @@
 #include <monad/runtime/storage_costs.hpp>
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -14,8 +14,8 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void sload(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *key_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *key_ptr)
     {
         auto key = bytes32_from_uint256(*key_ptr);
 
@@ -36,8 +36,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void sstore(
-        Context *ctx, utils::uint256_t const *key_ptr,
-        utils::uint256_t const *value_ptr,
+        Context *ctx, vm::utils::uint256_t const *key_ptr,
+        vm::utils::uint256_t const *value_ptr,
         std::int64_t remaining_block_base_gas)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
@@ -82,8 +82,8 @@ namespace monad::runtime
     }
 
     inline void tload(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *key_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *key_ptr)
     {
         auto key = bytes32_from_uint256(*key_ptr);
 
@@ -94,8 +94,8 @@ namespace monad::runtime
     }
 
     inline void tstore(
-        Context *ctx, utils::uint256_t const *key_ptr,
-        utils::uint256_t const *val_ptr)
+        Context *ctx, vm::utils::uint256_t const *key_ptr,
+        vm::utils::uint256_t const *val_ptr)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
             ctx->exit(StatusCode::Error);

@@ -17,7 +17,7 @@
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <cstdint>
 #include <format>
@@ -142,7 +142,7 @@ namespace
             auto const result = evmc::Result{vm_ptr->execute(
                 interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
 
-            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
+            MONAD_VM_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
     }
 
@@ -222,7 +222,7 @@ namespace
             auto const result = evmc::Result{vm_ptr->execute(
                 interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
 
-            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
+            MONAD_VM_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
     }
 }

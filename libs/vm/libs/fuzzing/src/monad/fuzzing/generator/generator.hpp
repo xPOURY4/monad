@@ -2,9 +2,9 @@
 
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/instruction_data.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/cases.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/cases.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -37,17 +37,17 @@ namespace monad::fuzzing
 
     struct Constant
     {
-        utils::uint256_t value;
+        vm::utils::uint256_t value;
     };
 
     template <typename Engine>
     Constant meaningful_constant(Engine &gen)
     {
-        static constexpr auto values = std::array<utils::uint256_t, 4>{
+        static constexpr auto values = std::array<vm::utils::uint256_t, 4>{
             0,
             1,
-            intx::exp(utils::uint256_t(2), utils::uint256_t(255)),
-            std::numeric_limits<utils::uint256_t>::max(),
+            intx::exp(vm::utils::uint256_t(2), vm::utils::uint256_t(255)),
+            std::numeric_limits<vm::utils::uint256_t>::max(),
         };
 
         return Constant{uniform_sample(gen, values)};
@@ -68,7 +68,7 @@ namespace monad::fuzzing
         // mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 8);
         auto shift = 32 * dist(gen);
-        return Constant{utils::uint256_t{1} << shift};
+        return Constant{vm::utils::uint256_t{1} << shift};
     }
 
     template <typename Engine>
@@ -83,8 +83,8 @@ namespace monad::fuzzing
     {
         // To trigger mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 254);
-        return Constant{
-            intx::exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
+        return Constant{intx::exp(
+            vm::utils::uint256_t(2), vm::utils::uint256_t(dist(gen)))};
     }
 
     template <typename Engine>
@@ -107,9 +107,9 @@ namespace monad::fuzzing
     {
         static constexpr auto words = Bits / 64;
         auto dist =
-            std::uniform_int_distribution<utils::uint256_t::word_type>();
+            std::uniform_int_distribution<vm::utils::uint256_t::word_type>();
 
-        return Constant{utils::uint256_t{
+        return Constant{vm::utils::uint256_t{
             words >= 0 ? dist(gen) : 0,
             words >= 1 ? dist(gen) : 0,
             words >= 2 ? dist(gen) : 0,
@@ -216,7 +216,7 @@ namespace monad::fuzzing
     Push generate_calldata_item(GeneratorFocus focus, Engine &eng)
     {
         return std::visit(
-            utils::Cases{
+            vm::utils::Cases{
                 [&](ValidJumpDest) -> Push { return random_constant(eng); },
                 [](Push const &x) -> Push { return x; }},
             generate_push(focus, eng));
@@ -629,7 +629,7 @@ namespace monad::fuzzing
         std::vector<std::size_t> &jumpdest_patches)
     {
         std::visit(
-            utils::Cases{
+            vm::utils::Cases{
                 [&](ValidAddress) {
                     if (valid_addresses.empty()) {
                         return;
@@ -669,7 +669,7 @@ namespace monad::fuzzing
     {
         auto patches = std::vector<std::size_t>{};
         compile_push(eng, program, push, valid_addresses, patches);
-        MONAD_COMPILER_DEBUG_ASSERT(patches.empty());
+        MONAD_VM_DEBUG_ASSERT(patches.empty());
     }
 
     template <typename Engine>
@@ -692,7 +692,7 @@ namespace monad::fuzzing
 
                     auto const byte_size =
                         intx::count_significant_bytes(safe_value.value);
-                    MONAD_COMPILER_DEBUG_ASSERT(byte_size <= 32);
+                    MONAD_VM_DEBUG_ASSERT(byte_size <= 32);
 
                     program.push_back(
                         PUSH0 + static_cast<std::uint8_t>(byte_size));
@@ -712,7 +712,7 @@ namespace monad::fuzzing
 
         for (auto const &inst : block) {
             std::visit(
-                utils::Cases{
+                vm::utils::Cases{
                     [&](NonTerminator const &nt) { push_op(nt.opcode); },
                     [&](Terminator const &t) { push_op(t.opcode); },
                     [&](Push const &p) {
@@ -737,8 +737,8 @@ namespace monad::fuzzing
         std::vector<std::size_t> const &jumpdest_patches,
         std::vector<std::uint32_t> const &valid_jumpdests)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(jumpdest_patches));
-        MONAD_COMPILER_DEBUG_ASSERT(std::ranges::is_sorted(valid_jumpdests));
+        MONAD_VM_DEBUG_ASSERT(std::ranges::is_sorted(jumpdest_patches));
+        MONAD_VM_DEBUG_ASSERT(std::ranges::is_sorted(valid_jumpdests));
 
         // The valid jumpdests and path locations in this program appear in
         // sorted order, so we can bias the generator towards "forwards" jumps
@@ -750,8 +750,8 @@ namespace monad::fuzzing
         auto const forward_jds_end = valid_jumpdests.end();
 
         for (auto const patch : jumpdest_patches) {
-            MONAD_COMPILER_DEBUG_ASSERT(patch + 4 < program.size());
-            MONAD_COMPILER_DEBUG_ASSERT(program[patch] == PUSH4);
+            MONAD_VM_DEBUG_ASSERT(patch + 4 < program.size());
+            MONAD_VM_DEBUG_ASSERT(program[patch] == PUSH4);
 
             forward_jds_begin = std::find_if(
                 forward_jds_begin, forward_jds_end, [patch](auto jd) {
@@ -782,7 +782,7 @@ namespace monad::fuzzing
             auto const *bs = intx::as_bytes(jd);
             for (auto i = 0u; i < 4; ++i) {
                 auto &dest = program[patch + i + 1];
-                MONAD_COMPILER_DEBUG_ASSERT(dest == 0xFF);
+                MONAD_VM_DEBUG_ASSERT(dest == 0xFF);
 
                 dest = bs[3 - i];
             }
@@ -853,9 +853,9 @@ namespace monad::fuzzing
 
         auto const gas = static_cast<double>(base_gas) * factor;
 
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             gas <= static_cast<double>(std::numeric_limits<gas_t>::max()));
-        MONAD_COMPILER_DEBUG_ASSERT(gas >= 0);
+        MONAD_VM_DEBUG_ASSERT(gas >= 0);
 
         return static_cast<gas_t>(gas);
     }
@@ -901,7 +901,7 @@ namespace monad::fuzzing
 
         auto *const return_buf = new std::uint8_t[size];
 
-        MONAD_COMPILER_DEBUG_ASSERT(data.size() >= size);
+        MONAD_VM_DEBUG_ASSERT(data.size() >= size);
         std::copy_n(data.begin(), size, &return_buf[0]);
 
         return return_buf;
@@ -960,7 +960,7 @@ namespace monad::fuzzing
         auto const *input_data =
             generate_input_data(focus, eng, input_size, known_addresses);
 
-        auto const value = discrete_choice<utils::uint256_t>(
+        auto const value = discrete_choice<vm::utils::uint256_t>(
             eng, [](auto &) { return 0; }, Choice(0.9, [&](auto &g) {
                 return random_constant<128>(g).value;
             }));

@@ -2,8 +2,8 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -13,8 +13,8 @@ namespace monad::runtime
 {
     template <evmc_revision Rev>
     void balance(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *address_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *address_ptr)
     {
         auto address = address_from_uint256(*address_ptr);
 
@@ -31,8 +31,8 @@ namespace monad::runtime
     }
 
     inline void calldataload(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *i_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *i_ptr)
     {
         if (!is_bounded_by_bits<32>(*i_ptr)) {
             *result_ptr = 0;
@@ -51,9 +51,10 @@ namespace monad::runtime
     }
 
     inline void copy_impl(
-        Context *ctx, utils::uint256_t const &dest_offset_word,
-        utils::uint256_t const &offset_word, utils::uint256_t const &size_word,
-        std::uint8_t const *source, std::uint32_t len)
+        Context *ctx, vm::utils::uint256_t const &dest_offset_word,
+        vm::utils::uint256_t const &offset_word,
+        vm::utils::uint256_t const &size_word, std::uint8_t const *source,
+        std::uint32_t len)
     {
         auto size = ctx->get_memory_offset(size_word);
         if (*size == 0) {
@@ -79,8 +80,9 @@ namespace monad::runtime
     }
 
     inline void calldatacopy(
-        Context *ctx, utils::uint256_t const *dest_offset_ptr,
-        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t const *dest_offset_ptr,
+        vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         copy_impl(
             ctx,
@@ -92,8 +94,9 @@ namespace monad::runtime
     }
 
     inline void codecopy(
-        Context *ctx, utils::uint256_t const *dest_offset_ptr,
-        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t const *dest_offset_ptr,
+        vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         copy_impl(
             ctx,
@@ -106,9 +109,10 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void extcodecopy(
-        Context *ctx, utils::uint256_t const *address_ptr,
-        utils::uint256_t const *dest_offset_ptr,
-        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t const *address_ptr,
+        vm::utils::uint256_t const *dest_offset_ptr,
+        vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         auto size = ctx->get_memory_offset(*size_ptr);
         Memory::Offset dest_offset;
@@ -147,14 +151,15 @@ namespace monad::runtime
     }
 
     inline void returndatacopy(
-        Context *ctx, utils::uint256_t const *dest_offset_ptr,
-        utils::uint256_t const *offset_ptr, utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t const *dest_offset_ptr,
+        vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         auto size = ctx->get_memory_offset(*size_ptr);
         auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
         std::uint32_t end;
-        if (MONAD_COMPILER_UNLIKELY(
+        if (MONAD_VM_UNLIKELY(
                 __builtin_add_overflow(offset, *size, &end) ||
                 end > ctx->env.return_data_size)) {
             ctx->exit(StatusCode::Error);
@@ -177,8 +182,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void extcodehash(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *address_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *address_ptr)
     {
         auto address = address_from_uint256(*address_ptr);
 
@@ -196,8 +201,8 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     void extcodesize(
-        Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *address_ptr)
+        Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *address_ptr)
     {
         auto address = address_from_uint256(*address_ptr);
 

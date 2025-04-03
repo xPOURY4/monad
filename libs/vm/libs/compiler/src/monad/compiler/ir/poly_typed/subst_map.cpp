@@ -1,7 +1,7 @@
 #include <monad/compiler/ir/poly_typed/exceptions.hpp>
 #include <monad/compiler/ir/poly_typed/kind.hpp>
 #include <monad/compiler/ir/poly_typed/subst_map.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -49,7 +49,7 @@ namespace monad::compiler::poly_typed
 
     void SubstMap::link_literal_vars(VarName v1, VarName v2)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             !literal_map.contains(v1) && !literal_map.contains(v2));
 
         auto links1 = literal_links.find_or_default(v1);
@@ -72,7 +72,7 @@ namespace monad::compiler::poly_typed
                 continue;
             }
             __attribute__((unused)) bool const ins = literal_map.put(v, t);
-            MONAD_COMPILER_DEBUG_ASSERT(ins || t == LiteralType::Word);
+            MONAD_VM_DEBUG_ASSERT(ins || t == LiteralType::Word);
             auto lit = literal_links.find(v);
             if (lit != literal_links.end()) {
                 for (auto w : lit->second) {
@@ -109,7 +109,7 @@ namespace monad::compiler::poly_typed
 
     Kind SubstMap::subst(Kind kind, size_t depth, size_t &ticks)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         increment_kind_depth(depth, 1);
 

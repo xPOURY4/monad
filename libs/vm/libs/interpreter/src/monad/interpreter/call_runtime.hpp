@@ -11,7 +11,7 @@ namespace monad::interpreter
     [[gnu::always_inline]]
     inline void call_runtime(
         void (*f)(FnArgs...), runtime::Context &ctx,
-        utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
+        vm::utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
     {
         using namespace monad::runtime;
 

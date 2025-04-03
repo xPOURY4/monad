@@ -1,4 +1,4 @@
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <algorithm>
 #include <bit>
@@ -55,7 +55,7 @@ namespace monad::runtime
         constexpr explicit Bin(std::uint32_t x) noexcept
             : value_{x}
         {
-            MONAD_COMPILER_DEBUG_ASSERT(x < (1ULL << N));
+            MONAD_VM_DEBUG_ASSERT(x < (1ULL << N));
         }
 
         std::uint32_t value_;

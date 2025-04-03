@@ -1,4 +1,4 @@
-#include <monad/utils/load_program.hpp>
+#include <monad/vm/utils/load_program.hpp>
 
 #include <gtest/gtest.h>
 
@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-using namespace monad::utils;
+using namespace monad::vm::utils;
 
 void test_case(std::string const &in, std::vector<uint8_t> const &out)
 {

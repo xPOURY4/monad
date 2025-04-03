@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace monad::utils
+namespace monad::vm::utils
 {
 #ifdef MONAD_COMPILER_TESTING
     static auto const is_fuzzing_monad_compiler_env =

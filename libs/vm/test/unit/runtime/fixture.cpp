@@ -121,8 +121,8 @@ namespace monad::compiler::test
         };
     }
 
-    void
-    RuntimeTest::set_balance(utils::uint256_t addr, utils::uint256_t balance)
+    void RuntimeTest::set_balance(
+        vm::utils::uint256_t addr, vm::utils::uint256_t balance)
     {
         host_.accounts[address_from_uint256(addr)].balance =
             bytes32_from_uint256(balance);

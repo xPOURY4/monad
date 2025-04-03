@@ -2,7 +2,7 @@
 #include <monad/compiler/ir/poly_typed/kind.hpp>
 #include <monad/compiler/ir/poly_typed/subst_map.hpp>
 #include <monad/compiler/ir/poly_typed/unify.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -25,7 +25,7 @@ namespace
         SubstMap &su, VarName var, bool is_kind_var, Kind kind, size_t depth,
         size_t &ticks)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         increment_kind_depth(depth, 1);
         while (std::holds_alternative<KindVar>(*kind)) {
@@ -121,7 +121,7 @@ namespace
     std::optional<Kind> find_subst_kind(
         SubstMap &su, VarName var, Kind kind, size_t depth, size_t &ticks)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(!su.get_kind(var).has_value());
+        MONAD_VM_DEBUG_ASSERT(!su.get_kind(var).has_value());
         while (std::holds_alternative<KindVar>(*kind)) {
             auto new_k = su.get_kind(std::get<KindVar>(*kind).var);
             if (!new_k.has_value()) {
@@ -139,7 +139,7 @@ namespace
     std::optional<ContKind> find_subst_cont(
         SubstMap &su, VarName var, ContKind cont, size_t depth, size_t &ticks)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(!su.get_cont(var).has_value());
+        MONAD_VM_DEBUG_ASSERT(!su.get_cont(var).has_value());
         while (std::holds_alternative<ContVar>(cont->tail) &&
                cont->front.empty()) {
             ContVar const cv = std::get<ContVar>(cont->tail);
@@ -217,7 +217,7 @@ namespace
 
     void unify(SubstMap &su, Kind k1, Kind k2, size_t depth, size_t &ticks)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         increment_kind_depth(depth, 1);
         while (std::holds_alternative<KindVar>(*k1)) {
@@ -337,7 +337,7 @@ namespace
     void
     unify(SubstMap &su, ContKind c1, ContKind c2, size_t depth, size_t &ticks)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         increment_kind_depth(depth, 1);
 
@@ -425,7 +425,7 @@ namespace
     void unify_param_var(
         SubstMap &su, VarName param_var, VarName new_param_var, size_t &ticks)
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         Kind const param = kind_var(param_var);
         Kind const new_param = kind_var(new_param_var);
@@ -447,7 +447,7 @@ namespace
         std::visit(
             Cases{
                 [&](__attribute__((unused)) KindVar const &kv1) {
-                    MONAD_COMPILER_DEBUG_ASSERT(v == kv1.var);
+                    MONAD_VM_DEBUG_ASSERT(v == kv1.var);
                     su.insert_kind(v, new_k);
                 },
                 [&](Word const &) {
@@ -512,7 +512,7 @@ namespace
                 continue;
             }
             std::vector<VarName> const &new_param_vars = param_it->second;
-            MONAD_COMPILER_DEBUG_ASSERT(!new_param_vars.empty());
+            MONAD_VM_DEBUG_ASSERT(!new_param_vars.empty());
             increment_kind_ticks(ticks, new_param_vars.size());
             for (VarName const n : new_param_vars) {
                 unify_param_var(su, param_vars[stack_index], n, ticks);

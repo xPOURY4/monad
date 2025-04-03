@@ -3,7 +3,7 @@
 #include <monad/runtime/create.hpp>
 #include <monad/runtime/memory.hpp>
 #include <monad/runtime/transmute.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 
@@ -15,7 +15,7 @@ using namespace monad::compiler::test;
 
 using namespace intx;
 
-constexpr utils::uint256_t prog = 0x63FFFFFFFF6000526004601CF3_u256;
+constexpr vm::utils::uint256_t prog = 0x63FFFFFFFF6000526004601CF3_u256;
 constexpr evmc_address result_addr = {0x42};
 
 TEST_F(RuntimeTest, CreateFrontier)
@@ -29,7 +29,7 @@ TEST_F(RuntimeTest, CreateFrontier)
 
     auto do_create = wrap(create<rev>);
 
-    utils::uint256_t const addr = do_create(0, 19, 13);
+    vm::utils::uint256_t const addr = do_create(0, 19, 13);
 
     ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -48,7 +48,7 @@ TEST_F(RuntimeTest, CreateShanghai)
 
     auto do_create = wrap(create<rev>);
 
-    utils::uint256_t const addr = do_create(0, 19, 13);
+    vm::utils::uint256_t const addr = do_create(0, 19, 13);
 
     ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -67,7 +67,7 @@ TEST_F(RuntimeTest, CreateTangerineWhistle)
 
     auto do_create = wrap(create<rev>);
 
-    utils::uint256_t const addr = do_create(0, 19, 13);
+    vm::utils::uint256_t const addr = do_create(0, 19, 13);
 
     ASSERT_EQ(addr, uint256_from_address(result_addr));
 
@@ -84,7 +84,7 @@ TEST_F(RuntimeTest, CreateFrontierSizeIsZero)
 
     auto do_create = wrap(create<rev>);
 
-    utils::uint256_t const addr = do_create(0, 0, 0);
+    vm::utils::uint256_t const addr = do_create(0, 0, 0);
 
     ASSERT_EQ(addr, uint256_from_address(result_addr));
     ASSERT_EQ(ctx_.gas_remaining, 900000);
@@ -98,7 +98,7 @@ TEST_F(RuntimeTest, CreateFrontierFailure)
 
     auto do_create = wrap(create<rev>);
 
-    utils::uint256_t const addr = do_create(0, 0, 0);
+    vm::utils::uint256_t const addr = do_create(0, 0, 0);
 
     ASSERT_EQ(addr, 0);
 }
@@ -114,7 +114,7 @@ TEST_F(RuntimeTest, Create2Constantinople)
 
     auto do_create2 = wrap(create2<rev>);
 
-    utils::uint256_t const addr = do_create2(0, 19, 13, 0x99);
+    vm::utils::uint256_t const addr = do_create2(0, 19, 13, 0x99);
 
     ASSERT_EQ(addr, uint256_from_address(result_addr));
 

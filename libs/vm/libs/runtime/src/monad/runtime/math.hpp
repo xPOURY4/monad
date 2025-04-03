@@ -1,8 +1,8 @@
 #pragma once
 
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -19,12 +19,12 @@ extern "C" void monad_runtime_mul_192(
 namespace monad::runtime
 {
     constexpr void (*mul)(
-        utils::uint256_t *, utils::uint256_t const *,
-        utils::uint256_t const *) noexcept = monad_runtime_mul;
+        vm::utils::uint256_t *, vm::utils::uint256_t const *,
+        vm::utils::uint256_t const *) noexcept = monad_runtime_mul;
 
     constexpr void udiv(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -35,8 +35,8 @@ namespace monad::runtime
     }
 
     constexpr void sdiv(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -47,8 +47,8 @@ namespace monad::runtime
     }
 
     constexpr void umod(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -59,8 +59,8 @@ namespace monad::runtime
     }
 
     constexpr void smod(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr) noexcept
     {
         if (*b_ptr == 0) {
             *result_ptr = 0;
@@ -71,8 +71,9 @@ namespace monad::runtime
     }
 
     constexpr void addmod(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr,
+        vm::utils::uint256_t const *n_ptr) noexcept
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
@@ -83,8 +84,9 @@ namespace monad::runtime
     }
 
     constexpr void mulmod(
-        utils::uint256_t *result_ptr, utils::uint256_t const *a_ptr,
-        utils::uint256_t const *b_ptr, utils::uint256_t const *n_ptr) noexcept
+        vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *b_ptr,
+        vm::utils::uint256_t const *n_ptr) noexcept
     {
         if (*n_ptr == 0) {
             *result_ptr = 0;
@@ -96,9 +98,9 @@ namespace monad::runtime
 
     template <evmc_revision Rev>
     constexpr void
-    exp(Context *ctx, utils::uint256_t *result_ptr,
-        utils::uint256_t const *a_ptr,
-        utils::uint256_t const *exponent_ptr) noexcept
+    exp(Context *ctx, vm::utils::uint256_t *result_ptr,
+        vm::utils::uint256_t const *a_ptr,
+        vm::utils::uint256_t const *exponent_ptr) noexcept
     {
         auto exponent_byte_size = intx::count_significant_bytes(*exponent_ptr);
 
@@ -121,8 +123,8 @@ namespace monad::runtime
      * carry, so we need to replace it with our own implementation to ensure
      * that we get good codegen.
      */
-    [[gnu::always_inline]] inline utils::uint256_t
-    unrolled_add(utils::uint256_t const &a, utils::uint256_t const &b)
+    [[gnu::always_inline]] inline vm::utils::uint256_t
+    unrolled_add(vm::utils::uint256_t const &a, vm::utils::uint256_t const &b)
     {
         auto [s0, c0] = intx::addc(a[0], b[0], false);
         auto [s1, c1] = intx::addc(a[1], b[1], c0);

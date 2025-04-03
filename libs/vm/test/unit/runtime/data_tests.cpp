@@ -15,8 +15,8 @@ using namespace monad::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 
-constexpr auto addr = utils::uint256_t{678};
-constexpr auto wei = utils::uint256_t{782374};
+constexpr auto addr = vm::utils::uint256_t{678};
+constexpr auto wei = vm::utils::uint256_t{782374};
 
 TEST_F(RuntimeTest, BalanceHomestead)
 {

@@ -1,3 +1,14 @@
+#include <monad/evm/opcodes.hpp>
+#include <monad/vm/utils/cases.hpp>
+#include <monad/vm/utils/parser.hpp>
+#include <monad/vm/utils/uint256.hpp>
+
+#include <CLI/CLI.hpp>
+
+#include <evmc/evmc.h>
+
+#include <intx/intx.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -17,20 +28,10 @@
 #include <variant>
 #include <vector>
 
-#include <CLI/CLI.hpp>
-#include <evmc/evmc.h>
-#include <intx/intx.hpp>
-
-#include <monad/evm/opcodes.hpp>
-#include <monad/utils/cases.hpp>
-#include <monad/utils/parser.hpp>
-#include <monad/utils/uint256.hpp>
-
 using namespace monad::compiler;
 
-namespace monad::utils
+namespace monad::vm::utils
 {
-
     constexpr auto push_ops_with_arg = std::array{
         "PUSH", // generic push
         "PUSH1",  "PUSH2",  "PUSH3",  "PUSH4",  "PUSH5",  "PUSH6",  "PUSH7",
@@ -169,7 +170,7 @@ namespace monad::utils
         std::unordered_map<std::string, std::size_t> const &known_labels)
     {
         return std::visit(
-            monad::utils::Cases{
+            monad::vm::utils::Cases{
                 [&](uint256_t const &c) { return std::make_optional(c); },
                 [&](std::string const &lbl) {
                     auto search = known_labels.find(lbl);
@@ -285,7 +286,7 @@ namespace monad::utils
 
         for (auto const &tok : tokens) {
             std::visit(
-                monad::utils::Cases{
+                monad::vm::utils::Cases{
                     [&](OpName const &op) {
                         write_opcode(verbose, opcodes, op.opname);
                     },

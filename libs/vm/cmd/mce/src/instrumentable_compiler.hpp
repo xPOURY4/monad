@@ -2,7 +2,7 @@
 
 #include <monad/compiler/ir/basic_blocks.hpp>
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>

@@ -2,7 +2,7 @@
 
 #include <monad/compiler/ir/x86/types.hpp>
 #include <monad/interpreter/execute.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 #include <monad/vm/vm.hpp>
 
 #include <evmone/evmone.h>
@@ -108,7 +108,7 @@ BlockchainTestVM::BlockchainTestVM(
           .runtime_debug_trace = is_compiler_runtime_debug_trace_enabled(),
           .post_instruction_emit_hook = post_hook}
 {
-    MONAD_COMPILER_ASSERT(!debug_dir_ || fs::is_directory(debug_dir_));
+    MONAD_VM_ASSERT(!debug_dir_ || fs::is_directory(debug_dir_));
 }
 
 evmc_result BlockchainTestVM::execute(
@@ -125,7 +125,7 @@ evmc_result BlockchainTestVM::execute(
         return execute_compiler(host, context, rev, msg, code, code_size);
     }
     else {
-        MONAD_COMPILER_ASSERT(impl_ == Implementation::Interpreter);
+        MONAD_VM_ASSERT(impl_ == Implementation::Interpreter);
         return execute_interpreter(host, context, rev, msg, code, code_size);
     }
 }

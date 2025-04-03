@@ -2,7 +2,7 @@
 
 #include <monad/runtime/storage.hpp>
 #include <monad/runtime/transmute.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 
@@ -10,9 +10,9 @@ using namespace monad;
 using namespace monad::runtime;
 using namespace monad::compiler::test;
 
-constexpr utils::uint256_t key = 6732;
-constexpr utils::uint256_t val = 2389;
-constexpr utils::uint256_t val_2 = 90897;
+constexpr vm::utils::uint256_t key = 6732;
+constexpr vm::utils::uint256_t val = 2389;
+constexpr vm::utils::uint256_t val_2 = 90897;
 
 TEST_F(RuntimeTest, TransientStorage)
 {

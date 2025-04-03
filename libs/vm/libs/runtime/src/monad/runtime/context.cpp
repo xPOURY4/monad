@@ -1,8 +1,8 @@
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/cases.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/cases.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 
@@ -19,7 +19,7 @@ namespace monad::runtime
     {
         void release_result(evmc_result const *result)
         {
-            MONAD_COMPILER_DEBUG_ASSERT(result);
+            MONAD_VM_DEBUG_ASSERT(result);
             std::free(const_cast<std::uint8_t *>(result->output_data));
         }
     }
@@ -62,7 +62,7 @@ namespace monad::runtime
             return EVMC_OUT_OF_GAS;
         }
 
-        auto const size_word = std::bit_cast<utils::uint256_t>(result.size);
+        auto const size_word = std::bit_cast<vm::utils::uint256_t>(result.size);
         if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
                 size_word)) {
             return EVMC_OUT_OF_GAS;
@@ -74,7 +74,7 @@ namespace monad::runtime
             return std::span<std::uint8_t const>({});
         }
 
-        auto offset_word = std::bit_cast<utils::uint256_t>(result.offset);
+        auto offset_word = std::bit_cast<vm::utils::uint256_t>(result.offset);
         if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
                 offset_word)) {
             return EVMC_OUT_OF_GAS;
@@ -133,11 +133,11 @@ namespace monad::runtime
             return evmc_error_result(EVMC_FAILURE);
         }
 
-        MONAD_COMPILER_DEBUG_ASSERT(
+        MONAD_VM_DEBUG_ASSERT(
             result.status == Success || result.status == Revert);
 
         return std::visit(
-            utils::Cases{
+            vm::utils::Cases{
                 [](evmc_status_code ec) { return evmc_error_result(ec); },
                 [this](std::span<std::uint8_t const> output) {
                     return evmc_result{

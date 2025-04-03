@@ -3,8 +3,8 @@
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/types.hpp>
 #include <monad/evm/opcodes.hpp>
-#include <monad/utils/assert.h>
-#include <monad/utils/cases.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/cases.hpp>
 
 #include <evmc/evmc.h>
 
@@ -287,7 +287,7 @@ namespace monad::compiler::basic_blocks
          */
         void add_jump_dest()
         {
-            MONAD_COMPILER_DEBUG_ASSERT(blocks_.back().instrs.empty());
+            MONAD_VM_DEBUG_ASSERT(blocks_.back().instrs.empty());
             jump_dests_.emplace(curr_block_offset(), curr_block_id());
         }
 
@@ -349,7 +349,7 @@ namespace monad::compiler::basic_blocks
         auto imm_size = info.num_args;
         uint256_t imm_value{0};
         if (imm_size) {
-            imm_value = utils::from_bytes(
+            imm_value = vm::utils::from_bytes(
                 imm_size,
                 bytes.size() - current_offset,
                 &bytes[current_offset]);
@@ -372,7 +372,7 @@ namespace monad::compiler::basic_blocks
         std::span<std::uint8_t const> bytes, RevisionMarker<Rev>)
         : codesize(bytes.size())
     {
-        using monad::utils::Cases;
+        using monad::vm::utils::Cases;
 
         enum class St
         {
@@ -405,11 +405,11 @@ namespace monad::compiler::basic_blocks
                 }
             }
             else {
-                MONAD_COMPILER_ASSERT(st == St::INSIDE_BLOCK);
+                MONAD_VM_ASSERT(st == St::INSIDE_BLOCK);
 
                 auto handle_terminator = [&](Terminator t) {
                     using enum Terminator;
-                    MONAD_COMPILER_ASSERT(t != FallThrough);
+                    MONAD_VM_ASSERT(t != FallThrough);
 
                     if (t == JumpI) {
                         add_fallthrough_terminator(JumpI);

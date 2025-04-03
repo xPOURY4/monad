@@ -1,4 +1,4 @@
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <test_resource_data.h>
 
@@ -110,13 +110,13 @@ namespace
 
     auto load_benchmark(fs::path const &path)
     {
-        MONAD_COMPILER_DEBUG_ASSERT(fs::is_directory(path));
+        MONAD_VM_DEBUG_ASSERT(fs::is_directory(path));
 
         auto const contract_path = path / "contract";
-        MONAD_COMPILER_DEBUG_ASSERT(fs::is_regular_file(contract_path));
+        MONAD_VM_DEBUG_ASSERT(fs::is_regular_file(contract_path));
 
         auto const calldata_path = path / "calldata";
-        MONAD_COMPILER_DEBUG_ASSERT(fs::is_regular_file(calldata_path));
+        MONAD_VM_DEBUG_ASSERT(fs::is_regular_file(calldata_path));
 
         return make_benchmark(
             path.stem().string(),
@@ -151,7 +151,7 @@ namespace
             auto const result = evmc::Result{vm_ptr->execute(
                 interface, ctx, EVMC_CANCUN, &msg, code, code_size)};
 
-            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
+            MONAD_VM_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
     }
 
@@ -165,7 +165,7 @@ namespace
 
         auto intra_state = test_state.to_intra_state();
         auto const *const code_acc = intra_state.find(msg.code_address);
-        MONAD_COMPILER_DEBUG_ASSERT(code_acc != nullptr);
+        MONAD_VM_DEBUG_ASSERT(code_acc != nullptr);
         auto const code = evmc::bytes_view{code_acc->code};
 
         for (auto _ : state) {
@@ -180,7 +180,7 @@ namespace
             auto const result = evmc::Result{vm_ptr->execute(
                 interface, ctx, EVMC_CANCUN, &msg, code.data(), code.size())};
 
-            MONAD_COMPILER_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
+            MONAD_VM_DEBUG_ASSERT(result.status_code == EVMC_SUCCESS);
         }
     }
 

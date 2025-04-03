@@ -3,7 +3,7 @@
 
 extern char const *__progname;
 
-void __attribute__((noreturn)) monad_compiler_assertion_failed(
+void __attribute__((noreturn)) monad_vm_assertion_failed(
     char const *expr, char const *function, char const *file, long line)
 {
     fprintf(

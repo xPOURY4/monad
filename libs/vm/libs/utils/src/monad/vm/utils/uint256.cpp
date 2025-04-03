@@ -1,5 +1,5 @@
-#include <monad/utils/assert.h>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
 
@@ -10,7 +10,7 @@
 #include <cstring>
 #include <limits>
 
-namespace monad::utils
+namespace monad::vm::utils
 {
     uint256_t signextend(uint256_t const &byte_index_256, uint256_t const &x)
     {
@@ -90,7 +90,7 @@ namespace monad::utils
     uint256_t
     from_bytes(std::size_t n, std::size_t remaining, uint8_t const *src)
     {
-        MONAD_COMPILER_ASSERT(n <= 32);
+        MONAD_VM_ASSERT(n <= 32);
 
         if (n == 0) {
             return 0;

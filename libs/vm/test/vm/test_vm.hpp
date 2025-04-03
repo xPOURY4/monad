@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/compiler/ir/x86.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 #include <monad/vm/vm.hpp>
 
 #include <evmc/evmc.hpp>

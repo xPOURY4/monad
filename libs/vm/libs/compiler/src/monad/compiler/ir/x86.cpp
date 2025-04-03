@@ -4,7 +4,7 @@
 #include <monad/compiler/ir/x86/emitter.hpp>
 #include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 
 #include <evmc/evmc.h>
 
@@ -263,7 +263,7 @@ namespace
                 emit.log4<rev>(remaining_base_gas);
                 break;
             default:
-                MONAD_COMPILER_ASSERT(false);
+                MONAD_VM_ASSERT(false);
             }
             break;
         case Create:
@@ -305,10 +305,10 @@ namespace
         Emitter &emit, Block const &block, int32_t instr_gas,
         CompilerConfig const &config)
     {
-        MONAD_COMPILER_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
+        MONAD_VM_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
         int32_t remaining_base_gas = instr_gas;
         for (auto const &instr : block.instrs) {
-            MONAD_COMPILER_DEBUG_ASSERT(
+            MONAD_VM_DEBUG_ASSERT(
                 remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -= instr.static_gas_cost();
             emit_instr<rev>(emit, instr, remaining_base_gas);
@@ -329,8 +329,7 @@ namespace
             emit.fallthrough();
             break;
         case JumpI:
-            MONAD_COMPILER_DEBUG_ASSERT(
-                block.fallthrough_dest != INVALID_BLOCK_ID);
+            MONAD_VM_DEBUG_ASSERT(block.fallthrough_dest != INVALID_BLOCK_ID);
             emit.jumpi(ir.blocks()[block.fallthrough_dest].offset);
             break;
         case Jump:

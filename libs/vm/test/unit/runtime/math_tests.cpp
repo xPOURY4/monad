@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <monad/runtime/math.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
 
@@ -42,11 +42,12 @@ TEST_F(RuntimeTest, Mul)
 
 TEST_F(RuntimeTest, Mul_192)
 {
-    utils::uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
-    utils::uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
-    utils::uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
-    utils::uint256_t bit64{static_cast<uint64_t>(1) << 63};
-    std::vector<std::pair<utils::uint256_t, utils::uint256_t>> const inputs{
+    vm::utils::uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    vm::utils::uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
+    vm::utils::uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
+    vm::utils::uint256_t bit64{static_cast<uint64_t>(1) << 63};
+    std::vector<
+        std::pair<vm::utils::uint256_t, vm::utils::uint256_t>> const inputs{
         {0, 0},
         {0, bit256},
         {0, bit192},
@@ -85,9 +86,9 @@ TEST_F(RuntimeTest, Mul_192)
          2}};
 
     for (auto const &[a, b] : inputs) {
-        utils::uint256_t result;
+        vm::utils::uint256_t result;
         monad_runtime_mul_192(&result, &a, &b);
-        ASSERT_EQ(result, ::intx::mulmod(a, b, utils::uint256_t{1} << 192));
+        ASSERT_EQ(result, ::intx::mulmod(a, b, vm::utils::uint256_t{1} << 192));
     }
 }
 
@@ -105,7 +106,7 @@ TEST_F(RuntimeTest, UDiv)
 
 TEST_F(RuntimeTest, SDiv)
 {
-    constexpr auto neg = [](auto n) { return -utils::uint256_t{n}; };
+    constexpr auto neg = [](auto n) { return -vm::utils::uint256_t{n}; };
 
     auto f = wrap(sdiv);
 

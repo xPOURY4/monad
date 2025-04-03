@@ -2,13 +2,13 @@
 
 #include <monad/runtime/transmute.hpp>
 #include <monad/runtime/types.hpp>
-#include <monad/utils/uint256.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 namespace monad::runtime
 {
     inline void log_impl(
-        Context *ctx, utils::uint256_t const &offset_word,
-        utils::uint256_t const &size_word,
+        Context *ctx, vm::utils::uint256_t const &offset_word,
+        vm::utils::uint256_t const &size_word,
         std::span<evmc::bytes32 const> topics)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
@@ -34,15 +34,16 @@ namespace monad::runtime
     }
 
     inline void log0(
-        Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t const *size_ptr)
+        Context *ctx, vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr)
     {
         log_impl(ctx, *offset_ptr, *size_ptr, {});
     }
 
     inline void log1(
-        Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr)
+        Context *ctx, vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr,
+        vm::utils::uint256_t const *topic1_ptr)
     {
         log_impl(
             ctx,
@@ -54,9 +55,10 @@ namespace monad::runtime
     }
 
     inline void log2(
-        Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
-        utils::uint256_t const *topic2_ptr)
+        Context *ctx, vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr,
+        vm::utils::uint256_t const *topic1_ptr,
+        vm::utils::uint256_t const *topic2_ptr)
     {
         log_impl(
             ctx,
@@ -69,9 +71,11 @@ namespace monad::runtime
     }
 
     inline void log3(
-        Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
-        utils::uint256_t const *topic2_ptr, utils::uint256_t const *topic3_ptr)
+        Context *ctx, vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr,
+        vm::utils::uint256_t const *topic1_ptr,
+        vm::utils::uint256_t const *topic2_ptr,
+        vm::utils::uint256_t const *topic3_ptr)
     {
         log_impl(
             ctx,
@@ -85,10 +89,12 @@ namespace monad::runtime
     }
 
     inline void log4(
-        Context *ctx, utils::uint256_t const *offset_ptr,
-        utils::uint256_t const *size_ptr, utils::uint256_t const *topic1_ptr,
-        utils::uint256_t const *topic2_ptr, utils::uint256_t const *topic3_ptr,
-        utils::uint256_t const *topic4_ptr)
+        Context *ctx, vm::utils::uint256_t const *offset_ptr,
+        vm::utils::uint256_t const *size_ptr,
+        vm::utils::uint256_t const *topic1_ptr,
+        vm::utils::uint256_t const *topic2_ptr,
+        vm::utils::uint256_t const *topic3_ptr,
+        vm::utils::uint256_t const *topic4_ptr)
     {
         log_impl(
             ctx,

@@ -2,7 +2,7 @@
 
 #include <monad/compiler/types.hpp>
 #include <monad/interpreter/execute.hpp>
-#include <monad/utils/assert.h>
+#include <monad/vm/core/assert.h>
 #include <monad/vm/evmone/baseline_execute.hpp>
 #include <monad/vm/evmone/code_analysis.hpp>
 
@@ -60,7 +60,7 @@ namespace monad::compiler::test
                 &host_.get_interface(), host_.to_context(), rev_, &msg_, code)};
         }
         else {
-            MONAD_COMPILER_ASSERT(impl == Evmone);
+            MONAD_VM_ASSERT(impl == Evmone);
 
             result_ = monad::baseline_execute(
                 msg_, rev_, &host_, monad::analyze(evmc::bytes_view(code)));
