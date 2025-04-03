@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/runtime/bin.hpp>
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/bin.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 
 #include <monad/vm/core/assert.h>
 #include <monad/vm/utils/uint256.hpp>
@@ -11,7 +11,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     enum class StatusCode : uint64_t
     {

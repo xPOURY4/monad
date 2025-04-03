@@ -1,10 +1,10 @@
 #pragma once
 
-#include <monad/runtime/transmute.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     inline void log_impl(
         Context *ctx, vm::utils::uint256_t const &offset_word,

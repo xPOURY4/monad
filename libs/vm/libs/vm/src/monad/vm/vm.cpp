@@ -1,7 +1,7 @@
 #include <monad/compiler/ir/x86.hpp>
 #include <monad/compiler/ir/x86/types.hpp>
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 #include <monad/vm/vm.hpp>
 
@@ -34,7 +34,7 @@ namespace monad::compiler
             msg->input_size <= std::numeric_limits<std::uint32_t>::max());
 
         auto ctx =
-            runtime::Context::from(host, context, msg, {code, code_size});
+            vm::runtime::Context::from(host, context, msg, {code, code_size});
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
             std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));
@@ -57,7 +57,7 @@ namespace monad::compiler
             return r;
         }
 
-        return runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
+        return vm::runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
     }
 
     void VM::release(native::entrypoint_t f)

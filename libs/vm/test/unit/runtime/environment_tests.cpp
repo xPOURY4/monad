@@ -1,12 +1,12 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/environment.hpp>
+#include <monad/vm/runtime/environment.hpp>
 
 #include <evmc/evmc.hpp>
 
 #include <intx/intx.hpp>
 
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 

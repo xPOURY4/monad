@@ -1,8 +1,8 @@
 #pragma once
 
-#include <monad/evm/opcodes.hpp>
 #include <monad/interpreter/state.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 
@@ -22,7 +22,7 @@ namespace monad::interpreter
      */
     template <evmc_revision Rev>
     void trace(
-        std::uint8_t const instr, runtime::Context const &ctx,
+        std::uint8_t const instr, vm::runtime::Context const &ctx,
         State const &state, vm::utils::uint256_t const *stack_bottom,
         vm::utils::uint256_t const *stack_top, std::uint64_t gas_remaining)
     {

@@ -39,7 +39,7 @@ target_link_libraries(unit-tests
     monad-compiler-vm
     monad-fuzzing
     monad-interpreter
-    utils
+    monad-vm::monad-vm-utils
     GTest::gtest_main
     evmc::mocked_host
 )

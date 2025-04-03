@@ -1,11 +1,11 @@
-#include <monad/evm/opcodes_xmacro.hpp>
 #include <monad/interpreter/debug.hpp>
 #include <monad/interpreter/execute.hpp>
 #include <monad/interpreter/instruction_table.hpp>
 #include <monad/interpreter/intercode.hpp>
 #include <monad/interpreter/state.hpp>
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/evm/opcodes_xmacro.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
@@ -24,11 +24,11 @@
  * expected registers when jumping to the core loop).
  */
 extern "C" void interpreter_runtime_trampoline(
-    void *, evmc_revision, monad::runtime::Context *,
+    void *, evmc_revision, monad::vm::runtime::Context *,
     monad::interpreter::State *, monad::vm::utils::uint256_t *);
 
 extern "C" void interpreter_core_loop(
-    void *, evmc_revision, monad::runtime::Context *,
+    void *, evmc_revision, monad::vm::runtime::Context *,
     monad::interpreter::State *, monad::vm::utils::uint256_t *);
 
 namespace monad::interpreter
@@ -37,7 +37,7 @@ namespace monad::interpreter
     {
         template <evmc_revision Rev>
         void core_loop_impl(
-            runtime::Context &ctx, State &state,
+            vm::runtime::Context &ctx, State &state,
             vm::utils::uint256_t *stack_ptr)
         {
             static constexpr auto dispatch_table = std::array{
@@ -91,7 +91,7 @@ namespace monad::interpreter
         evmc_revision rev, evmc_message const *msg,
         std::span<uint8_t const> code)
     {
-        auto ctx = runtime::Context::from(host, context, msg, code);
+        auto ctx = vm::runtime::Context::from(host, context, msg, code);
 
         auto const stack_ptr = allocate_stack();
         auto const analysis = Intercode(code);
@@ -109,7 +109,7 @@ namespace monad::interpreter
 }
 
 extern "C" void interpreter_core_loop(
-    void *, evmc_revision rev, monad::runtime::Context *ctx,
+    void *, evmc_revision rev, monad::vm::runtime::Context *ctx,
     monad::interpreter::State *state, monad::vm::utils::uint256_t *stack_ptr)
 {
     using namespace monad::interpreter;

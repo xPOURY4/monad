@@ -1,6 +1,6 @@
-#include <monad/runtime/transmute.hpp>
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/cases.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -13,7 +13,7 @@
 #include <span>
 #include <variant>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     namespace
     {
@@ -63,8 +63,8 @@ namespace monad::runtime
         }
 
         auto const size_word = std::bit_cast<vm::utils::uint256_t>(result.size);
-        if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
-                size_word)) {
+        if (!runtime::is_bounded_by_bits<
+                monad::vm::runtime::Memory::offset_bits>(size_word)) {
             return EVMC_OUT_OF_GAS;
         }
 
@@ -75,8 +75,8 @@ namespace monad::runtime
         }
 
         auto offset_word = std::bit_cast<vm::utils::uint256_t>(result.offset);
-        if (!runtime::is_bounded_by_bits<monad::runtime::Memory::offset_bits>(
-                offset_word)) {
+        if (!runtime::is_bounded_by_bits<
+                monad::vm::runtime::Memory::offset_bits>(offset_word)) {
             return EVMC_OUT_OF_GAS;
         }
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <monad/evm/opcodes.hpp>
 #include <monad/interpreter/instructions.hpp>
 #include <monad/interpreter/state.hpp>
 #include <monad/interpreter/types.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 

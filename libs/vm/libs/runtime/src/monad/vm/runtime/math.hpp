@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
@@ -16,7 +16,7 @@ extern "C" void monad_runtime_mul_192(
     ::intx::uint256 *, ::intx::uint256 const *,
     ::intx::uint256 const *) noexcept;
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     constexpr void (*mul)(
         vm::utils::uint256_t *, vm::utils::uint256_t const *,

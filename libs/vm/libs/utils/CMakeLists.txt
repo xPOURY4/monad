@@ -1,8 +1,8 @@
 enable_language(C)
 
-add_library(utils STATIC)
+add_library(monad-vm-utils STATIC)
 
-target_sources(utils PRIVATE
+target_sources(monad-vm-utils PRIVATE
     "src/monad/vm/utils/cases.hpp"
     "src/monad/vm/utils/debug.cpp"
     "src/monad/vm/utils/debug.hpp"
@@ -14,14 +14,16 @@ target_sources(utils PRIVATE
     "src/monad/vm/utils/parser.hpp"
 )
 
-monad_compile_options(utils)
+monad_compile_options(monad-vm-utils)
 
-target_include_directories(utils
+target_include_directories(monad-vm-utils
     PUBLIC src/
 )
 
-target_link_libraries(utils
+target_link_libraries(monad-vm-utils
     PUBLIC intx::intx
-    PUBLIC monad-evm
+    PUBLIC monad-vm::monad-vm-evm
     PUBLIC monad-vm::monad-vm-core
 )
+
+add_library(monad-vm::monad-vm-utils ALIAS monad-vm-utils)

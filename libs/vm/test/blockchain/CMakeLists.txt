@@ -13,7 +13,7 @@ monad_compile_options(compiler-blockchain-tests)
 
 target_link_libraries(compiler-blockchain-tests
     blockchain-test-vm
-    utils
+    monad-vm::monad-vm-utils
     monad-compiler
     monad-compiler-vm
     evmone-blockchaintest-lib)
@@ -33,7 +33,7 @@ monad_compile_options(interpreter-blockchain-tests)
 
 target_link_libraries(interpreter-blockchain-tests
     blockchain-test-vm
-    utils
+    monad-vm::monad-vm-utils
     monad-interpreter
     evmone-blockchaintest-lib)
 

@@ -17,7 +17,7 @@ target_include_directories(mce
 target_link_libraries(mce
   PRIVATE evmone
   PRIVATE evmone::state
-  PRIVATE utils
+  PRIVATE monad-vm::monad-vm-utils
   PRIVATE monad-compiler
   PRIVATE monad-compiler-vm
   PRIVATE CLI11::CLI11

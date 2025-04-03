@@ -19,7 +19,7 @@ target_link_libraries(monad-compiler-vm
     PUBLIC intx::intx
     PUBLIC evmc::evmc
     PUBLIC asmjit::asmjit
-    PUBLIC runtime
-    PUBLIC utils
+    PUBLIC monad-vm::monad-vm-runtime
+    PUBLIC monad-vm::monad-vm-utils
     PUBLIC monad-compiler
 )

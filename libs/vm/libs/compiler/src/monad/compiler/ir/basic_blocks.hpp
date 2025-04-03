@@ -2,8 +2,8 @@
 
 #include <monad/compiler/ir/instruction.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/evm/opcodes.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/utils/cases.hpp>
 
 #include <evmc/evmc.h>

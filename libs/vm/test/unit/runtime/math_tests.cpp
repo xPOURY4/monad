@@ -1,7 +1,7 @@
 #include "fixture.hpp"
 
 #include <cstdint>
-#include <monad/runtime/math.hpp>
+#include <monad/vm/runtime/math.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
@@ -13,7 +13,7 @@
 #include <vector>
 
 using namespace monad;
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 

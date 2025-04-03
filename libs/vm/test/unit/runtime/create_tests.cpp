@@ -1,8 +1,8 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/create.hpp>
-#include <monad/runtime/memory.hpp>
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/create.hpp>
+#include <monad/vm/runtime/memory.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
@@ -10,7 +10,7 @@
 #include <intx/intx.hpp>
 
 using namespace monad;
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 
 using namespace intx;

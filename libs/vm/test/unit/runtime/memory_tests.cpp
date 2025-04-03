@@ -1,13 +1,13 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/memory.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/memory.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <intx/intx.hpp>
 
 #include <algorithm>
 
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 

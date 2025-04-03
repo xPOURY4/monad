@@ -78,7 +78,8 @@ public:
         std::vector<uint8_t> empty_code{};
         auto code_span = std::span<uint8_t const>{empty_code.data(), 0};
 
-        auto ctx = runtime::Context::from(interface, context, msg, code_span);
+        auto ctx =
+            vm::runtime::Context::from(interface, context, msg, code_span);
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
             std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));

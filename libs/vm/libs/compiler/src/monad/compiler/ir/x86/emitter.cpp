@@ -3,10 +3,10 @@
 #include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/runtime/math.hpp>
-#include <monad/runtime/transmute.hpp>
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/math.hpp>
+#include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -41,7 +41,7 @@
 #include <variant>
 #include <vector>
 
-namespace runtime = monad::runtime;
+namespace runtime = monad::vm::runtime;
 namespace x86 = asmjit::x86;
 
 using monad::vm::utils::Cases;
@@ -198,7 +198,8 @@ namespace
         auto const magic = monad::vm::utils::uint256_t{0xdeb009};
         auto const base = (magic + base_offset) * 1024;
         if (offset == 0) {
-            auto const base_key = monad::runtime::bytes32_from_uint256(base);
+            auto const base_key =
+                monad::vm::runtime::bytes32_from_uint256(base);
             auto const base_value = ctx->host->get_transient_storage(
                 ctx->context, &ctx->env.recipient, &base_key);
             if (base_value != evmc::bytes32{}) {
@@ -210,12 +211,12 @@ namespace
         }
         for (uint64_t i = 0; i < stack_size; ++i) {
             auto const key =
-                monad::runtime::bytes32_from_uint256(base + i + offset);
+                monad::vm::runtime::bytes32_from_uint256(base + i + offset);
             auto const &x = stack[-i - 1];
             // Make sure we do not store zero, because incorrect non-zero is
             // more likely to be noticed, due to zero being the default:
             auto const s = x < magic ? x + 1 : x;
-            auto const value = monad::runtime::bytes32_from_uint256(s);
+            auto const value = monad::vm::runtime::bytes32_from_uint256(s);
             ctx->host->set_transient_storage(
                 ctx->context, &ctx->env.recipient, &key, &value);
         }
@@ -6172,7 +6173,7 @@ namespace monad::compiler::native
         else {
             call_runtime_mul(
                 Runtime<uint256_t *, uint256_t const *, uint256_t const *>(
-                    this, false, monad::runtime::mul));
+                    this, false, monad::vm::runtime::mul));
         }
 
         MONAD_VM_DEBUG_ASSERT(stack_.top()->stack_offset().has_value());

@@ -1,8 +1,8 @@
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 extern "C" void monad_runtime_exit [[noreturn]] (void *);
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     void Context::exit [[noreturn]] (StatusCode code) noexcept
     {

@@ -1,7 +1,7 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/call.hpp>
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/call.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 
 #include <evmc/evmc.h>
 
@@ -10,14 +10,14 @@
 #include <cstdint>
 #include <limits>
 
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 
 TEST_F(RuntimeTest, CallBasic)
 {
     constexpr auto rev = EVMC_CANCUN;
-    auto do_call = wrap(monad::runtime::call<rev>);
+    auto do_call = wrap(monad::vm::runtime::call<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = success_result(2000);
@@ -36,7 +36,7 @@ TEST_F(RuntimeTest, CallBasic)
 TEST_F(RuntimeTest, CallWithValueCold)
 {
     constexpr auto rev = EVMC_CANCUN;
-    auto do_call = wrap(monad::runtime::call<rev>);
+    auto do_call = wrap(monad::vm::runtime::call<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = success_result(2000);
@@ -51,7 +51,7 @@ TEST_F(RuntimeTest, CallWithValueCold)
 TEST_F(RuntimeTest, CallGasLimit)
 {
     constexpr auto rev = EVMC_CANCUN;
-    auto do_call = wrap(monad::runtime::call<rev>);
+    auto do_call = wrap(monad::vm::runtime::call<rev>);
 
     ctx_.gas_remaining = 66500;
     host_.call_result = success_result(2000);
@@ -67,7 +67,7 @@ TEST_F(RuntimeTest, CallGasLimit)
 TEST_F(RuntimeTest, CallFailure)
 {
     constexpr auto rev = EVMC_CANCUN;
-    auto do_call = wrap(monad::runtime::call<rev>);
+    auto do_call = wrap(monad::vm::runtime::call<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = failure_result();
@@ -81,7 +81,7 @@ TEST_F(RuntimeTest, CallFailure)
 TEST_F(RuntimeTest, DelegateCallIstanbul)
 {
     constexpr auto rev = EVMC_ISTANBUL;
-    auto do_call = wrap(monad::runtime::delegatecall<rev>);
+    auto do_call = wrap(monad::vm::runtime::delegatecall<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = success_result(2000);
@@ -95,7 +95,7 @@ TEST_F(RuntimeTest, DelegateCallIstanbul)
 TEST_F(RuntimeTest, CallCodeHomestead)
 {
     constexpr auto rev = EVMC_HOMESTEAD;
-    auto do_call = wrap(monad::runtime::callcode<rev>);
+    auto do_call = wrap(monad::vm::runtime::callcode<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = success_result(2000);
@@ -109,7 +109,7 @@ TEST_F(RuntimeTest, CallCodeHomestead)
 TEST_F(RuntimeTest, StaticCallByzantium)
 {
     constexpr auto rev = EVMC_BYZANTIUM;
-    auto do_call = wrap(monad::runtime::staticcall<rev>);
+    auto do_call = wrap(monad::vm::runtime::staticcall<rev>);
 
     ctx_.gas_remaining = 100000;
     host_.call_result = success_result(2000);
@@ -123,7 +123,7 @@ TEST_F(RuntimeTest, StaticCallByzantium)
 TEST_F(RuntimeTest, CallTooDeep)
 {
     constexpr auto rev = EVMC_CANCUN;
-    auto do_call = wrap(monad::runtime::call<rev>);
+    auto do_call = wrap(monad::vm::runtime::call<rev>);
 
     ctx_.env.depth = 1024;
     ctx_.gas_remaining = 100000;

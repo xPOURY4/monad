@@ -3,7 +3,7 @@
 #include <monad/compiler/ir/poly_typed/block.hpp>
 #include <monad/compiler/ir/poly_typed/infer.hpp>
 #include <monad/compiler/ir/poly_typed/kind.hpp>
-#include <monad/evm/opcodes.hpp>
+#include <monad/vm/evm/opcodes.hpp>
 
 #include <gtest/gtest.h>
 

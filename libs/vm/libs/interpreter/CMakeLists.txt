@@ -31,9 +31,9 @@ target_include_directories(monad-interpreter
 target_link_libraries(monad-interpreter
     PUBLIC intx::intx
     PUBLIC evmc::evmc
-    PUBLIC monad-evm
-    PUBLIC runtime
-    PUBLIC utils
+    PUBLIC monad-vm::monad-vm-evm
+    PUBLIC monad-vm::monad-vm-runtime
+    PUBLIC monad-vm::monad-vm-utils
 )
 
 add_library(Monad::MonadInterpreter ALIAS monad-interpreter)

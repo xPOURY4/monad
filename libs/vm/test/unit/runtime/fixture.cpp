@@ -1,6 +1,6 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
@@ -14,7 +14,7 @@
 #include <numeric>
 #include <string_view>
 
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 
 using namespace intx;
 

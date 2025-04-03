@@ -1,11 +1,11 @@
 #pragma once
 
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <cstddef>
 #include <tuple>
 
-namespace monad::runtime::detail
+namespace monad::vm::runtime::detail
 {
     template <typename T>
     struct is_const_pointer : std::false_type

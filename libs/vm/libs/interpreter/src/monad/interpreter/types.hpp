@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/interpreter/state.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <array>
@@ -24,7 +24,7 @@ namespace monad::interpreter
     static_assert(sizeof(OpcodeResult) == 16);
 
     using InstrEval = OpcodeResult (*)(
-        runtime::Context &, State &, vm::utils::uint256_t const *,
+        vm::runtime::Context &, State &, vm::utils::uint256_t const *,
         vm::utils::uint256_t *, std::int64_t);
 
     using InstrTable = std::array<InstrEval, 256>;

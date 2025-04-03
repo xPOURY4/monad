@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/runtime/detail.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/detail.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <gtest/gtest.h>
@@ -11,7 +11,7 @@
 
 #include <limits>
 
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace evmc::literals;
 
 namespace monad::compiler::test
@@ -24,7 +24,7 @@ namespace monad::compiler::test
         evmc::MockedHost host_;
 
         std::array<evmc_bytes32, 2> blob_hashes_;
-        runtime::Context ctx_;
+        vm::runtime::Context ctx_;
 
         evmc_result
         success_result(std::int64_t gas_left, std::int64_t gas_refund = 0);

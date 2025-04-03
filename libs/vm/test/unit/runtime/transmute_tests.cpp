@@ -1,6 +1,6 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
@@ -11,7 +11,7 @@
 #include <cstdint>
 
 using namespace monad;
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 
 namespace

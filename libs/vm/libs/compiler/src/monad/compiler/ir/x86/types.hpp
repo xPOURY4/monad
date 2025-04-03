@@ -1,12 +1,12 @@
 #pragma once
 
-#include <monad/runtime/runtime.hpp>
+#include <monad/vm/runtime/runtime.hpp>
 
 #include <functional>
 
 namespace monad::compiler::native
 {
-    using entrypoint_t = void (*)(runtime::Context *, uint8_t *);
+    using entrypoint_t = void (*)(vm::runtime::Context *, uint8_t *);
 
     class Emitter;
 

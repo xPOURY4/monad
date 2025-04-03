@@ -47,9 +47,9 @@ target_link_libraries(monad-compiler
     PUBLIC asmjit::asmjit
     PUBLIC evmc::evmc
     PUBLIC evmone
-    PUBLIC monad-evm
-    PUBLIC runtime
-    PUBLIC utils
+    PUBLIC monad-vm::monad-vm-evm
+    PUBLIC monad-vm::monad-vm-runtime
+    PUBLIC monad-vm::monad-vm-utils
 )
 
 add_library(Monad::MonadCompiler ALIAS monad-compiler)

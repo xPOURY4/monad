@@ -6,7 +6,7 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     static_assert(sizeof(evmc_address) == 20);
     static_assert(sizeof(evmc_bytes32) == 32);

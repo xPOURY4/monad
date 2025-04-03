@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/interpreter/intercode.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <cstdint>

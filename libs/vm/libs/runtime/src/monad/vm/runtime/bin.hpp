@@ -4,7 +4,7 @@
 #include <bit>
 #include <cstdint>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     /// Binary `N`-bit integer type with underlying type `std::uint32_t`
     template <std::size_t N>

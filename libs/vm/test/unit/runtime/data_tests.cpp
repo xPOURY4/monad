@@ -1,7 +1,7 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/data.hpp>
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/data.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 
 #include <evmc/evmc.h>
 
@@ -11,7 +11,7 @@
 #include <limits>
 
 using namespace monad;
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 using namespace intx;
 

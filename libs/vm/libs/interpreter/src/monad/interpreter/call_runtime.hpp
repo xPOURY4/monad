@@ -2,18 +2,18 @@
 
 #include <monad/interpreter/state.hpp>
 #include <monad/interpreter/types.hpp>
-#include <monad/runtime/detail.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/detail.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 namespace monad::interpreter
 {
     template <typename... FnArgs>
     [[gnu::always_inline]]
     inline void call_runtime(
-        void (*f)(FnArgs...), runtime::Context &ctx,
+        void (*f)(FnArgs...), vm::runtime::Context &ctx,
         vm::utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
     {
-        using namespace monad::runtime;
+        using namespace monad::vm::runtime;
 
         constexpr auto use_context = detail::uses_context_v<FnArgs...>;
         constexpr auto use_result = detail::uses_result_v<FnArgs...>;

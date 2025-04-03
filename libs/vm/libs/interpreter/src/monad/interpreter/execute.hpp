@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/runtime/types.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>

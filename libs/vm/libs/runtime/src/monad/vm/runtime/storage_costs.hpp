@@ -1,13 +1,13 @@
 #pragma once
 
-#include <monad/evm/opcodes.hpp>
+#include <monad/vm/evm/opcodes.hpp>
 
 #include <evmc/evmc.hpp>
 
 #include <array>
 #include <cstdint>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     struct StoreCost
     {

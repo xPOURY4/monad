@@ -3,9 +3,9 @@
 #include <monad/compiler/ir/x86/types.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/compiler/types.hpp>
-#include <monad/evm/opcodes.hpp>
-#include <monad/runtime/math.hpp>
-#include <monad/runtime/types.hpp>
+#include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/runtime/math.hpp>
+#include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
@@ -27,7 +27,7 @@
 #include <utility>
 #include <vector>
 
-namespace runtime = monad::runtime;
+namespace runtime = monad::vm::runtime;
 using namespace monad::compiler;
 using namespace monad::compiler::native;
 using namespace intx;

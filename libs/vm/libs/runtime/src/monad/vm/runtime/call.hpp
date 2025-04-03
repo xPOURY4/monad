@@ -1,10 +1,10 @@
 #pragma once
 
-#include <monad/runtime/transmute.hpp>
-#include <monad/runtime/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/types.hpp>
 
-namespace monad::runtime
+namespace monad::vm::runtime
 {
     template <evmc_revision Rev>
     vm::utils::uint256_t call_impl(

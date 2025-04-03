@@ -10,7 +10,7 @@ target_include_directories(parser-tool
 target_link_libraries(parser-tool
   PRIVATE evmc::evmc
   PRIVATE evmone
-  PRIVATE utils
+  PRIVATE monad-vm::monad-vm-utils
   PRIVATE monad-compiler
   PRIVATE CLI11::CLI11
 )

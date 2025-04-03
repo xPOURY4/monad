@@ -2,7 +2,7 @@
 #include <monad/compiler/ir/local_stacks.hpp>
 #include <monad/compiler/ir/poly_typed.hpp>
 #include <monad/compiler/ir/poly_typed/kind.hpp>
-#include <monad/evm/opcodes.hpp>
+#include <monad/vm/evm/opcodes.hpp>
 
 #include <gtest/gtest.h>
 

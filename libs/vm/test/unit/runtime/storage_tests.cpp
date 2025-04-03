@@ -1,13 +1,13 @@
 #include "fixture.hpp"
 
-#include <monad/runtime/storage.hpp>
-#include <monad/runtime/transmute.hpp>
+#include <monad/vm/runtime/storage.hpp>
+#include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 
 using namespace monad;
-using namespace monad::runtime;
+using namespace monad::vm::runtime;
 using namespace monad::compiler::test;
 
 constexpr vm::utils::uint256_t key = 6732;

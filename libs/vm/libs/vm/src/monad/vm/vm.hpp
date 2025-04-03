@@ -2,7 +2,7 @@
 
 #include <monad/compiler/ir/x86.hpp>
 
-#include <monad/runtime/runtime.hpp>
+#include <monad/vm/runtime/runtime.hpp>
 
 #include <asmjit/x86.h>
 

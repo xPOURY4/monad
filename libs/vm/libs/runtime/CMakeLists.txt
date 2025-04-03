@@ -1,38 +1,40 @@
 enable_language(ASM)
 
-add_library(runtime STATIC)
+add_library(monad-vm-runtime STATIC)
 
-target_sources(runtime PRIVATE
-    "src/monad/runtime/bin.hpp"
-    "src/monad/runtime/call.hpp"
-    "src/monad/runtime/context.cpp"
-    "src/monad/runtime/create.hpp"
-    "src/monad/runtime/data.hpp"
-    "src/monad/runtime/detail.hpp"
-    "src/monad/runtime/environment.hpp"
-    "src/monad/runtime/exit.S"
-    "src/monad/runtime/exit.cpp"
-    "src/monad/runtime/keccak.hpp"
-    "src/monad/runtime/log.hpp"
-    "src/monad/runtime/math.S"
-    "src/monad/runtime/math.hpp"
-    "src/monad/runtime/memory.hpp"
-    "src/monad/runtime/runtime.hpp"
-    "src/monad/runtime/selfdestruct.hpp"
-    "src/monad/runtime/storage.hpp"
-    "src/monad/runtime/storage_costs.hpp"
-    "src/monad/runtime/transmute.hpp"
-    "src/monad/runtime/types.hpp"
+target_sources(monad-vm-runtime PRIVATE
+    "src/monad/vm/runtime/bin.hpp"
+    "src/monad/vm/runtime/call.hpp"
+    "src/monad/vm/runtime/context.cpp"
+    "src/monad/vm/runtime/create.hpp"
+    "src/monad/vm/runtime/data.hpp"
+    "src/monad/vm/runtime/detail.hpp"
+    "src/monad/vm/runtime/environment.hpp"
+    "src/monad/vm/runtime/exit.S"
+    "src/monad/vm/runtime/exit.cpp"
+    "src/monad/vm/runtime/keccak.hpp"
+    "src/monad/vm/runtime/log.hpp"
+    "src/monad/vm/runtime/math.S"
+    "src/monad/vm/runtime/math.hpp"
+    "src/monad/vm/runtime/memory.hpp"
+    "src/monad/vm/runtime/runtime.hpp"
+    "src/monad/vm/runtime/selfdestruct.hpp"
+    "src/monad/vm/runtime/storage.hpp"
+    "src/monad/vm/runtime/storage_costs.hpp"
+    "src/monad/vm/runtime/transmute.hpp"
+    "src/monad/vm/runtime/types.hpp"
 )
 
-monad_compile_options(runtime)
+monad_compile_options(monad-vm-runtime)
 
-target_include_directories(runtime
+target_include_directories(monad-vm-runtime
     PUBLIC src/
 )
 
-target_link_libraries(runtime
+target_link_libraries(monad-vm-runtime
     PUBLIC evmc::evmc
     PUBLIC ethash::keccak
-    PUBLIC utils
+    PUBLIC monad-vm::monad-vm-utils
 )
+
+add_library(monad-vm::monad-vm-runtime ALIAS monad-vm-runtime)

@@ -7,10 +7,10 @@
 
 #include <monad/compiler/ir/x86/emitter.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
-#include <monad/evm/opcodes.hpp>
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
 

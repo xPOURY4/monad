@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/evm/opcodes.hpp>
+#include <monad/vm/evm/opcodes.hpp>
 
 #include <array>
 

@@ -1,6 +1,6 @@
 #include <monad/compiler/ir/basic_blocks.hpp>
 #include <monad/compiler/ir/x86/virtual_stack.hpp>
-#include <monad/evm/opcodes.hpp>
+#include <monad/vm/evm/opcodes.hpp>
 
 #include <gtest/gtest.h>
 
