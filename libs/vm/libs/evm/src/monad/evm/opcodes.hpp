@@ -334,12 +334,12 @@ namespace monad::compiler
             OpCodeInfo{"CALLVALUE", 0, 0, 1, false, 2, 0}, // 0x34,
             OpCodeInfo{"CALLDATALOAD", 0, 1, 1, false, 3, 0}, // 0x35,
             OpCodeInfo{"CALLDATASIZE", 0, 0, 1, false, 2, 0}, // 0x36,
-            OpCodeInfo{"CALLDATACOPY", 0, 3, 0, 1, 3, 0}, // 0x37,
+            OpCodeInfo{"CALLDATACOPY", 0, 3, 0, true, 3, 0}, // 0x37,
             OpCodeInfo{"CODESIZE", 0, 0, 1, false, 2, 0}, // 0x38,
-            OpCodeInfo{"CODECOPY", 0, 3, 0, 1, 3, 0}, // 0x39,
+            OpCodeInfo{"CODECOPY", 0, 3, 0, true, 3, 0}, // 0x39,
             OpCodeInfo{"GASPRICE", 0, 0, 1, false, 2, 0}, // 0x3A,
             OpCodeInfo{"EXTCODESIZE", 0, 1, 1, true, 20, 0}, // 0x3B,
-            OpCodeInfo{"EXTCODECOPY", 0, 4, 0, 1, 20, 0}, // 0x3C,
+            OpCodeInfo{"EXTCODECOPY", 0, 4, 0, true, 20, 0}, // 0x3C,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -363,10 +363,10 @@ namespace monad::compiler
 
             OpCodeInfo{"POP", 0, 1, 0, false, 2, 0}, // 0x50,
             OpCodeInfo{"MLOAD", 0, 1, 1, true, 3, 0}, // 0x51,
-            OpCodeInfo{"MSTORE", 0, 2, 0, 1, 3, 0}, // 0x52,
-            OpCodeInfo{"MSTORE8", 0, 2, 0, 1, 3, 0}, // 0x53,
+            OpCodeInfo{"MSTORE", 0, 2, 0, true, 3, 0}, // 0x52,
+            OpCodeInfo{"MSTORE8", 0, 2, 0, true, 3, 0}, // 0x53,
             OpCodeInfo{"SLOAD", 0, 1, 1, true, 50, 0}, // 0x54,
-            OpCodeInfo{"SSTORE", 0, 2, 0, 1, 5000, 0}, // 0x55,
+            OpCodeInfo{"SSTORE", 0, 2, 0, true, 5000, 0}, // 0x55,
             OpCodeInfo{"JUMP", 0, 1, 0, false, 8, 0}, // 0x56,
             OpCodeInfo{"JUMPI", 0, 2, 0, false, 10, 0}, // 0x57,
             OpCodeInfo{"PC", 0, 0, 1, false, 2, 0}, // 0x58,
@@ -446,11 +446,11 @@ namespace monad::compiler
             OpCodeInfo{"SWAP15", 0, 1 + 15, 16, false, 3, 15}, // 0x9E,
             OpCodeInfo{"SWAP16", 0, 1 + 16, 17, false, 3, 16}, // 0x9F,
 
-            OpCodeInfo{"LOG0", 0, 2 + 0, 0, 1, 375, 0}, // 0xA0,
-            OpCodeInfo{"LOG1", 0, 2 + 1, 0, 1, 750, 1}, // 0xA1,
-            OpCodeInfo{"LOG2", 0, 2 + 2, 0, 1, 1125, 2}, // 0xA2,
-            OpCodeInfo{"LOG3", 0, 2 + 3, 0, 1, 1500, 3}, // 0xA3,
-            OpCodeInfo{"LOG4", 0, 2 + 4, 0, 1, 1875, 4}, // 0xA4,
+            OpCodeInfo{"LOG0", 0, 2 + 0, 0, true, 375, 0}, // 0xA0,
+            OpCodeInfo{"LOG1", 0, 2 + 1, 0, true, 750, 1}, // 0xA1,
+            OpCodeInfo{"LOG2", 0, 2 + 2, 0, true, 1125, 2}, // 0xA2,
+            OpCodeInfo{"LOG3", 0, 2 + 3, 0, true, 1500, 3}, // 0xA3,
+            OpCodeInfo{"LOG4", 0, 2 + 4, 0, true, 1875, 4}, // 0xA4,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -534,7 +534,7 @@ namespace monad::compiler
             OpCodeInfo{"CREATE", 0, 3, 1, true, 32000, 0}, // 0xF0,
             OpCodeInfo{"CALL", 0, 7, 1, true, 40, 0}, // 0xF1,
             OpCodeInfo{"CALLCODE", 0, 7, 1, true, 40, 0}, // 0xF2,
-            OpCodeInfo{"RETURN", 0, 2, 0, 1, 0, 0}, // 0xF3,
+            OpCodeInfo{"RETURN", 0, 2, 0, true, 0, 0}, // 0xF3,
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
@@ -546,7 +546,7 @@ namespace monad::compiler
             unknown_opcode_info,
             unknown_opcode_info,
             unknown_opcode_info,
-            OpCodeInfo{"SELFDESTRUCT", 0, 1, 0, 1, 0, 0} // 0xFF,
+            OpCodeInfo{"SELFDESTRUCT", 0, 1, 0, true, 0, 0} // 0xFF,
         };
     }
 
@@ -592,9 +592,9 @@ namespace monad::compiler
         auto table = make_opcode_table<previous_evm_revision(EVMC_BYZANTIUM)>();
 
         add_opcode(0x3D, table, {"RETURNDATASIZE", 0, 0, 1, false, 2, 0});
-        add_opcode(0x3E, table, {"RETURNDATACOPY", 0, 3, 0, 1, 3, 0});
+        add_opcode(0x3E, table, {"RETURNDATACOPY", 0, 3, 0, true, 3, 0});
         add_opcode(0xFA, table, {"STATICCALL", 0, 6, 1, true, 700, 0});
-        add_opcode(0xFD, table, {"REVERT", 0, 2, 0, 1, 0, 0});
+        add_opcode(0xFD, table, {"REVERT", 0, 2, 0, true, 0, 0});
 
         return table;
     }
@@ -708,7 +708,7 @@ namespace monad::compiler
         add_opcode(0x4A, table, {"BLOBBASEFEE", 0, 0, 1, false, 2, 0});
         add_opcode(0x5C, table, {"TLOAD", 0, 1, 1, false, 100, 0});
         add_opcode(0x5D, table, {"TSTORE", 0, 2, 0, false, 100, 0});
-        add_opcode(0x5E, table, {"MCOPY", 0, 3, 0, 1, 3, 0});
+        add_opcode(0x5E, table, {"MCOPY", 0, 3, 0, true, 3, 0});
 
         return table;
     }

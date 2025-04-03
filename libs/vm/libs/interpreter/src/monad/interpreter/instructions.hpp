@@ -51,7 +51,7 @@ namespace monad::interpreter
             // actually cause an overflow; if the instruction could only leave
             // the stack with >1024 elements if it _began_ with >1024, then we
             // assume that the input stack was valid and elide the check.
-            if constexpr (max_safe_size <= 1024) {
+            if constexpr (max_safe_size < 1024) {
                 if (MONAD_COMPILER_UNLIKELY(stack_size > max_safe_size)) {
                     ctx.exit(Error);
                 }
