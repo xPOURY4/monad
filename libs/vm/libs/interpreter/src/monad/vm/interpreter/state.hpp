@@ -1,13 +1,13 @@
 #pragma once
 
-#include <monad/interpreter/intercode.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <cstdint>
 #include <tuple>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     struct State
     {

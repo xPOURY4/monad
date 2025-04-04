@@ -1,5 +1,5 @@
-#include <monad/interpreter/intercode.hpp>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -9,7 +9,7 @@
 
 using namespace monad::compiler;
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     namespace
     {

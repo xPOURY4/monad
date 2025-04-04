@@ -11,7 +11,7 @@ target_link_libraries(blockchain-test-vm
         evmc::evmc
         monad-compiler
         monad-compiler-vm
-        monad-interpreter
+        monad-vm::monad-vm-interpreter
 )
 target_include_directories(blockchain-test-vm
     PUBLIC .

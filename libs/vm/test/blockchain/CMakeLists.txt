@@ -34,7 +34,7 @@ monad_compile_options(interpreter-blockchain-tests)
 target_link_libraries(interpreter-blockchain-tests
     blockchain-test-vm
     monad-vm::monad-vm-utils
-    monad-interpreter
+    monad-vm::monad-vm-interpreter
     evmone-blockchaintest-lib)
 
 # Coverage

@@ -1,10 +1,10 @@
 #include "evm_fixture.hpp"
 
 #include <monad/compiler/types.hpp>
-#include <monad/interpreter/execute.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evmone/baseline_execute.hpp>
 #include <monad/vm/evmone/code_analysis.hpp>
+#include <monad/vm/interpreter/execute.hpp>
 
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>
@@ -56,7 +56,7 @@ namespace monad::compiler::test
                 code.size()));
         }
         else if (impl == Interpreter) {
-            result_ = evmc::Result{interpreter::execute(
+            result_ = evmc::Result{vm::interpreter::execute(
                 &host_.get_interface(), host_.to_context(), rev_, &msg_, code)};
         }
         else {

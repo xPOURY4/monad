@@ -1,8 +1,8 @@
 #include "test_vm.hpp"
 
 #include <monad/compiler/ir/x86/types.hpp>
-#include <monad/interpreter/execute.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/interpreter/execute.hpp>
 #include <monad/vm/vm.hpp>
 
 #include <evmone/evmone.h>
@@ -182,7 +182,7 @@ evmc_result BlockchainTestVM::execute_interpreter(
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
-    return monad::interpreter::execute(
+    return monad::vm::interpreter::execute(
         host, context, rev, msg, {code, code_size});
 }
 

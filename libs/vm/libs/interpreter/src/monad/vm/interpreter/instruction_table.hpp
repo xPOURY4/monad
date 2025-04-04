@@ -1,9 +1,9 @@
 #pragma once
 
-#include <monad/interpreter/instructions.hpp>
-#include <monad/interpreter/state.hpp>
-#include <monad/interpreter/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/interpreter/instructions.hpp>
+#include <monad/vm/interpreter/state.hpp>
+#include <monad/vm/interpreter/types.hpp>
 #include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
@@ -11,7 +11,7 @@
 #include <array>
 #include <cstdint>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     template <evmc_revision Rev>
     consteval InstrTable make_instruction_table()

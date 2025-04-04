@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/interpreter/state.hpp>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
@@ -9,9 +9,9 @@
 #include <format>
 #include <iostream>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
-#ifdef MONAD_INTERPRETER_DEBUG
+#ifdef MONAD_VM_INTERPRETER_DEBUG
     constexpr auto debug_enabled = true;
 #else
     constexpr auto debug_enabled = false;

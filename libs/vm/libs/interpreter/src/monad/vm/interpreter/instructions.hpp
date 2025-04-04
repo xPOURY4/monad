@@ -1,7 +1,7 @@
 #pragma once
 
-#include <monad/interpreter/call_runtime.hpp>
-#include <monad/interpreter/state.hpp>
+#include <monad/vm/interpreter/call_runtime.hpp>
+#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/runtime.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -10,7 +10,7 @@
 #include <cstdint>
 #include <memory>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     using enum vm::runtime::StatusCode;
     using enum compiler::EvmOpCode;

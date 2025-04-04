@@ -7,7 +7,7 @@
 
 #include <span>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     evmc_result execute(
         evmc_host_interface const *host, evmc_host_context *context,

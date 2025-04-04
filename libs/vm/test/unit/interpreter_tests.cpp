@@ -1,5 +1,5 @@
-#include <monad/interpreter/intercode.hpp>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
 
 #include <gtest/gtest.h>
 
@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <vector>
 
-using namespace monad::interpreter;
+using namespace monad::vm::interpreter;
 
 using enum monad::compiler::EvmOpCode;
 

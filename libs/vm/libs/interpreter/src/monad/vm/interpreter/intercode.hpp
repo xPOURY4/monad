@@ -5,7 +5,7 @@
 #include <span>
 #include <vector>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     class Intercode
     {

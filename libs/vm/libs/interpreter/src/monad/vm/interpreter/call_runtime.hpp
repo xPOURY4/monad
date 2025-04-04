@@ -1,11 +1,11 @@
 #pragma once
 
-#include <monad/interpreter/state.hpp>
-#include <monad/interpreter/types.hpp>
+#include <monad/vm/interpreter/state.hpp>
+#include <monad/vm/interpreter/types.hpp>
 #include <monad/vm/runtime/detail.hpp>
 #include <monad/vm/runtime/types.hpp>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     template <typename... FnArgs>
     [[gnu::always_inline]]

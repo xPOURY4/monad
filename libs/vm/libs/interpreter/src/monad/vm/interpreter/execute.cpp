@@ -1,10 +1,10 @@
-#include <monad/interpreter/debug.hpp>
-#include <monad/interpreter/execute.hpp>
-#include <monad/interpreter/instruction_table.hpp>
-#include <monad/interpreter/intercode.hpp>
-#include <monad/interpreter/state.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evm/opcodes_xmacro.hpp>
+#include <monad/vm/interpreter/debug.hpp>
+#include <monad/vm/interpreter/execute.hpp>
+#include <monad/vm/interpreter/instruction_table.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
+#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -25,13 +25,13 @@
  */
 extern "C" void interpreter_runtime_trampoline(
     void *, evmc_revision, monad::vm::runtime::Context *,
-    monad::interpreter::State *, monad::vm::utils::uint256_t *);
+    monad::vm::interpreter::State *, monad::vm::utils::uint256_t *);
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision, monad::vm::runtime::Context *,
-    monad::interpreter::State *, monad::vm::utils::uint256_t *);
+    monad::vm::interpreter::State *, monad::vm::utils::uint256_t *);
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     namespace
     {
@@ -110,9 +110,10 @@ namespace monad::interpreter
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision rev, monad::vm::runtime::Context *ctx,
-    monad::interpreter::State *state, monad::vm::utils::uint256_t *stack_ptr)
+    monad::vm::interpreter::State *state,
+    monad::vm::utils::uint256_t *stack_ptr)
 {
-    using namespace monad::interpreter;
+    using namespace monad::vm::interpreter;
 
     switch (rev) {
     case EVMC_FRONTIER:

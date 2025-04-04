@@ -1,13 +1,13 @@
 #pragma once
 
-#include <monad/interpreter/state.hpp>
+#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <array>
 #include <cstdint>
 
-namespace monad::interpreter
+namespace monad::vm::interpreter
 {
     /**
      * Contains the state updated by each instruction, so that they can be put
