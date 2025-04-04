@@ -6,7 +6,7 @@
 #include <optional>
 #include <random>
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     namespace detail
     {

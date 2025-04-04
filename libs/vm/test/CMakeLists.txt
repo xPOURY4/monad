@@ -3,7 +3,6 @@ include(GoogleTest)
 if(MONAD_COMPILER_BENCHMARKS)
   add_subdirectory(compile_benchmarks)
   add_subdirectory(execution_benchmarks)
-  add_subdirectory(fuzzer_benchmarks)
   add_subdirectory(long_benchmarks)
 endif()
 

@@ -37,7 +37,7 @@ monad_compile_options(unit-tests)
 target_link_libraries(unit-tests
     monad-vm::monad-vm-compiler
     monad-compiler-vm
-    monad-fuzzing
+    monad-vm::monad-vm-fuzzing
     monad-vm::monad-vm-interpreter
     monad-vm::monad-vm-utils
     GTest::gtest_main

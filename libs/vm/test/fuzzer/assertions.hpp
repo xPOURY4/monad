@@ -3,7 +3,7 @@
 
 #include <evmc/evmc.hpp>
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     void assert_equal(
         evmone::state::StorageValue const &a,

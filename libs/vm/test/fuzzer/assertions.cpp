@@ -11,7 +11,7 @@
 
 using namespace evmone::state;
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     void assert_equal(StorageValue const &a, StorageValue const &b)
     {

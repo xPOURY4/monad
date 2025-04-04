@@ -1,5 +1,5 @@
-#include <monad/fuzzing/generator/generator.hpp>
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/fuzzing/generator/generator.hpp>
 
 #include <gtest/gtest.h>
 
@@ -9,7 +9,7 @@
 #include <iostream>
 #include <random>
 
-using namespace monad::fuzzing;
+using namespace monad::vm::fuzzing;
 using namespace monad::vm::compiler::basic_blocks;
 
 using namespace evmc::literals;
@@ -20,7 +20,7 @@ TEST(FuzzTest, Demo)
     auto eng = std::mt19937_64(rd());
 
     auto p = generate_program(
-        monad::fuzzing::GeneratorFocus::Generic,
+        monad::vm::fuzzing::GeneratorFocus::Generic,
         eng,
         {0x0000000000000000000000000000000000001234_address});
     auto bb = BasicBlocksIR(p);

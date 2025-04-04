@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     using enum monad::vm::compiler::EvmOpCode;
 

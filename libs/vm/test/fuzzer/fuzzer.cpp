@@ -5,12 +5,12 @@
 #include "host.hpp"
 #include "state.hpp"
 
-#include <monad/fuzzing/generator/choice.hpp>
-#include <monad/fuzzing/generator/generator.hpp>
 #include <monad/vm/compiler/ir/x86/emitter.hpp>
 #include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/fuzzing/generator/choice.hpp>
+#include <monad/vm/fuzzing/generator/generator.hpp>
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -49,7 +49,7 @@
 using namespace evmone::state;
 using namespace evmc::literals;
 using namespace monad;
-using namespace monad::fuzzing;
+using namespace monad::vm::fuzzing;
 using namespace std::chrono_literals;
 
 using enum monad::vm::compiler::EvmOpCode;
@@ -707,7 +707,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for (auto i = 0; i < args.iterations_per_run; ++i) {
-        using monad::fuzzing::GeneratorFocus;
+        using monad::vm::fuzzing::GeneratorFocus;
         auto focus = discrete_choice<GeneratorFocus>(
             engine,
             [](auto &) { return GeneratorFocus::Generic; },
@@ -715,7 +715,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
             Choice(0.05, [](auto &) { return GeneratorFocus::DynJump; }));
 
         for (;;) {
-            auto const contract = monad::fuzzing::generate_program(
+            auto const contract = monad::vm::fuzzing::generate_program(
                 focus, engine, contract_addresses);
             if (contract.size() > evmone::MAX_CODE_SIZE) {
                 // The evmone host will fail when we attempt to deploy
@@ -740,8 +740,8 @@ static void do_run(std::size_t const run_index, arguments const &args)
 
         for (auto j = 0u; j < args.messages; ++j) {
             auto const target =
-                monad::fuzzing::uniform_sample(engine, contract_addresses);
-            auto msg = monad::fuzzing::generate_message(
+                monad::vm::fuzzing::uniform_sample(engine, contract_addresses);
+            auto msg = monad::vm::fuzzing::generate_message(
                 focus,
                 engine,
                 target,

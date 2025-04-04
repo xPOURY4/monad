@@ -1,10 +1,10 @@
-#include <monad/fuzzing/generator/instruction_data.hpp>
+#include <monad/vm/fuzzing/generator/instruction_data.hpp>
 
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     std::vector<std::uint8_t> const &
     memory_operands(std::uint8_t const opcode) noexcept

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <monad/fuzzing/generator/choice.hpp>
-#include <monad/fuzzing/generator/instruction_data.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/fuzzing/generator/choice.hpp>
+#include <monad/vm/fuzzing/generator/instruction_data.hpp>
 #include <monad/vm/utils/cases.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -18,7 +18,7 @@
 
 using namespace evmc::literals;
 
-namespace monad::fuzzing
+namespace monad::vm::fuzzing
 {
     enum class GeneratorFocus
     {
