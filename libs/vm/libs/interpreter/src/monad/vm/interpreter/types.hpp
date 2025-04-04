@@ -18,14 +18,14 @@ namespace monad::vm::interpreter
     struct OpcodeResult
     {
         std::int64_t gas_remaining;
-        vm::utils::uint256_t *stack_top;
+        utils::uint256_t *stack_top;
     };
 
     static_assert(sizeof(OpcodeResult) == 16);
 
     using InstrEval = OpcodeResult (*)(
-        vm::runtime::Context &, State &, vm::utils::uint256_t const *,
-        vm::utils::uint256_t *, std::int64_t);
+        runtime::Context &, State &, utils::uint256_t const *,
+        utils::uint256_t *, std::int64_t);
 
     using InstrTable = std::array<InstrEval, 256>;
 }

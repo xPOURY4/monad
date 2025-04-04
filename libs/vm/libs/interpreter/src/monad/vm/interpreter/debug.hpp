@@ -22,9 +22,9 @@ namespace monad::vm::interpreter
      */
     template <evmc_revision Rev>
     void trace(
-        std::uint8_t const instr, vm::runtime::Context const &ctx,
-        State const &state, vm::utils::uint256_t const *stack_bottom,
-        vm::utils::uint256_t const *stack_top, std::uint64_t gas_remaining)
+        std::uint8_t const instr, runtime::Context const &ctx,
+        State const &state, utils::uint256_t const *stack_bottom,
+        utils::uint256_t const *stack_top, std::uint64_t gas_remaining)
     {
         auto const &info = compiler::opcode_table<Rev>[instr];
         auto const stack_size = stack_top - stack_bottom;

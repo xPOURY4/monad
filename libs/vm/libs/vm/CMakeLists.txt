@@ -20,9 +20,10 @@ target_link_libraries(monad-vm
     PUBLIC evmc::evmc
     PUBLIC asmjit::asmjit
     PUBLIC monad-vm::monad-vm-compiler
-    PUBLIC monad-vm::monad-vm-interpreter
-    PUBLIC monad-vm::monad-vm-runtime
-    PUBLIC monad-vm::monad-vm-utils
+    PRIVATE monad-vm::monad-vm-core
+    PRIVATE monad-vm::monad-vm-interpreter
+    PRIVATE monad-vm::monad-vm-runtime
+    PRIVATE monad-vm::monad-vm-utils
 )
 
 add_library(monad-vm::monad-vm ALIAS monad-vm)

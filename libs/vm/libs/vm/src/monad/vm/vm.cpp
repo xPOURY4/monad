@@ -35,10 +35,10 @@ namespace monad::vm
             msg->input_size <= std::numeric_limits<std::uint32_t>::max());
 
         auto ctx =
-            vm::runtime::Context::from(host, context, msg, {code, code_size});
+            runtime::Context::from(host, context, msg, {code, code_size});
 
         auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
-            std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));
+            std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
 
         contract_main(&ctx, stack_ptr);
 
@@ -58,7 +58,7 @@ namespace monad::vm
             return r;
         }
 
-        return vm::runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
+        return runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
     }
 
     void VM::release(compiler::native::entrypoint_t f)

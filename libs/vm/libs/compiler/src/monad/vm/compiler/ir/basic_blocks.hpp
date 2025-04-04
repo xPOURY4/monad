@@ -349,7 +349,7 @@ namespace monad::vm::compiler::basic_blocks
         auto imm_size = info.num_args;
         uint256_t imm_value{0};
         if (imm_size) {
-            imm_value = vm::utils::from_bytes(
+            imm_value = utils::from_bytes(
                 imm_size,
                 bytes.size() - current_offset,
                 &bytes[current_offset]);

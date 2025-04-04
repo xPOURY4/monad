@@ -10,7 +10,7 @@ namespace monad::vm::compiler
 
     using block_id = std::size_t;
 
-    using uint256_t = vm::utils::uint256_t;
+    using uint256_t = utils::uint256_t;
 
     inline constexpr block_id INVALID_BLOCK_ID =
         std::numeric_limits<block_id>::max();

@@ -24,12 +24,12 @@
  * expected registers when jumping to the core loop).
  */
 extern "C" void interpreter_runtime_trampoline(
-    void *, evmc_revision, monad::vm::runtime::Context *,
-    monad::vm::interpreter::State *, monad::vm::utils::uint256_t *);
+    void *, evmc_revision, ::monad::vm::runtime::Context *,
+    ::monad::vm::interpreter::State *, ::monad::vm::utils::uint256_t *);
 
 extern "C" void interpreter_core_loop(
-    void *, evmc_revision, monad::vm::runtime::Context *,
-    monad::vm::interpreter::State *, monad::vm::utils::uint256_t *);
+    void *, evmc_revision, ::monad::vm::runtime::Context *,
+    ::monad::vm::interpreter::State *, ::monad::vm::utils::uint256_t *);
 
 namespace monad::vm::interpreter
 {
@@ -37,8 +37,7 @@ namespace monad::vm::interpreter
     {
         template <evmc_revision Rev>
         void core_loop_impl(
-            vm::runtime::Context &ctx, State &state,
-            vm::utils::uint256_t *stack_ptr)
+            runtime::Context &ctx, State &state, utils::uint256_t *stack_ptr)
         {
             static constexpr auto dispatch_table = std::array{
 #define MONAD_COMPILER_ON_EVM_OPCODE(op) &&LABEL_##op,
@@ -80,8 +79,8 @@ namespace monad::vm::interpreter
         std::unique_ptr<std::uint8_t, decltype(std::free) *> allocate_stack()
         {
             return {
-                reinterpret_cast<std::uint8_t *>(std::aligned_alloc(
-                    32, sizeof(vm::utils::uint256_t) * 1024)),
+                reinterpret_cast<std::uint8_t *>(
+                    std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024)),
                 std::free};
         }
     }
@@ -91,7 +90,7 @@ namespace monad::vm::interpreter
         evmc_revision rev, evmc_message const *msg,
         std::span<uint8_t const> code)
     {
-        auto ctx = vm::runtime::Context::from(host, context, msg, code);
+        auto ctx = runtime::Context::from(host, context, msg, code);
 
         auto const stack_ptr = allocate_stack();
         auto const analysis = Intercode(code);
@@ -102,18 +101,18 @@ namespace monad::vm::interpreter
             rev,
             &ctx,
             &state,
-            reinterpret_cast<vm::utils::uint256_t *>(stack_ptr.get()));
+            reinterpret_cast<utils::uint256_t *>(stack_ptr.get()));
 
         return ctx.copy_to_evmc_result();
     }
 }
 
 extern "C" void interpreter_core_loop(
-    void *, evmc_revision rev, monad::vm::runtime::Context *ctx,
-    monad::vm::interpreter::State *state,
-    monad::vm::utils::uint256_t *stack_ptr)
+    void *, evmc_revision rev, ::monad::vm::runtime::Context *ctx,
+    ::monad::vm::interpreter::State *state,
+    ::monad::vm::utils::uint256_t *stack_ptr)
 {
-    using namespace monad::vm::interpreter;
+    using namespace ::monad::vm::interpreter;
 
     switch (rev) {
     case EVMC_FRONTIER:

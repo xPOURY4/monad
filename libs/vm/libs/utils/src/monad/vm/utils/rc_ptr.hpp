@@ -1,5 +1,7 @@
 #pragma once
 
+#include <monad/vm/core/assert.h>
+
 #include <memory>
 #include <utility>
 

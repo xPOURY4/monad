@@ -23,7 +23,6 @@ namespace monad::vm::utils
      * end of line comments (// .. \n) and whitespace are ignored
      *
      */
-
     std::vector<uint8_t> parse_opcodes(std::string const &str);
 
     /**

@@ -34,6 +34,7 @@ target_link_libraries(monad-vm-interpreter
     PUBLIC monad-vm::monad-vm-evm
     PUBLIC monad-vm::monad-vm-runtime
     PUBLIC monad-vm::monad-vm-utils
+    PRIVATE monad-vm::monad-vm-core
 )
 
 add_library(monad-vm::monad-vm-interpreter ALIAS monad-vm-interpreter)

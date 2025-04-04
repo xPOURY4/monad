@@ -227,7 +227,7 @@ namespace monad::vm::compiler::native
         std::optional<Literal> literal_;
     };
 
-    using StackElemRef = vm::utils::RcPtr<StackElem, StackElemDeleter>;
+    using StackElemRef = utils::RcPtr<StackElem, StackElemDeleter>;
 
     /**
      * An AVX register reservation. Can be used to ensure that the optional
@@ -761,7 +761,7 @@ namespace monad::vm::compiler::native
 
         // Linked list of stack element RC objects, using `ref_count`
         // for "next" pointer:
-        vm::utils::RcObject<StackElem> *free_rc_objects_;
+        utils::RcObject<StackElem> *free_rc_objects_;
         std::int32_t top_index_;
         std::int32_t min_delta_;
         std::int32_t max_delta_;
@@ -788,7 +788,7 @@ namespace monad::vm::compiler::native
 
     struct StackElemDeleter
     {
-        static void destroy(vm::utils::RcObject<StackElem> *x)
+        static void destroy(utils::RcObject<StackElem> *x)
         {
             static_assert(sizeof(std::size_t) == sizeof(void *));
             x->ref_count = reinterpret_cast<std::size_t>(
@@ -796,7 +796,7 @@ namespace monad::vm::compiler::native
             x->object.stack_.free_rc_objects_ = x;
         }
 
-        static void deallocate(vm::utils::RcObject<StackElem> *)
+        static void deallocate(utils::RcObject<StackElem> *)
         {
             // nop
         }

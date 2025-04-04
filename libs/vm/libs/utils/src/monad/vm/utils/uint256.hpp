@@ -1,9 +1,9 @@
 #pragma once
 
 #include <intx/intx.hpp>
-#include <limits>
 
 #include <format>
+#include <limits>
 
 namespace monad::vm::utils
 {

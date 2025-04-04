@@ -170,7 +170,7 @@ namespace monad::vm::utils
         std::unordered_map<std::string, std::size_t> const &known_labels)
     {
         return std::visit(
-            monad::vm::utils::Cases{
+            Cases{
                 [&](uint256_t const &c) { return std::make_optional(c); },
                 [&](std::string const &lbl) {
                     auto search = known_labels.find(lbl);
@@ -286,7 +286,7 @@ namespace monad::vm::utils
 
         for (auto const &tok : tokens) {
             std::visit(
-                monad::vm::utils::Cases{
+                Cases{
                     [&](OpName const &op) {
                         write_opcode(verbose, opcodes, op.opname);
                     },
@@ -431,5 +431,4 @@ namespace monad::vm::utils
     {
         return parse_opcodes_helper(true, str);
     }
-
 }

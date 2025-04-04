@@ -103,12 +103,11 @@ namespace monad::vm::compiler
             std::uint8_t stack_increase, bool dynamic_gas);
 
         constexpr Instruction(
-            std::uint32_t pc, OpCode opcode,
-            vm::utils::uint256_t immediate_value, std::uint16_t static_gas_cost,
-            std::uint8_t stack_args, std::uint8_t index,
-            std::uint8_t stack_increase, bool dynamic_gas);
+            std::uint32_t pc, OpCode opcode, utils::uint256_t immediate_value,
+            std::uint16_t static_gas_cost, std::uint8_t stack_args,
+            std::uint8_t index, std::uint8_t stack_increase, bool dynamic_gas);
 
-        constexpr vm::utils::uint256_t const &immediate_value() const noexcept;
+        constexpr utils::uint256_t const &immediate_value() const noexcept;
         constexpr std::uint32_t pc() const noexcept;
         constexpr std::uint16_t static_gas_cost() const noexcept;
         constexpr OpCode opcode() const noexcept;
@@ -124,7 +123,7 @@ namespace monad::vm::compiler
     private:
         constexpr auto as_tuple() const noexcept;
 
-        vm::utils::uint256_t immediate_value_;
+        utils::uint256_t immediate_value_;
         std::uint32_t pc_;
         std::uint16_t static_gas_cost_;
         OpCode opcode_;
@@ -149,7 +148,7 @@ namespace monad::vm::compiler
     }
 
     constexpr Instruction::Instruction(
-        std::uint32_t pc, OpCode op, vm::utils::uint256_t immediate_value,
+        std::uint32_t pc, OpCode op, utils::uint256_t immediate_value,
         std::uint16_t static_gas_cost, std::uint8_t stack_args,
         std::uint8_t index, std::uint8_t stack_increase, bool dynamic_gas)
         : immediate_value_(immediate_value)
@@ -164,7 +163,7 @@ namespace monad::vm::compiler
         MONAD_VM_DEBUG_ASSERT(immediate_value == 0 || opcode() == OpCode::Push);
     }
 
-    constexpr vm::utils::uint256_t const &
+    constexpr utils::uint256_t const &
     Instruction::immediate_value() const noexcept
     {
         MONAD_VM_ASSERT(opcode() == OpCode::Push);

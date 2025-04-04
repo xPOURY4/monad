@@ -22,8 +22,8 @@ target_include_directories(monad-vm-utils
 
 target_link_libraries(monad-vm-utils
     PUBLIC intx::intx
-    PUBLIC monad-vm::monad-vm-evm
     PUBLIC monad-vm::monad-vm-core
+    PRIVATE monad-vm::monad-vm-evm
 )
 
 add_library(monad-vm::monad-vm-utils ALIAS monad-vm-utils)

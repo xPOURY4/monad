@@ -1,9 +1,8 @@
 #pragma once
 
+#include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/bin.hpp>
 #include <monad/vm/runtime/transmute.hpp>
-
-#include <monad/vm/core/assert.h>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>

@@ -2,8 +2,6 @@
 
 #include <monad/vm/compiler/ir/x86.hpp>
 
-#include <monad/vm/runtime/runtime.hpp>
-
 #include <asmjit/x86.h>
 
 #include <intx/intx.hpp>

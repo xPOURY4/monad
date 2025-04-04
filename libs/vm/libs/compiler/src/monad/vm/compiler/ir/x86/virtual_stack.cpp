@@ -281,10 +281,10 @@ namespace monad::vm::compiler::native
         auto *rco = free_rc_objects_;
         if (rco) {
             do {
-                vm::utils::RcObject<StackElem> *x = rco;
+                utils::RcObject<StackElem> *x = rco;
                 static_assert(sizeof(std::size_t) == sizeof(void *));
                 rco = reinterpret_cast<decltype(x)>(x->ref_count);
-                vm::utils::RcObject<StackElem>::default_deallocate(x);
+                utils::RcObject<StackElem>::default_deallocate(x);
             }
             while (rco);
         }
@@ -360,15 +360,14 @@ namespace monad::vm::compiler::native
         return StackElemRef::make(
             [this]() {
                 if (free_rc_objects_) {
-                    vm::utils::RcObject<StackElem> *x = free_rc_objects_;
+                    utils::RcObject<StackElem> *x = free_rc_objects_;
                     static_assert(sizeof(std::size_t) == sizeof(void *));
                     free_rc_objects_ =
                         reinterpret_cast<decltype(x)>(x->ref_count);
                     return x;
                 }
                 else {
-                    auto *x =
-                        vm::utils::RcObject<StackElem>::default_allocate();
+                    auto *x = utils::RcObject<StackElem>::default_allocate();
                     return x;
                 }
             },

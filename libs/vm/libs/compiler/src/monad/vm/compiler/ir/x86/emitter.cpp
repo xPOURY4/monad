@@ -693,7 +693,7 @@ namespace monad::vm::compiler::native
      */
     void Emitter::runtime_store_input_stack(uint64_t base_offset)
     {
-        if (!vm::utils::is_fuzzing_monad_compiler) {
+        if (!utils::is_fuzzing_monad_compiler) {
             return;
         }
 
@@ -1923,7 +1923,7 @@ namespace monad::vm::compiler::native
         if (ix->literal() && src->literal()) {
             auto const &i = ix->literal()->value;
             auto const &x = src->literal()->value;
-            push(monad::vm::utils::byte(i, x));
+            push(utils::byte(i, x));
             return;
         }
 
@@ -1960,7 +1960,7 @@ namespace monad::vm::compiler::native
         if (ix->literal() && src->literal()) {
             auto const &i = ix->literal()->value;
             auto const &x = src->literal()->value;
-            push(monad::vm::utils::signextend(i, x));
+            push(utils::signextend(i, x));
             return;
         }
 
@@ -2048,7 +2048,7 @@ namespace monad::vm::compiler::native
         if (shift->literal() && value->literal()) {
             auto const &i = shift->literal()->value;
             auto const &x = value->literal()->value;
-            return stack_.alloc_literal({monad::vm::utils::sar(i, x)});
+            return stack_.alloc_literal({utils::sar(i, x)});
         }
 
         return shift_by_stack_elem<ShiftType::SAR>(
@@ -5045,11 +5045,11 @@ namespace monad::vm::compiler::native
             a_shift = -a;
         }
 
-        if (monad::vm::utils::popcount(a_shift) == 1) {
+        if (utils::popcount(a_shift) == 1) {
             stack_.pop();
             stack_.pop();
             auto x = shift_by_literal<ShiftType::SHL>(
-                monad::vm::utils::countr_zero(a_shift), std::move(b_elem), {});
+                utils::countr_zero(a_shift), std::move(b_elem), {});
             if (a_shift[3] != a[3]) {
                 // The shift was negated. Negate result for correct sign:
                 stack_.push(negate(std::move(x), {}));
@@ -5270,10 +5270,10 @@ namespace monad::vm::compiler::native
             return false;
         }();
 
-        if (monad::vm::utils::popcount(b) == 1) {
+        if (utils::popcount(b) == 1) {
             stack_.pop();
             stack_.pop();
-            auto shift = monad::vm::utils::countr_zero(b);
+            auto shift = utils::countr_zero(b);
             auto dst = [&] {
                 if constexpr (is_sdiv) {
                     return sdiv_by_sar(std::move(a_elem), shift, {});
@@ -5401,7 +5401,7 @@ namespace monad::vm::compiler::native
             stack_.push_literal(0);
             return true;
         }
-        if (monad::vm::utils::popcount(b) == 1) {
+        if (utils::popcount(b) == 1) {
             stack_.pop();
             stack_.pop();
             if constexpr (is_smod) {
@@ -6173,7 +6173,7 @@ namespace monad::vm::compiler::native
         else {
             call_runtime_mul(
                 Runtime<uint256_t *, uint256_t const *, uint256_t const *>(
-                    this, false, monad::vm::runtime::mul));
+                    this, false, runtime::mul));
         }
 
         MONAD_VM_DEBUG_ASSERT(stack_.top()->stack_offset().has_value());

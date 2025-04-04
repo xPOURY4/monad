@@ -10,14 +10,13 @@ namespace monad::vm::interpreter
     template <typename... FnArgs>
     [[gnu::always_inline]]
     inline void call_runtime(
-        void (*f)(FnArgs...), vm::runtime::Context &ctx,
-        vm::utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
+        void (*f)(FnArgs...), runtime::Context &ctx,
+        utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
     {
-        using namespace monad::vm::runtime;
-
-        constexpr auto use_context = detail::uses_context_v<FnArgs...>;
-        constexpr auto use_result = detail::uses_result_v<FnArgs...>;
-        constexpr auto use_base_gas = detail::uses_remaining_gas_v<FnArgs...>;
+        constexpr auto use_context = runtime::detail::uses_context_v<FnArgs...>;
+        constexpr auto use_result = runtime::detail::uses_result_v<FnArgs...>;
+        constexpr auto use_base_gas =
+            runtime::detail::uses_remaining_gas_v<FnArgs...>;
 
         constexpr auto stack_arg_count =
             sizeof...(FnArgs) -
