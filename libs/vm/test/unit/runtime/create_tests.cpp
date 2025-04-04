@@ -11,7 +11,7 @@
 
 using namespace monad;
 using namespace monad::vm::runtime;
-using namespace monad::compiler::test;
+using namespace monad::vm::compiler::test;
 
 using namespace intx;
 

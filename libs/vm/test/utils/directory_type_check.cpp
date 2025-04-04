@@ -1,6 +1,6 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/local_stacks.hpp>
-#include <monad/compiler/ir/poly_typed.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/local_stacks.hpp>
+#include <monad/vm/compiler/ir/poly_typed.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -16,7 +16,7 @@
 
 namespace fs = std::filesystem;
 
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 void usage_exit [[noreturn]] (char *prog)
 {

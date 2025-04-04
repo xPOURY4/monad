@@ -1,5 +1,5 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
 
 #include <gtest/gtest.h>
 
@@ -10,7 +10,7 @@
 #include <random>
 
 using namespace monad::fuzzing;
-using namespace monad::compiler::basic_blocks;
+using namespace monad::vm::compiler::basic_blocks;
 
 using namespace evmc::literals;
 

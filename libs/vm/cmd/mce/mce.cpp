@@ -7,9 +7,9 @@
 #include <instrumentable_parser.hpp>
 #include <instrumentable_vm.hpp>
 #include <intx/intx.hpp>
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86/types.hpp>
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/x86/types.hpp>
+#include <monad/vm/compiler/types.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -124,7 +124,7 @@ int mce_main(arguments const &args)
         }
     }();
 
-    std::optional<monad::compiler::basic_blocks::BasicBlocksIR> const ir =
+    std::optional<monad::vm::compiler::basic_blocks::BasicBlocksIR> const ir =
         [&]() {
             if (args.instrument_parse) {
                 InstrumentableParser<true> parser{};

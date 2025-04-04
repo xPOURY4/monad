@@ -1,8 +1,8 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86/emitter.hpp>
-#include <monad/compiler/ir/x86/types.hpp>
-#include <monad/compiler/ir/x86/virtual_stack.hpp>
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/x86/emitter.hpp>
+#include <monad/vm/compiler/ir/x86/types.hpp>
+#include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
+#include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/runtime/math.hpp>
 #include <monad/vm/runtime/types.hpp>
@@ -28,8 +28,8 @@
 #include <vector>
 
 namespace runtime = monad::vm::runtime;
-using namespace monad::compiler;
-using namespace monad::compiler::native;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::native;
 using namespace intx;
 
 namespace

@@ -7,7 +7,7 @@ monad_compile_options(compile-benchmarks)
 
 target_link_libraries(compile-benchmarks
     benchmark::benchmark
-    monad-compiler
+    monad-vm::monad-vm-compiler
 )
 
 target_include_directories(compile-benchmarks

@@ -1,6 +1,6 @@
 #include "evm_fixture.hpp"
 
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evmone/baseline_execute.hpp>
 #include <monad/vm/evmone/code_analysis.hpp>
@@ -19,7 +19,7 @@
 #include <span>
 #include <utility>
 
-namespace monad::compiler::test
+namespace monad::vm::compiler::test
 {
     void EvmTest::pre_execute(
         std::int64_t gas_limit, std::span<std::uint8_t const> calldata) noexcept

@@ -35,7 +35,7 @@ endif()
 
 monad_compile_options(unit-tests)
 target_link_libraries(unit-tests
-    monad-compiler
+    monad-vm::monad-vm-compiler
     monad-compiler-vm
     monad-fuzzing
     monad-vm::monad-vm-interpreter

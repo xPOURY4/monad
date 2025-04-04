@@ -14,7 +14,7 @@
 using namespace monad::vm::runtime;
 using namespace evmc::literals;
 
-namespace monad::compiler::test
+namespace monad::vm::compiler::test
 {
     class RuntimeTest : public testing::Test
     {

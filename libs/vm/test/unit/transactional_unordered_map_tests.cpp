@@ -1,9 +1,9 @@
-#include <monad/compiler/transactional_unordered_map.hpp>
+#include <monad/vm/compiler/transactional_unordered_map.hpp>
 
 #include <gtest/gtest.h>
 #include <string>
 
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 TEST(transactional_unordered_map, test_0)
 {

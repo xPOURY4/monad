@@ -1,6 +1,6 @@
 #include "evm_fixture.hpp"
 
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 
 #include <test_resource_data.h>
@@ -19,8 +19,8 @@
 
 namespace fs = std::filesystem;
 
-using namespace monad::compiler;
-using namespace monad::compiler::test;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::test;
 
 TEST_F(EvmTest, Stop)
 {

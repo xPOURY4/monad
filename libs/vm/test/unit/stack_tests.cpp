@@ -1,5 +1,5 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/x86/virtual_stack.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 
 #include <gtest/gtest.h>
@@ -10,8 +10,8 @@
 #include <utility>
 #include <vector>
 
-using namespace monad::compiler;
-using namespace monad::compiler::native;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::native;
 
 namespace
 {

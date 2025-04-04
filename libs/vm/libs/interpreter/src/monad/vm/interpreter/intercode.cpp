@@ -7,7 +7,7 @@
 #include <memory>
 #include <span>
 
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 namespace monad::vm::interpreter
 {

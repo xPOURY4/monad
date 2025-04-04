@@ -1,4 +1,4 @@
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/utils/load_program.hpp>
 
 #include <test_resource_data.h>
@@ -58,7 +58,7 @@ namespace
         auto rt = asmjit::JitRuntime{};
 
         for (auto _ : state) {
-            auto fn = monad::compiler::native::compile(
+            auto fn = monad::vm::compiler::native::compile(
                 rt, program, EVMC_LATEST_STABLE_REVISION);
 
             if (!fn) {
@@ -93,7 +93,7 @@ namespace
         auto rt = asmjit::JitRuntime{};
 
         for (auto _ : state) {
-            auto fn = monad::compiler::native::compile(
+            auto fn = monad::vm::compiler::native::compile(
                 rt, program, EVMC_LATEST_STABLE_REVISION);
 
             if (!fn) {

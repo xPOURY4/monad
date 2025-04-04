@@ -1,7 +1,7 @@
-#include <monad/compiler/ir/poly_typed/exceptions.hpp>
-#include <monad/compiler/ir/poly_typed/kind.hpp>
-#include <monad/compiler/ir/poly_typed/subst_map.hpp>
-#include <monad/compiler/ir/poly_typed/unify.hpp>
+#include <monad/vm/compiler/ir/poly_typed/exceptions.hpp>
+#include <monad/vm/compiler/ir/poly_typed/kind.hpp>
+#include <monad/vm/compiler/ir/poly_typed/subst_map.hpp>
+#include <monad/vm/compiler/ir/poly_typed/unify.hpp>
 
 #include <gtest/gtest.h>
 
@@ -9,8 +9,8 @@
 #include <variant>
 #include <vector>
 
-using namespace monad::compiler;
-using namespace monad::compiler::poly_typed;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::poly_typed;
 
 TEST(unify, test_1)
 {

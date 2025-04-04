@@ -1,8 +1,8 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/local_stacks.hpp>
-#include <monad/compiler/ir/poly_typed/block.hpp>
-#include <monad/compiler/ir/poly_typed/infer.hpp>
-#include <monad/compiler/ir/poly_typed/kind.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/local_stacks.hpp>
+#include <monad/vm/compiler/ir/poly_typed/block.hpp>
+#include <monad/vm/compiler/ir/poly_typed/infer.hpp>
+#include <monad/vm/compiler/ir/poly_typed/kind.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 
 #include <gtest/gtest.h>
@@ -11,8 +11,8 @@
 #include <variant>
 #include <vector>
 
-using namespace monad::compiler;
-using namespace monad::compiler::poly_typed;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::poly_typed;
 
 TEST(infer, test_add)
 {

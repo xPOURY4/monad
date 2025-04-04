@@ -6,7 +6,7 @@
 
 namespace monad::fuzzing
 {
-    using enum monad::compiler::EvmOpCode;
+    using enum monad::vm::compiler::EvmOpCode;
 
     constexpr auto call_non_terminators = std::array{
         CALL,

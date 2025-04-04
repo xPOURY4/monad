@@ -22,7 +22,7 @@
 
 #include <evmc/evmc.h>
 
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/utils/parser.hpp>
 
 using namespace monad::vm::utils;
@@ -114,7 +114,7 @@ int main(int argc, char **argv)
 
         if (args.compile) {
             auto rt = asmjit::JitRuntime{};
-            monad::compiler::native::compile(
+            monad::vm::compiler::native::compile(
                 rt,
                 opcodes,
                 EVMC_LATEST_STABLE_REVISION,
@@ -140,7 +140,7 @@ int main(int argc, char **argv)
             if (args.compile) {
                 auto outfile_asm = filename + ".asm";
                 auto rt = asmjit::JitRuntime{};
-                monad::compiler::native::compile(
+                monad::vm::compiler::native::compile(
                     rt,
                     opcodes,
                     EVMC_LATEST_STABLE_REVISION,

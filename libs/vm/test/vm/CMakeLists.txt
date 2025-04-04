@@ -9,7 +9,7 @@ target_sources(blockchain-test-vm
 target_link_libraries(blockchain-test-vm
     PUBLIC
         evmc::evmc
-        monad-compiler
+        monad-vm::monad-vm-compiler
         monad-compiler-vm
         monad-vm::monad-vm-interpreter
 )

@@ -1,9 +1,9 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/local_stacks.hpp>
-#include <monad/compiler/ir/poly_typed/block.hpp>
-#include <monad/compiler/ir/poly_typed/infer_state.hpp>
-#include <monad/compiler/ir/poly_typed/strongly_connected_components.hpp>
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/local_stacks.hpp>
+#include <monad/vm/compiler/ir/poly_typed/block.hpp>
+#include <monad/vm/compiler/ir/poly_typed/infer_state.hpp>
+#include <monad/vm/compiler/ir/poly_typed/strongly_connected_components.hpp>
+#include <monad/vm/compiler/types.hpp>
 
 #include <gtest/gtest.h>
 
@@ -12,8 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace monad::compiler;
-using namespace monad::compiler::poly_typed;
+using namespace monad::vm::compiler;
+using namespace monad::vm::compiler::poly_typed;
 
 namespace
 {

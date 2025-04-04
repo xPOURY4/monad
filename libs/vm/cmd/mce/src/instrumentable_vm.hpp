@@ -1,4 +1,4 @@
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
 
 #include <asmjit/x86.h>
@@ -15,7 +15,7 @@
 #include <vector>
 
 using namespace monad;
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 using namespace evmc::literals;
 
 namespace abi_compat

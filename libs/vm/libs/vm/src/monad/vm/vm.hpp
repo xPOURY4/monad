@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
 
 #include <monad/vm/runtime/runtime.hpp>
 
@@ -10,7 +10,7 @@
 
 #include <string>
 
-namespace monad::compiler
+namespace monad::vm::compiler
 {
     class VM
     {

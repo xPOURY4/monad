@@ -1,5 +1,5 @@
-#include <monad/compiler/ir/x86.hpp>
-#include <monad/compiler/ir/x86/types.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -15,7 +15,7 @@
 #include <optional>
 #include <span>
 
-namespace monad::compiler
+namespace monad::vm::compiler
 {
     std::optional<native::entrypoint_t> VM::compile(
         evmc_revision rev, uint8_t const *code, size_t code_size,

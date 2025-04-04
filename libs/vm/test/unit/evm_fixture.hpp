@@ -13,7 +13,7 @@
 
 namespace fs = std::filesystem;
 
-namespace monad::compiler::test
+namespace monad::vm::compiler::test
 {
     class EvmTest : public testing::Test
     {
@@ -27,7 +27,7 @@ namespace monad::compiler::test
 
         EvmTest() noexcept = default;
 
-        monad::compiler::VM vm_ = {};
+        monad::vm::compiler::VM vm_ = {};
 
         evmc_revision rev_ = EVMC_CANCUN;
 

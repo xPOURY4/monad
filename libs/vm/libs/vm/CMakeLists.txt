@@ -21,5 +21,5 @@ target_link_libraries(monad-compiler-vm
     PUBLIC asmjit::asmjit
     PUBLIC monad-vm::monad-vm-runtime
     PUBLIC monad-vm::monad-vm-utils
-    PUBLIC monad-compiler
+    PUBLIC monad-vm::monad-vm-compiler
 )

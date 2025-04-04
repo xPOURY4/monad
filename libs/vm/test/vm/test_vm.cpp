@@ -1,6 +1,6 @@
 #include "test_vm.hpp"
 
-#include <monad/compiler/ir/x86/types.hpp>
+#include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/interpreter/execute.hpp>
 #include <monad/vm/vm.hpp>
@@ -21,7 +21,7 @@
 #include <unordered_map>
 
 using namespace monad;
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 using namespace evmc::literals;
 

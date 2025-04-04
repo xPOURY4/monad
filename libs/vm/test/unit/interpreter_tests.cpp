@@ -9,7 +9,7 @@
 
 using namespace monad::vm::interpreter;
 
-using enum monad::compiler::EvmOpCode;
+using enum monad::vm::compiler::EvmOpCode;
 
 template <typename... Args>
 auto make_intercode(Args... args)

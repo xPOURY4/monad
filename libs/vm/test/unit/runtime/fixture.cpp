@@ -18,7 +18,7 @@ using namespace monad::vm::runtime;
 
 using namespace intx;
 
-namespace monad::compiler::test
+namespace monad::vm::compiler::test
 {
     RuntimeTest::RuntimeTest()
         : blob_hashes_{bytes32_from_uint256(1), bytes32_from_uint256(2)}

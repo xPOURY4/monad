@@ -1,7 +1,7 @@
-#include <monad/compiler/ir/basic_blocks.hpp>
-#include <monad/compiler/ir/instruction.hpp>
-#include <monad/compiler/ir/local_stacks.hpp>
-#include <monad/compiler/types.hpp>
+#include <monad/vm/compiler/ir/basic_blocks.hpp>
+#include <monad/vm/compiler/ir/instruction.hpp>
+#include <monad/vm/compiler/ir/local_stacks.hpp>
+#include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 
 #include <evmc/evmc.h>
@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 using namespace intx;
 
 template <

@@ -11,7 +11,7 @@
 #include <string_view>
 #include <tuple>
 
-namespace monad::compiler
+namespace monad::vm::compiler
 {
     /**
      * Details of how an individual EVM opcode affects VM state when executed.

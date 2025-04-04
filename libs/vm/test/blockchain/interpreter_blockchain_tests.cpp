@@ -13,7 +13,7 @@
 #include <filesystem>
 
 using namespace monad;
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 using namespace evmc::literals;
 using namespace evmone::test;

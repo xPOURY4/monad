@@ -28,7 +28,7 @@
 #include <variant>
 #include <vector>
 
-using namespace monad::compiler;
+using namespace monad::vm::compiler;
 
 namespace monad::vm::utils
 {
@@ -230,8 +230,8 @@ namespace monad::vm::utils
 
     std::optional<uint8_t> find_opcode(std::string_view op)
     {
-        auto const &tbl =
-            monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
+        auto const &tbl = monad::vm::compiler::make_opcode_table<
+            EVMC_LATEST_STABLE_REVISION>();
         size_t i;
         for (i = 0; i < tbl.size(); ++i) {
             if (tbl[i].name == op) {
@@ -259,8 +259,8 @@ namespace monad::vm::utils
     std::string show_opcodes(std::vector<uint8_t> const &opcodes)
     {
         std::stringstream ss;
-        auto const &tbl =
-            monad::compiler::make_opcode_table<EVMC_LATEST_STABLE_REVISION>();
+        auto const &tbl = monad::vm::compiler::make_opcode_table<
+            EVMC_LATEST_STABLE_REVISION>();
         for (std::size_t i = 0; i < opcodes.size(); ++i) {
             auto c = opcodes[i];
             ss << std::format("[{:#x}] {:#x} {}\n", i, c, tbl[opcodes[i]].name);

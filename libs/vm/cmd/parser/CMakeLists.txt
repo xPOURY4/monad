@@ -11,7 +11,7 @@ target_link_libraries(parser-tool
   PRIVATE evmc::evmc
   PRIVATE evmone
   PRIVATE monad-vm::monad-vm-utils
-  PRIVATE monad-compiler
+  PRIVATE monad-vm::monad-vm-compiler
   PRIVATE CLI11::CLI11
 )
 

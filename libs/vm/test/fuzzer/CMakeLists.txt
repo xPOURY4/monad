@@ -9,7 +9,7 @@ target_link_libraries(monad-compiler-fuzzer
   PRIVATE evmone::state
   PRIVATE evmone
   PRIVATE monad-vm::monad-vm-utils
-  PRIVATE monad-compiler
+  PRIVATE monad-vm::monad-vm-compiler
   PRIVATE monad-fuzzing
   PRIVATE blockchain-test-vm
   PRIVATE CLI11::CLI11

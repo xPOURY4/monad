@@ -5,10 +5,10 @@
 #include "host.hpp"
 #include "state.hpp"
 
-#include <monad/compiler/ir/x86/emitter.hpp>
-#include <monad/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/fuzzing/generator/choice.hpp>
 #include <monad/fuzzing/generator/generator.hpp>
+#include <monad/vm/compiler/ir/x86/emitter.hpp>
+#include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/utils/debug.hpp>
@@ -52,7 +52,7 @@ using namespace monad;
 using namespace monad::fuzzing;
 using namespace std::chrono_literals;
 
-using enum monad::compiler::EvmOpCode;
+using enum monad::vm::compiler::EvmOpCode;
 
 static constexpr std::string_view to_string(evmc_status_code const sc) noexcept
 {
@@ -440,14 +440,14 @@ static void do_run(std::size_t const run_index, arguments const &args)
     double const artificial_top2_prob =
         std::min(1.0, artificial_avx_prob + artificial_general_prob);
 
-    auto post_instruction_emit_hook = [&](compiler::native::Emitter &emit) {
+    auto post_instruction_emit_hook = [&](vm::compiler::native::Emitter &emit) {
         // The fuzzer has a hard time exploring edge case virtual stack
         // states. To circumvent this we will artificially change the state
         // of the stack to increase probability of having stack elements in
         // different locations.
 
-        using monad::compiler::native::GENERAL_REG_COUNT;
-        using monad::compiler::native::GeneralReg;
+        using monad::vm::compiler::native::GENERAL_REG_COUNT;
+        using monad::vm::compiler::native::GeneralReg;
 
         auto &stack = emit.get_stack();
         if (stack.top_index() < stack.min_delta()) {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/compiler/ir/x86.hpp>
+#include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/vm.hpp>
 
@@ -25,7 +25,7 @@ struct CompiledContractEqual
 };
 
 using CompiledContractsMap = std::unordered_map<
-    CompiledContractId, monad::compiler::native::entrypoint_t,
+    CompiledContractId, monad::vm::compiler::native::entrypoint_t,
     CompiledContractHash, CompiledContractEqual>;
 
 class BlockchainTestVM : public evmc_vm
@@ -40,7 +40,7 @@ public:
 
     BlockchainTestVM(
         Implementation impl,
-        monad::compiler::native::EmitterHook post_instruction_emit_hook =
+        monad::vm::compiler::native::EmitterHook post_instruction_emit_hook =
             nullptr);
 
     evmc_result execute(
@@ -68,10 +68,10 @@ public:
 private:
     Implementation impl_;
     evmc::VM evmone_vm_;
-    monad::compiler::VM monad_vm_;
+    monad::vm::compiler::VM monad_vm_;
     CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
-    monad::compiler::native::CompilerConfig base_config;
+    monad::vm::compiler::native::CompilerConfig base_config;
 
     evmc_result execute_compiler(
         evmc_host_interface const *host, evmc_host_context *context,
