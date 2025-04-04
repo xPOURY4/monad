@@ -1,6 +1,6 @@
-add_library(monad-compiler-vm STATIC)
+add_library(monad-vm STATIC)
 
-target_sources(monad-compiler-vm PRIVATE
+target_sources(monad-vm PRIVATE
     "src/monad/vm/vm.cpp"
     "src/monad/vm/vm.hpp"
     # evmone wrappers
@@ -9,17 +9,20 @@ target_sources(monad-compiler-vm PRIVATE
     "src/monad/vm/evmone/code_analysis.hpp"
 )
 
-monad_compile_options(monad-compiler-vm)
+monad_compile_options(monad-vm)
 
-target_include_directories(monad-compiler-vm
+target_include_directories(monad-vm
     PUBLIC src/
 )
 
-target_link_libraries(monad-compiler-vm
+target_link_libraries(monad-vm
     PUBLIC intx::intx
     PUBLIC evmc::evmc
     PUBLIC asmjit::asmjit
+    PUBLIC monad-vm::monad-vm-compiler
+    PUBLIC monad-vm::monad-vm-interpreter
     PUBLIC monad-vm::monad-vm-runtime
     PUBLIC monad-vm::monad-vm-utils
-    PUBLIC monad-vm::monad-vm-compiler
 )
+
+add_library(monad-vm::monad-vm ALIAS monad-vm)

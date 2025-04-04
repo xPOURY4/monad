@@ -68,7 +68,7 @@ public:
 private:
     Implementation impl_;
     evmc::VM evmone_vm_;
-    monad::vm::compiler::VM monad_vm_;
+    monad::vm::VM monad_vm_;
     CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
     monad::vm::compiler::native::CompilerConfig base_config;

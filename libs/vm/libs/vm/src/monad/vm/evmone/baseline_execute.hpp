@@ -4,7 +4,7 @@
 
 #include <evmc/evmc.hpp>
 
-namespace monad
+namespace monad::vm::evmone
 {
     evmc::Result baseline_execute(
         evmc_message const &msg, evmc_revision const rev,

@@ -9,7 +9,7 @@
 #include <evmone/execution_state.hpp>
 #include <evmone/vm.hpp>
 
-namespace monad
+namespace monad::vm::evmone
 {
     evmc::Result baseline_execute(
         evmc_message const &msg, evmc_revision const rev,
@@ -21,8 +21,8 @@ namespace monad
             return evmc::Result{EVMC_SUCCESS, msg.gas};
         }
 
-        auto const result = evmone::baseline::execute(
-            *static_cast<evmone::VM *>(vm.get_raw_pointer()),
+        auto const result = ::evmone::baseline::execute(
+            *static_cast<::evmone::VM *>(vm.get_raw_pointer()),
             host->get_interface(),
             host->to_context(),
             rev,

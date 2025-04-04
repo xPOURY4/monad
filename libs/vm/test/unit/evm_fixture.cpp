@@ -62,8 +62,11 @@ namespace monad::vm::compiler::test
         else {
             MONAD_VM_ASSERT(impl == Evmone);
 
-            result_ = monad::baseline_execute(
-                msg_, rev_, &host_, monad::analyze(evmc::bytes_view(code)));
+            result_ = monad::vm::evmone::baseline_execute(
+                msg_,
+                rev_,
+                &host_,
+                monad::vm::evmone::analyze(evmc::bytes_view(code)));
         }
     }
 

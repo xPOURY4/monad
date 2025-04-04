@@ -15,19 +15,20 @@
 #include <optional>
 #include <span>
 
-namespace monad::vm::compiler
+namespace monad::vm
 {
-    std::optional<native::entrypoint_t> VM::compile(
+    std::optional<compiler::native::entrypoint_t> VM::compile(
         evmc_revision rev, uint8_t const *code, size_t code_size,
-        native::CompilerConfig const &config)
+        compiler::native::CompilerConfig const &config)
     {
-        return native::compile(runtime_, {code, code_size}, rev, config);
+        return compiler::native::compile(
+            runtime_, {code, code_size}, rev, config);
     }
 
     evmc_result VM::execute(
-        native::entrypoint_t contract_main, evmc_host_interface const *host,
-        evmc_host_context *context, evmc_message const *msg,
-        uint8_t const *code, size_t code_size)
+        compiler::native::entrypoint_t contract_main,
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_message const *msg, uint8_t const *code, size_t code_size)
     {
         MONAD_VM_ASSERT(code_size <= std::numeric_limits<std::uint32_t>::max());
         MONAD_VM_ASSERT(
@@ -49,7 +50,7 @@ namespace monad::vm::compiler
     evmc_result VM::compile_and_execute(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-        size_t code_size, native::CompilerConfig const &config)
+        size_t code_size, compiler::native::CompilerConfig const &config)
     {
         if (auto f = compile(rev, code, code_size, config)) {
             auto r = execute(*f, host, context, msg, code, code_size);
@@ -60,7 +61,7 @@ namespace monad::vm::compiler
         return vm::runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
     }
 
-    void VM::release(native::entrypoint_t f)
+    void VM::release(compiler::native::entrypoint_t f)
     {
         runtime_.release(f);
     }

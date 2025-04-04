@@ -19,7 +19,7 @@ target_link_libraries(mce
   PRIVATE evmone::state
   PRIVATE monad-vm::monad-vm-utils
   PRIVATE monad-vm::monad-vm-compiler
-  PRIVATE monad-compiler-vm
+  PRIVATE monad-vm::monad-vm
   PRIVATE CLI11::CLI11
 )
 

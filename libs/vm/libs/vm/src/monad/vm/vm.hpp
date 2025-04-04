@@ -10,7 +10,7 @@
 
 #include <string>
 
-namespace monad::vm::compiler
+namespace monad::vm
 {
     class VM
     {
@@ -22,24 +22,24 @@ namespace monad::vm::compiler
         /// anymore, to release the resources consumed by the entry point. If
         /// `asm_log_file_path` is not null, then human readable x86 code
         /// is printed to this file, and runtime debug logging is enabled.
-        std::optional<native::entrypoint_t> compile(
+        std::optional<compiler::native::entrypoint_t> compile(
             evmc_revision, uint8_t const *code, size_t code_size,
-            native::CompilerConfig const & = {});
+            compiler::native::CompilerConfig const & = {});
 
         /// Execute an entry point returned by `compile`.
         evmc_result execute(
-            native::entrypoint_t contract_main, evmc_host_interface const *host,
-            evmc_host_context *context, evmc_message const *msg,
-            uint8_t const *code, size_t code_size);
+            compiler::native::entrypoint_t contract_main,
+            evmc_host_interface const *host, evmc_host_context *context,
+            evmc_message const *msg, uint8_t const *code, size_t code_size);
 
         /// Release the resources consumed by the given entry point.
-        void release(native::entrypoint_t);
+        void release(compiler::native::entrypoint_t);
 
         /// The composition of `compile`, `execute`, `release`.
         evmc_result compile_and_execute(
             evmc_host_interface const *host, evmc_host_context *context,
             evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-            size_t code_size, native::CompilerConfig const & = {});
+            size_t code_size, compiler::native::CompilerConfig const & = {});
 
     private:
         asmjit::JitRuntime runtime_;

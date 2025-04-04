@@ -27,7 +27,7 @@ namespace monad::vm::compiler::test
 
         EvmTest() noexcept = default;
 
-        monad::vm::compiler::VM vm_ = {};
+        monad::vm::VM vm_ = {};
 
         evmc_revision rev_ = EVMC_CANCUN;
 
