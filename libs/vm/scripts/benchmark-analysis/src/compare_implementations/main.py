@@ -36,6 +36,7 @@ def parse_args() -> argparse.Namespace:
         dest="cutoff",
         type=int,
         required=False,
+        default=0,
         help="Minimum time (ns) to consider",
     )
 
