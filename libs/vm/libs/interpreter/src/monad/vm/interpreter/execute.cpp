@@ -6,6 +6,7 @@
 #include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/types.hpp>
+#include <monad/vm/utils/traits.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
@@ -30,6 +31,11 @@ extern "C" void interpreter_runtime_trampoline(
 extern "C" void interpreter_core_loop(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
     ::monad::vm::interpreter::State *, ::monad::vm::utils::uint256_t *);
+
+static_assert(
+    ::monad::vm::utils::same_signature(
+        interpreter_runtime_trampoline, interpreter_core_loop),
+    "Interpreter core loop and trampoline signatures must be identical");
 
 namespace monad::vm::interpreter
 {
