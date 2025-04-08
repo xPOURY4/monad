@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/interpreter/state.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
@@ -23,8 +23,9 @@ namespace monad::vm::interpreter
     template <evmc_revision Rev>
     void trace(
         std::uint8_t const instr, runtime::Context const &ctx,
-        State const &state, utils::uint256_t const *stack_bottom,
-        utils::uint256_t const *stack_top, std::uint64_t gas_remaining)
+        Intercode const &analysis, utils::uint256_t const *stack_bottom,
+        utils::uint256_t const *stack_top, std::uint64_t gas_remaining,
+        std::uint8_t const *instr_ptr)
     {
         auto const &info = compiler::opcode_table<Rev>[instr];
         auto const stack_size = stack_top - stack_bottom;
@@ -32,7 +33,7 @@ namespace monad::vm::interpreter
         std::cerr << std::format(
             "{{\"pc\":{},\"op\":{},\"gas\":\"0x{:x}\",\"gasCost\":\"0x{"
             ":x}\",\"memSize\":{},\"stack\":[",
-            state.instr_ptr - state.analysis.code(),
+            instr_ptr - analysis.code(),
             instr,
             gas_remaining,
             info.dynamic_gas ? 0 : info.min_gas,

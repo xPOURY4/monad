@@ -1,6 +1,5 @@
 #pragma once
 
-#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/interpreter/types.hpp>
 #include <monad/vm/runtime/detail.hpp>
 #include <monad/vm/runtime/types.hpp>

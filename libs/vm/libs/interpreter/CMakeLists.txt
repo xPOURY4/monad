@@ -14,7 +14,6 @@ target_sources(monad-vm-interpreter PRIVATE
   "src/monad/vm/interpreter/instructions.hpp"
   "src/monad/vm/interpreter/intercode.cpp"
   "src/monad/vm/interpreter/intercode.hpp"
-  "src/monad/vm/interpreter/state.hpp"
   "src/monad/vm/interpreter/types.hpp"
 )
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/vm/interpreter/state.hpp>
+#include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -18,14 +18,14 @@ namespace monad::vm::interpreter
     struct OpcodeResult
     {
         std::int64_t gas_remaining;
-        utils::uint256_t *stack_top;
+        std::uint8_t const *instr_ptr;
     };
 
     static_assert(sizeof(OpcodeResult) == 16);
 
     using InstrEval = OpcodeResult (*)(
-        runtime::Context &, State &, utils::uint256_t const *,
-        utils::uint256_t *, std::int64_t);
+        runtime::Context &, Intercode const &, utils::uint256_t const *,
+        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     using InstrTable = std::array<InstrEval, 256>;
 }

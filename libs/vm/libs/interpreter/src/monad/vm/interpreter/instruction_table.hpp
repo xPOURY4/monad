@@ -2,7 +2,6 @@
 
 #include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/interpreter/instructions.hpp>
-#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/interpreter/types.hpp>
 #include <monad/vm/runtime/types.hpp>
 

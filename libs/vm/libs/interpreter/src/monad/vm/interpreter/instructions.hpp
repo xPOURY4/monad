@@ -1,7 +1,6 @@
 #pragma once
 
 #include <monad/vm/interpreter/call_runtime.hpp>
-#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/runtime.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
@@ -17,8 +16,9 @@ namespace monad::vm::interpreter
 
     template <std::uint8_t Instr, evmc_revision Rev>
     [[gnu::always_inline]] inline void check_requirements(
-        runtime::Context &ctx, State &, utils::uint256_t const *stack_bottom,
-        utils::uint256_t *stack_top, std::int64_t &gas_remaining)
+        runtime::Context &ctx, Intercode const &,
+        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
+        std::int64_t &gas_remaining)
     {
         static constexpr auto info = compiler::opcode_table<Rev>[Instr];
 
@@ -80,910 +80,942 @@ namespace monad::vm::interpreter
 
     template <std::uint8_t Opcode, evmc_revision Rev, typename... FnArgs>
     [[gnu::always_inline]] inline OpcodeResult checked_runtime_call(
-        void (*f)(FnArgs...), runtime::Context &ctx, State &state,
+        void (*f)(FnArgs...), runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<Opcode, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         call_runtime(f, ctx, stack_top, gas_remaining);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Arithmetic
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    add(runtime::Context &ctx, State &state,
+    add(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<ADD, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = runtime::unrolled_add(a, b);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    mul(runtime::Context &ctx, State &state,
+    mul(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MUL, Rev>(
             monad_runtime_mul,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    sub(runtime::Context &ctx, State &state,
+    sub(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SUB, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a - b;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult udiv(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<DIV, Rev>(
-            runtime::udiv, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::udiv,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult sdiv(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SDIV, Rev>(
-            runtime::sdiv, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::sdiv,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult umod(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MOD, Rev>(
-            runtime::umod, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::umod,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult smod(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SMOD, Rev>(
-            runtime::smod, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::smod,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult addmod(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<ADDMOD, Rev>(
             runtime::addmod,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult mulmod(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MULMOD, Rev>(
             runtime::mulmod,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    exp(runtime::Context &ctx, State &state,
+    exp(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<EXP, Rev>(
             runtime::exp<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult signextend(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SIGNEXTEND, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[b, x] = pop_for_overwrite(stack_top);
         x = utils::signextend(b, x);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Boolean
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    lt(runtime::Context &ctx, State &state,
+    lt(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-       std::int64_t gas_remaining)
+       std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<LT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a < b;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    gt(runtime::Context &ctx, State &state,
+    gt(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-       std::int64_t gas_remaining)
+       std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<GT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a > b;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    slt(runtime::Context &ctx, State &state,
+    slt(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SLT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = intx::slt(a, b);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    sgt(runtime::Context &ctx, State &state,
+    sgt(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SGT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = intx::slt(b, a); // note swapped arguments
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    eq(runtime::Context &ctx, State &state,
+    eq(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-       std::int64_t gas_remaining)
+       std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<EQ, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = (a == b);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult iszero(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<ISZERO, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &a = *stack_top;
         a = (a == 0);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Bitwise
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult and_(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<AND, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a & b;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    or_(runtime::Context &ctx, State &state,
+    or_(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<OR, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a | b;
-        state.next();
-        return {gas_remaining, stack_top};
+
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult xor_(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<XOR, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b = a ^ b;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult not_(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<NOT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &a = *stack_top;
         a = ~a;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult byte(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<BYTE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[i, x] = pop_for_overwrite(stack_top);
         x = utils::byte(i, x);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    shl(runtime::Context &ctx, State &state,
+    shl(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SHL, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[shift, value] = pop_for_overwrite(stack_top);
         value <<= shift;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    shr(runtime::Context &ctx, State &state,
+    shr(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SHR, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[shift, value] = pop_for_overwrite(stack_top);
         value >>= shift;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    sar(runtime::Context &ctx, State &state,
+    sar(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SAR, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[shift, value] = pop_for_overwrite(stack_top);
         value = utils::sar(shift, value);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Data
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult sha3(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SHA3, Rev>(
-            runtime::sha3, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::sha3,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult address(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<ADDRESS, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_address(ctx.env.recipient));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult balance(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<BALANCE, Rev>(
             runtime::balance<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult origin(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<ORIGIN, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_address(ctx.env.tx_context.tx_origin));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult caller(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<CALLER, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_address(ctx.env.sender));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult callvalue(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<CALLVALUE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_bytes32(ctx.env.value));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult calldataload(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CALLDATALOAD, Rev>(
             runtime::calldataload,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult calldatasize(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<CALLDATASIZE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.input_data_size);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult calldatacopy(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CALLDATACOPY, Rev>(
             runtime::calldatacopy,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult codesize(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<CODESIZE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.code_size);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult codecopy(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CODECOPY, Rev>(
             runtime::codecopy,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult gasprice(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<GAS, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.tx_gas_price));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult extcodesize(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<EXTCODESIZE, Rev>(
             runtime::extcodesize<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult extcodecopy(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<EXTCODECOPY, Rev>(
             runtime::extcodecopy<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult returndatasize(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<RETURNDATASIZE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.return_data_size);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult returndatacopy(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<RETURNDATACOPY, Rev>(
             runtime::returndatacopy,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult extcodehash(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<EXTCODEHASH, Rev>(
             runtime::extcodehash<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult blockhash(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<BLOCKHASH, Rev>(
             runtime::blockhash,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult coinbase(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<COINBASE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_address(ctx.env.tx_context.block_coinbase));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult timestamp(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<TIMESTAMP, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_timestamp);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult number(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<NUMBER, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_number);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult prevrandao(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<DIFFICULTY, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_bytes32(
                 ctx.env.tx_context.block_prev_randao));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult gaslimit(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<GASLIMIT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_gas_limit);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult chainid(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<CHAINID, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.chain_id));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult selfbalance(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SELFBALANCE, Rev>(
             runtime::selfbalance,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult basefee(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<BASEFEE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.block_base_fee));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult blobhash(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<BLOBHASH, Rev>(
             runtime::blobhash,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult blobbasefee(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<BLOBBASEFEE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.blob_base_fee));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Memory & Storage
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult mload(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MLOAD, Rev>(
-            runtime::mload, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::mload,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult mstore(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MSTORE, Rev>(
             runtime::mstore,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult mstore8(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MSTORE8, Rev>(
             runtime::mstore8,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult mcopy(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<MCOPY, Rev>(
-            runtime::mcopy, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::mcopy,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult sstore(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SSTORE, Rev>(
             runtime::sstore<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult sload(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SLOAD, Rev>(
             runtime::sload<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult tstore(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<TSTORE, Rev>(
             runtime::tstore,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult tload(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<TLOAD, Rev>(
-            runtime::tload, ctx, state, stack_bottom, stack_top, gas_remaining);
+            runtime::tload,
+            ctx,
+            analysis,
+            stack_bottom,
+            stack_top,
+            gas_remaining,
+            instr_ptr);
     }
 
-    // Execution State
+    // Execution Intercode
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    pc(runtime::Context &ctx, State &state,
+    pc(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-       std::int64_t gas_remaining)
+       std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<PC, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
-        push(stack_top, state.instr_ptr - state.analysis.code());
-        state.next();
-        return {gas_remaining, stack_top};
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
+        push(stack_top, instr_ptr - analysis.code());
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult msize(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<MSIZE, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.memory.size);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    gas(runtime::Context &ctx, State &state,
+    gas(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<GAS, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, gas_remaining);
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
     [[gnu::noinline]] OpcodeResult push(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         using subword_t = utils::uint256_t::word_type;
 
@@ -1003,7 +1035,7 @@ namespace monad::vm::interpreter
         static constexpr auto leading_part = N % 8;
 
         check_requirements<PUSH0 + N, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
 
         if constexpr (N == 0) {
             push(stack_top, 0);
@@ -1013,14 +1045,14 @@ namespace monad::vm::interpreter
             push(
                 stack_top,
                 utils::uint256_t{
-                    read_unaligned(state.instr_ptr + 1 + 24),
-                    read_unaligned(state.instr_ptr + 1 + 16),
-                    read_unaligned(state.instr_ptr + 1 + 8),
-                    read_unaligned(state.instr_ptr + 1),
+                    read_unaligned(instr_ptr + 1 + 24),
+                    read_unaligned(instr_ptr + 1 + 16),
+                    read_unaligned(instr_ptr + 1 + 8),
+                    read_unaligned(instr_ptr + 1),
                 });
         }
         else {
-            auto const leading_word = [&state] {
+            auto const leading_word = [instr_ptr] {
                 auto word = subword_t{0};
 
                 if constexpr (leading_part == 0) {
@@ -1030,7 +1062,7 @@ namespace monad::vm::interpreter
                 std::memcpy(
                     reinterpret_cast<std::uint8_t *>(&word) +
                         (8 - leading_part),
-                    state.instr_ptr + 1,
+                    instr_ptr + 1,
                     leading_part);
 
                 return std::byteswap(word);
@@ -1043,7 +1075,7 @@ namespace monad::vm::interpreter
                 push(
                     stack_top,
                     utils::uint256_t{
-                        read_unaligned(state.instr_ptr + 1 + leading_part),
+                        read_unaligned(instr_ptr + 1 + leading_part),
                         leading_word,
                         0,
                         0,
@@ -1053,8 +1085,8 @@ namespace monad::vm::interpreter
                 push(
                     stack_top,
                     utils::uint256_t{
-                        read_unaligned(state.instr_ptr + 1 + 8 + leading_part),
-                        read_unaligned(state.instr_ptr + 1 + leading_part),
+                        read_unaligned(instr_ptr + 1 + 8 + leading_part),
+                        read_unaligned(instr_ptr + 1 + leading_part),
                         leading_word,
                         0,
                     });
@@ -1063,67 +1095,64 @@ namespace monad::vm::interpreter
                 push(
                     stack_top,
                     utils::uint256_t{
-                        read_unaligned(state.instr_ptr + 1 + 16 + leading_part),
-                        read_unaligned(state.instr_ptr + 1 + 8 + leading_part),
-                        read_unaligned(state.instr_ptr + 1 + leading_part),
+                        read_unaligned(instr_ptr + 1 + 16 + leading_part),
+                        read_unaligned(instr_ptr + 1 + 8 + leading_part),
+                        read_unaligned(instr_ptr + 1 + leading_part),
                         leading_word,
                     });
             }
         }
 
-        state.instr_ptr += N + 1;
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + N + 1};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult
-    pop(runtime::Context &ctx, State &state,
+    pop(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<POP, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         --stack_top;
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
     [[gnu::noinline]] OpcodeResult
-    dup(runtime::Context &ctx, State &state,
+    dup(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<DUP1 + (N - 1), Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
 
         auto const old_top = stack_top;
         push(stack_top, *(old_top - (N - 1)));
 
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
     [[gnu::noinline]] OpcodeResult swap(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SWAP1 + (N - 1), Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         std::swap(*stack_top, *(stack_top - N));
-        state.next();
-        return {gas_remaining, stack_top};
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Control Flow
     namespace
     {
-        inline void jump_impl(
-            runtime::Context &ctx, State &state, utils::uint256_t const &target)
+        inline std::uint8_t const *jump_impl(
+            runtime::Context &ctx, Intercode const &analysis,
+            utils::uint256_t const &target)
         {
             if (MONAD_VM_UNLIKELY(
                     target > std::numeric_limits<std::size_t>::max())) {
@@ -1131,67 +1160,65 @@ namespace monad::vm::interpreter
             }
 
             auto const jd = static_cast<std::size_t>(target);
-            if (MONAD_VM_UNLIKELY(!state.analysis.is_jumpdest(jd))) {
+            if (MONAD_VM_UNLIKELY(!analysis.is_jumpdest(jd))) {
                 ctx.exit(Error);
             }
 
-            state.instr_ptr = state.analysis.code() + jd;
+            return analysis.code() + jd;
         }
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult jump(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *)
     {
         check_requirements<JUMP, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto const &target = pop(stack_top);
-        jump_impl(ctx, state, target);
-        return {gas_remaining, stack_top};
+        auto const new_ip = jump_impl(ctx, analysis, target);
+        return {gas_remaining, new_ip};
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult jumpi(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<JUMPI, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto const &target = pop(stack_top);
         auto const &cond = pop(stack_top);
 
         if (cond) {
-            jump_impl(ctx, state, target);
-            return {gas_remaining, stack_top};
+            auto const new_ip = jump_impl(ctx, analysis, target);
+            return {gas_remaining, new_ip};
         }
         else {
-            state.next();
-            return {gas_remaining, stack_top};
+            return {gas_remaining, instr_ptr + 1};
         }
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult jumpdest(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<JUMPDEST, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
-        state.next();
-        return {gas_remaining, stack_top};
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
+        return {gas_remaining, instr_ptr + 1};
     }
 
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
     [[gnu::noinline]] OpcodeResult
-    log(runtime::Context &ctx, State &state,
+    log(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         static constexpr auto impls = std::tuple{
             &runtime::log0,
@@ -1204,101 +1231,108 @@ namespace monad::vm::interpreter
         return checked_runtime_call<LOG0 + N, Rev>(
             std::get<N>(impls),
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     // Call & Create
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult create(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CREATE, Rev>(
             runtime::create<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult call(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CALL, Rev>(
             runtime::call<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult callcode(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CALLCODE, Rev>(
             runtime::callcode<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult delegatecall(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<DELEGATECALL, Rev>(
             runtime::delegatecall<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult create2(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<CREATE2, Rev>(
             runtime::create2<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult staticcall(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<STATICCALL, Rev>(
             runtime::staticcall<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     // VM Control
@@ -1322,52 +1356,53 @@ namespace monad::vm::interpreter
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult return_(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *)
     {
         check_requirements<RETURN, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         return_impl(Success, ctx, stack_top, gas_remaining);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult revert(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *)
     {
         check_requirements<REVERT, Rev>(
-            ctx, state, stack_bottom, stack_top, gas_remaining);
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         return_impl(Revert, ctx, stack_top, gas_remaining);
     }
 
     template <evmc_revision Rev>
     [[gnu::noinline]] OpcodeResult selfdestruct(
-        runtime::Context &ctx, State &state,
+        runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining)
+        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         return checked_runtime_call<SELFDESTRUCT, Rev>(
             runtime::selfdestruct<Rev>,
             ctx,
-            state,
+            analysis,
             stack_bottom,
             stack_top,
-            gas_remaining);
+            gas_remaining,
+            instr_ptr);
     }
 
     [[gnu::noinline]] inline OpcodeResult stop(
-        runtime::Context &ctx, State &, utils::uint256_t const *,
-        utils::uint256_t *, std::int64_t gas_remaining)
+        runtime::Context &ctx, Intercode const &, utils::uint256_t const *,
+        utils::uint256_t *, std::int64_t gas_remaining, std::uint8_t const *)
     {
         ctx.gas_remaining = gas_remaining;
         ctx.exit(Success);
     }
 
     [[gnu::noinline]] inline OpcodeResult invalid(
-        runtime::Context &ctx, State &, utils::uint256_t const *,
-        utils::uint256_t *, std::int64_t gas_remaining)
+        runtime::Context &ctx, Intercode const &, utils::uint256_t const *,
+        utils::uint256_t *, std::int64_t gas_remaining, std::uint8_t const *)
     {
         ctx.gas_remaining = gas_remaining;
         ctx.exit(Error);

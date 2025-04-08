@@ -1,10 +1,10 @@
 #include <monad/vm/core/assert.h>
+#include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/evm/opcodes_xmacro.hpp>
 #include <monad/vm/interpreter/debug.hpp>
 #include <monad/vm/interpreter/execute.hpp>
 #include <monad/vm/interpreter/instruction_table.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
-#include <monad/vm/interpreter/state.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/traits.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -26,11 +26,13 @@
  */
 extern "C" void interpreter_runtime_trampoline(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
-    ::monad::vm::interpreter::State *, ::monad::vm::utils::uint256_t *);
+    ::monad::vm::interpreter::Intercode const *,
+    ::monad::vm::utils::uint256_t *);
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
-    ::monad::vm::interpreter::State *, ::monad::vm::utils::uint256_t *);
+    ::monad::vm::interpreter::Intercode const *,
+    ::monad::vm::utils::uint256_t *);
 
 static_assert(
     ::monad::vm::utils::same_signature(
@@ -43,7 +45,8 @@ namespace monad::vm::interpreter
     {
         template <evmc_revision Rev>
         void core_loop_impl(
-            runtime::Context &ctx, State &state, utils::uint256_t *stack_ptr)
+            runtime::Context &ctx, Intercode const &analysis,
+            utils::uint256_t *stack_ptr)
         {
             static constexpr auto dispatch_table = std::array{
 #define MONAD_COMPILER_ON_EVM_OPCODE(op) &&LABEL_##op,
@@ -53,28 +56,40 @@ namespace monad::vm::interpreter
             static_assert(dispatch_table.size() == 256);
 
             auto *stack_top = stack_ptr - 1;
-            auto const *stack_bottom = stack_top;
+            auto const *const stack_bottom = stack_top;
+            auto const *instr_ptr = analysis.code();
 
             auto gas_remaining = ctx.gas_remaining;
 
-            goto *dispatch_table[*state.instr_ptr];
+            goto *dispatch_table[*instr_ptr];
 
 #define MONAD_COMPILER_ON_EVM_OPCODE(op)                                       \
     LABEL_##op:                                                                \
     {                                                                          \
         if constexpr (debug_enabled) {                                         \
             trace<Rev>(                                                        \
-                op, ctx, state, stack_bottom, stack_top, gas_remaining);       \
+                op,                                                            \
+                ctx,                                                           \
+                analysis,                                                      \
+                stack_bottom,                                                  \
+                stack_top,                                                     \
+                gas_remaining,                                                 \
+                instr_ptr);                                                    \
         }                                                                      \
                                                                                \
         static constexpr auto eval = instruction_table<Rev>[op];               \
-        auto const [gas_rem, top] =                                            \
-            eval(ctx, state, stack_bottom, stack_top, gas_remaining);          \
+        auto const [gas_rem, ip] = eval(                                       \
+            ctx, analysis, stack_bottom, stack_top, gas_remaining, instr_ptr); \
+                                                                               \
+        static constexpr auto delta =                                          \
+            compiler::opcode_table<Rev>[op].stack_increase -                   \
+            compiler::opcode_table<Rev>[op].min_stack;                         \
                                                                                \
         gas_remaining = gas_rem;                                               \
-        stack_top = top;                                                       \
+        instr_ptr = ip;                                                        \
+        stack_top = stack_top + delta;                                         \
                                                                                \
-        goto *dispatch_table[*state.instr_ptr];                                \
+        goto *dispatch_table[*instr_ptr];                                      \
     }
             MONAD_COMPILER_EVM_ALL_OPCODES
 #undef MONAD_COMPILER_ON_EVM_OPCODE
@@ -100,13 +115,12 @@ namespace monad::vm::interpreter
 
         auto const stack_ptr = allocate_stack();
         auto const analysis = Intercode(code);
-        auto state = State(analysis);
 
         interpreter_runtime_trampoline(
             &ctx.exit_stack_ptr,
             rev,
             &ctx,
-            &state,
+            &analysis,
             reinterpret_cast<utils::uint256_t *>(stack_ptr.get()));
 
         return ctx.copy_to_evmc_result();
@@ -115,38 +129,39 @@ namespace monad::vm::interpreter
 
 extern "C" void interpreter_core_loop(
     void *, evmc_revision rev, ::monad::vm::runtime::Context *ctx,
-    ::monad::vm::interpreter::State *state,
+    ::monad::vm::interpreter::Intercode const *analysis,
     ::monad::vm::utils::uint256_t *stack_ptr)
 {
     using namespace ::monad::vm::interpreter;
 
     switch (rev) {
     case EVMC_FRONTIER:
-        return core_loop_impl<EVMC_FRONTIER>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_FRONTIER>(*ctx, *analysis, stack_ptr);
     case EVMC_HOMESTEAD:
-        return core_loop_impl<EVMC_HOMESTEAD>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_HOMESTEAD>(*ctx, *analysis, stack_ptr);
     case EVMC_TANGERINE_WHISTLE:
-        return core_loop_impl<EVMC_TANGERINE_WHISTLE>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_TANGERINE_WHISTLE>(
+            *ctx, *analysis, stack_ptr);
     case EVMC_SPURIOUS_DRAGON:
-        return core_loop_impl<EVMC_SPURIOUS_DRAGON>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_SPURIOUS_DRAGON>(*ctx, *analysis, stack_ptr);
     case EVMC_BYZANTIUM:
-        return core_loop_impl<EVMC_BYZANTIUM>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_BYZANTIUM>(*ctx, *analysis, stack_ptr);
     case EVMC_CONSTANTINOPLE:
-        return core_loop_impl<EVMC_CONSTANTINOPLE>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_CONSTANTINOPLE>(*ctx, *analysis, stack_ptr);
     case EVMC_PETERSBURG:
-        return core_loop_impl<EVMC_PETERSBURG>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_PETERSBURG>(*ctx, *analysis, stack_ptr);
     case EVMC_ISTANBUL:
-        return core_loop_impl<EVMC_ISTANBUL>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_ISTANBUL>(*ctx, *analysis, stack_ptr);
     case EVMC_BERLIN:
-        return core_loop_impl<EVMC_BERLIN>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_BERLIN>(*ctx, *analysis, stack_ptr);
     case EVMC_LONDON:
-        return core_loop_impl<EVMC_LONDON>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_LONDON>(*ctx, *analysis, stack_ptr);
     case EVMC_PARIS:
-        return core_loop_impl<EVMC_PARIS>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_PARIS>(*ctx, *analysis, stack_ptr);
     case EVMC_SHANGHAI:
-        return core_loop_impl<EVMC_SHANGHAI>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_SHANGHAI>(*ctx, *analysis, stack_ptr);
     case EVMC_CANCUN:
-        return core_loop_impl<EVMC_CANCUN>(*ctx, *state, stack_ptr);
+        return core_loop_impl<EVMC_CANCUN>(*ctx, *analysis, stack_ptr);
     default:
         MONAD_VM_ASSERT(false);
     }
