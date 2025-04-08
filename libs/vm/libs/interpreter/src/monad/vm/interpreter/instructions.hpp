@@ -92,7 +92,7 @@ namespace monad::vm::interpreter
 
     // Arithmetic
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult
+    [[gnu::always_inline]] inline OpcodeResult
     add(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -461,7 +461,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult address(
+    [[gnu::always_inline]] inline OpcodeResult address(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -489,7 +489,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult origin(
+    [[gnu::always_inline]] inline OpcodeResult origin(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -503,7 +503,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult caller(
+    [[gnu::always_inline]] inline OpcodeResult caller(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -515,7 +515,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult callvalue(
+    [[gnu::always_inline]] inline OpcodeResult callvalue(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -543,7 +543,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult calldatasize(
+    [[gnu::always_inline]] inline OpcodeResult calldatasize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -571,7 +571,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult codesize(
+    [[gnu::always_inline]] inline OpcodeResult codesize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -599,7 +599,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult gasprice(
+    [[gnu::always_inline]] inline OpcodeResult gasprice(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -645,7 +645,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult returndatasize(
+    [[gnu::always_inline]] inline OpcodeResult returndatasize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -705,7 +705,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult coinbase(
+    [[gnu::always_inline]] inline OpcodeResult coinbase(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -719,7 +719,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult timestamp(
+    [[gnu::always_inline]] inline OpcodeResult timestamp(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -731,7 +731,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult number(
+    [[gnu::always_inline]] inline OpcodeResult number(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -743,7 +743,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult prevrandao(
+    [[gnu::always_inline]] inline OpcodeResult prevrandao(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -758,7 +758,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult gaslimit(
+    [[gnu::always_inline]] inline OpcodeResult gaslimit(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -770,7 +770,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult chainid(
+    [[gnu::always_inline]] inline OpcodeResult chainid(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -800,7 +800,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult basefee(
+    [[gnu::always_inline]] inline OpcodeResult basefee(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -830,7 +830,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult blobbasefee(
+    [[gnu::always_inline]] inline OpcodeResult blobbasefee(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -986,7 +986,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult msize(
+    [[gnu::always_inline]] inline OpcodeResult msize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -998,7 +998,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult
+    [[gnu::always_inline]] inline OpcodeResult
     gas(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1012,7 +1012,7 @@ namespace monad::vm::interpreter
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    [[gnu::noinline]] OpcodeResult push(
+    [[gnu::always_inline]] inline OpcodeResult push(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1107,7 +1107,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult
+    [[gnu::always_inline]] inline OpcodeResult
     pop(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1120,7 +1120,7 @@ namespace monad::vm::interpreter
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    [[gnu::noinline]] OpcodeResult
+    [[gnu::always_inline]] inline OpcodeResult
     dup(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1136,7 +1136,7 @@ namespace monad::vm::interpreter
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    [[gnu::noinline]] OpcodeResult swap(
+    [[gnu::always_inline]] inline OpcodeResult swap(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1202,7 +1202,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    [[gnu::noinline]] OpcodeResult jumpdest(
+    [[gnu::always_inline]] inline OpcodeResult jumpdest(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
