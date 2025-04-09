@@ -155,6 +155,7 @@ namespace monad::vm::compiler::native
         ////////// Core emit functionality //////////
 
         Stack &get_stack();
+        size_t estimate_size();
         void add_jump_dest(byte_offset);
         [[nodiscard]]
         bool begin_new_block(basic_blocks::Block const &);
@@ -499,7 +500,7 @@ namespace monad::vm::compiler::native
 
         // Terminators invalidate emitter until `begin_new_block` is called.
         void jump();
-        void jumpi(uint256_t const &fallthrough_offset);
+        void jumpi(basic_blocks::Block const &fallthrough);
         void fallthrough();
         void stop();
         void invalid_instruction();

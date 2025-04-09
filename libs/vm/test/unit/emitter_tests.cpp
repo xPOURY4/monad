@@ -568,7 +568,7 @@ namespace
         if (swap) {
             emit.swap(2);
         }
-        emit.jumpi(ir.blocks()[1].offset);
+        emit.jumpi(ir.blocks()[1]);
 
         (void)emit.begin_new_block(ir.blocks()[1]);
         emit.return_();
@@ -3041,7 +3041,7 @@ TEST(Emitter, jumpi_bad_jumpdest)
     (void)emit.begin_new_block(ir.blocks()[0]);
     emit.push(1);
     emit.push(1);
-    emit.jumpi(ir.blocks().at(1).offset);
+    emit.jumpi(ir.blocks().at(1));
 
     entrypoint_t entry = emit.finish_contract(rt);
     auto ctx = test_context();
@@ -3140,4 +3140,36 @@ TEST(Emitter, SpillAvxRegister)
         }
     }
     ASSERT_EQ(avx_count, AVX_REG_COUNT);
+}
+
+TEST(Emitter, QuadraticCompileTimeRegression)
+{
+    std::vector<uint8_t> bytecode;
+    for (int i = 0; i < 1000; ++i) {
+        bytecode.push_back(CODESIZE);
+    }
+    for (int i = 0; i < 500; ++i) {
+        bytecode.push_back(CALLVALUE);
+        bytecode.push_back(CALLVALUE);
+        bytecode.push_back(JUMPI);
+    }
+
+    auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+    asmjit::JitRuntime const rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks().at(0));
+
+    for (int i = 0; i < 1000; ++i) {
+        emit.codesize();
+    }
+    for (size_t i = 0; i < 500; ++i) {
+        emit.callvalue();
+        emit.callvalue();
+        emit.jumpi(ir.blocks().at(i + 1));
+        (void)emit.begin_new_block(ir.blocks().at(i + 1));
+    }
+    emit.stop();
+
+    ASSERT_LT(emit.estimate_size(), 256 * 1024);
 }

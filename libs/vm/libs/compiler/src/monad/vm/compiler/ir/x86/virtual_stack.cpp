@@ -646,27 +646,24 @@ namespace monad::vm::compiler::native
         return e;
     }
 
-    bool Stack::is_properly_spilled()
+    size_t Stack::missing_spill_count()
     {
+        size_t count = 0;
         for (int32_t stack_ix = 0; stack_ix <= top_index_; ++stack_ix) {
             size_t const i = static_cast<size_t>(stack_ix);
-            if (!positive_elems_[i]->stack_offset()) {
-                return false;
-            }
-            if (positive_elems_[i]->stack_offset()->offset != stack_ix) {
-                return false;
-            }
+            count += !positive_elems_[i]->stack_offset() ||
+                     positive_elems_[i]->stack_offset()->offset != stack_ix;
         }
-        for (uint32_t i = 0; i < negative_elems_.size(); ++i) {
-            if (!negative_elems_[i]->stack_offset()) {
-                return false;
-            }
+        uint32_t i = static_cast<uint32_t>(negative_elems_.size());
+        while (i-- > 0) {
             int32_t const stack_ix = -static_cast<int32_t>(i) - 1;
-            if (negative_elems_[i]->stack_offset()->offset != stack_ix) {
-                return false;
+            if (stack_ix > top_index_) {
+                break;
             }
+            count += !negative_elems_[i]->stack_offset() ||
+                     negative_elems_[i]->stack_offset()->offset != stack_ix;
         }
-        return true;
+        return count;
     }
 
     std::vector<std::pair<GeneralReg, StackOffset>>

@@ -330,7 +330,7 @@ namespace
             break;
         case JumpI:
             MONAD_VM_DEBUG_ASSERT(block.fallthrough_dest != INVALID_BLOCK_ID);
-            emit.jumpi(ir.blocks()[block.fallthrough_dest].offset);
+            emit.jumpi(ir.blocks()[block.fallthrough_dest]);
             break;
         case Jump:
             emit.jump();

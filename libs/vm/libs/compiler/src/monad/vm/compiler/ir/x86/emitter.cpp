@@ -502,7 +502,6 @@ namespace monad::vm::compiler::native
         contract_epilogue();
 
         for (auto const &[lbl, rpq, back] : byte_out_of_bounds_handlers_) {
-            as_.align(asmjit::AlignMode::kCode, 16);
             as_.bind(lbl);
             as_.xor_(rpq[0], rpq[0]);
             as_.xor_(rpq[1], rpq[1]);
@@ -872,6 +871,14 @@ namespace monad::vm::compiler::native
     Stack &Emitter::get_stack()
     {
         return stack_;
+    }
+
+    size_t Emitter::estimate_size()
+    {
+        return code_holder_.textSection()->realSize() +
+               (external_functions_.size() << 3) +
+               (byte_out_of_bounds_handlers_.size() << 5) +
+               (literals_.size() << 5) + (bytecode_size_ << 2);
     }
 
     void Emitter::add_jump_dest(byte_offset d)
@@ -2451,10 +2458,21 @@ namespace monad::vm::compiler::native
     }
 
     // Discharge indirectly with `jumpi_comparison`
-    void Emitter::jumpi(uint256_t const &fallthrough)
+    void Emitter::jumpi(basic_blocks::Block const &ft)
     {
-        MONAD_VM_DEBUG_ASSERT(fallthrough <= bytecode_size_);
-        if (jump_dests_.count(static_cast<byte_offset>(fallthrough))) {
+        MONAD_VM_DEBUG_ASSERT(ft.offset <= bytecode_size_);
+        // We spill the stack if the fall through block is a jumpdest, but also
+        // in case the number of spills is not proportional to the number of
+        // instructions in the fall through block and the fallthrough block
+        // is terminated with `JUMPI`. This latter condition is to preserve
+        // linear compile time, which would otherwise be quadratic, due to the
+        // `JUMPI` instruction potentially spilling the same stack elements as
+        // the predecessor block.
+        bool const spill_stack =
+            jump_dests_.count(static_cast<byte_offset>(ft.offset)) ||
+            (ft.terminator == basic_blocks::Terminator::JumpI &&
+             stack_.missing_spill_count() > 4 + 4 * ft.instrs.size());
+        if (spill_stack) {
             jumpi_spill_fallthrough_stack();
         }
         else {
@@ -2808,7 +2826,7 @@ namespace monad::vm::compiler::native
 
         Comparison const comp = jumpi_comparison(std::move(cond), dest);
         if (dest->literal() && stack_.delta() == 0 &&
-            stack_.is_properly_spilled()) {
+            stack_.missing_spill_count() == 0) {
             // We do not need to spill stack elements and we do not need
             // to adjust by stack delta, so only need conditional jump.
             auto lit = literal_jump_dest_operand(std::move(dest));

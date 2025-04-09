@@ -593,12 +593,10 @@ namespace monad::vm::compiler::native
         StackElem *spill_general_reg(StackElem *);
 
         /**
-         * Whether all stack elements are located at thrir rightful
-         * stack offset. E.g. for all stack indices i, if e is the
-         * stack element e at index i, then e is also located at stack
-         * offset i.
+         * The number of stack elements that are not located in the stack
+         * offset coinciding with its stack index.
          */
-        bool is_properly_spilled();
+        size_t missing_spill_count();
 
         /**
          * Find a general register for the given stack element.
