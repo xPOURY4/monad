@@ -171,8 +171,11 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = test_state.to_intra_state();
-            auto host =
-                Host(EVMC_CANCUN, vm, evm_state, BlockInfo{}, Transaction{});
+            auto const block = BlockInfo{};
+            auto const tx = Transaction{};
+
+            auto host = Host(EVMC_CANCUN, vm, evm_state, block, tx);
+
             auto const *interface = &host.get_interface();
             auto *ctx = host.to_context();
             state.ResumeTiming();
