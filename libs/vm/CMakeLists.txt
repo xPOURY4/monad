@@ -87,6 +87,7 @@ if(MONAD_COMPILER_TESTING OR MONAD_COMPILER_BENCHMARKS)
 endif()
 
 # asmjit
+set(ASMJIT_STATIC ON)
 add_subdirectory(third_party/asmjit)
 
 add_subdirectory(libs/compiler)
