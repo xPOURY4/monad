@@ -229,6 +229,46 @@ See [here](scripts/benchmark_analysis/README.md) for documentation on a set of
 Python scripts that can be used to analyse the results obtained from these
 benchmarks.
 
+### Interpreter Opcode Statistics
+
+The interpreter can be configured to print out statistics for each opcode when
+the enclosing binary exits. For example, to run a single execution benchmark
+ten times and print statistics:
+```console
+$ CC=gcc-13 CXX=g++-13 cmake                                \
+    -S . -B build                                           \
+    -G Ninja                                                \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
+    -DCMAKE_BUILD_TYPE=Release                              \
+    -DMONAD_COMPILER_TESTING=Off                            \
+    -DMONAD_COMPILER_BENCHMARKS=On                          \
+    -DMONAD_VM_INTERPRETER_STATS=On
+$ ./build/test/execution_benchmarks/execution-benchmarks  \
+    --benchmark_filter='counting_loop/interpreter'        \
+    --benchmark_min_time=10x
+...
+----------------------------------------------------------------------------
+Benchmark                                  Time             CPU   Iterations
+----------------------------------------------------------------------------
+execute/counting_loop/interpreter   27404557 ns     27404412 ns           10
+opcode,name,count,time
+1,ADD,655360,14010307
+20,EQ,655360,14007292
+21,ISZERO,655360,13738208
+81,MLOAD,655360,14031804
+82,MSTORE,10,3200
+87,JUMPI,655360,14742046
+91,JUMPDEST,655360,13287609
+95,PUSH0,655380,13577208
+96,PUSH1,1310720,27168176
+127,PUSH32,10,2140
+128,DUP1,655360,13579918
+```
+
+The code implementing this feature relies on global state and is not
+thread-safe; it should only be enabled in limited benchmarking contexts and
+never in production.
+
 ## Structure
 
 There are four main components:

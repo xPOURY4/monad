@@ -3,6 +3,7 @@
 #include <monad/vm/evm/opcodes_xmacro.hpp>
 #include <monad/vm/interpreter/debug.hpp>
 #include <monad/vm/interpreter/execute.hpp>
+#include <monad/vm/interpreter/instruction_stats.hpp>
 #include <monad/vm/interpreter/instruction_table.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
@@ -66,6 +67,8 @@ namespace monad::vm::interpreter
 #define MONAD_COMPILER_ON_EVM_OPCODE(op)                                       \
     LABEL_##op:                                                                \
     {                                                                          \
+        stats::begin(op);                                                      \
+                                                                               \
         if constexpr (debug_enabled) {                                         \
             trace<Rev>(                                                        \
                 op,                                                            \
@@ -88,6 +91,8 @@ namespace monad::vm::interpreter
         gas_remaining = gas_rem;                                               \
         instr_ptr = ip;                                                        \
         stack_top = stack_top + delta;                                         \
+                                                                               \
+        stats::end();                                                          \
                                                                                \
         goto *dispatch_table[*instr_ptr];                                      \
     }

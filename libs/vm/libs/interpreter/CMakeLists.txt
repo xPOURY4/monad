@@ -2,6 +2,12 @@ enable_language(ASM)
 
 option(MONAD_VM_INTERPRETER_DEBUG "Trace instructions executed by interpreter" OFF)
 
+# This option causes any binary that runs the Monad baseline interpreter to
+# print a CSV-formatted summary of opcode executions when it exits. This code is
+# not thread-safe and should only be enabled in appropriate benchmarking
+# contexts, never in production.
+option(MONAD_VM_INTERPRETER_STATS "Print opcode statistics on program exit" OFF)
+
 add_library(monad-vm-interpreter STATIC)
 
 target_sources(monad-vm-interpreter PRIVATE
@@ -10,6 +16,8 @@ target_sources(monad-vm-interpreter PRIVATE
   "src/monad/vm/interpreter/entry.S"
   "src/monad/vm/interpreter/execute.cpp"
   "src/monad/vm/interpreter/execute.hpp"
+  "src/monad/vm/interpreter/instruction_stats.cpp"
+  "src/monad/vm/interpreter/instruction_stats.hpp"
   "src/monad/vm/interpreter/instruction_table.hpp"
   "src/monad/vm/interpreter/instructions.hpp"
   "src/monad/vm/interpreter/intercode.cpp"
@@ -21,6 +29,10 @@ monad_compile_options(monad-vm-interpreter)
 
 if(MONAD_VM_INTERPRETER_DEBUG)
   target_compile_definitions(monad-vm-interpreter PRIVATE MONAD_VM_INTERPRETER_DEBUG)
+endif()
+
+if(MONAD_VM_INTERPRETER_STATS)
+  target_compile_definitions(monad-vm-interpreter PRIVATE MONAD_VM_INTERPRETER_STATS)
 endif()
 
 target_include_directories(monad-vm-interpreter
