@@ -12,6 +12,7 @@ target_sources(monad-vm-utils PRIVATE
     "src/monad/vm/utils/uint256.hpp"
     "src/monad/vm/utils/parser.cpp"
     "src/monad/vm/utils/parser.hpp"
+    "src/monad/vm/utils/scope_exit.hpp"
     "src/monad/vm/utils/traits.hpp"
 )
 
