@@ -846,7 +846,7 @@ namespace monad::vm::fuzzing
         using gas_t = decltype(evmc_message::gas);
 
         auto const base_gas =
-            address_lookup(target).size() * known_addresses.size();
+            address_lookup(target).first.size() * known_addresses.size();
 
         auto factor_dist = std::normal_distribution(8.0);
         auto const factor = std::max(0.0, factor_dist(eng));
@@ -967,7 +967,7 @@ namespace monad::vm::fuzzing
 
         auto const salt = random_constant(eng).value;
 
-        auto const &code = address_lookup(target);
+        auto const &[code, _] = address_lookup(target);
 
         return message_ptr{new evmc_message{
             .kind = kind,

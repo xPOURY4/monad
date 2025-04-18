@@ -753,7 +753,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
                         return found->code;
                     }
 
-                    return evmc::bytes{};
+                    return std::pair{evmc::bytes{}, empty_code_hash};
                 });
             ++total_messages;
 

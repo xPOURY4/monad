@@ -166,7 +166,7 @@ namespace
         auto intra_state = test_state.to_intra_state();
         auto const *const code_acc = intra_state.find(msg.code_address);
         MONAD_VM_DEBUG_ASSERT(code_acc != nullptr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        auto const code = evmc::bytes_view{code_acc->code.first};
 
         for (auto _ : state) {
             state.PauseTiming();

@@ -9,6 +9,7 @@
 #include <test_vm.hpp>
 
 #include "account.hpp"
+#include "hash_utils.hpp"
 #include "host.hpp"
 #include "state.hpp"
 #include "test_state.hpp"
@@ -30,6 +31,10 @@ using enum BlockchainTestVM::Implementation;
 
 namespace
 {
+    auto make_hashed_code(bytes const code)
+    {
+        return std::pair{code, evmone::keccak256(code)};
+    }
 
     static evmone::state::State burntpix_state()
     {
@@ -40,9 +45,9 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = bytes{
+             .code = make_hashed_code(bytes{
                  code_0a743ba7304efcc9e384ece9be7631e2470e401e,
-                 code_0a743ba7304efcc9e384ece9be7631e2470e401e_len}});
+                 code_0a743ba7304efcc9e384ece9be7631e2470e401e_len})});
 
         auto &intra_acc = state.insert(
             0x49206861766520746f6f206d7563682074696d65_address,
@@ -50,9 +55,10 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = bytes{
+             .code = make_hashed_code(bytes{
                  code_49206861766520746f6f206d7563682074696d65,
-                 code_49206861766520746f6f206d7563682074696d65_len}});
+                 code_49206861766520746f6f206d7563682074696d65_len})});
+
         auto &storage = intra_acc.storage;
         auto val0 =
             0x000000000000000000000000f529c70db0800449ebd81fbc6e4221523a989f05_bytes32;
@@ -70,9 +76,9 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = bytes{
+             .code = make_hashed_code(bytes{
                  code_c917e98213a05d271adc5d93d2fee6c1f1006f75,
-                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75_len}});
+                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75_len})});
 
         state.insert(
             0xf529c70db0800449ebd81fbc6e4221523a989f05_address,
@@ -80,9 +86,9 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = bytes{
+             .code = make_hashed_code(bytes{
                  code_f529c70db0800449ebd81fbc6e4221523a989f05,
-                 code_f529c70db0800449ebd81fbc6e4221523a989f05_len}});
+                 code_f529c70db0800449ebd81fbc6e4221523a989f05_len})});
 
         return state;
     }
@@ -109,7 +115,7 @@ namespace
             0x49206861766520746f6f206d7563682074696f01_address;
 
         auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        auto const code = evmc::bytes_view{code_acc->code.first};
 
         InputData input_data{
             .seed = bytes32{seed}, .iterations = bytes32{iterations}};
@@ -166,13 +172,16 @@ namespace
     {
         evmone::state::State state;
 
+        auto const code_view = bytes{code_snailtracer, code_snailtracer_len};
+
         state.insert(
             0x49206861766520746f6f206d7563682074696d65_address,
             {.nonce = 0,
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = bytes{code_snailtracer, code_snailtracer_len}});
+             .code = make_hashed_code(
+                 bytes{code_snailtracer, code_snailtracer_len})});
         return state;
     }
 
@@ -190,7 +199,7 @@ namespace
             0x49206861766520746f6f206d7563682074696f01_address;
 
         auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        auto const code = evmc::bytes_view{code_acc->code.first};
 
         uint8_t func[4] = {0x30, 0x62, 0x7b, 0x7c};
 
