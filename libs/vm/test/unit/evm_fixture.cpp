@@ -57,7 +57,12 @@ namespace monad::vm::compiler::test
         }
         else if (impl == Interpreter) {
             result_ = evmc::Result{vm::interpreter::execute(
-                &host_.get_interface(), host_.to_context(), rev_, &msg_, code)};
+                vm_.get_stack_allocator(),
+                &host_.get_interface(),
+                host_.to_context(),
+                rev_,
+                &msg_,
+                code)};
         }
         else {
             MONAD_VM_ASSERT(impl == Evmone);

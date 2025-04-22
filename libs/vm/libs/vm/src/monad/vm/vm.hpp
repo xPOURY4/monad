@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/vm/compiler/ir/x86.hpp>
+#include <monad/vm/runtime/allocator.hpp>
 
 #include <asmjit/x86.h>
 
@@ -12,7 +13,16 @@ namespace monad::vm
 {
     class VM
     {
+        asmjit::JitRuntime runtime_;
+        runtime::EvmStackAllocator stack_allocator_;
+
     public:
+        VM(std::size_t max_stack_cache_byte_size_ =
+               runtime::EvmStackAllocator::DEFAULT_MAX_STACK_CACHE_BYTE_SIZE)
+            : stack_allocator_{max_stack_cache_byte_size_}
+        {
+        }
+
         /// Compile the given `code` for given `evmc_revision`. If `compile`
         /// succeeds, then it returns an entry point which can be called to
         /// execute the code.
@@ -39,7 +49,10 @@ namespace monad::vm
             evmc_revision rev, evmc_message const *msg, uint8_t const *code,
             size_t code_size, compiler::native::CompilerConfig const & = {});
 
-    private:
-        asmjit::JitRuntime runtime_;
+        [[gnu::always_inline]]
+        runtime::EvmStackAllocator &get_stack_allocator()
+        {
+            return stack_allocator_;
+        }
     };
 }

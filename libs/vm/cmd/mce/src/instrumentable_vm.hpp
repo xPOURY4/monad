@@ -1,5 +1,6 @@
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/allocator.hpp>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>
@@ -35,6 +36,10 @@ namespace abi_compat
 template <bool instrument>
 class InstrumentableVM : public evmc_vm
 {
+    monad::vm::runtime::EvmStackAllocator stack_allocator =
+        monad::vm::runtime::EvmStackAllocator(
+            monad::vm::runtime::EvmStackAllocator::
+                DEFAULT_MAX_STACK_CACHE_BYTE_SIZE);
 
 public:
     InstrumentableVM(asmjit::JitRuntime &rt)
@@ -81,19 +86,17 @@ public:
         auto ctx =
             vm::runtime::Context::from(interface, context, msg, code_span);
 
-        auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
-            std::aligned_alloc(32, sizeof(vm::utils::uint256_t) * 1024));
+        auto stack_ptr = stack_allocator.allocate_stack();
 
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;
-            entry(&ctx, stack_ptr);
+            entry(&ctx, stack_ptr.get());
             CACHEGRIND_STOP_INSTRUMENTATION;
         }
         else {
-            entry(&ctx, stack_ptr);
+            entry(&ctx, stack_ptr.get());
         }
 
-        std::free(stack_ptr);
         delete msg;
 
         return ctx.copy_to_evmc_result();

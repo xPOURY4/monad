@@ -6,6 +6,7 @@
 #include <monad/vm/interpreter/instruction_stats.hpp>
 #include <monad/vm/interpreter/instruction_table.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/traits.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -101,24 +102,16 @@ namespace monad::vm::interpreter
 
             MONAD_VM_ASSERT(false);
         }
-
-        std::unique_ptr<std::uint8_t, decltype(std::free) *> allocate_stack()
-        {
-            return {
-                reinterpret_cast<std::uint8_t *>(
-                    std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024)),
-                std::free};
-        }
     }
 
     evmc_result execute(
-        evmc_host_interface const *host, evmc_host_context *context,
-        evmc_revision rev, evmc_message const *msg,
+        runtime::EvmStackAllocator &allocator, evmc_host_interface const *host,
+        evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
         std::span<uint8_t const> code)
     {
         auto ctx = runtime::Context::from(host, context, msg, code);
 
-        auto const stack_ptr = allocate_stack();
+        auto const stack_ptr = allocator.allocate_stack();
         auto const analysis = Intercode(code);
 
         interpreter_runtime_trampoline(

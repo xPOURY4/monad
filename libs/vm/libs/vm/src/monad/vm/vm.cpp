@@ -2,7 +2,6 @@
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/types.hpp>
-#include <monad/vm/utils/uint256.hpp>
 #include <monad/vm/vm.hpp>
 
 #include <evmc/evmc.h>
@@ -12,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 
@@ -37,12 +37,9 @@ namespace monad::vm
         auto ctx =
             runtime::Context::from(host, context, msg, {code, code_size});
 
-        auto *stack_ptr = reinterpret_cast<std::uint8_t *>(
-            std::aligned_alloc(32, sizeof(utils::uint256_t) * 1024));
+        auto const stack_ptr = stack_allocator_.allocate_stack();
 
-        contract_main(&ctx, stack_ptr);
-
-        std::free(stack_ptr);
+        contract_main(&ctx, stack_ptr.get());
 
         return ctx.copy_to_evmc_result();
     }

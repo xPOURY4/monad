@@ -183,7 +183,12 @@ evmc_result BlockchainTestVM::execute_interpreter(
     size_t code_size)
 {
     return monad::vm::interpreter::execute(
-        host, context, rev, msg, {code, code_size});
+        monad_vm_.get_stack_allocator(),
+        host,
+        context,
+        rev,
+        msg,
+        {code, code_size});
 }
 
 evmc_capabilities_flagset BlockchainTestVM::get_capabilities() const

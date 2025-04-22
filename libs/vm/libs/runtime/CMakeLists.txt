@@ -3,6 +3,8 @@ enable_language(ASM)
 add_library(monad-vm-runtime STATIC)
 
 target_sources(monad-vm-runtime PRIVATE
+    "src/monad/vm/runtime/allocator.hpp"
+    "src/monad/vm/runtime/allocator.cpp"
     "src/monad/vm/runtime/bin.hpp"
     "src/monad/vm/runtime/call.hpp"
     "src/monad/vm/runtime/context.cpp"
