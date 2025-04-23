@@ -34,10 +34,10 @@ namespace monad::vm
         MONAD_VM_ASSERT(
             msg->input_size <= std::numeric_limits<std::uint32_t>::max());
 
-        auto ctx =
-            runtime::Context::from(host, context, msg, {code, code_size});
+        auto ctx = runtime::Context::from(
+            memory_allocator_, host, context, msg, {code, code_size});
 
-        auto const stack_ptr = stack_allocator_.allocate_stack();
+        auto const stack_ptr = stack_allocator_.allocate();
 
         contract_main(&ctx, stack_ptr.get());
 

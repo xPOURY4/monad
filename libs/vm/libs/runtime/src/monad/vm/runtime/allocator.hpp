@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/vm/runtime/types.hpp>
+#include <monad/vm/core/assert.h>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <cstdlib>
@@ -65,61 +65,98 @@ namespace monad::vm::runtime
         }
     };
 
-    class EvmStackAllocator
+    template <typename T>
+    struct ThreadLocalCacheList
+    {
+        static thread_local CacheList cache_pool;
+    };
+
+    template <typename T>
+    concept Allocable = requires(T a) {
+        typename T::base_type;
+        { T::size } -> std::same_as<size_t const &>;
+        { T::alignment } -> std::same_as<size_t const &>;
+    };
+
+    template <Allocable T>
+    class CachedAllocator
     {
     public:
-        static constexpr size_t alignment = 32;
-        static constexpr size_t stack_size =
-            sizeof(::monad::vm::utils::uint256_t) * 1024;
-        static constexpr size_t DEFAULT_MAX_STACK_CACHE_BYTE_SIZE =
-            64 * stack_size;
+        static constexpr size_t alloc_size =
+            sizeof(typename T::base_type) * T::size;
+        static constexpr size_t DEFAULT_MAX_CACHE_BYTE_SIZE = 64 * alloc_size;
 
-        static_assert(sizeof(::monad::vm::utils::uint256_t) % alignment == 0);
-        static_assert(stack_size % alignment == 0);
-        static_assert(sizeof(CacheElement) <= stack_size);
+        static_assert(alloc_size % T::alignment == 0);
+        static_assert(sizeof(CacheElement) <= alloc_size);
 
-        /// Create an EVM stack allocator which will allow up to
+        /// Create an allocator which will allow up to
         /// `max_cache_byte_size_per_thread` number of bytes being
         /// consumed by each (thread local) cache.
-        EvmStackAllocator(size_t max_cache_byte_size_per_thread)
+        CachedAllocator(size_t max_cache_byte_size_per_thread)
         {
-            max_stacks_in_cache = max_cache_byte_size_per_thread / stack_size;
+            max_slots_in_cache = max_cache_byte_size_per_thread / alloc_size;
         };
 
         /// Get a 32 byte aligned EVM stack.
-        uint8_t *aligned_alloc_evm_stack()
+        uint8_t *aligned_alloc_cached()
         {
-            if (stack_pool.empty()) {
+            if (ThreadLocalCacheList<T>::cache_pool.empty()) {
                 return reinterpret_cast<uint8_t *>(
-                    std::aligned_alloc(alignment, stack_size));
+                    std::aligned_alloc(T::alignment, alloc_size));
             }
             else {
-                return reinterpret_cast<uint8_t *>(stack_pool.pop());
+                return reinterpret_cast<uint8_t *>(
+                    ThreadLocalCacheList<T>::cache_pool.pop());
             }
         }
 
-        /// Free a stack, allocated with `aligned_alloc_evm_stack`.
-        void free_evm_stack(uint8_t *ptr)
+        /// Free memory allocated with `aligned_alloc_cached`.
+        void free_cached(uint8_t *ptr) const
         {
-            if (stack_pool.size() >= max_stacks_in_cache) {
+            if (ThreadLocalCacheList<T>::cache_pool.size() >=
+                max_slots_in_cache) {
                 std::free(ptr);
             }
             else {
-                stack_pool.push(reinterpret_cast<CacheElement *>(ptr));
+                ThreadLocalCacheList<T>::cache_pool.push(
+                    reinterpret_cast<CacheElement *>(ptr));
             }
         };
 
-        std::unique_ptr<uint8_t, std::function<void(uint8_t *)>>
-        allocate_stack()
+        std::unique_ptr<uint8_t, std::function<void(uint8_t *)>> allocate()
         {
-            return {aligned_alloc_evm_stack(), [&](uint8_t *ptr) {
-                        free_evm_stack(ptr);
+            return {aligned_alloc_cached(), [*this](uint8_t *ptr) {
+                        free_cached(ptr);
                     }};
         }
 
     private:
         /// Upper bound on the number of stacks in each cache.
-        size_t max_stacks_in_cache;
-        static thread_local CacheList stack_pool;
+        size_t max_slots_in_cache;
     };
+
+    struct EvmStackAllocatorMeta
+    {
+        using base_type = ::monad::vm::utils::uint256_t;
+        static constexpr size_t size = 1024;
+        static constexpr size_t alignment = 32;
+    };
+
+    template <>
+    thread_local CacheList
+        ThreadLocalCacheList<EvmStackAllocatorMeta>::cache_pool;
+
+    struct EvmMemoryAllocatorMeta
+    {
+        using base_type = uint8_t;
+        static constexpr size_t size = 4096;
+        static constexpr size_t alignment = 1;
+    };
+
+    template <>
+    thread_local CacheList
+        ThreadLocalCacheList<EvmMemoryAllocatorMeta>::cache_pool;
+
+    using EvmStackAllocator = CachedAllocator<EvmStackAllocatorMeta>;
+    using EvmMemoryAllocator = CachedAllocator<EvmMemoryAllocatorMeta>;
 }

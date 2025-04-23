@@ -109,13 +109,16 @@ namespace monad::vm::interpreter
     }
 
     evmc_result execute(
-        runtime::EvmStackAllocator &allocator, evmc_host_interface const *host,
-        evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
+        runtime::EvmStackAllocator stack_allocator,
+        runtime::EvmMemoryAllocator memory_allocator,
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg,
         std::span<uint8_t const> code)
     {
-        auto ctx = runtime::Context::from(host, context, msg, code);
 
-        auto const stack_ptr = allocator.allocate_stack();
+        auto const stack_ptr = stack_allocator.allocate();
+        auto ctx =
+            runtime::Context::from(memory_allocator, host, context, msg, code);
         auto const analysis = Intercode(code);
 
         interpreter_runtime_trampoline(

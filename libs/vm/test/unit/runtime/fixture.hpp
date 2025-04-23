@@ -21,9 +21,12 @@ namespace monad::vm::compiler::test
     protected:
         RuntimeTest();
 
-        evmc::MockedHost host_;
+        std::array<std::uint8_t, 128> code_;
+        std::array<std::uint8_t, 128> call_data_;
+        std::array<std::uint8_t, 128> call_return_data_;
 
         std::array<evmc_bytes32, 2> blob_hashes_;
+        evmc::MockedHost host_;
         vm::runtime::Context ctx_;
 
         evmc_result
@@ -34,10 +37,6 @@ namespace monad::vm::compiler::test
             std::int64_t gas_refund = 0);
 
         evmc_result failure_result(evmc_status_code = EVMC_INTERNAL_ERROR);
-
-        std::array<std::uint8_t, 128> code_;
-        std::array<std::uint8_t, 128> call_data_;
-        std::array<std::uint8_t, 128> call_return_data_;
 
         /**
          * This function performs some slightly gnarly metaprogramming to make

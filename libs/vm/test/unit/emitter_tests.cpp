@@ -4,6 +4,7 @@
 #include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/math.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -82,7 +83,8 @@ namespace
                     .tx_context = {},
                 },
             .result = test_result(),
-            .memory = {},
+            .memory = monad::vm::runtime::Memory(runtime::EvmMemoryAllocator{
+                runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE}),
             .exit_stack_ptr = nullptr};
     }
 

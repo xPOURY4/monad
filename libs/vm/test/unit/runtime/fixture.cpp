@@ -1,12 +1,16 @@
 #include "fixture.hpp"
 
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
+#include <evmc/mocked_host.hpp>
 
 #include <intx/intx.hpp>
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -20,55 +24,66 @@ using namespace intx;
 
 namespace monad::vm::compiler::test
 {
+    namespace
+    {
+        evmc::MockedHost init_host(std::array<evmc_bytes32, 2> &blob_hashes_)
+        {
+            auto host = evmc::MockedHost{};
+
+            host.tx_context = evmc_tx_context{
+                .tx_gas_price = bytes32_from_uint256(56762),
+                .tx_origin = 0x000000000000000000000000000000005CA1AB1E_address,
+                .block_coinbase =
+                    0x00000000000000000000000000000000BA5EBA11_address,
+                .block_number = 23784,
+                .block_timestamp = 1733494490,
+                .block_gas_limit = 30000000,
+                .block_prev_randao = bytes32_from_uint256(89273),
+                .chain_id = bytes32_from_uint256(2342),
+                .block_base_fee = bytes32_from_uint256(389),
+                .blob_base_fee = bytes32_from_uint256(98988),
+                .blob_hashes = blob_hashes_.data(),
+                .blob_hashes_count = blob_hashes_.size(),
+                .initcodes = nullptr,
+                .initcodes_count = 0,
+            };
+
+            host.block_hash = bytes32_from_uint256(
+                0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
+
+            return host;
+        }
+    }
+
     RuntimeTest::RuntimeTest()
         : blob_hashes_{bytes32_from_uint256(1), bytes32_from_uint256(2)}
+        , host_{init_host(blob_hashes_)}
+        , ctx_{
+              .host = &host_.get_interface(),
+              .context = host_.to_context(),
+              .gas_remaining = std::numeric_limits<std::int64_t>::max(),
+              .gas_refund = 0,
+              .env =
+                  {
+                      .evmc_flags = 0,
+                      .depth = 0,
+                      .recipient =
+                          0x0000000000000000000000000000000000000001_address,
+                      .sender =
+                          0x0000000000000000000000000000000000000002_address,
+                      .value = {},
+                      .create2_salt = {},
+                      .input_data = &call_data_[0],
+                      .code = &code_[0],
+                      .return_data = {},
+                      .input_data_size = sizeof(call_data_),
+                      .code_size = sizeof(code_),
+                      .return_data_size = 0,
+                      .tx_context = host_.tx_context,
+                  },
+              .memory = Memory(EvmMemoryAllocator{
+                  EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE})}
     {
-        host_.block_hash = bytes32_from_uint256(
-            0x105DF6064F84551C4100A368056B8AF0E491077245DAB1536D2CFA6AB78421CE_u256);
-
-        host_.tx_context = evmc_tx_context{
-            .tx_gas_price = bytes32_from_uint256(56762),
-            .tx_origin = 0x000000000000000000000000000000005CA1AB1E_address,
-            .block_coinbase =
-                0x00000000000000000000000000000000BA5EBA11_address,
-            .block_number = 23784,
-            .block_timestamp = 1733494490,
-            .block_gas_limit = 30000000,
-            .block_prev_randao = bytes32_from_uint256(89273),
-            .chain_id = bytes32_from_uint256(2342),
-            .block_base_fee = bytes32_from_uint256(389),
-            .blob_base_fee = bytes32_from_uint256(98988),
-            .blob_hashes = blob_hashes_.data(),
-            .blob_hashes_count = blob_hashes_.size(),
-            .initcodes = nullptr,
-            .initcodes_count = 0,
-        };
-
-        ctx_ = Context{
-            .host = &host_.get_interface(),
-            .context = host_.to_context(),
-            .gas_remaining = std::numeric_limits<std::int64_t>::max(),
-            .gas_refund = 0,
-            .env =
-                {
-                    .evmc_flags = 0,
-                    .depth = 0,
-                    .recipient =
-                        0x0000000000000000000000000000000000000001_address,
-                    .sender =
-                        0x0000000000000000000000000000000000000002_address,
-                    .value = {},
-                    .create2_salt = {},
-                    .input_data = &call_data_[0],
-                    .code = &code_[0],
-                    .return_data = {},
-                    .input_data_size = sizeof(call_data_),
-                    .code_size = sizeof(code_),
-                    .return_data_size = 0,
-                    .tx_context = host_.tx_context,
-                },
-        };
-
         std::iota(code_.rbegin(), code_.rend(), 0);
         std::iota(call_data_.begin(), call_data_.end(), 0);
         std::iota(call_return_data_.begin(), call_return_data_.end(), 0);

@@ -2,5 +2,10 @@
 
 namespace monad::vm::runtime
 {
-    thread_local CacheList EvmStackAllocator::stack_pool;
+    template <>
+    thread_local CacheList
+        ThreadLocalCacheList<EvmStackAllocatorMeta>::cache_pool{};
+    template <>
+    thread_local CacheList
+        ThreadLocalCacheList<EvmMemoryAllocatorMeta>::cache_pool{};
 }

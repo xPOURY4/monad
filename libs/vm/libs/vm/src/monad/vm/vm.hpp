@@ -15,11 +15,15 @@ namespace monad::vm
     {
         asmjit::JitRuntime runtime_;
         runtime::EvmStackAllocator stack_allocator_;
+        runtime::EvmMemoryAllocator memory_allocator_;
 
     public:
         VM(std::size_t max_stack_cache_byte_size_ =
-               runtime::EvmStackAllocator::DEFAULT_MAX_STACK_CACHE_BYTE_SIZE)
+               runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE,
+           std::size_t max_memory_cache_byte_size_ =
+               runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE)
             : stack_allocator_{max_stack_cache_byte_size_}
+            , memory_allocator_{max_memory_cache_byte_size_}
         {
         }
 
@@ -50,9 +54,15 @@ namespace monad::vm
             size_t code_size, compiler::native::CompilerConfig const & = {});
 
         [[gnu::always_inline]]
-        runtime::EvmStackAllocator &get_stack_allocator()
+        runtime::EvmStackAllocator get_stack_allocator()
         {
             return stack_allocator_;
+        }
+
+        [[gnu::always_inline]]
+        runtime::EvmMemoryAllocator get_memory_allocator()
+        {
+            return memory_allocator_;
         }
     };
 }

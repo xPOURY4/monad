@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/bin.hpp>
 #include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -85,6 +86,7 @@ namespace monad::vm::runtime
 
     struct Memory
     {
+        EvmMemoryAllocator allocator_;
         std::uint32_t size;
         std::uint32_t capacity;
         std::uint8_t *data;
@@ -96,8 +98,11 @@ namespace monad::vm::runtime
 
         using Offset = Bin<offset_bits>;
 
-        Memory()
-            : size{}
+        Memory() = delete;
+
+        Memory(EvmMemoryAllocator allocator)
+            : allocator_{allocator}
+            , size{}
             , capacity{initial_capacity}
             , data{alloc(capacity)}
             , cost{}
@@ -106,7 +111,8 @@ namespace monad::vm::runtime
         }
 
         Memory(Memory &&m)
-            : size{m.size}
+            : allocator_{m.allocator_}
+            , size{m.size}
             , capacity{m.capacity}
             , data{m.data}
             , cost{m.cost}
@@ -146,23 +152,33 @@ namespace monad::vm::runtime
         }
 
         [[gnu::always_inline]]
-        static uint8_t *alloc(std::uint32_t n)
+        uint8_t *alloc(std::uint32_t n)
         {
-            return static_cast<uint8_t *>(std::aligned_alloc(32, n));
+            if (n == initial_capacity) {
+                return allocator_.aligned_alloc_cached();
+            }
+            else {
+                return static_cast<uint8_t *>(std::aligned_alloc(32, n));
+            }
         }
 
         [[gnu::always_inline]]
-        static void dealloc(uint8_t *d)
+        void dealloc(uint8_t *d)
         {
-            std::free(d);
+            if (capacity == initial_capacity) {
+                allocator_.free_cached(d);
+            }
+            else {
+                std::free(d);
+            }
         }
     };
 
     struct Context
     {
         static Context from(
-            evmc_host_interface const *host, evmc_host_context *context,
-            evmc_message const *msg,
+            EvmMemoryAllocator &mem_alloc, evmc_host_interface const *host,
+            evmc_host_context *context, evmc_message const *msg,
             std::span<std::uint8_t const> code) noexcept;
 
         evmc_host_interface const *host;
@@ -175,7 +191,7 @@ namespace monad::vm::runtime
 
         Result result = {};
 
-        Memory memory = {};
+        Memory memory;
 
         void *exit_stack_ptr = nullptr;
 
@@ -217,13 +233,13 @@ namespace monad::vm::runtime
                     // `std::uint32_t`, because `new_size` is `Bin<31>`.
                     memory.capacity = std::max(memory.capacity * 2, *new_size);
                     MONAD_VM_DEBUG_ASSERT((memory.capacity & 31) == 0);
-                    std::uint8_t *new_data = Memory::alloc(memory.capacity);
+                    std::uint8_t *new_data = memory.alloc(memory.capacity);
                     std::memcpy(new_data, memory.data, memory.size);
                     std::memset(
                         new_data + memory.size,
                         0,
                         memory.capacity - memory.size);
-                    Memory::dealloc(memory.data);
+                    memory.dealloc(memory.data);
                     memory.data = new_data;
                 }
                 memory.size = *new_size;

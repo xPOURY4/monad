@@ -58,6 +58,7 @@ namespace monad::vm::compiler::test
         else if (impl == Interpreter) {
             result_ = evmc::Result{vm::interpreter::execute(
                 vm_.get_stack_allocator(),
+                vm_.get_memory_allocator(),
                 &host_.get_interface(),
                 host_.to_context(),
                 rev_,

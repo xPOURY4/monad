@@ -36,10 +36,10 @@ namespace abi_compat
 template <bool instrument>
 class InstrumentableVM : public evmc_vm
 {
-    monad::vm::runtime::EvmStackAllocator stack_allocator =
-        monad::vm::runtime::EvmStackAllocator(
-            monad::vm::runtime::EvmStackAllocator::
-                DEFAULT_MAX_STACK_CACHE_BYTE_SIZE);
+    monad::vm::runtime::EvmStackAllocator stack_allocator{
+        monad::vm::runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE};
+    monad::vm::runtime::EvmMemoryAllocator memory_allocator{
+        monad::vm::runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE};
 
 public:
     InstrumentableVM(asmjit::JitRuntime &rt)
@@ -83,10 +83,10 @@ public:
         std::vector<uint8_t> empty_code{};
         auto code_span = std::span<uint8_t const>{empty_code.data(), 0};
 
-        auto ctx =
-            vm::runtime::Context::from(interface, context, msg, code_span);
+        auto ctx = vm::runtime::Context::from(
+            memory_allocator, interface, context, msg, code_span);
 
-        auto stack_ptr = stack_allocator.allocate_stack();
+        auto stack_ptr = stack_allocator.allocate();
 
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;

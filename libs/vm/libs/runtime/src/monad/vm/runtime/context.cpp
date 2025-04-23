@@ -1,4 +1,5 @@
 #include <monad/vm/core/assert.h>
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/cases.hpp>
@@ -25,8 +26,9 @@ namespace monad::vm::runtime
     }
 
     Context Context::from(
-        evmc_host_interface const *host, evmc_host_context *context,
-        evmc_message const *msg, std::span<std::uint8_t const> code) noexcept
+        EvmMemoryAllocator &alloc, evmc_host_interface const *host,
+        evmc_host_context *context, evmc_message const *msg,
+        std::span<std::uint8_t const> code) noexcept
     {
         return Context{
             .host = host,
@@ -51,7 +53,7 @@ namespace monad::vm::runtime
                     .tx_context = host->get_tx_context(context),
                 },
             .result = {},
-            .memory = {},
+            .memory = Memory(alloc),
         };
     }
 

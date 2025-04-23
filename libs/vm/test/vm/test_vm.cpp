@@ -184,6 +184,7 @@ evmc_result BlockchainTestVM::execute_interpreter(
 {
     return monad::vm::interpreter::execute(
         monad_vm_.get_stack_allocator(),
+        monad_vm_.get_memory_allocator(),
         host,
         context,
         rev,
