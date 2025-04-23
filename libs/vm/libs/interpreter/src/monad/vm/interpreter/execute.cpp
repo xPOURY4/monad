@@ -41,6 +41,8 @@ static_assert(
         interpreter_runtime_trampoline, interpreter_core_loop),
     "Interpreter core loop and trampoline signatures must be identical");
 
+#define ASM_COMMENT(C) asm volatile("# " C);
+
 namespace monad::vm::interpreter
 {
     namespace
@@ -68,6 +70,8 @@ namespace monad::vm::interpreter
 #define MONAD_COMPILER_ON_EVM_OPCODE(op)                                       \
     LABEL_##op:                                                                \
     {                                                                          \
+        ASM_COMMENT("OPCODE: " #op);                                           \
+                                                                               \
         stats::begin(op);                                                      \
                                                                                \
         if constexpr (debug_enabled) {                                         \
