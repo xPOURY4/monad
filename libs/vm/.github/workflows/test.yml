@@ -22,6 +22,14 @@ jobs:
                 CC: gcc-13
               - CXX: clang++-18
                 CC: clang-18
+            exclude:
+              # drop the Debug + gcc-asan build when using clang
+              - build:
+                  CMAKE_BUILD_TYPE: Debug
+                  TOOLCHAIN: gcc-asan
+                compiler:
+                  CXX: clang++-18
+                  CC: clang-18
 
         steps:
             - name: Generate token
