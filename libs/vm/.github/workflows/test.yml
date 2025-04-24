@@ -64,6 +64,7 @@ jobs:
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
+                    libtbb-dev          \
                     libbenchmark-dev    \
                     libcli11-dev        \
                     libgmock-dev        \
@@ -146,6 +147,7 @@ jobs:
                 sudo apt install -y     \
                     build-essential     \
                     cmake               \
+                    libtbb-dev          \
                     libbenchmark-dev    \
                     libcli11-dev        \
                     libgtest-dev        \

@@ -1,5 +1,6 @@
 #include "test_vm.hpp"
 
+#include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/interpreter/execute.hpp>
@@ -16,7 +17,6 @@
 #include <cstring>
 #include <filesystem>
 #include <format>
-#include <optional>
 #include <sstream>
 #include <unordered_map>
 
@@ -139,11 +139,17 @@ evmc_result BlockchainTestVM::execute_compiler(
 
     if (auto it = compiled_contracts_.find({rev, code_hash});
         it != compiled_contracts_.end()) {
-        return monad_vm_.execute(
-            it->second, host, context, msg, code, code_size);
+        if (it->second->entrypoint()) {
+            return monad_vm_.execute(
+                it->second->entrypoint(), host, context, msg, code, code_size);
+        }
+        else {
+            return execute_interpreter(
+                host, context, rev, msg, code, code_size);
+        }
     }
 
-    std::optional<native::entrypoint_t> f;
+    monad::vm::SharedNativecode ncode;
     if (debug_dir_) {
         std::ostringstream file(std::ostringstream::ate);
         file.str(debug_dir_);
@@ -154,13 +160,14 @@ evmc_result BlockchainTestVM::execute_compiler(
         native::CompilerConfig config{base_config};
         auto asm_log_path = file.str();
         config.asm_log_path = asm_log_path.c_str();
-        f = monad_vm_.compile(rev, code, code_size, config);
+        ncode = monad_vm_.compile(rev, code, code_size, config);
     }
     else {
-        f = monad_vm_.compile(rev, code, code_size, base_config);
+        ncode = monad_vm_.compile(rev, code, code_size, base_config);
     }
 
-    if (!f) {
+    if (ncode->error_code() ==
+        monad::vm::compiler::native::Nativecode::Unexpected) {
         return evmc_result{
             .status_code = EVMC_INTERNAL_ERROR,
             .gas_left = 0,
@@ -173,8 +180,14 @@ evmc_result BlockchainTestVM::execute_compiler(
         };
     }
 
-    compiled_contracts_.insert({{rev, code_hash}, *f});
-    return monad_vm_.execute(*f, host, context, msg, code, code_size);
+    compiled_contracts_.insert({{rev, code_hash}, ncode});
+    if (ncode->entrypoint()) {
+        return monad_vm_.execute(
+            ncode->entrypoint(), host, context, msg, code, code_size);
+    }
+    else {
+        return execute_interpreter(host, context, rev, msg, code, code_size);
+    }
 }
 
 evmc_result BlockchainTestVM::execute_interpreter(

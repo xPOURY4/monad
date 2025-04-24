@@ -1,6 +1,9 @@
 add_library(monad-vm STATIC)
 
 target_sources(monad-vm PRIVATE
+    "src/monad/vm/code.hpp"
+    "src/monad/vm/varcode_cache.hpp"
+    "src/monad/vm/varcode_cache.cpp"
     "src/monad/vm/vm.cpp"
     "src/monad/vm/vm.hpp"
     # evmone wrappers
@@ -16,6 +19,7 @@ target_include_directories(monad-vm
 )
 
 target_link_libraries(monad-vm
+    PUBLIC TBB::tbb
     PUBLIC intx::intx
     PUBLIC evmc::evmc
     PUBLIC asmjit::asmjit

@@ -25,8 +25,8 @@ struct CompiledContractEqual
 };
 
 using CompiledContractsMap = std::unordered_map<
-    CompiledContractId, monad::vm::compiler::native::entrypoint_t,
-    CompiledContractHash, CompiledContractEqual>;
+    CompiledContractId, monad::vm::SharedNativecode, CompiledContractHash,
+    CompiledContractEqual>;
 
 class BlockchainTestVM : public evmc_vm
 {

@@ -18,6 +18,7 @@
 #include <format>
 #include <ios>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -141,7 +142,7 @@ int mce_main(arguments const &args)
     }
 
     asmjit::JitRuntime rt{};
-    std::optional<native::entrypoint_t> const entry = [&]() {
+    std::shared_ptr<native::Nativecode> const ncode = [&]() {
         if (args.instrument_compile) {
             InstrumentableCompiler<true> compiler(rt);
             return compiler.compile(Rev, *ir);
@@ -152,7 +153,7 @@ int mce_main(arguments const &args)
         }
     }();
 
-    if (!entry) {
+    if (!ncode->entrypoint()) {
         std::cerr << "Compilation failed" << std::endl;
         return 1;
     }
@@ -160,11 +161,11 @@ int mce_main(arguments const &args)
     evmc_result const result = [&]() {
         if (args.instrument_execute) {
             InstrumentableVM<true> vm(rt);
-            return vm.execute(Rev, *entry);
+            return vm.execute(Rev, ncode->entrypoint());
         }
         else {
             InstrumentableVM<false> vm(rt);
-            return vm.execute(Rev, *entry);
+            return vm.execute(Rev, ncode->entrypoint());
         }
     }();
 

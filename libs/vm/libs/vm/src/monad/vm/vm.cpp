@@ -1,3 +1,4 @@
+#include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
@@ -12,12 +13,11 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <span>
 
 namespace monad::vm
 {
-    std::optional<compiler::native::entrypoint_t> VM::compile(
+    SharedNativecode VM::compile(
         evmc_revision rev, uint8_t const *code, size_t code_size,
         compiler::native::CompilerConfig const &config)
     {
@@ -49,17 +49,11 @@ namespace monad::vm
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
         size_t code_size, compiler::native::CompilerConfig const &config)
     {
-        if (auto f = compile(rev, code, code_size, config)) {
-            auto r = execute(*f, host, context, msg, code, code_size);
-            runtime_.release(*f);
-            return r;
+        auto ncode = compile(rev, code, code_size, config);
+        if (auto f = ncode->entrypoint()) {
+            return execute(f, host, context, msg, code, code_size);
         }
-
+        // TODO print error and fall back to interpreter:
         return runtime::evmc_error_result(EVMC_INTERNAL_ERROR);
-    }
-
-    void VM::release(compiler::native::entrypoint_t f)
-    {
-        runtime_.release(f);
     }
 }

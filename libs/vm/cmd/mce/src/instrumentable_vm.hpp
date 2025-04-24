@@ -102,13 +102,6 @@ public:
         return ctx.copy_to_evmc_result();
     }
 
-    void release(native::entrypoint_t entry)
-    {
-        if (entry != nullptr) {
-            rt_.release(entry);
-        }
-    }
-
     evmc_capabilities_flagset get_capabilities() const
     {
         return EVMC_CAPABILITY_EVM1;

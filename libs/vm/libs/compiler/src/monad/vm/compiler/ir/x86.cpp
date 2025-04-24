@@ -10,10 +10,12 @@
 
 #include <asmjit/core/jitruntime.h>
 
+#include <cstddef>
 #include <cstdint>
+#include <format>
 #include <iostream>
 #include <limits>
-#include <optional>
+#include <memory>
 #include <span>
 
 using namespace monad::vm::compiler;
@@ -287,11 +289,20 @@ namespace
         }
     }
 
-    [[gnu::always_inline]]
-    inline void
-    post_instruction_emit(Emitter &emit, CompilerConfig const &config)
+    struct SizeEstimateOutOfBounds
     {
-        (void)emit;
+        size_t size_estimate;
+    };
+
+    [[gnu::always_inline]]
+    inline void post_instruction_emit(
+        Emitter &emit, size_t max_native_size, CompilerConfig const &config)
+    {
+        size_t const size_estimate = emit.estimate_size();
+        if (size_estimate > max_native_size) {
+            throw SizeEstimateOutOfBounds{size_estimate};
+        }
+
         (void)config;
 #ifdef MONAD_COMPILER_TESTING
         if (config.post_instruction_emit_hook) {
@@ -303,7 +314,7 @@ namespace
     template <evmc_revision rev>
     void emit_instrs(
         Emitter &emit, Block const &block, int32_t instr_gas,
-        CompilerConfig const &config)
+        size_t max_native_size, CompilerConfig const &config)
     {
         MONAD_VM_ASSERT(instr_gas <= std::numeric_limits<int32_t>::max());
         int32_t remaining_base_gas = instr_gas;
@@ -312,7 +323,7 @@ namespace
                 remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -= instr.static_gas_cost();
             emit_instr<rev>(emit, instr, remaining_base_gas);
-            post_instruction_emit(emit, config);
+            post_instruction_emit(emit, max_native_size, config);
         }
     }
 
@@ -380,7 +391,7 @@ namespace
     }
 
     template <evmc_revision rev>
-    entrypoint_t compile_basic_blocks(
+    std::shared_ptr<Nativecode> compile_basic_blocks(
         asmjit::JitRuntime &rt, BasicBlocksIR const &ir,
         CompilerConfig const &config)
     {
@@ -388,6 +399,10 @@ namespace
         for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
+        // TODO this calculation will be moved and subject to change.
+        // The `max_native_size` size value may need to be configurable,
+        // to allow fuzzer generate very large programs.
+        size_t const max_native_size = 10 * 1024 + 32 * ir.codesize;
         int32_t accumulated_base_gas = 0;
         for (Block const &block : ir.blocks()) {
             bool const can_enter_block = emit.begin_new_block(block);
@@ -395,15 +410,18 @@ namespace
                 int32_t const base_gas = block_base_gas<rev>(block);
                 emit_gas_decrement(
                     emit, ir, block, base_gas, &accumulated_base_gas);
-                emit_instrs<rev>(emit, block, base_gas, config);
+                emit_instrs<rev>(
+                    emit, block, base_gas, max_native_size, config);
                 emit_terminator<rev>(emit, ir, block);
             }
         }
-        return emit.finish_contract(rt);
+        size_t const size_estimate = emit.estimate_size();
+        auto entry = emit.finish_contract(rt);
+        return std::make_shared<Nativecode>(rt, entry, size_estimate);
     }
 
     template <evmc_revision Rev>
-    entrypoint_t compile_contract(
+    std::shared_ptr<Nativecode> compile_contract(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
         CompilerConfig const &config)
     {
@@ -414,7 +432,7 @@ namespace
 
 namespace monad::vm::compiler::native
 {
-    std::optional<entrypoint_t> compile(
+    std::shared_ptr<Nativecode> compile(
         asmjit::JitRuntime &rt, std::span<uint8_t const> contract,
         evmc_revision rev, CompilerConfig const &config)
     {
@@ -451,16 +469,28 @@ namespace monad::vm::compiler::native
             case EVMC_CANCUN:
                 return ::compile_contract<EVMC_CANCUN>(rt, contract, config);
             default:
-                return std::nullopt;
+                MONAD_VM_ASSERT(false);
             }
         }
         catch (Emitter::Error const &e) {
-            std::cerr << "X86 emitter error: " << e.what() << std::endl;
-            return std::nullopt;
+            std::cerr << std::format(
+                             "ERROR: X86 emitter: failed compile: {}", e.what())
+                      << std::endl;
+            return std::make_shared<Nativecode>(rt, nullptr, 0);
+        }
+        catch (SizeEstimateOutOfBounds const &e) {
+            if (config.verbose) {
+                std::cerr
+                    << std::format(
+                           "WARNING: X86 emitter: native code out of bound: {}",
+                           e.size_estimate)
+                    << std::endl;
+            }
+            return std::make_shared<Nativecode>(rt, nullptr, e.size_estimate);
         }
     }
 
-    std::optional<entrypoint_t> compile_basic_blocks(
+    std::shared_ptr<Nativecode> compile_basic_blocks(
         evmc_revision rev, asmjit::JitRuntime &rt,
         basic_blocks::BasicBlocksIR const &ir, CompilerConfig const &config)
     {
@@ -493,7 +523,7 @@ namespace monad::vm::compiler::native
         case EVMC_CANCUN:
             return ::compile_basic_blocks<EVMC_CANCUN>(rt, ir, config);
         default:
-            return std::nullopt;
+            MONAD_VM_ASSERT(false);
         }
     }
 }

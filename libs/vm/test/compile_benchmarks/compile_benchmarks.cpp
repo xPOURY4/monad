@@ -93,10 +93,10 @@ namespace
         auto rt = asmjit::JitRuntime{};
 
         for (auto _ : state) {
-            auto fn = monad::vm::compiler::native::compile(
+            auto ncode = monad::vm::compiler::native::compile(
                 rt, program, EVMC_LATEST_STABLE_REVISION);
 
-            if (!fn) {
+            if (!ncode->entrypoint()) {
                 return state.SkipWithError("Failed to compile contract");
             }
         }

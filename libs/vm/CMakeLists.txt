@@ -18,6 +18,7 @@ option(MONAD_COMPILER_FUZZING "Build compiler and evmone with SAVE_EVM_STACK_ON_
 include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)
+find_package(TBB REQUIRED)
 
 if(MONAD_COMPILER_TESTING)
     find_package(GTest REQUIRED)

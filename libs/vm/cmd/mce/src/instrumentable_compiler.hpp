@@ -20,7 +20,7 @@ public:
     {
     }
 
-    std::optional<monad::vm::compiler::native::entrypoint_t> compile(
+    std::shared_ptr<monad::vm::compiler::native::Nativecode> compile(
         evmc_revision rev,
         monad::vm::compiler::basic_blocks::BasicBlocksIR const &ir)
     {
