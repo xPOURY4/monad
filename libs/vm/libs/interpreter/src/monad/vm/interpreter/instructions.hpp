@@ -1,6 +1,7 @@
 #pragma once
 
 #include <monad/vm/interpreter/call_runtime.hpp>
+#include <monad/vm/interpreter/stack.hpp>
 #include <monad/vm/runtime/runtime.hpp>
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -14,70 +15,6 @@ namespace monad::vm::interpreter
 {
     using enum runtime::StatusCode;
     using enum compiler::EvmOpCode;
-
-    template <std::uint8_t Instr, evmc_revision Rev>
-    [[gnu::always_inline]] inline void check_requirements(
-        runtime::Context &ctx, Intercode const &,
-        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t &gas_remaining)
-    {
-        static constexpr auto info = compiler::opcode_table<Rev>[Instr];
-
-        if constexpr (info.min_gas > 0) {
-            gas_remaining -= info.min_gas;
-
-            if (MONAD_VM_UNLIKELY(gas_remaining < 0)) {
-                ctx.exit(Error);
-            }
-        }
-
-        if constexpr (info.min_stack == 0 && info.stack_increase == 0) {
-            return;
-        }
-
-        auto const stack_size = stack_top - stack_bottom;
-        MONAD_VM_DEBUG_ASSERT(stack_size <= 1024);
-
-        if constexpr (info.min_stack > 0) {
-            if (MONAD_VM_UNLIKELY(stack_size < info.min_stack)) {
-                ctx.exit(Error);
-            }
-        }
-
-        if constexpr (info.stack_increase > 0) {
-            static constexpr auto delta = info.stack_increase - info.min_stack;
-            static constexpr auto max_safe_size = 1024 - delta;
-
-            // We only need to emit the overflow check if this instruction could
-            // actually cause an overflow; if the instruction could only leave
-            // the stack with >1024 elements if it _began_ with >1024, then we
-            // assume that the input stack was valid and elide the check.
-            if constexpr (max_safe_size < 1024) {
-                if (MONAD_VM_UNLIKELY(stack_size > max_safe_size)) {
-                    ctx.exit(Error);
-                }
-            }
-        }
-    }
-
-    [[gnu::always_inline]] inline void
-    push(utils::uint256_t *&stack_top, utils::uint256_t const &x)
-    {
-        *++stack_top = x;
-    }
-
-    [[gnu::always_inline]] inline utils::uint256_t &
-    pop(utils::uint256_t *&stack_top)
-    {
-        return *stack_top--;
-    }
-
-    [[gnu::always_inline]] inline auto
-    pop_for_overwrite(utils::uint256_t *&stack_top)
-    {
-        auto const &a = pop(stack_top);
-        return std::tie(a, *stack_top);
-    }
 
     template <std::uint8_t Opcode, evmc_revision Rev, typename... FnArgs>
     [[gnu::always_inline]] inline OpcodeResult checked_runtime_call(
@@ -1035,102 +972,6 @@ namespace monad::vm::interpreter
     }
 
     // Stack
-    template <std::size_t N, evmc_revision Rev>
-        requires(N <= 32)
-    [[gnu::always_inline]] inline OpcodeResult push(
-        runtime::Context &ctx, Intercode const &analysis,
-        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
-    {
-        using subword_t = utils::uint256_t::word_type;
-
-        // We need to do this memcpy dance to avoid triggering UB when
-        // reading whole words from potentially unaligned addresses in the
-        // instruction stream. The compilers seem able to optimise this out
-        // effectively, and the generated code doesn't appear different to the
-        // UB-triggering version.
-        constexpr auto read_unaligned = [](std::uint8_t const *ptr) {
-            alignas(subword_t) std::uint8_t aligned_mem[sizeof(subword_t)];
-            std::memcpy(&aligned_mem[0], ptr, sizeof(subword_t));
-            return std::byteswap(
-                *reinterpret_cast<subword_t *>(&aligned_mem[0]));
-        };
-
-        static constexpr auto whole_words = N / 8;
-        static constexpr auto leading_part = N % 8;
-
-        check_requirements<PUSH0 + N, Rev>(
-            ctx, analysis, stack_bottom, stack_top, gas_remaining);
-
-        if constexpr (N == 0) {
-            push(stack_top, 0);
-        }
-        else if constexpr (whole_words == 4) {
-            static_assert(leading_part == 0);
-            push(
-                stack_top,
-                utils::uint256_t{
-                    read_unaligned(instr_ptr + 1 + 24),
-                    read_unaligned(instr_ptr + 1 + 16),
-                    read_unaligned(instr_ptr + 1 + 8),
-                    read_unaligned(instr_ptr + 1),
-                });
-        }
-        else {
-            auto const leading_word = [instr_ptr] {
-                auto word = subword_t{0};
-
-                if constexpr (leading_part == 0) {
-                    return word;
-                }
-
-                std::memcpy(
-                    reinterpret_cast<std::uint8_t *>(&word) +
-                        (8 - leading_part),
-                    instr_ptr + 1,
-                    leading_part);
-
-                return std::byteswap(word);
-            }();
-
-            if constexpr (whole_words == 0) {
-                push(stack_top, utils::uint256_t{leading_word, 0, 0, 0});
-            }
-            else if constexpr (whole_words == 1) {
-                push(
-                    stack_top,
-                    utils::uint256_t{
-                        read_unaligned(instr_ptr + 1 + leading_part),
-                        leading_word,
-                        0,
-                        0,
-                    });
-            }
-            else if constexpr (whole_words == 2) {
-                push(
-                    stack_top,
-                    utils::uint256_t{
-                        read_unaligned(instr_ptr + 1 + 8 + leading_part),
-                        read_unaligned(instr_ptr + 1 + leading_part),
-                        leading_word,
-                        0,
-                    });
-            }
-            else if constexpr (whole_words == 3) {
-                push(
-                    stack_top,
-                    utils::uint256_t{
-                        read_unaligned(instr_ptr + 1 + 16 + leading_part),
-                        read_unaligned(instr_ptr + 1 + 8 + leading_part),
-                        read_unaligned(instr_ptr + 1 + leading_part),
-                        leading_word,
-                    });
-            }
-        }
-
-        return {gas_remaining, instr_ptr + N + 1};
-    }
-
     template <evmc_revision Rev>
     [[gnu::always_inline]] inline OpcodeResult
     pop(runtime::Context &ctx, Intercode const &analysis,
