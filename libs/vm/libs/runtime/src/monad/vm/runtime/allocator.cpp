@@ -1,11 +1,8 @@
 #include <monad/vm/runtime/allocator.hpp>
+#include <monad/vm/utils/cached_allocator.hpp>
 
 namespace monad::vm::runtime
 {
-    template <>
-    thread_local CacheList
-        ThreadLocalCacheList<EvmStackAllocatorMeta>::cache_pool{};
-    template <>
-    thread_local CacheList
-        ThreadLocalCacheList<EvmMemoryAllocatorMeta>::cache_pool{};
+    thread_local utils::CachedAllocatorList EvmStackAllocatorMeta::cache_list;
+    thread_local utils::CachedAllocatorList EvmMemoryAllocatorMeta::cache_list;
 }

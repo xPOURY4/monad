@@ -3,6 +3,7 @@ enable_language(C)
 add_library(monad-vm-utils STATIC)
 
 target_sources(monad-vm-utils PRIVATE
+    "src/monad/vm/utils/cached_allocator.hpp"
     "src/monad/vm/utils/cases.hpp"
     "src/monad/vm/utils/debug.cpp"
     "src/monad/vm/utils/debug.hpp"
