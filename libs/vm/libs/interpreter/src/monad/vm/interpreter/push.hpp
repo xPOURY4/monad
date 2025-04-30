@@ -100,9 +100,14 @@ namespace monad::vm::interpreter
 
         consteval bool use_padded_push(std::size_t const n) noexcept
         {
-            auto const indices = std::array{12, 14, 15, 20, 22, 23, 28, 30, 31};
-            return std::find(indices.begin(), indices.end(), n) !=
-                   indices.end();
+            // These opcodes were identified experimentally, by examining which
+            // sizes demonstrated consistent speedups using the padded push
+            // algorithm. It may be the case that there is a better, more
+            // specialised implementation for some of these sizes.
+            static constexpr auto sizes = std::array{
+                3, 5, 6, 7, 11, 13, 14, 15, 19, 21, 22, 23, 27, 28, 29, 30, 31};
+
+            return std::find(sizes.begin(), sizes.end(), n) != sizes.end();
         }
 
         template <std::size_t N, evmc_revision Rev>
