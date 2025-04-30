@@ -98,6 +98,13 @@ namespace monad::vm::interpreter
             return {gas_remaining, instr_ptr + N + 1};
         }
 
+        consteval bool use_padded_push(std::size_t const n) noexcept
+        {
+            auto const indices = std::array{12, 14, 15, 20, 22, 23, 28, 30, 31};
+            return std::find(indices.begin(), indices.end(), n) !=
+                   indices.end();
+        }
+
         template <std::size_t N, evmc_revision Rev>
         [[gnu::always_inline]] inline OpcodeResult padded_push(
             runtime::Context &ctx, Intercode const &analysis,
@@ -156,7 +163,7 @@ namespace monad::vm::interpreter
     };
 
     template <std::size_t N, evmc_revision Rev>
-        requires(N == 31)
+        requires(detail::use_padded_push(N))
     struct push_impl<N, Rev>
     {
         [[gnu::always_inline]] static inline OpcodeResult push(
@@ -164,7 +171,7 @@ namespace monad::vm::interpreter
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
             std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
         {
-            return detail::padded_push<31, Rev>(
+            return detail::padded_push<N, Rev>(
                 ctx,
                 analysis,
                 stack_bottom,
