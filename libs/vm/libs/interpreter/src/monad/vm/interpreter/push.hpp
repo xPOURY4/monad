@@ -31,18 +31,13 @@ namespace monad::vm::interpreter
             return std::byteswap(
                 *reinterpret_cast<subword_t *>(&aligned_mem[0]));
         }
-    }
 
-    template <std::size_t N, evmc_revision Rev>
-    struct push_impl
-    {
-        [[gnu::always_inline]] static inline OpcodeResult push(
+        template <std::size_t N, evmc_revision Rev>
+        [[gnu::always_inline]] inline OpcodeResult generic_push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
             std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
         {
-            using namespace detail;
-
             static constexpr auto whole_words = N / 8;
             static constexpr auto leading_part = N % 8;
 
@@ -102,6 +97,47 @@ namespace monad::vm::interpreter
 
             return {gas_remaining, instr_ptr + N + 1};
         }
+
+        template <std::size_t N, evmc_revision Rev>
+        [[gnu::always_inline]] inline OpcodeResult padded_push(
+            runtime::Context &ctx, Intercode const &analysis,
+            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
+            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+        {
+            check_requirements<PUSH0 + N, Rev>(
+                ctx, analysis, stack_bottom, stack_top, gas_remaining);
+
+            std::uint64_t aligned_mem[4];
+            std::memcpy(aligned_mem, instr_ptr - (31 - N), 32);
+            push(
+                stack_top,
+                utils::uint256_t{
+                    std::byteswap(aligned_mem[3]),
+                    std::byteswap(aligned_mem[2]),
+                    std::byteswap(aligned_mem[1]),
+                    std::byteswap(aligned_mem[0])});
+            std::memset(reinterpret_cast<uint8_t *>(stack_top) + N, 0, 32);
+
+            return {gas_remaining, instr_ptr + N + 1};
+        }
+    }
+
+    template <std::size_t N, evmc_revision Rev>
+    struct push_impl
+    {
+        [[gnu::always_inline]] static inline OpcodeResult push(
+            runtime::Context &ctx, Intercode const &analysis,
+            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
+            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+        {
+            return detail::generic_push<N, Rev>(
+                ctx,
+                analysis,
+                stack_bottom,
+                stack_top,
+                gas_remaining,
+                instr_ptr);
+        }
     };
 
     template <evmc_revision Rev>
@@ -116,6 +152,25 @@ namespace monad::vm::interpreter
                 ctx, analysis, stack_bottom, stack_top, gas_remaining);
             interpreter::push(stack_top, 0);
             return {gas_remaining, instr_ptr + 1};
+        }
+    };
+
+    template <std::size_t N, evmc_revision Rev>
+        requires(N == 31)
+    struct push_impl<N, Rev>
+    {
+        [[gnu::always_inline]] static inline OpcodeResult push(
+            runtime::Context &ctx, Intercode const &analysis,
+            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
+            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+        {
+            return detail::padded_push<31, Rev>(
+                ctx,
+                analysis,
+                stack_bottom,
+                stack_top,
+                gas_remaining,
+                instr_ptr);
         }
     };
 
