@@ -6,8 +6,6 @@
 
 #include <asmjit/x86.h>
 
-#include <intx/intx.hpp>
-
 namespace monad::vm
 {
     class VM

@@ -177,9 +177,11 @@ namespace monad::vm::runtime
     struct Context
     {
         static Context from(
-            EvmMemoryAllocator &mem_alloc, evmc_host_interface const *host,
+            EvmMemoryAllocator mem_alloc, evmc_host_interface const *host,
             evmc_host_context *context, evmc_message const *msg,
             std::span<std::uint8_t const> code) noexcept;
+
+        static Context empty() noexcept;
 
         evmc_host_interface const *host;
         evmc_host_context *context;

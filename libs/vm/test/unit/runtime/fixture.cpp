@@ -81,8 +81,7 @@ namespace monad::vm::compiler::test
                       .return_data_size = 0,
                       .tx_context = host_.tx_context,
                   },
-              .memory = Memory(EvmMemoryAllocator{
-                  EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE})}
+              .memory = Memory(EvmMemoryAllocator{})}
     {
         std::iota(code_.rbegin(), code_.rend(), 0);
         std::iota(call_data_.begin(), call_data_.end(), 0);

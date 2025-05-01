@@ -2,8 +2,10 @@ add_library(monad-vm STATIC)
 
 target_sources(monad-vm PRIVATE
     "src/monad/vm/code.hpp"
-    "src/monad/vm/varcode_cache.hpp"
+    "src/monad/vm/compiler.cpp"
+    "src/monad/vm/compiler.hpp"
     "src/monad/vm/varcode_cache.cpp"
+    "src/monad/vm/varcode_cache.hpp"
     "src/monad/vm/vm.cpp"
     "src/monad/vm/vm.hpp"
     # evmone wrappers

@@ -36,10 +36,8 @@ namespace abi_compat
 template <bool instrument>
 class InstrumentableVM : public evmc_vm
 {
-    monad::vm::runtime::EvmStackAllocator stack_allocator{
-        monad::vm::runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE};
-    monad::vm::runtime::EvmMemoryAllocator memory_allocator{
-        monad::vm::runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE};
+    monad::vm::runtime::EvmStackAllocator stack_allocator;
+    monad::vm::runtime::EvmMemoryAllocator memory_allocator;
 
 public:
     InstrumentableVM(asmjit::JitRuntime &rt)

@@ -83,8 +83,7 @@ namespace
                     .tx_context = {},
                 },
             .result = test_result(),
-            .memory = monad::vm::runtime::Memory(runtime::EvmMemoryAllocator{
-                runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE}),
+            .memory = monad::vm::runtime::Memory(runtime::EvmMemoryAllocator{}),
             .exit_stack_ptr = nullptr};
     }
 

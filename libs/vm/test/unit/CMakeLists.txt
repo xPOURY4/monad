@@ -1,4 +1,5 @@
 add_executable(unit-tests
+    async_compile_tests.cpp
     compiler_tests.cpp
     evm_fixture.cpp
     evm_tests.cpp

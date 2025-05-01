@@ -16,11 +16,11 @@ namespace monad::vm
 
         /// Get varcode for given revision and code hash.
         std::optional<Varcode>
-        get(evmc::bytes32 const &code_hash, evmc_revision);
+        get(evmc_revision, evmc::bytes32 const &code_hash);
 
         /// Set varcode for given revision and code hash.
         void
-        set(evmc::bytes32 const &code_hash, evmc_revision, Varcode const &);
+        set(evmc_revision, evmc::bytes32 const &code_hash, Varcode const &);
 
     private:
         struct RevisionedVarcode

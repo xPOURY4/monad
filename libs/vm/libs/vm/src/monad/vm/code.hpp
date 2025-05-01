@@ -22,15 +22,12 @@ namespace monad::vm
         Varcode(SharedIntercode icode)
             : intercode_{std::move(icode)}
         {
-            MONAD_VM_DEBUG_ASSERT(icode != nullptr);
         }
 
         Varcode(SharedIntercode icode, SharedNativecode ncode)
             : intercode_{std::move(icode)}
             , nativecode_{std::move(ncode)}
         {
-            MONAD_VM_DEBUG_ASSERT(icode != nullptr);
-            MONAD_VM_DEBUG_ASSERT(ncode != nullptr);
         }
 
         /// Get corresponding intercode.

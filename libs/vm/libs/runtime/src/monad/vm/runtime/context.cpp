@@ -26,7 +26,7 @@ namespace monad::vm::runtime
     }
 
     Context Context::from(
-        EvmMemoryAllocator &alloc, evmc_host_interface const *host,
+        EvmMemoryAllocator alloc, evmc_host_interface const *host,
         evmc_host_context *context, evmc_message const *msg,
         std::span<std::uint8_t const> code) noexcept
     {
@@ -54,6 +54,34 @@ namespace monad::vm::runtime
                 },
             .result = {},
             .memory = Memory(alloc),
+        };
+    }
+
+    Context Context::empty() noexcept
+    {
+        return Context{
+            .host = nullptr,
+            .context = nullptr,
+            .gas_remaining = 0,
+            .gas_refund = 0,
+            .env =
+                {
+                    .evmc_flags = 0,
+                    .depth = 0,
+                    .recipient = evmc::address{},
+                    .sender = evmc::address{},
+                    .value = evmc::bytes32{},
+                    .create2_salt = evmc::bytes32{},
+                    .input_data = nullptr,
+                    .code = {},
+                    .return_data = {},
+                    .input_data_size = 0,
+                    .code_size = 0,
+                    .return_data_size = 0,
+                    .tx_context = {},
+                },
+            .result = {},
+            .memory = Memory(EvmMemoryAllocator{}),
         };
     }
 

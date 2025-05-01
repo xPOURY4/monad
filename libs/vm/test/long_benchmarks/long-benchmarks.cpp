@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <utility>
 
 using namespace evmc::literals;
 using namespace evmone::state;

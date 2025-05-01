@@ -15,7 +15,7 @@ namespace monad::vm
     }
 
     std::optional<Varcode>
-    VarcodeCache::get(evmc::bytes32 const &code_hash, evmc_revision rev)
+    VarcodeCache::get(evmc_revision rev, evmc::bytes32 const &code_hash)
     {
         WeightCache::ConstAccessor acc;
         if (!weight_cache.find(acc, code_hash)) {
@@ -28,7 +28,7 @@ namespace monad::vm
     }
 
     void VarcodeCache::set(
-        evmc::bytes32 const &code_hash, evmc_revision rev, Varcode const &vcode)
+        evmc_revision rev, evmc::bytes32 const &code_hash, Varcode const &vcode)
     {
         weight_cache.insert(code_hash, {rev, vcode});
     }
