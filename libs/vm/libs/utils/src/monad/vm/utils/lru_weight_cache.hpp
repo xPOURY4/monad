@@ -13,17 +13,11 @@
 
 namespace monad::vm::utils
 {
-    template <class Value>
-    concept LruWeightCacheValue = requires(Value const v) {
-        { v.cache_weight() } -> std::same_as<uint32_t>;
-    };
-
     // LRU Cache in which elements can have different weights. It is based
     // on the LruCache in monad.
     template <
         class Key, class Value,
         class KeyHashCompare = tbb::tbb_hash_compare<Key>>
-        requires LruWeightCacheValue<Value>
     class LruWeightCache
     {
         /// TYPES
@@ -64,15 +58,18 @@ namespace monad::vm::utils
             return true;
         }
 
-        bool insert(Key const &key, Value const &value)
+        /// Insert `value` with `weight` under `key`. Overwrites if there is
+        /// already a value under `key`.
+        bool insert(Key const &key, Value const &value, uint32_t weight)
         {
-            int64_t delta_weight = value.cache_weight();
+            int64_t delta_weight = weight;
             bool is_new_key = true;
             Accessor acc;
-            if (!hmap_.insert(acc, {key, HashMapValue{value}})) {
-                delta_weight -= acc->second.value_.cache_weight();
+            if (!hmap_.insert(acc, {key, HashMapValue{value, weight}})) {
                 ListNode *const node = &*acc;
+                delta_weight -= node->second.cache_weight_;
                 node->second.value_ = value;
+                node->second.cache_weight_ = weight;
                 try_update_lru(node);
                 acc.release();
                 is_new_key = false;
@@ -82,6 +79,38 @@ namespace monad::vm::utils
                 acc.release();
                 lru_.push_front(node);
             }
+            adjust_by_delta_weight(delta_weight);
+            return is_new_key;
+        }
+
+        /// Like insert, but does not overwrite an existing value in the cache.
+        /// Instead if a value already exists under `key` then it will
+        /// overwrite the `value` argument with the existing value.
+        bool try_insert(Key const &key, Value &value, uint32_t weight)
+        {
+            ConstAccessor acc;
+            if (!hmap_.insert(acc, {key, HashMapValue{value, weight}})) {
+                value = acc->second.value_;
+                try_update_lru(&*acc);
+                return false;
+            }
+            ListNode const *const node = &*acc;
+            acc.release();
+            lru_.push_front(node);
+            adjust_by_delta_weight(weight);
+            return true;
+        }
+
+        // For testing: to check internal invariants. Not safe with
+        // concurrent `insert` calls.
+        bool unsafe_check_consistent()
+        {
+            return lru_.unsafe_check_consistent(hmap_, weight_.load());
+        }
+
+    private:
+        void adjust_by_delta_weight(int64_t delta_weight)
+        {
             int64_t const pre_weight =
                 weight_.fetch_add(delta_weight, std::memory_order_acq_rel);
             if (delta_weight + pre_weight > max_weight_) {
@@ -96,17 +125,8 @@ namespace monad::vm::utils
                     evicted_weight += n;
                 }
             }
-            return is_new_key;
         }
 
-        // For testing: to check internal invariants. Not safe with
-        // concurrent `insert` calls.
-        bool unsafe_check_consistent()
-        {
-            return lru_.unsafe_check_consistent(hmap_, weight_.load());
-        }
-
-    private:
         void try_update_lru(ListNode const *node)
         {
             if (node->second.check_lru_time()) {
@@ -119,7 +139,7 @@ namespace monad::vm::utils
             Accessor acc;
             bool const found = hmap_.find(acc, target->first);
             MONAD_VM_ASSERT(found);
-            uint32_t wt = acc->second.value_.cache_weight();
+            uint32_t wt = acc->second.cache_weight_;
             hmap_.erase(acc);
             return wt;
         }
@@ -131,11 +151,13 @@ namespace monad::vm::utils
             mutable ListNode const *next_{};
             mutable std::atomic<int64_t> lru_time_{0};
             Value value_;
+            uint32_t cache_weight_;
 
             HashMapValue() {}
 
-            HashMapValue(Value const &value)
+            HashMapValue(Value const &value, uint32_t weight)
                 : value_{value}
+                , cache_weight_{weight}
             {
             }
 
@@ -145,6 +167,7 @@ namespace monad::vm::utils
                 , next_{x.next_}
                 , lru_time_{x.lru_time_.load(std::memory_order_relaxed)}
                 , value_{std::move(x.value_)}
+                , cache_weight_{x.cache_weight_}
             {
             }
 
@@ -230,7 +253,7 @@ namespace monad::vm::utils
                     ConstAccessor acc;
                     bool found = hmap.find(acc, node->first);
                     MONAD_VM_ASSERT(found);
-                    node_weight += acc->second.value_.cache_weight();
+                    node_weight += acc->second.cache_weight_;
                     node = node->second.next_;
                 }
                 return node_weight == weight;

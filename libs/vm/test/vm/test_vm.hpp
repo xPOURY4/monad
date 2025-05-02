@@ -6,27 +6,10 @@
 
 #include <evmc/evmc.hpp>
 
-#include <evmone/evmone.h>
+#include <evmone/baseline.hpp>
+#include <evmone/vm.hpp>
 
 #include <unordered_map>
-#include <utility>
-
-using CompiledContractId = std::pair<evmc_revision, evmc::bytes32>;
-
-struct CompiledContractHash
-{
-    static size_t operator()(CompiledContractId const &p);
-};
-
-struct CompiledContractEqual
-{
-    static bool
-    operator()(CompiledContractId const &p, CompiledContractId const &q);
-};
-
-using CompiledContractsMap = std::unordered_map<
-    CompiledContractId, monad::vm::SharedNativecode, CompiledContractHash,
-    CompiledContractEqual>;
 
 class BlockchainTestVM : public evmc_vm
 {
@@ -38,17 +21,20 @@ public:
         Evmone,
     };
 
+    template <typename V>
+    using CodeMap = std::unordered_map<
+        evmc::bytes32, V, monad::vm::utils::Hash32Hash,
+        monad::vm::utils::Bytes32Equal>;
+
     BlockchainTestVM(
         Implementation impl,
         monad::vm::compiler::native::EmitterHook post_instruction_emit_hook =
             nullptr);
 
-    evmc_result execute(
+    evmc::Result execute(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
         size_t code_size);
-
-    evmc_capabilities_flagset get_capabilities() const;
 
     static constexpr std::string_view
     impl_name(BlockchainTestVM::Implementation const impl) noexcept
@@ -67,18 +53,30 @@ public:
 
 private:
     Implementation impl_;
-    evmc::VM evmone_vm_;
+    evmone::VM evmone_vm_;
     monad::vm::VM monad_vm_;
-    CompiledContractsMap compiled_contracts_;
     char const *debug_dir_;
-    monad::vm::compiler::native::CompilerConfig base_config;
+    monad::vm::CompilerConfig base_config;
+    CodeMap<evmone::baseline::CodeAnalysis> code_analyses_;
+    CodeMap<monad::vm::SharedIntercode> intercodes_;
 
-    evmc_result execute_compiler(
+    evmone::baseline::CodeAnalysis const &get_code_analysis(
+        evmc::bytes32 const &code_hash, uint8_t const *code, size_t code_size);
+
+    monad::vm::SharedIntercode const &get_intercode(
+        evmc::bytes32 const &code_hash, uint8_t const *code, size_t code_size);
+
+    evmc::Result execute_evmone(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
         size_t code_size);
 
-    evmc_result execute_interpreter(
+    evmc::Result execute_compiler(
+        evmc_host_interface const *host, evmc_host_context *context,
+        evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+        size_t code_size);
+
+    evmc::Result execute_interpreter(
         evmc_host_interface const *host, evmc_host_context *context,
         evmc_revision rev, evmc_message const *msg, uint8_t const *code,
         size_t code_size);

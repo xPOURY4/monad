@@ -295,14 +295,20 @@ namespace
     };
 
     [[gnu::always_inline]]
-    inline void post_instruction_emit(
-        Emitter &emit, size_t max_native_size, CompilerConfig const &config)
+    inline void
+    require_code_size_in_bound(Emitter &emit, size_t max_native_size)
     {
         size_t const size_estimate = emit.estimate_size();
-        if (size_estimate > max_native_size) {
+        if (MONAD_VM_UNLIKELY(size_estimate > max_native_size)) {
             throw SizeEstimateOutOfBounds{size_estimate};
         }
+    }
 
+    [[gnu::always_inline]]
+    inline void
+    post_instruction_emit(Emitter &emit, CompilerConfig const &config)
+    {
+        (void)emit;
         (void)config;
 #ifdef MONAD_COMPILER_TESTING
         if (config.post_instruction_emit_hook) {
@@ -323,7 +329,8 @@ namespace
                 remaining_base_gas >= instr.static_gas_cost());
             remaining_base_gas -= instr.static_gas_cost();
             emit_instr<rev>(emit, instr, remaining_base_gas);
-            post_instruction_emit(emit, max_native_size, config);
+            require_code_size_in_bound(emit, max_native_size);
+            post_instruction_emit(emit, config);
         }
     }
 
@@ -402,7 +409,8 @@ namespace
         // TODO this calculation will be moved and subject to change.
         // The `max_native_size` size value may need to be configurable,
         // to allow fuzzer generate very large programs.
-        size_t const max_native_size = 10 * 1024 + 32 * ir.codesize;
+        size_t const max_native_size =
+            max_code_size(config.max_code_size_offset, ir.codesize);
         int32_t accumulated_base_gas = 0;
         for (Block const &block : ir.blocks()) {
             bool const can_enter_block = emit.begin_new_block(block);
@@ -414,10 +422,11 @@ namespace
                     emit, block, base_gas, max_native_size, config);
                 emit_terminator<rev>(emit, ir, block);
             }
+            require_code_size_in_bound(emit, max_native_size);
         }
         size_t const size_estimate = emit.estimate_size();
         auto entry = emit.finish_contract(rt);
-        return std::make_shared<Nativecode>(rt, entry, size_estimate);
+        return std::make_shared<Nativecode>(rt, rev, entry, size_estimate);
     }
 
     template <evmc_revision Rev>
@@ -476,7 +485,7 @@ namespace monad::vm::compiler::native
             std::cerr << std::format(
                              "ERROR: X86 emitter: failed compile: {}", e.what())
                       << std::endl;
-            return std::make_shared<Nativecode>(rt, nullptr, 0);
+            return std::make_shared<Nativecode>(rt, rev, nullptr, 0);
         }
         catch (SizeEstimateOutOfBounds const &e) {
             if (config.verbose) {
@@ -486,7 +495,8 @@ namespace monad::vm::compiler::native
                            e.size_estimate)
                     << std::endl;
             }
-            return std::make_shared<Nativecode>(rt, nullptr, e.size_estimate);
+            return std::make_shared<Nativecode>(
+                rt, rev, nullptr, e.size_estimate);
         }
     }
 

@@ -46,7 +46,7 @@ public:
     {
     }
 
-    evmc_result execute(evmc_revision rev, native::entrypoint_t entry)
+    evmc::Result execute(evmc_revision rev, native::entrypoint_t entry)
     {
         MONAD_VM_ASSERT(entry != nullptr);
         using namespace evmone::state;

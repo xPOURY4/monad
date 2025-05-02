@@ -2,7 +2,6 @@
 
 #include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86.hpp>
-#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/varcode_cache.hpp>
 
 #include <evmc/evmc.h>
@@ -26,7 +25,7 @@ namespace monad::vm
         using CompileJobMap = tbb::concurrent_hash_map<
             evmc::bytes32,
             std::tuple<evmc_revision, SharedIntercode, CompilerConfig>,
-            Hash32Compare>;
+            utils::Hash32Compare>;
         using CompileJobAccessor = CompileJobMap::accessor;
         using CompileJobQueue = tbb::concurrent_queue<evmc::bytes32>;
 
@@ -35,8 +34,7 @@ namespace monad::vm
 
         ~Compiler();
 
-        /// Compile `Intercode` with given code hash for `revision` and return
-        /// compilation result.
+        /// Compile `Intercode` for `revision` and return compilation result.
         SharedNativecode compile(
             evmc_revision revision, SharedIntercode const &,
             CompilerConfig const & = {});
@@ -55,10 +53,16 @@ namespace monad::vm
             SharedIntercode const &, CompilerConfig const & = {});
 
         /// Lookup in the cache.
-        std::optional<Varcode>
-        find_varcode(evmc_revision rev, evmc::bytes32 const &code_hash)
+        std::optional<SharedVarcode>
+        find_varcode(evmc::bytes32 const &code_hash)
         {
-            return varcode_cache_.get(rev, code_hash);
+            return varcode_cache_.get(code_hash);
+        }
+
+        SharedVarcode try_insert_varcode(
+            evmc::bytes32 const &code_hash, SharedIntercode const &icode)
+        {
+            return varcode_cache_.try_set(code_hash, icode);
         }
 
         // For testing: wait for compile job queue to become empty.

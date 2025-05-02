@@ -17,16 +17,17 @@ namespace monad::vm::compiler::native
         {
             NoError,
             Unexpected,
-            SizeOutOfBounds
+            SizeOutOfBound
         };
 
         /// If compilation failed, then `entrypoint` is `nullptr`.
         Nativecode(
-            asmjit::JitRuntime &asmjit_rt, entrypoint_t entry,
-            size_t native_code_size_estimate)
+            asmjit::JitRuntime &asmjit_rt, evmc_revision rev,
+            entrypoint_t entry, size_t code_size_estimate)
             : asmjit_rt_{asmjit_rt}
+            , revision_{rev}
             , entrypoint_{entry}
-            , native_code_size_estimate_{native_code_size_estimate}
+            , code_size_estimate_{code_size_estimate}
         {
         }
 
@@ -39,9 +40,14 @@ namespace monad::vm::compiler::native
             return entrypoint_;
         }
 
-        size_t native_code_size_estimate() const
+        evmc_revision revision() const
         {
-            return entrypoint_ ? native_code_size_estimate_ : 0;
+            return revision_;
+        }
+
+        size_t code_size_estimate() const
+        {
+            return entrypoint_ ? code_size_estimate_ : 0;
         }
 
         ErrorCode error_code() const
@@ -49,8 +55,8 @@ namespace monad::vm::compiler::native
             if (entrypoint_) {
                 return NoError;
             }
-            if (native_code_size_estimate_ > 0) {
-                return SizeOutOfBounds;
+            if (code_size_estimate_ > 0) {
+                return SizeOutOfBound;
             }
             return Unexpected;
         }
@@ -64,8 +70,9 @@ namespace monad::vm::compiler::native
 
     private:
         asmjit::JitRuntime &asmjit_rt_;
+        evmc_revision revision_;
         entrypoint_t entrypoint_;
-        size_t native_code_size_estimate_;
+        size_t code_size_estimate_;
     };
 
     class Emitter;
@@ -77,6 +84,7 @@ namespace monad::vm::compiler::native
         char const *asm_log_path{};
         bool runtime_debug_trace{};
         bool verbose{};
+        uint32_t max_code_size_offset{10 * 1024};
         EmitterHook post_instruction_emit_hook{};
     };
 }

@@ -1,5 +1,7 @@
 #include "evm_fixture.hpp"
 
+#include <monad/vm/code.hpp>
+#include <monad/vm/compiler.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
 
@@ -11,6 +13,7 @@
 #include <intx/intx.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -19,6 +22,7 @@
 
 namespace fs = std::filesystem;
 
+using namespace monad::vm;
 using namespace monad::vm::compiler;
 using namespace monad::vm::compiler::test;
 
@@ -233,6 +237,19 @@ TEST_F(EvmTest, DupStackOverflow)
     execute(bytecode, {}, Implementation::Interpreter);
 
     ASSERT_EQ(result_.status_code, EVMC_FAILURE);
+}
+
+TEST_F(EvmTest, NativeCodeSizeOutOfBound)
+{
+    std::vector<uint8_t> bytecode;
+    CompilerConfig const config{.max_code_size_offset = 1024};
+    for (size_t i = 0; i < config.max_code_size_offset; ++i) {
+        bytecode.push_back(CODESIZE);
+    }
+    bytecode.push_back(JUMPDEST);
+    auto icode = make_shared_intercode(bytecode);
+    auto ncode = vm_.compiler().compile(EVMC_CANCUN, icode, config);
+    ASSERT_EQ(ncode->error_code(), Nativecode::ErrorCode::SizeOutOfBound);
 }
 
 INSTANTIATE_TEST_SUITE_P(

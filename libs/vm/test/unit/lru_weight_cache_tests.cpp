@@ -18,16 +18,7 @@ using namespace monad::vm::utils;
 namespace
 {
     using Key = uint32_t;
-
-    struct Value
-    {
-        uint32_t value;
-
-        uint32_t cache_weight() const
-        {
-            return value;
-        }
-    };
+    using Value = uint32_t;
 
     using WeightCache = LruWeightCache<Key, Value>;
 
@@ -83,7 +74,7 @@ namespace
             if (!weight_cache_.find(acc, k)) {
                 return std::nullopt;
             }
-            return acc->second.value_.value;
+            return acc->second.value_;
         }
 
         TestThread make_tester()
@@ -96,7 +87,7 @@ namespace
                     }
                     auto v = weight_cache_find(base_key);
                     ASSERT_TRUE(v.has_value());
-                    ASSERT_EQ(*v, base_value.value);
+                    ASSERT_EQ(*v, base_value);
                 }
             }};
         }
@@ -161,8 +152,8 @@ namespace
                         break;
                     }
                     auto v = f(k);
-                    if (weight_cache_.insert(k, v)) {
-                        current_weight_.fetch_add(v.cache_weight());
+                    if (weight_cache_.insert(k, v, v)) {
+                        current_weight_.fetch_add(v);
                     }
                 }
                 p();
@@ -179,14 +170,14 @@ namespace
         {
             ASSERT_FALSE(weight_cache_find(base_key).has_value());
 
-            weight_cache_.insert(base_key, base_value);
+            weight_cache_.insert(base_key, base_value, base_value);
 
             auto original = weight_cache_find(base_key);
             ASSERT_TRUE(original.has_value());
-            ASSERT_EQ(*original, base_value.value);
+            ASSERT_EQ(*original, base_value);
 
             ASSERT_EQ(current_weight_.load(), 0);
-            current_weight_ = base_value.cache_weight();
+            current_weight_ = base_value;
         }
     };
 }
@@ -220,15 +211,14 @@ TEST_F(LruWeightCacheTest, reread_evict)
     uint32_t init_weight = 0;
     for (auto k : elems) {
         auto v = default_values(k);
-        weight_cache_.insert(k, v);
-        init_weight += v.cache_weight();
+        weight_cache_.insert(k, v, v);
+        init_weight += v;
         if (init_weight >= max_weight) {
             break;
         }
     }
     ASSERT_EQ(init_weight, max_weight);
-    ASSERT_EQ(
-        default_values(elems[0]).cache_weight(), base_value.cache_weight() + 1);
+    ASSERT_EQ(default_values(elems[0]), base_value + 1);
 
     insert_initial_base();
 
@@ -242,7 +232,8 @@ TEST_F(LruWeightCacheTest, reread_evict)
         auto rereaders = make_rereaders(is_updated, 10);
     }
 
-    ASSERT_TRUE(weight_cache_.insert(elems[0], default_values(elems[0])));
+    ASSERT_TRUE(weight_cache_.insert(
+        elems[0], default_values(elems[0]), default_values(elems[0])));
     ASSERT_FALSE(weight_cache_find(base_key).has_value());
 }
 

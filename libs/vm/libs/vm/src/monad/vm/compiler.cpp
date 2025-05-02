@@ -9,7 +9,6 @@
 #include <atomic>
 #include <cstddef>
 #include <thread>
-#include <utility>
 
 namespace monad::vm
 {
@@ -50,12 +49,14 @@ namespace monad::vm
         evmc_revision rev, evmc::bytes32 const &code_hash,
         SharedIntercode const &icode, CompilerConfig const &config)
     {
-        auto vcode = varcode_cache_.get(rev, code_hash);
-        if (vcode.has_value() && vcode->nativecode()) {
-            return vcode->nativecode();
+        if (auto vcode = varcode_cache_.get(code_hash)) {
+            auto const &ncode = (*vcode)->nativecode();
+            if (ncode != nullptr && ncode->revision() == rev) {
+                return ncode;
+            }
         }
         auto ncode = compile(rev, icode, config);
-        varcode_cache_.set(rev, code_hash, {icode, ncode});
+        varcode_cache_.set(code_hash, icode, ncode);
         return ncode;
     }
 

@@ -1,6 +1,7 @@
 #include <CLI/CLI.hpp>
 #include <asmjit/core/jitruntime.h>
 #include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
 
 #include <instrumentable_compiler.hpp>
 #include <instrumentable_decoder.hpp>
@@ -78,7 +79,7 @@ static arguments parse_args(int const argc, char **const argv)
     return args;
 }
 
-static void dump_result(evmc_result const &result)
+static void dump_result(evmc::Result const &result)
 {
     if (result.status_code == EVMC_SUCCESS) {
         if (result.output_size == 0) {
@@ -158,7 +159,7 @@ int mce_main(arguments const &args)
         return 1;
     }
 
-    evmc_result const result = [&]() {
+    evmc::Result const result = [&]() {
         if (args.instrument_execute) {
             InstrumentableVM<true> vm(rt);
             return vm.execute(Rev, ncode->entrypoint());
@@ -172,10 +173,6 @@ int mce_main(arguments const &args)
     dump_result(result);
 
     auto status_code = result.status_code;
-
-    if (result.release) {
-        result.release(&result);
-    }
 
     return status_code == EVMC_SUCCESS ? 0 : 1;
 }

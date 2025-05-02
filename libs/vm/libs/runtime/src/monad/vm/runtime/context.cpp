@@ -6,6 +6,7 @@
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
 
 #include <bit>
 #include <cstdint>
@@ -85,6 +86,20 @@ namespace monad::vm::runtime
         };
     }
 
+    static evmc::Result evmc_error_result(evmc_status_code const code) noexcept
+    {
+        return evmc::Result{evmc_result{
+            .status_code = code,
+            .gas_left = 0,
+            .gas_refund = 0,
+            .output_data = nullptr,
+            .output_size = 0,
+            .release = nullptr,
+            .create_address = {},
+            .padding = {},
+        }};
+    }
+
     std::variant<std::span<std::uint8_t const>, evmc_status_code>
     Context::copy_result_data()
     {
@@ -155,7 +170,7 @@ namespace monad::vm::runtime
         return std::span{output_buf, *size};
     }
 
-    evmc_result Context::copy_to_evmc_result()
+    evmc::Result Context::copy_to_evmc_result()
     {
         using enum runtime::StatusCode;
 
@@ -170,7 +185,7 @@ namespace monad::vm::runtime
             vm::utils::Cases{
                 [](evmc_status_code ec) { return evmc_error_result(ec); },
                 [this](std::span<std::uint8_t const> output) {
-                    return evmc_result{
+                    return evmc::Result{evmc_result{
                         .status_code = result.status == Success ? EVMC_SUCCESS
                                                                 : EVMC_REVERT,
                         .gas_left = gas_remaining,
@@ -180,7 +195,7 @@ namespace monad::vm::runtime
                         .release = release_result,
                         .create_address = {},
                         .padding = {},
-                    };
+                    }};
                 }},
             copy_result_data());
     }

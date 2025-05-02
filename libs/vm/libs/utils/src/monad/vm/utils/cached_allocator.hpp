@@ -78,7 +78,7 @@ namespace monad::vm::utils
     public:
         static constexpr size_t alloc_size =
             sizeof(typename T::base_type) * T::size;
-        static constexpr size_t DEFAULT_MAX_CACHE_BYTE_SIZE = 64 * alloc_size;
+        static constexpr size_t DEFAULT_MAX_CACHE_BYTE_SIZE = 256 * alloc_size;
 
         static_assert(alloc_size % T::alignment == 0);
         static_assert(sizeof(CachedAllocatorElement) <= alloc_size);
@@ -92,7 +92,6 @@ namespace monad::vm::utils
             max_slots_in_cache = max_cache_byte_size_per_thread / alloc_size;
         };
 
-        /// Get a 32 byte aligned EVM stack.
         uint8_t *aligned_alloc_cached() const
         {
             if (T::cache_list.empty()) {
@@ -125,7 +124,7 @@ namespace monad::vm::utils
         }
 
     private:
-        /// Upper bound on the number of stacks in each cache.
+        /// Upper bound on the number of elements in each cache.
         size_t max_slots_in_cache;
     };
 }

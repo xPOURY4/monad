@@ -4,30 +4,45 @@
 #include <monad/vm/core/assert.h>
 #include <monad/vm/interpreter/intercode.hpp>
 
+#include <atomic>
+
 namespace monad::vm
 {
-    using SharedIntercode = std::shared_ptr<interpreter::Intercode const>;
-    using SharedNativecode =
-        std::shared_ptr<compiler::native::Nativecode const>;
+    using interpreter::Intercode;
+    using SharedIntercode = std::shared_ptr<Intercode const>;
 
-    class VarcodeCache;
+    template <typename... Args>
+    inline SharedIntercode make_shared_intercode(Args &&...args)
+    {
+        return std::make_shared<Intercode const>(std::forward<Args>(args)...);
+    }
+
+    using compiler::native::Nativecode;
+    using SharedNativecode = std::shared_ptr<Nativecode const>;
 
     class Varcode
     {
-        friend class VarcodeCache;
-
-        Varcode() {}
-
     public:
         Varcode(SharedIntercode icode)
-            : intercode_{std::move(icode)}
+            : intercode_gas_used_{0}
+            , intercode_{std::move(icode)}
         {
         }
 
         Varcode(SharedIntercode icode, SharedNativecode ncode)
-            : intercode_{std::move(icode)}
+            : intercode_gas_used_{0}
+            , intercode_{std::move(icode)}
             , nativecode_{std::move(ncode)}
         {
+        }
+
+        Varcode(Varcode const &) = delete;
+        Varcode &operator=(Varcode const &) = delete;
+
+        std::uint64_t intercode_gas_used(std::uint64_t gas_used)
+        {
+            return gas_used + intercode_gas_used_.fetch_add(
+                                  gas_used, std::memory_order_acq_rel);
         }
 
         /// Get corresponding intercode.
@@ -43,15 +58,11 @@ namespace monad::vm
             return nativecode_;
         }
 
-        std::size_t code_size_estimate() const
-        {
-            std::size_t x = intercode_->code_size();
-            x += nativecode_ ? nativecode_->native_code_size_estimate() : 0;
-            return x;
-        }
-
     private:
+        std::atomic<std::uint64_t> intercode_gas_used_;
         SharedIntercode intercode_;
         SharedNativecode nativecode_;
     };
+
+    using SharedVarcode = std::shared_ptr<Varcode>;
 }

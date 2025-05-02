@@ -1,7 +1,7 @@
+#include <monad/vm/code.hpp>
 #include <monad/vm/compiler.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
 
 #include <evmc/evmc.h>
@@ -56,8 +56,7 @@ TEST(async_compile_test, stress)
     Compiler compiler{L};
 
     auto first_start_time = std::chrono::steady_clock::now();
-    compiler.compile(
-        R, std::make_shared<interpreter::Intercode>(test_code(2 * N)));
+    compiler.compile(R, make_shared_intercode(test_code(2 * N)));
     auto first_end_time = std::chrono::steady_clock::now();
     auto compile_time_estimate = first_end_time - first_start_time;
 
@@ -71,8 +70,7 @@ TEST(async_compile_test, stress)
                 uint64_t const index = start_index + i;
                 auto code = test_code(index);
                 auto hash = test_hash(index);
-                auto icode =
-                    std::make_shared<interpreter::Intercode>(std::move(code));
+                auto icode = make_shared_intercode(std::move(code));
                 if (compiler.async_compile(R, hash, icode)) {
                     auto [_, inserted] = producer_set.insert(index);
                     ASSERT_TRUE(inserted);
@@ -84,9 +82,9 @@ TEST(async_compile_test, stress)
         compiler.debug_wait_for_empty_queue();
 
         for (uint64_t const index : producer_set) {
-            auto vcode = compiler.find_varcode(R, test_hash(index));
+            auto vcode = compiler.find_varcode(test_hash(index));
             ASSERT_TRUE(vcode.has_value());
-            auto ncode = vcode->nativecode();
+            auto ncode = (*vcode)->nativecode();
             ASSERT_TRUE(!!ncode);
 
             auto entry = ncode->entrypoint();

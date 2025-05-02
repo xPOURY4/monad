@@ -26,8 +26,8 @@ target_link_libraries(monad-vm
     PUBLIC evmc::evmc
     PUBLIC asmjit::asmjit
     PUBLIC monad-vm::monad-vm-compiler
+    PUBLIC monad-vm::monad-vm-interpreter
     PRIVATE monad-vm::monad-vm-core
-    PRIVATE monad-vm::monad-vm-interpreter
     PRIVATE monad-vm::monad-vm-runtime
     PRIVATE monad-vm::monad-vm-utils
 )

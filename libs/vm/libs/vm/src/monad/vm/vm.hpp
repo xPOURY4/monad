@@ -1,56 +1,64 @@
 #pragma once
 
 #include <monad/vm/code.hpp>
+#include <monad/vm/compiler.hpp>
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/runtime/allocator.hpp>
-
-#include <asmjit/x86.h>
 
 namespace monad::vm
 {
     class VM
     {
-        asmjit::JitRuntime runtime_;
+        Compiler compiler_;
+        CompilerConfig compiler_config_;
         runtime::EvmStackAllocator stack_allocator_;
         runtime::EvmMemoryAllocator memory_allocator_;
 
     public:
-        VM(std::size_t max_stack_cache_byte_size_ =
+        VM(std::size_t max_stack_cache_byte_size =
                runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE,
-           std::size_t max_memory_cache_byte_size_ =
-               runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE)
-            : stack_allocator_{max_stack_cache_byte_size_}
-            , memory_allocator_{max_memory_cache_byte_size_}
+           std::size_t max_memory_cache_byte_size =
+               runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE);
+
+        std::optional<SharedVarcode>
+        find_varcode(evmc::bytes32 const &code_hash)
         {
+            return compiler_.find_varcode(code_hash);
         }
 
-        /// Compile the given `code` for given `evmc_revision`.
-        SharedNativecode compile(
-            evmc_revision, uint8_t const *code, size_t code_size,
-            compiler::native::CompilerConfig const & = {});
-
-        /// Execute an entry point returned by `compile`.
-        evmc_result execute(
-            compiler::native::entrypoint_t contract_main,
-            evmc_host_interface const *host, evmc_host_context *context,
-            evmc_message const *msg, uint8_t const *code, size_t code_size);
-
-        /// First `compile` then `execute`.
-        evmc_result compile_and_execute(
-            evmc_host_interface const *host, evmc_host_context *context,
-            evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-            size_t code_size, compiler::native::CompilerConfig const & = {});
-
-        [[gnu::always_inline]]
-        runtime::EvmStackAllocator get_stack_allocator()
+        SharedVarcode try_insert_varcode(
+            evmc::bytes32 const &code_hash, SharedIntercode const &icode)
         {
-            return stack_allocator_;
+            return compiler_.try_insert_varcode(code_hash, icode);
         }
 
-        [[gnu::always_inline]]
-        runtime::EvmMemoryAllocator get_memory_allocator()
+        Compiler &compiler()
         {
-            return memory_allocator_;
+            return compiler_;
         }
+
+        /// Execute varcode. The function will execute the nativecode in
+        /// the varcode if set, and otherwise start async compilation and
+        /// execute the intercode with interpreter.
+        evmc::Result execute(
+            evmc_revision, evmc_host_interface const *, evmc_host_context *,
+            evmc_message const *, evmc::bytes32 const &code_hash,
+            SharedVarcode const &);
+
+        /// Execute the raw `code` with interpreter.
+        evmc::Result execute_raw(
+            evmc_revision, evmc_host_interface const *, evmc_host_context *,
+            evmc_message const *, std::span<uint8_t const> code);
+
+        /// Execute the intercode with interpreter.
+        evmc::Result execute_intercode(
+            evmc_revision, evmc_host_interface const *, evmc_host_context *,
+            evmc_message const *, SharedIntercode const &);
+
+        /// Execute the entrypoint`.
+        evmc::Result execute_native_entrypoint(
+            evmc_host_interface const *, evmc_host_context *,
+            evmc_message const *, SharedIntercode const &,
+            compiler::native::entrypoint_t);
     };
 }

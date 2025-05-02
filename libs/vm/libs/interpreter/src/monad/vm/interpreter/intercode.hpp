@@ -14,6 +14,11 @@ namespace monad::vm::interpreter
 
         Intercode(std::span<std::uint8_t const> const);
 
+        Intercode(std::uint8_t const *code, std::size_t code_size)
+            : Intercode{std::span<std::uint8_t const>{code, code_size}}
+        {
+        }
+
         std::uint8_t const *code() const noexcept;
         std::size_t code_size() const noexcept;
 

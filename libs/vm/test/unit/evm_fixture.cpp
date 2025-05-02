@@ -1,10 +1,10 @@
 #include "evm_fixture.hpp"
 
+#include <monad/vm/code.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evmone/baseline_execute.hpp>
 #include <monad/vm/evmone/code_analysis.hpp>
-#include <monad/vm/interpreter/execute.hpp>
 
 #include <evmc/bytes.hpp>
 #include <evmc/evmc.h>
@@ -46,24 +46,25 @@ namespace monad::vm::compiler::test
     {
         pre_execute(gas_limit, calldata);
 
+        auto icode = make_shared_intercode(code);
+
         if (impl == Compiler) {
-            result_ = evmc::Result(vm_.compile_and_execute(
+            auto ncode = vm_.compiler().compile(rev_, icode);
+            ASSERT_TRUE(ncode->entrypoint() != nullptr);
+            result_ = evmc::Result{vm_.execute_native_entrypoint(
                 &host_.get_interface(),
                 host_.to_context(),
-                rev_,
                 &msg_,
-                code.data(),
-                code.size()));
+                icode,
+                ncode->entrypoint())};
         }
         else if (impl == Interpreter) {
-            result_ = evmc::Result{vm::interpreter::execute(
-                vm_.get_stack_allocator(),
-                vm_.get_memory_allocator(),
+            result_ = evmc::Result{vm_.execute_intercode(
+                rev_,
                 &host_.get_interface(),
                 host_.to_context(),
-                rev_,
                 &msg_,
-                code)};
+                icode)};
         }
         else {
             MONAD_VM_ASSERT(impl == Evmone);

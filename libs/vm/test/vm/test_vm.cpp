@@ -3,22 +3,21 @@
 #include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
-#include <monad/vm/interpreter/execute.hpp>
+#include <monad/vm/utils/evmc_utils.hpp>
 #include <monad/vm/vm.hpp>
-
-#include <evmone/evmone.h>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
+
+#include <evmone/baseline.hpp>
 
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <format>
+#include <limits>
 #include <sstream>
-#include <unordered_map>
 
 using namespace monad;
 using namespace monad::vm::compiler;
@@ -42,13 +41,14 @@ namespace
         evmc_host_context *context, evmc_revision rev, evmc_message const *msg,
         uint8_t const *code, size_t code_size)
     {
-        return reinterpret_cast<BlockchainTestVM *>(vm)->execute(
-            host, context, rev, msg, code, code_size);
+        return reinterpret_cast<BlockchainTestVM *>(vm)
+            ->execute(host, context, rev, msg, code, code_size)
+            .release_raw();
     }
 
-    evmc_capabilities_flagset get_capabilities(evmc_vm *vm)
+    evmc_capabilities_flagset get_capabilities(evmc_vm *)
     {
-        return reinterpret_cast<BlockchainTestVM *>(vm)->get_capabilities();
+        return EVMC_CAPABILITY_EVM1;
     }
 
     BlockchainTestVM::Implementation
@@ -74,52 +74,31 @@ namespace
     }
 }
 
-size_t CompiledContractHash::operator()(CompiledContractId const &p)
-{
-    static_assert(sizeof(evmc::bytes32) == 32);
-
-    auto [d, x] = p;
-    uint64_t x0;
-    std::memcpy(&x0, x.bytes, 8);
-    uint64_t x1;
-    std::memcpy(&x1, x.bytes + 8, 8);
-    uint64_t x2;
-    std::memcpy(&x2, x.bytes + 16, 8);
-    uint64_t x3;
-    std::memcpy(&x3, x.bytes + 24, 8);
-    return static_cast<uint64_t>(d) ^ x0 ^ x1 ^ x2 ^ x3;
-}
-
-bool CompiledContractEqual::operator()(
-    CompiledContractId const &p, CompiledContractId const &q)
-{
-    auto [d, x] = p;
-    auto [e, y] = q;
-    return d == e && std::memcmp(x.bytes, y.bytes, sizeof(x.bytes)) == 0;
-}
-
 BlockchainTestVM::BlockchainTestVM(
     Implementation impl, native::EmitterHook post_hook)
     : evmc_vm{EVMC_ABI_VERSION, "monad-compiler-blockchain-test-vm", "0.0.0", ::destroy, ::execute, ::get_capabilities, nullptr}
     , impl_{impl_from_env(impl)}
-    , evmone_vm_{evmc_create_evmone()}
     , debug_dir_{std::getenv("MONAD_COMPILER_ASM_DIR")}
     , base_config{
           .runtime_debug_trace = is_compiler_runtime_debug_trace_enabled(),
+          .max_code_size_offset = std::numeric_limits<uint32_t>::max(),
           .post_instruction_emit_hook = post_hook}
 {
     MONAD_VM_ASSERT(!debug_dir_ || fs::is_directory(debug_dir_));
 }
 
-evmc_result BlockchainTestVM::execute(
+evmc::Result BlockchainTestVM::execute(
     evmc_host_interface const *host, evmc_host_context *context,
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
-    if (impl_ == Implementation::Evmone || msg->kind == EVMC_CREATE ||
-        msg->kind == EVMC_CREATE2 || msg->sender == SYSTEM_ADDRESS) {
-        auto *p = evmone_vm_.get_raw_pointer();
-        return p->execute(p, host, context, rev, msg, code, code_size);
+    if (msg->kind == EVMC_CREATE || msg->kind == EVMC_CREATE2 ||
+        msg->sender == SYSTEM_ADDRESS) {
+        return evmc::Result{evmone_vm_.execute(
+            &evmone_vm_, host, context, rev, msg, code, code_size)};
+    }
+    else if (impl_ == Implementation::Evmone) {
+        return execute_evmone(host, context, rev, msg, code, code_size);
     }
     else if (impl_ == Implementation::Compiler) {
         return execute_compiler(host, context, rev, msg, code, code_size);
@@ -130,45 +109,70 @@ evmc_result BlockchainTestVM::execute(
     }
 }
 
-evmc_result BlockchainTestVM::execute_compiler(
+evmone::baseline::CodeAnalysis const &BlockchainTestVM::get_code_analysis(
+    evmc::bytes32 const &code_hash, uint8_t const *code, size_t code_size)
+{
+    auto it1 = code_analyses_.find(code_hash);
+    if (it1 != code_analyses_.end()) {
+        return it1->second;
+    }
+    auto [it2, b] = code_analyses_.insert(
+        {code_hash, evmone::baseline::analyze({code, code_size}, false)});
+    MONAD_VM_ASSERT(b);
+    return it2->second;
+}
+
+monad::vm::SharedIntercode const &BlockchainTestVM::get_intercode(
+    evmc::bytes32 const &code_hash, uint8_t const *code, size_t code_size)
+{
+    auto it1 = intercodes_.find(code_hash);
+    if (it1 != intercodes_.end()) {
+        return it1->second;
+    }
+    auto [it2, b] = intercodes_.insert(
+        {code_hash, monad::vm::make_shared_intercode(code, code_size)});
+    MONAD_VM_ASSERT(b);
+    return it2->second;
+}
+
+evmc::Result BlockchainTestVM::execute_evmone(
     evmc_host_interface const *host, evmc_host_context *context,
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
     auto code_hash = host->get_code_hash(context, &msg->code_address);
+    auto const &a = get_code_analysis(code_hash, code, code_size);
+    return evmc::Result{
+        evmone::baseline::execute(evmone_vm_, *host, context, rev, *msg, a)};
+}
 
-    if (auto it = compiled_contracts_.find({rev, code_hash});
-        it != compiled_contracts_.end()) {
-        if (it->second->entrypoint()) {
-            return monad_vm_.execute(
-                it->second->entrypoint(), host, context, msg, code, code_size);
-        }
-        else {
-            return execute_interpreter(
-                host, context, rev, msg, code, code_size);
-        }
-    }
+evmc::Result BlockchainTestVM::execute_compiler(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    auto code_hash = host->get_code_hash(context, &msg->code_address);
+    auto const &icode = get_intercode(code_hash, code, code_size);
 
     monad::vm::SharedNativecode ncode;
     if (debug_dir_) {
         std::ostringstream file(std::ostringstream::ate);
         file.str(debug_dir_);
         file << '/';
-        for (auto b : msg->code_address.bytes) {
-            file << std::format("{:02x}", (int)b);
-        }
+        file << monad::vm::utils::hex_string(code_hash);
         native::CompilerConfig config{base_config};
         auto asm_log_path = file.str();
         config.asm_log_path = asm_log_path.c_str();
-        ncode = monad_vm_.compile(rev, code, code_size, config);
+        ncode =
+            monad_vm_.compiler().cached_compile(rev, code_hash, icode, config);
     }
     else {
-        ncode = monad_vm_.compile(rev, code, code_size, base_config);
+        ncode = monad_vm_.compiler().cached_compile(
+            rev, code_hash, icode, base_config);
     }
 
-    if (ncode->error_code() ==
-        monad::vm::compiler::native::Nativecode::Unexpected) {
-        return evmc_result{
+    if (ncode->entrypoint() == nullptr) {
+        return evmc::Result{evmc_result{
             .status_code = EVMC_INTERNAL_ERROR,
             .gas_left = 0,
             .gas_refund = 0,
@@ -177,35 +181,19 @@ evmc_result BlockchainTestVM::execute_compiler(
             .release = nullptr,
             .create_address = {},
             .padding = {},
-        };
+        }};
     }
 
-    compiled_contracts_.insert({{rev, code_hash}, ncode});
-    if (ncode->entrypoint()) {
-        return monad_vm_.execute(
-            ncode->entrypoint(), host, context, msg, code, code_size);
-    }
-    else {
-        return execute_interpreter(host, context, rev, msg, code, code_size);
-    }
+    return monad_vm_.execute_native_entrypoint(
+        host, context, msg, icode, ncode->entrypoint());
 }
 
-evmc_result BlockchainTestVM::execute_interpreter(
+evmc::Result BlockchainTestVM::execute_interpreter(
     evmc_host_interface const *host, evmc_host_context *context,
     evmc_revision rev, evmc_message const *msg, uint8_t const *code,
     size_t code_size)
 {
-    return monad::vm::interpreter::execute(
-        monad_vm_.get_stack_allocator(),
-        monad_vm_.get_memory_allocator(),
-        host,
-        context,
-        rev,
-        msg,
-        {code, code_size});
-}
-
-evmc_capabilities_flagset BlockchainTestVM::get_capabilities() const
-{
-    return EVMC_CAPABILITY_EVM1;
+    auto code_hash = host->get_code_hash(context, &msg->code_address);
+    auto const &icode = get_intercode(code_hash, code, code_size);
+    return monad_vm_.execute_intercode(rev, host, context, msg, icode);
 }

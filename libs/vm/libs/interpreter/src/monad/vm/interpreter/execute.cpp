@@ -6,7 +6,6 @@
 #include <monad/vm/interpreter/instruction_stats.hpp>
 #include <monad/vm/interpreter/instruction_table.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
-#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/traits.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -16,8 +15,6 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
-#include <memory>
-#include <span>
 
 /**
  * Assembly trampoline into the interpreter's core loop (see entry.S). This
@@ -108,27 +105,16 @@ namespace monad::vm::interpreter
         }
     }
 
-    evmc_result execute(
-        runtime::EvmStackAllocator stack_allocator,
-        runtime::EvmMemoryAllocator memory_allocator,
-        evmc_host_interface const *host, evmc_host_context *context,
-        evmc_revision rev, evmc_message const *msg,
-        std::span<uint8_t const> code)
+    void execute(
+        evmc_revision rev, runtime::Context &ctx, Intercode const &analysis,
+        std::uint8_t *stack_ptr)
     {
-
-        auto const stack_ptr = stack_allocator.allocate();
-        auto ctx =
-            runtime::Context::from(memory_allocator, host, context, msg, code);
-        auto const analysis = Intercode(code);
-
         interpreter_runtime_trampoline(
             &ctx.exit_stack_ptr,
             rev,
             &ctx,
             &analysis,
-            reinterpret_cast<utils::uint256_t *>(stack_ptr.get()));
-
-        return ctx.copy_to_evmc_result();
+            reinterpret_cast<utils::uint256_t *>(stack_ptr));
     }
 }
 
