@@ -21,6 +21,7 @@ libbenchmark-dev
 libcli11-dev
 libgmock-dev
 libgtest-dev
+libtbb-dev
 ```
 
 Then, from the project root:
@@ -320,4 +321,9 @@ After running the desired executable, use `gcovr .` to gather coverage statistic
 To run the linter, call:
 ```console
 scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
+```
+
+To run the formatter, call:
+```console
+find {cmd,libs,test} -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
 ```
