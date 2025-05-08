@@ -100,6 +100,13 @@ namespace monad::vm::interpreter
 
         consteval bool use_padded_push(std::size_t const n) noexcept
         {
+#ifdef __clang__
+            // Clang's codegen doesn't benefit from the padded algorithm in the
+            // same way as GCC's does, so we disable it unconditionally.
+            (void)n;
+            return false;
+#endif
+
             // These opcodes were identified experimentally, by examining which
             // sizes demonstrated consistent speedups using the padded push
             // algorithm. It may be the case that there is a better, more
