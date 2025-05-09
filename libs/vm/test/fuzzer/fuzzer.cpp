@@ -299,6 +299,8 @@ namespace
         seed_t seed = default_seed;
         std::size_t runs = std::numeric_limits<std::size_t>::max();
         bool print_stats = false;
+        BlockchainTestVM::Implementation implementation =
+            BlockchainTestVM::Implementation::Compiler;
 
         void set_random_seed_if_default()
         {
@@ -329,6 +331,16 @@ static arguments parse_args(int const argc, char **const argv)
         args.seed,
         "Seed to use for reproducible fuzzing (random by default)");
 
+    auto const impl_map =
+        std::map<std::string, BlockchainTestVM::Implementation>{
+            {"interpreter", BlockchainTestVM::Implementation::Interpreter},
+            {"compiler", BlockchainTestVM::Implementation::Compiler},
+        };
+
+    app.add_option(
+           "--implementation", args.implementation, "VM implementation to fuzz")
+        ->transform(CLI::CheckedTransformer(impl_map, CLI::ignore_case));
+
     app.add_option(
         "-r,--runs",
         args.runs,
@@ -353,9 +365,9 @@ static arguments parse_args(int const argc, char **const argv)
 
 static evmc_status_code fuzz_iteration(
     evmc_message const &msg, evmc_revision const rev, State &evmone_state,
-    evmc::VM &evmone_vm, State &compiler_state, evmc::VM &compiler_vm)
+    evmc::VM &evmone_vm, State &monad_state, evmc::VM &monad_vm)
 {
-    for (State &state : {std::ref(evmone_state), std::ref(compiler_state)}) {
+    for (State &state : {std::ref(evmone_state), std::ref(monad_state)}) {
         state.get_or_insert(msg.sender);
         state.get_or_insert(msg.recipient);
     }
@@ -364,23 +376,23 @@ static evmc_status_code fuzz_iteration(
     auto const evmone_result =
         transition(evmone_state, msg, rev, evmone_vm, block_gas_limit);
 
-    auto const compiler_checkpoint = compiler_state.checkpoint();
-    auto const compiler_result =
-        transition(compiler_state, msg, rev, compiler_vm, block_gas_limit);
+    auto const monad_checkpoint = monad_state.checkpoint();
+    auto const monad_result =
+        transition(monad_state, msg, rev, monad_vm, block_gas_limit);
 
-    assert_equal(evmone_result, compiler_result);
+    assert_equal(evmone_result, monad_result);
 
     if (evmone_result.status_code != EVMC_SUCCESS) {
         evmone_state.rollback(evmone_checkpoint);
     }
     clean_storage(evmone_state);
 
-    if (compiler_result.status_code != EVMC_SUCCESS) {
-        compiler_state.rollback(compiler_checkpoint);
+    if (monad_result.status_code != EVMC_SUCCESS) {
+        monad_state.rollback(monad_checkpoint);
     }
-    clean_storage(compiler_state);
+    clean_storage(monad_state);
 
-    assert_equal(evmone_state, compiler_state);
+    assert_equal(evmone_state, monad_state);
     return evmone_result.status_code;
 }
 
@@ -413,6 +425,20 @@ log(std::chrono::high_resolution_clock::time_point start, arguments const &args,
     }
 }
 
+template <typename Engine>
+static evmc::VM create_monad_vm(arguments const &args, Engine &engine)
+{
+    using enum BlockchainTestVM::Implementation;
+
+    monad::vm::compiler::native::EmitterHook hook = nullptr;
+
+    if (args.implementation == Compiler) {
+        hook = compiler_emit_hook(engine);
+    }
+
+    return evmc::VM(new BlockchainTestVM(args.implementation, hook));
+}
+
 static void do_run(std::size_t const run_index, arguments const &args)
 {
     constexpr auto rev = EVMC_CANCUN;
@@ -422,12 +448,10 @@ static void do_run(std::size_t const run_index, arguments const &args)
     auto engine = random_engine_t(args.seed);
 
     auto evmone_vm = evmc::VM(evmc_create_evmone());
-    auto compiler_vm = evmc::VM(new BlockchainTestVM(
-        BlockchainTestVM::Implementation::Compiler,
-        compiler_emit_hook(engine)));
+    auto monad_vm = create_monad_vm(args, engine);
 
     auto evmone_state = initial_state();
-    auto compiler_state = initial_state();
+    auto monad_state = initial_state();
 
     auto contract_addresses = std::vector<evmc::address>{};
 
@@ -459,10 +483,10 @@ static void do_run(std::size_t const run_index, arguments const &args)
             auto const a = deploy_contract(
                 evmone_state, evmone_vm, genesis_address, contract);
             auto const a1 = deploy_contract(
-                compiler_state, compiler_vm, genesis_address, contract);
+                monad_state, monad_vm, genesis_address, contract);
             MONAD_VM_ASSERT(a == a1);
 
-            assert_equal(evmone_state, compiler_state);
+            assert_equal(evmone_state, monad_state);
 
             contract_addresses.push_back(a);
             break;
@@ -488,12 +512,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
             ++total_messages;
 
             auto const ec = fuzz_iteration(
-                *msg,
-                rev,
-                evmone_state,
-                evmone_vm,
-                compiler_state,
-                compiler_vm);
+                *msg, rev, evmone_state, evmone_vm, monad_state, monad_vm);
             ++exit_code_stats[ec];
         }
     }
