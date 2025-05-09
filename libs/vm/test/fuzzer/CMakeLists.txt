@@ -3,6 +3,7 @@ add_executable(monad-compiler-fuzzer)
 target_sources(monad-compiler-fuzzer PRIVATE
   assertions.cpp
   assertions.hpp
+  compiler_hook.hpp
   fuzzer.cpp)
 
 target_link_libraries(monad-compiler-fuzzer
