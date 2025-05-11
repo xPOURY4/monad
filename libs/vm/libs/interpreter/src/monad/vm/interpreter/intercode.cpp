@@ -2,9 +2,7 @@
 #include <monad/vm/interpreter/intercode.hpp>
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <span>
 
 using namespace monad::vm::compiler;
@@ -18,33 +16,22 @@ namespace monad::vm::interpreter
     {
     }
 
-    std::uint8_t const *Intercode::code() const noexcept
+    Intercode::~Intercode()
     {
-        return padded_code_.get() + start_padding_size;
+        delete[] (padded_code_ - start_padding_size);
     }
 
-    std::size_t Intercode::code_size() const noexcept
+    std::uint8_t const *Intercode::pad(std::span<std::uint8_t const> const code)
     {
-        return code_size_;
-    }
-
-    bool Intercode::is_jumpdest(std::size_t const pc) const noexcept
-    {
-        return pc < code_size_ && jumpdest_map_[pc];
-    }
-
-    std::unique_ptr<std::uint8_t[]>
-    Intercode::pad(std::span<std::uint8_t const> const code)
-    {
-        auto buffer = std::make_unique_for_overwrite<std::uint8_t[]>(
-            start_padding_size + code.size() + end_padding_size);
+        auto *buffer = new std::uint8_t
+            [start_padding_size + code.size() + end_padding_size];
 
         std::fill_n(&buffer[0], start_padding_size, 0);
         std::copy(code.begin(), code.end(), &buffer[start_padding_size]);
         std::fill_n(
             &buffer[code.size() + start_padding_size], end_padding_size, 0);
 
-        return buffer;
+        return buffer + start_padding_size;
     }
 
     auto Intercode::find_jumpdests(std::span<std::uint8_t const> const code)

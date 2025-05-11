@@ -45,7 +45,11 @@ namespace monad::vm::interpreter
     namespace
     {
         template <evmc_revision Rev>
-        void core_loop_impl(
+#if defined(__GNUC__) && !defined(__clang__)
+        __attribute__((optimize("-falign-labels=16")))
+#endif
+        void
+        core_loop_impl(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t *stack_ptr)
         {

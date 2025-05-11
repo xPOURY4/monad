@@ -8,6 +8,8 @@
 
 #include <evmc/evmc.h>
 
+#include <immintrin.h>
+
 #include <cstdint>
 #include <cstring>
 #include <numeric>
@@ -16,6 +18,16 @@ namespace monad::vm::interpreter
 {
     namespace detail
     {
+        consteval bool use_avx2_push(std::size_t const n) noexcept
+        {
+#ifdef __AVX2__
+            return n > 0;
+#else
+            (void)n;
+            return false;
+#endif
+        }
+
         using subword_t = utils::uint256_t::word_type;
 
         // We need to do this memcpy dance to avoid triggering UB when
@@ -33,6 +45,7 @@ namespace monad::vm::interpreter
         }
 
         template <std::size_t N, evmc_revision Rev>
+            requires(!detail::use_avx2_push(N))
         [[gnu::always_inline]] inline OpcodeResult generic_push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
@@ -94,48 +107,60 @@ namespace monad::vm::interpreter
                         leading_word,
                     });
             }
+            else {
+                static_assert(leading_part == 0);
+                interpreter::push(
+                    stack_top,
+                    utils::uint256_t{
+                        read_unaligned(instr_ptr + 1 + 24),
+                        read_unaligned(instr_ptr + 1 + 16),
+                        read_unaligned(instr_ptr + 1 + 8),
+                        read_unaligned(instr_ptr + 1),
+                    });
+            }
 
             return {gas_remaining, instr_ptr + N + 1};
         }
 
-        consteval bool use_padded_push(std::size_t const n) noexcept
-        {
-#ifdef __clang__
-            // Clang's codegen doesn't benefit from the padded algorithm in the
-            // same way as GCC's does, so we disable it unconditionally.
-            (void)n;
-            return false;
-#endif
-
-            // These opcodes were identified experimentally, by examining which
-            // sizes demonstrated consistent speedups using the padded push
-            // algorithm. It may be the case that there is a better, more
-            // specialised implementation for some of these sizes.
-            static constexpr auto sizes = std::array{
-                3, 5, 6, 7, 11, 13, 14, 15, 19, 21, 22, 23, 27, 28, 29, 30, 31};
-
-            return std::find(sizes.begin(), sizes.end(), n) != sizes.end();
-        }
-
         template <std::size_t N, evmc_revision Rev>
-        [[gnu::always_inline]] inline OpcodeResult padded_push(
+            requires(detail::use_avx2_push(N))
+        [[gnu::always_inline]] inline OpcodeResult avx2_push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
             std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
         {
+            static constexpr auto whole_words = N / 8;
+            static constexpr auto leading_part = N % 8;
+
             check_requirements<PUSH0 + N, Rev>(
                 ctx, analysis, stack_bottom, stack_top, gas_remaining);
 
-            std::uint64_t aligned_mem[4];
-            std::memcpy(aligned_mem, instr_ptr - (31 - N), 32);
-            push(
-                stack_top,
-                utils::uint256_t{
-                    std::byteswap(aligned_mem[3]),
-                    std::byteswap(aligned_mem[2]),
-                    std::byteswap(aligned_mem[1]),
-                    std::byteswap(aligned_mem[0])});
-            std::memset(reinterpret_cast<uint8_t *>(stack_top) + N, 0, 32);
+            static constexpr int64_t m = ~(
+                std::numeric_limits<int64_t>::max() >> (63 - leading_part * 8));
+
+            // It is required that N > 0, otherwise we can index out of the
+            // initial 30 bytes of padding to `instr_ptr`.
+            static_assert(N > 0);
+            __m256i y;
+            std::memcpy(&y, instr_ptr - (31 - N), 32);
+            // y = {[y00...y07], [y10...y17], [y20...y27], [y30...y37]}
+            y = _mm256_permute4x64_epi64(y, 27);
+            // y = {[y30...y37], [y20...y27], [y10...y17], [y00...y07]}
+            static constexpr int64_t s0 =
+                0x0001020304050607LL | (whole_words == 0 ? m : 0);
+            static constexpr int64_t s1 =
+                0x08090a0b0c0d0e0fLL |
+                (whole_words == 1 ? m : (whole_words < 1 ? -1 : 0));
+            static constexpr int64_t s2 =
+                0x0001020304050607LL |
+                (whole_words == 2 ? m : (whole_words < 2 ? -1 : 0));
+            static constexpr int64_t s3 =
+                0x08090a0b0c0d0e0fLL |
+                (whole_words == 3 ? m : (whole_words < 3 ? -1 : 0));
+            y = _mm256_shuffle_epi8(y, _mm256_setr_epi64x(s0, s1, s2, s3));
+            // For N = 32:
+            // y = {[y37...y30], [y27...y20], [y17...y10], [y07...y00]}
+            std::memcpy(reinterpret_cast<uint8_t *>(stack_top + 1), &y, 32);
 
             return {gas_remaining, instr_ptr + N + 1};
         }
@@ -175,7 +200,7 @@ namespace monad::vm::interpreter
     };
 
     template <std::size_t N, evmc_revision Rev>
-        requires(detail::use_padded_push(N))
+        requires(detail::use_avx2_push(N))
     struct push_impl<N, Rev>
     {
         [[gnu::always_inline]] static inline OpcodeResult push(
@@ -183,39 +208,13 @@ namespace monad::vm::interpreter
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
             std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
         {
-            return detail::padded_push<N, Rev>(
+            return detail::avx2_push<N, Rev>(
                 ctx,
                 analysis,
                 stack_bottom,
                 stack_top,
                 gas_remaining,
                 instr_ptr);
-        }
-    };
-
-    template <evmc_revision Rev>
-    struct push_impl<32, Rev>
-    {
-        [[gnu::always_inline]] static inline OpcodeResult push(
-            runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
-        {
-            using namespace detail;
-
-            check_requirements<PUSH32, Rev>(
-                ctx, analysis, stack_bottom, stack_top, gas_remaining);
-
-            interpreter::push(
-                stack_top,
-                utils::uint256_t{
-                    read_unaligned(instr_ptr + 1 + 24),
-                    read_unaligned(instr_ptr + 1 + 16),
-                    read_unaligned(instr_ptr + 1 + 8),
-                    read_unaligned(instr_ptr + 1),
-                });
-
-            return {gas_remaining, instr_ptr + 33};
         }
     };
 
