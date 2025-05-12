@@ -76,14 +76,6 @@ jobs:
                     ninja-build         \
                     valgrind
 
-            # # There's a missing #include in evmc's tests that causes some of its
-            # # code to break when compiled against the C++ standard library
-            # # supplied with GCC 14. We could work around this by forking evmc,
-            # # but it's easier just to do this for the time being.
-            # - name: Remove incompatible libgcc
-            #   run: |
-            #     sudo apt remove -y libgcc-14-dev
-
             - name: Build compiler
               run: |
                 cmake -S . -B build                                                           \
