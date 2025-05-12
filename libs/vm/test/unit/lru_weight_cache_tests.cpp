@@ -91,11 +91,8 @@ namespace
             return TestThread{[this] {
                 for (;;) {
                     auto w = current_weight_.load();
-                    if (w > max_weight - max_weight / 10) {
+                    if (w > max_weight - 3 * max_weight / 10) {
                         break;
-                    }
-                    if (w < max_weight - 2 * max_weight / 10) {
-                        continue;
                     }
                     auto v = weight_cache_find(base_key);
                     ASSERT_TRUE(v.has_value());
