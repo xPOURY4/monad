@@ -16,7 +16,7 @@ install the following dependencies via `apt`:
 ```
 build-essential
 cmake
-llvm-18-dev
+llvm-19-dev
 libbenchmark-dev
 libcli11-dev
 libgmock-dev
@@ -201,9 +201,9 @@ accordingly with command-line arguments.
 
 ### Reference Build
 
-As an example, to set up and run the BurntPix benchmarks using GCC 13:
+As an example, to set up and run the BurntPix benchmarks using GCC 14:
 ```console
-$ CC=gcc-13 CXX=g++-13 cmake                                \
+$ CC=gcc-14 CXX=g++-14 cmake                                \
     -S . -B build                                           \
     -G Ninja                                                \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
@@ -236,7 +236,7 @@ The interpreter can be configured to print out statistics for each opcode when
 the enclosing binary exits. For example, to run a single execution benchmark
 ten times and print statistics:
 ```console
-$ CC=gcc-13 CXX=g++-13 cmake                                \
+$ CC=gcc-14 CXX=g++-14 cmake                                \
     -S . -B build                                           \
     -G Ninja                                                \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/gcc-avx2.cmake  \
@@ -320,10 +320,10 @@ After running the desired executable, use `gcovr .` to gather coverage statistic
 
 To run the linter, call:
 ```console
-scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-18
+scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-19
 ```
 
 To run the formatter, call:
 ```console
-find {cmd,libs,test} -iname '*.h*' -o -iname '*.c*' | xargs clang-format-18 -i
+find {cmd,libs,test} -iname '*.h*' -o -iname '*.c*' | xargs clang-format-19 -i
 ```
