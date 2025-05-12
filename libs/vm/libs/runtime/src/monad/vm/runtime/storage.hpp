@@ -22,14 +22,14 @@ namespace monad::vm::runtime
         auto access_status =
             ctx->host->access_storage(ctx->context, &ctx->env.recipient, &key);
 
-        auto value =
-            ctx->host->get_storage(ctx->context, &ctx->env.recipient, &key);
-
         if constexpr (Rev >= EVMC_BERLIN) {
             if (access_status == EVMC_ACCESS_COLD) {
                 ctx->deduct_gas(2000);
             }
         }
+
+        auto value =
+            ctx->host->get_storage(ctx->context, &ctx->env.recipient, &key);
 
         *result_ptr = uint256_from_bytes32(value);
     }
