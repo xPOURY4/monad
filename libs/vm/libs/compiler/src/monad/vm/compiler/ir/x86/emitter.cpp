@@ -2847,23 +2847,19 @@ namespace monad::vm::compiler::native
         x86::Mem m = x86::qword_ptr(reg_context, offset);
         auto [dst, _] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
-
         m.setSize(4);
-        as_.mov(gpq[2].r32(), m);
+        as_.movbe(gpq[2].r32(), m);
         m.addOffset(4);
         m.setSize(8);
-        as_.mov(gpq[1], m);
+        as_.movbe(gpq[1], m);
         m.addOffset(8);
-        as_.mov(gpq[0], m);
+        as_.movbe(gpq[0], m);
         if (stack_.has_deferred_comparison()) {
             as_.mov(gpq[3], 0);
         }
         else {
             as_.xor_(gpq[3], gpq[3]);
         }
-        as_.bswap(gpq[2].r32());
-        as_.bswap(gpq[1]);
-        as_.bswap(gpq[0]);
         stack_.push(std::move(dst));
     }
 
@@ -2872,20 +2868,19 @@ namespace monad::vm::compiler::native
         x86::Mem const m = x86::qword_ptr(reg_context, offset);
         auto [dst, _] = alloc_avx_reg();
         auto y = avx_reg_to_ymm(*dst->avx_reg());
-        as_.vmovups(y, m);
+        as_.vpermq(y, m, 27);
+        // Permute qwords in avx register y:
+        // {b1, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
         auto const &lbl = append_literal(Literal{uint256_t{
             0x0001020304050607,
             0x08090a0b0c0d0e0f,
             0x0001020304050607,
             0x08090a0b0c0d0e0f}});
         // Permute bytes in avx register y:
-        // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
-        // {b7, ..., b0, b15, ..., b8, b23, ..., b16, b31, ..., b24}
-        as_.vpshufb(y, y, x86::ptr(lbl));
-        // Permute qwords in avx register y:
-        // {b7, ..., b0, b15, ..., b8, b23, ..., b16, b31, ..., b24} ->
+        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
         // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
-        as_.vpermq(y, y, 27);
+        as_.vpshufb(y, y, x86::ptr(lbl));
         stack_.push(std::move(dst));
     }
 
