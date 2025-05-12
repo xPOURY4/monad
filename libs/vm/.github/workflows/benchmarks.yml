@@ -21,7 +21,7 @@ jobs:
           pull-requests: write
         strategy:
           matrix:
-            compiler: [{CXX: g++-13, CC: gcc-13}, {CXX: clang++-18, CC: clang-18}]
+            compiler: [{CXX: g++-14, CC: gcc-14}, {CXX: clang++-19, CC: clang-19}]
 
         steps:
             - name: Generate token
@@ -74,7 +74,11 @@ jobs:
                 sudo apt update
                 sudo apt install -y     \
                     build-essential     \
+                    clang-19            \
+                    clang-tools-19      \
                     cmake               \
+                    gcc-14              \
+                    g++-14              \
                     libtbb-dev          \
                     libbenchmark-dev    \
                     libcli11-dev        \
@@ -83,13 +87,13 @@ jobs:
                     ninja-build         \
                     valgrind
 
-            # There's a missing #include in evmc's tests that causes some of its
-            # code to break when compiled against the C++ standard library
-            # supplied with GCC 14. We could work around this by forking evmc,
-            # but it's easier just to do this for the time being.
-            - name: Remove incompatible libgcc
-              run: |
-                sudo apt remove -y libgcc-14-dev
+            # # There's a missing #include in evmc's tests that causes some of its
+            # # code to break when compiled against the C++ standard library
+            # # supplied with GCC 14. We could work around this by forking evmc,
+            # # but it's easier just to do this for the time being.
+            # - name: Remove incompatible libgcc
+            #   run: |
+            #     sudo apt remove -y libgcc-14-dev
 
             - name: Build base compiler
               working-directory: base-compiler
