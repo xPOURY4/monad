@@ -77,27 +77,13 @@ namespace
             return acc->second.value_;
         }
 
-        TestThread make_tester()
+        std::vector<TestThread> make_readers(
+            size_t reader_count, std::function<void()> p,
+            size_t upper_weight = max_weight)
         {
-            return TestThread{[this] {
-                for (;;) {
-                    auto w = current_weight_.load();
-                    if (w > max_weight - 3 * max_weight / 10) {
-                        break;
-                    }
-                    auto v = weight_cache_find(base_key);
-                    ASSERT_TRUE(v.has_value());
-                    ASSERT_EQ(*v, base_value);
-                }
-            }};
-        }
-
-        std::vector<TestThread>
-        make_readers(size_t reader_count, std::function<void()> p)
-        {
-            auto r = [this, p](size_t start_index) {
+            auto r = [=, this](size_t start_index) {
                 size_t i = start_index;
-                while (current_weight_.load() <= max_weight) {
+                while (current_weight_.load() <= upper_weight) {
                     Key const k = elems[i++ % elems.size()];
                     (void)weight_cache_find(k);
                 }
@@ -142,13 +128,13 @@ namespace
 
         std::vector<TestThread> make_writers(
             size_t writer_count, std::function<void()> p,
-            std::function<Value(Key)> f)
+            std::function<Value(Key)> f, size_t upper_weight = max_weight)
         {
-            auto w = [this, p, f](size_t start_index) {
+            auto w = [=, this](size_t start_index) {
                 size_t i = start_index;
                 for (;;) {
                     auto k = elems[i++ % elems.size()];
-                    if (current_weight_.load() > max_weight) {
+                    if (current_weight_.load() > upper_weight) {
                         break;
                     }
                     auto v = f(k);
@@ -185,9 +171,21 @@ namespace
 TEST_F(LruWeightCacheTest, insert_find)
 {
     insert_initial_base();
-    auto tester = make_tester();
-    auto readers = make_readers(10, [] {});
-    auto writers = make_writers(10, [] {}, default_values);
+    size_t const reader_count = 10;
+    size_t const writer_count = 10;
+    // Each writer thread can get through at `upper_bound` weight, so we can
+    // end up with final value of `current_weight_` being
+    // `upper_weight + 2 * writer_count`. By subtracting this, the cache should
+    // not evict, and we can find base key in the cache.
+    size_t const upper_weight = max_weight - 2 * writer_count;
+    {
+        auto readers = make_readers(reader_count, [] {}, upper_weight);
+        auto writers =
+            make_writers(writer_count, [] {}, default_values, upper_weight);
+    }
+    auto v = weight_cache_find(base_key);
+    ASSERT_TRUE(v.has_value());
+    ASSERT_EQ(*v, base_value);
 }
 
 TEST_F(LruWeightCacheTest, evict_1_writer)
