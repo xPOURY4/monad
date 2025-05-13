@@ -11,6 +11,7 @@
 #include <limits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 
 namespace monad::vm::compiler::basic_blocks
 {

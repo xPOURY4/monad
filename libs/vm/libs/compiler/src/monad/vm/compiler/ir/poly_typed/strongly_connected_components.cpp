@@ -29,8 +29,6 @@ namespace monad::vm::compiler::poly_typed
             if (b.successors_visited == bst.successors.size()) {
                 auto &pst = state.vertex_states[b.parent];
 
-                connect_stack.pop_back();
-
                 if (bst.lowlink == bst.index) {
                     state.components.emplace_back();
                     block_id t;
@@ -42,6 +40,8 @@ namespace monad::vm::compiler::poly_typed
                     }
                     while (b.block != t);
                 }
+
+                connect_stack.pop_back();
 
                 pst.lowlink = std::min(pst.lowlink, bst.lowlink);
             }
