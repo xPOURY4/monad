@@ -2870,7 +2870,7 @@ namespace monad::vm::compiler::native
         auto y = avx_reg_to_ymm(*dst->avx_reg());
         as_.vpermq(y, m, 27);
         // Permute qwords in avx register y:
-        // {b1, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+        // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
         // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
         auto const &lbl = append_literal(Literal{uint256_t{
             0x0001020304050607,
