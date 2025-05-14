@@ -19,23 +19,23 @@
 /**
  * Assembly trampoline into the interpreter's core loop (see entry.S). This
  * function sets up the stack to be compatible with the runtime's exit ABI, then
- * jumps to `interpreter_core_loop`. It is therefore important that these two
- * functions always maintain the same signature (so that arguments are in the
- * expected registers when jumping to the core loop).
+ * jumps to `monad_vm_interpreter_core_loop`. It is therefore important that
+ * these two functions always maintain the same signature (so that arguments are
+ * in the expected registers when jumping to the core loop).
  */
-extern "C" void interpreter_runtime_trampoline(
+extern "C" void monad_vm_interpreter_trampoline(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
     ::monad::vm::interpreter::Intercode const *,
     ::monad::vm::utils::uint256_t *);
 
-extern "C" void interpreter_core_loop(
+extern "C" void monad_vm_interpreter_core_loop(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
     ::monad::vm::interpreter::Intercode const *,
     ::monad::vm::utils::uint256_t *);
 
 static_assert(
     ::monad::vm::utils::same_signature(
-        interpreter_runtime_trampoline, interpreter_core_loop),
+        monad_vm_interpreter_trampoline, monad_vm_interpreter_core_loop),
     "Interpreter core loop and trampoline signatures must be identical");
 
 #define ASM_COMMENT(C) asm volatile("# " C);
@@ -109,7 +109,7 @@ namespace monad::vm::interpreter
         evmc_revision rev, runtime::Context &ctx, Intercode const &analysis,
         std::uint8_t *stack_ptr)
     {
-        interpreter_runtime_trampoline(
+        monad_vm_interpreter_trampoline(
             &ctx.exit_stack_ptr,
             rev,
             &ctx,
@@ -118,7 +118,7 @@ namespace monad::vm::interpreter
     }
 }
 
-extern "C" void interpreter_core_loop(
+extern "C" void monad_vm_interpreter_core_loop(
     void *, evmc_revision rev, ::monad::vm::runtime::Context *ctx,
     ::monad::vm::interpreter::Intercode const *analysis,
     ::monad::vm::utils::uint256_t *stack_ptr)

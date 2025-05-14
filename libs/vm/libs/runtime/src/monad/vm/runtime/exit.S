@@ -1,8 +1,8 @@
 .text
-.globl monad_runtime_exit
-.type monad_runtime_exit, @function
+.globl monad_vm_runtime_exit
+.type monad_vm_runtime_exit, @function
 .align 16
-monad_runtime_exit:
+monad_vm_runtime_exit:
 .cfi_startproc
     movq %rdi, %rsp
     popq %r15
@@ -13,5 +13,5 @@ monad_runtime_exit:
     popq %rbp
     retq
 .cfi_endproc
-.size monad_runtime_exit, .-monad_runtime_exit
+.size monad_vm_runtime_exit, .-monad_vm_runtime_exit
 .section .note.GNU-stack,"",@progbits

@@ -3,8 +3,8 @@
 namespace monad::vm::utils
 {
 #ifdef MONAD_COMPILER_TESTING
-    extern bool const is_fuzzing_monad_compiler;
+    extern bool is_fuzzing_monad_vm;
 #else
-    static constexpr bool is_fuzzing_monad_compiler = false;
+    static constexpr bool is_fuzzing_monad_vm = false;
 #endif
 }

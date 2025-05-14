@@ -141,7 +141,7 @@ from `monad-compiler`.
 Configure with
 
 ```
-$ cmake -S . -B build -DMONAD_COMPILER_FUZZING=ON
+$ cmake -S . -B build -DMONAD_COMPILER_TESTING=ON
 ```
 
 and set envoronment variable

@@ -13,8 +13,6 @@ option(MONAD_COMPILER_COVERAGE "Build with coverage" OFF)
 option(MONAD_COMPILER_TESTING "Build compiler tests" ON)
 option(MONAD_COMPILER_BENCHMARKS "Build compiler benchmarks" OFF)
 
-option(MONAD_COMPILER_FUZZING "Build compiler and evmone with SAVE_EVM_STACK_ON_EXIT" OFF)
-
 include(cmake/MonadCompileOptions.cmake)
 
 find_package(CLI11 REQUIRED)

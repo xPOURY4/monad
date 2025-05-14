@@ -782,7 +782,7 @@ static void run_loop(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    if (monad::vm::utils::is_fuzzing_monad_compiler) {
+    if (monad::vm::utils::is_fuzzing_monad_vm) {
         run_loop(argc, argv);
         return 0;
     }

@@ -1,9 +1,9 @@
 .text
 .intel_syntax noprefix
-.globl monad_runtime_mul
-.type monad_runtime_mul, @function
+.globl monad_vm_runtime_mul
+.type monad_vm_runtime_mul, @function
 .align 16
-monad_runtime_mul:
+monad_vm_runtime_mul:
 .cfi_startproc
     push    r13
     push    r12
@@ -50,12 +50,12 @@ monad_runtime_mul:
     pop     r13
     ret
 .cfi_endproc
-.size monad_runtime_mul, .-monad_runtime_mul
+.size monad_vm_runtime_mul, .-monad_vm_runtime_mul
 
-.globl monad_runtime_mul_192
-.type monad_runtime_mul_192, @function
+.globl monad_vm_runtime_mul_192
+.type monad_vm_runtime_mul_192, @function
 .align 16
-monad_runtime_mul_192:
+monad_vm_runtime_mul_192:
 .cfi_startproc
     mov     r8, qword ptr [rdx]
     mov     r9, qword ptr [rdx + 8]
@@ -86,6 +86,6 @@ monad_runtime_mul_192:
     mov     qword ptr [rdi + 16], rcx
     ret
 .cfi_endproc
-.size monad_runtime_mul_192, .-monad_runtime_mul_192
+.size monad_vm_runtime_mul_192, .-monad_vm_runtime_mul_192
 
 .section .note.GNU-stack,"",@progbits

@@ -8,11 +8,11 @@
 
 #include <intx/intx.hpp>
 
-extern "C" void monad_runtime_mul(
+extern "C" void monad_vm_runtime_mul(
     ::intx::uint256 *, ::intx::uint256 const *,
     ::intx::uint256 const *) noexcept;
 
-extern "C" void monad_runtime_mul_192(
+extern "C" void monad_vm_runtime_mul_192(
     ::intx::uint256 *, ::intx::uint256 const *,
     ::intx::uint256 const *) noexcept;
 
@@ -20,7 +20,7 @@ namespace monad::vm::runtime
 {
     constexpr void (*mul)(
         vm::utils::uint256_t *, vm::utils::uint256_t const *,
-        vm::utils::uint256_t const *) noexcept = monad_runtime_mul;
+        vm::utils::uint256_t const *) noexcept = monad_vm_runtime_mul;
 
     constexpr void udiv(
         vm::utils::uint256_t *result_ptr, vm::utils::uint256_t const *a_ptr,

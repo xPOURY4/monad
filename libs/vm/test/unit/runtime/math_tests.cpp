@@ -87,7 +87,7 @@ TEST_F(RuntimeTest, Mul_192)
 
     for (auto const &[a, b] : inputs) {
         vm::utils::uint256_t result;
-        monad_runtime_mul_192(&result, &a, &b);
+        monad_vm_runtime_mul_192(&result, &a, &b);
         ASSERT_EQ(result, ::intx::mulmod(a, b, vm::utils::uint256_t{1} << 192));
     }
 }

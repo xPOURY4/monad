@@ -692,7 +692,7 @@ namespace monad::vm::compiler::native
      */
     void Emitter::runtime_store_input_stack(uint64_t base_offset)
     {
-        if (!utils::is_fuzzing_monad_compiler) {
+        if (!utils::is_fuzzing_monad_vm) {
             return;
         }
 
@@ -6181,7 +6181,7 @@ namespace monad::vm::compiler::native
         if (exp <= 192) {
             call_runtime_mul(
                 Runtime<uint256_t *, uint256_t const *, uint256_t const *>(
-                    this, false, monad_runtime_mul_192));
+                    this, false, monad_vm_runtime_mul_192));
         }
         else {
             call_runtime_mul(
