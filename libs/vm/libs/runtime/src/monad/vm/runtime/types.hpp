@@ -9,6 +9,7 @@
 #include <evmc/evmc.hpp>
 
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace monad::vm::runtime
