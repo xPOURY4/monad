@@ -10,8 +10,6 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>

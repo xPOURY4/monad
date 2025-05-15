@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <intx/intx.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <gtest/gtest.h>

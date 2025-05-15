@@ -2553,7 +2553,7 @@ TEST(Emitter, address)
         ctx.env.recipient.bytes[19 - i] = i + 1;
     }
     uint256_t result;
-    uint8_t *result_bytes = intx::as_bytes(result);
+    uint8_t *result_bytes = result.as_bytes();
     for (uint8_t i = 0; i < 20; ++i) {
         result_bytes[i] = i + 1;
     }
@@ -2813,7 +2813,7 @@ TEST(Emitter, caller)
         ctx.env.sender.bytes[19 - i] = i + 1;
     }
     uint256_t result;
-    uint8_t *result_bytes = intx::as_bytes(result);
+    uint8_t *result_bytes = result.as_bytes();
     for (uint8_t i = 0; i < 20; ++i) {
         result_bytes[i] = i + 1;
     }
@@ -2931,7 +2931,7 @@ TEST(Emitter, callvalue)
         ctx.env.value.bytes[31 - i] = i + 1;
     }
     uint256_t result;
-    uint8_t *result_bytes = intx::as_bytes(result);
+    uint8_t *result_bytes = result.as_bytes();
     for (uint8_t i = 0; i < 32; ++i) {
         result_bytes[i] = i + 1;
     }

@@ -4,8 +4,6 @@
 #include <monad/vm/runtime/math.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
-#include <intx/intx.hpp>
-
 #include <evmc/evmc.h>
 
 #include <gtest/gtest.h>

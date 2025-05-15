@@ -4,7 +4,6 @@
 #include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
-#include <intx/intx.hpp>
 
 #include <gtest/gtest.h>
 
@@ -37,7 +36,7 @@ namespace
     vm::utils::uint256_t get_test_uint256()
     {
         vm::utils::uint256_t u;
-        uint8_t *b = intx::as_bytes(u);
+        uint8_t *b = u.as_bytes();
         for (std::uint8_t i = 0; i < 32; ++i) {
             b[i] = i + 1;
         }
@@ -58,7 +57,7 @@ TEST_F(RuntimeTest, TransmuteAddress)
     evmc::address const a = get_test_address();
     vm::utils::uint256_t u = get_test_uint256();
     ASSERT_EQ(address_from_uint256(u), a);
-    uint8_t *b = intx::as_bytes(u);
+    uint8_t *b = u.as_bytes();
     for (auto i = 20; i < 32; ++i) {
         b[i] = 0;
     }
@@ -74,7 +73,7 @@ TEST_F(RuntimeTest, TransmuteBounded)
     }
     for (std::uint8_t len = 0; len <= 32; ++len) {
         vm::utils::uint256_t u{};
-        uint8_t *b = intx::as_bytes(u);
+        uint8_t *b = u.as_bytes();
         for (std::uint8_t i = 0; i < len; ++i) {
             b[31 - i] = i + 1;
         }

@@ -7,8 +7,6 @@
 
 #include <evmc/evmc.h>
 
-#include <intx/intx.hpp>
-
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -112,13 +110,13 @@ namespace monad::vm::utils
         auto const *p = try_parse_hex_constant(input);
         if (p != input) {
             auto s = std::string(input, p);
-            return std::make_pair(p, intx::from_string<uint256_t>(s.c_str()));
+            return std::make_pair(p, uint256_t::from_string(s));
         }
 
         p = try_parse_decimal_constant(input);
         if (p != input) {
             auto s = std::string(input, p);
-            return std::make_pair(p, intx::from_string<uint256_t>(s.c_str()));
+            return std::make_pair(p, uint256_t::from_string(s));
         }
         p = try_parse_label(input);
         if (p == input) {

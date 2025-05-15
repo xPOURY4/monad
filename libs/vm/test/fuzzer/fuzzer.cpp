@@ -12,7 +12,6 @@
 #include <monad/vm/fuzzing/generator/choice.hpp>
 #include <monad/vm/fuzzing/generator/generator.hpp>
 #include <monad/vm/utils/debug.hpp>
-#include <monad/vm/utils/uint256.hpp>
 
 #include <evmone/constants.hpp>
 #include <evmone/evmone.h>

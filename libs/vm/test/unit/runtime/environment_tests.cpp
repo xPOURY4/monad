@@ -1,6 +1,7 @@
 #include "fixture.hpp"
 
 #include <monad/vm/runtime/environment.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 

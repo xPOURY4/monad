@@ -57,22 +57,34 @@ namespace monad::vm::utils
 
         template <typename Int>
         [[gnu::always_inline]]
-        constexpr explicit operator Int() const noexcept
+        inline constexpr explicit operator Int() const noexcept
             requires std::is_integral_v<Int>
         {
             return static_cast<Int>(words_[0]);
         }
 
         [[gnu::always_inline]]
-        constexpr uint64_t &operator[](size_t i) noexcept
+        inline constexpr uint64_t &operator[](size_t i) noexcept
         {
             return words_[i];
         }
 
         [[gnu::always_inline]]
-        constexpr uint64_t const &operator[](size_t i) const noexcept
+        inline constexpr uint64_t const &operator[](size_t i) const noexcept
         {
             return words_[i];
+        }
+
+        [[gnu::always_inline]]
+        inline uint8_t *as_bytes() noexcept
+        {
+            return reinterpret_cast<uint8_t *>(&words_);
+        }
+
+        [[gnu::always_inline]]
+        inline uint8_t const *as_bytes() const noexcept
+        {
+            return reinterpret_cast<uint8_t const *>(&words_);
         }
 
 #define INHERIT_INTX_BINOP(return_ty, op_name)                                 \
@@ -113,9 +125,8 @@ namespace monad::vm::utils
                 return x.to_intx() == y.to_intx();
             }
             else {
-                auto mask = static_cast<uint32_t>(
-                    _mm256_movemask_epi8(x.to_avx() == y.to_avx()));
-                return mask == 0xffffffff;
+                auto xor_bits = x.to_avx() ^ y.to_avx();
+                return _mm256_testz_si256(xor_bits, xor_bits);
             }
         }
 
@@ -134,6 +145,7 @@ namespace monad::vm::utils
     {                                                                          \
         return return_ty(op_name this->to_intx());                             \
     }
+        INHERIT_INTX_UNOP(uint256_t, -);
 #ifdef __AVX2__
     #define INHERIT_AVX_UNOP(return_ty, op_name)                               \
         [[gnu::always_inline]] inline constexpr return_ty operator op_name()   \
@@ -142,11 +154,9 @@ namespace monad::vm::utils
             return return_ty(op_name this->to_avx());                          \
         }
         INHERIT_AVX_UNOP(uint256_t, ~);
-        INHERIT_AVX_UNOP(uint256_t, -);
     #undef INHERIT_AVX_UNOP
 #else
         INHERIT_INTX_UNOP(uint256_t, ~);
-        INHERIT_INTX_UNOP(uint256_t, -);
 #endif
 #undef INHERIT_INTX_BINOP
 
@@ -215,7 +225,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr DstT store_be() const noexcept
         {
-            return intx::be::store<DstT>(this->to_intx());
+            return ::intx::be::store<DstT>(this->to_intx());
         }
 
         [[gnu::always_inline]]
@@ -223,6 +233,9 @@ namespace monad::vm::utils
         {
             return ::intx::to_string(this->to_intx(), base);
         }
+
+        [[gnu::always_inline]] static inline constexpr uint256_t
+        from_string(std::string const &s);
     };
 
     static_assert(
@@ -435,6 +448,12 @@ namespace monad::vm::utils
     {
         return static_cast<size_t>(std::numeric_limits<uint256_t>::digits) -
                countl_zero(x);
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint256_t uint256_t::from_string(std::string const &s)
+    {
+        return ::intx::from_string<uint256_t>(s);
     }
 }
 

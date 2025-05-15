@@ -2,8 +2,7 @@
 
 #include <monad/vm/runtime/memory.hpp>
 #include <monad/vm/runtime/types.hpp>
-
-#include <intx/intx.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 #include <algorithm>
 

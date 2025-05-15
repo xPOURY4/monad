@@ -2,8 +2,7 @@
 
 #include <monad/vm/runtime/keccak.hpp>
 #include <monad/vm/runtime/memory.hpp>
-
-#include <intx/intx.hpp>
+#include <monad/vm/utils/uint256.hpp>
 
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;

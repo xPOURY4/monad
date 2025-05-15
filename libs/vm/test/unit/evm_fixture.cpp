@@ -10,8 +10,6 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 #include <algorithm>
 #include <cstdint>
 #include <initializer_list>
@@ -27,8 +25,9 @@ namespace monad::vm::compiler::test
         result_ = evmc::Result();
         output_data_ = {};
 
-        host_.accounts[msg_.sender].balance = intx::be::store<evmc::bytes32>(
-            std::numeric_limits<intx::uint256>::max());
+        host_.accounts[msg_.sender].balance =
+            std::numeric_limits<uint256_t>::max()
+                .template store_be<evmc::bytes32>();
 
         msg_.gas = gas_limit;
         msg_.input_data = calldata.data();

@@ -6,8 +6,6 @@
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
-#include <intx/intx.hpp>
-
 #include <cstdint>
 #include <memory>
 
@@ -1215,7 +1213,7 @@ namespace monad::vm::interpreter
         {
             for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
                 std::copy_n(
-                    intx::as_bytes(*stack_top--),
+                    (*stack_top--).as_bytes(),
                     32,
                     reinterpret_cast<std::uint8_t *>(result_loc));
             }
