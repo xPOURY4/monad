@@ -46,7 +46,7 @@ namespace monad::vm::fuzzing
         static constexpr auto values = std::array<utils::uint256_t, 4>{
             0,
             1,
-            intx::exp(utils::uint256_t(2), utils::uint256_t(255)),
+            exp(utils::uint256_t(2), utils::uint256_t(255)),
             std::numeric_limits<utils::uint256_t>::max(),
         };
 
@@ -83,8 +83,7 @@ namespace monad::vm::fuzzing
     {
         // To trigger mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 254);
-        return Constant{
-            intx::exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
+        return Constant{exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
     }
 
     template <typename Engine>
@@ -691,7 +690,7 @@ namespace monad::vm::fuzzing
                     auto const safe_value = memory_constant(eng);
 
                     auto const byte_size =
-                        intx::count_significant_bytes(safe_value.value);
+                        count_significant_bytes(safe_value.value);
                     MONAD_VM_DEBUG_ASSERT(byte_size <= 32);
 
                     program.push_back(
@@ -998,8 +997,8 @@ namespace monad::vm::fuzzing
             .sender = sender,
             .input_data = input_data,
             .input_size = input_size,
-            .value = intx::be::store<evmc::bytes32>(value),
-            .create2_salt = intx::be::store<evmc::bytes32>(salt),
+            .value = value.template store_be<evmc::bytes32>(),
+            .create2_salt = salt.template store_be<evmc::bytes32>(),
             .code_address = target,
             .code = code.data(),
             .code_size = code.size(),

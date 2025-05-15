@@ -6,8 +6,6 @@
 #include <monad/vm/core/assert.h>
 #include <monad/vm/utils/uint256.hpp>
 
-#include <intx/intx.hpp>
-
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -113,7 +111,7 @@ namespace
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
                 }
-                return intx::sdivrem(x, y).quot;
+                return sdivrem(x, y).quot;
             });
             break;
         case Mod:
@@ -129,7 +127,7 @@ namespace
                 if (y == uint256_t{0}) {
                     return uint256_t{0};
                 }
-                return intx::sdivrem(x, y).rem;
+                return sdivrem(x, y).rem;
             });
             break;
         case AddMod:
@@ -137,7 +135,7 @@ namespace
                 if (m == uint256_t{0}) {
                     return uint256_t{0};
                 }
-                return intx::addmod(x, y, m);
+                return addmod(x, y, m);
             });
             break;
         case MulMod:
@@ -145,12 +143,12 @@ namespace
                 if (m == uint256_t{0}) {
                     return uint256_t{0};
                 }
-                return intx::mulmod(x, y, m);
+                return mulmod(x, y, m);
             });
             break;
         case Exp:
             eval_binary_instruction(
-                tok, stack, [](auto &x, auto &y) { return intx::exp(x, y); });
+                tok, stack, [](auto &x, auto &y) { return exp(x, y); });
             break;
         case SignExtend:
             eval_binary_instruction(tok, stack, signextend);
@@ -165,12 +163,12 @@ namespace
             break;
         case SLt:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
-                return uint256_t{intx::slt(x, y)};
+                return uint256_t{slt(x, y)};
             });
             break;
         case SGt:
             eval_binary_instruction(tok, stack, [](auto &x, auto &y) {
-                return uint256_t{intx::slt(y, x)};
+                return uint256_t{slt(y, x)};
             });
             break;
         case Eq:

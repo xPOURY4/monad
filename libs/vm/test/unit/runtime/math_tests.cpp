@@ -15,7 +15,7 @@
 using namespace monad;
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace intx;
+using namespace monad::vm::utils;
 
 TEST_F(RuntimeTest, Mul)
 {
@@ -88,7 +88,7 @@ TEST_F(RuntimeTest, Mul_192)
     for (auto const &[a, b] : inputs) {
         vm::utils::uint256_t result;
         monad_vm_runtime_mul_192(&result, &a, &b);
-        ASSERT_EQ(result, ::intx::mulmod(a, b, vm::utils::uint256_t{1} << 192));
+        ASSERT_EQ(result, mulmod(a, b, vm::utils::uint256_t{1} << 192));
     }
 }
 

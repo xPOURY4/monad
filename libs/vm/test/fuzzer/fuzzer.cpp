@@ -20,8 +20,6 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 #include <CLI/CLI.hpp>
 
 #include <algorithm>
@@ -107,7 +105,7 @@ static constexpr auto block_gas_limit = 300'000'000;
 static Account genesis_account() noexcept
 {
     auto acct = Account{};
-    acct.balance = std::numeric_limits<vm::utils::uint256_t>::max();
+    acct.balance = std::numeric_limits<intx::uint256>::max();
     return acct;
 }
 

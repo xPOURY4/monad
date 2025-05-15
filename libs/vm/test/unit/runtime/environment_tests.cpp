@@ -4,11 +4,9 @@
 
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace intx;
+using namespace monad::vm::utils;
 
 TEST_F(RuntimeTest, SelfBalance)
 {

@@ -5,15 +5,13 @@
 
 #include <evmc/evmc.h>
 
-#include <intx/intx.hpp>
-
 #include <cstdint>
 #include <limits>
 
 using namespace monad;
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace intx;
+using namespace monad::vm::utils;
 
 constexpr auto addr = vm::utils::uint256_t{678};
 constexpr auto wei = vm::utils::uint256_t{782374};

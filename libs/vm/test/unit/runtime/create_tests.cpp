@@ -7,13 +7,10 @@
 
 #include <evmc/evmc.h>
 
-#include <intx/intx.hpp>
-
 using namespace monad;
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-
-using namespace intx;
+using namespace monad::vm::utils;
 
 constexpr vm::utils::uint256_t prog = 0x63FFFFFFFF6000526004601CF3_u256;
 constexpr evmc_address result_addr = {0x42};

@@ -20,7 +20,7 @@
 
 using namespace monad::vm::runtime;
 
-using namespace intx;
+using namespace monad::vm::utils;
 
 namespace monad::vm::compiler::test
 {

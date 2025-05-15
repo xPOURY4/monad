@@ -9,7 +9,7 @@
 
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace intx;
+using namespace monad::vm::utils;
 
 TEST_F(RuntimeTest, EmptyMemory)
 {

@@ -6,15 +6,13 @@
 
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 extern "C" void monad_vm_runtime_mul(
-    ::intx::uint256 *, ::intx::uint256 const *,
-    ::intx::uint256 const *) noexcept;
+    monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
+    monad::vm::utils::uint256_t const *) noexcept;
 
 extern "C" void monad_vm_runtime_mul_192(
-    ::intx::uint256 *, ::intx::uint256 const *,
-    ::intx::uint256 const *) noexcept;
+    monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
+    monad::vm::utils::uint256_t const *) noexcept;
 
 namespace monad::vm::runtime
 {
@@ -43,7 +41,7 @@ namespace monad::vm::runtime
             return;
         }
 
-        *result_ptr = intx::sdivrem(*a_ptr, *b_ptr).quot;
+        *result_ptr = vm::utils::sdivrem(*a_ptr, *b_ptr).quot;
     }
 
     constexpr void umod(
@@ -67,7 +65,7 @@ namespace monad::vm::runtime
             return;
         }
 
-        *result_ptr = intx::sdivrem(*a_ptr, *b_ptr).rem;
+        *result_ptr = vm::utils::sdivrem(*a_ptr, *b_ptr).rem;
     }
 
     constexpr void addmod(
@@ -80,7 +78,7 @@ namespace monad::vm::runtime
             return;
         }
 
-        *result_ptr = intx::addmod(*a_ptr, *b_ptr, *n_ptr);
+        *result_ptr = vm::utils::addmod(*a_ptr, *b_ptr, *n_ptr);
     }
 
     constexpr void mulmod(
@@ -93,7 +91,7 @@ namespace monad::vm::runtime
             return;
         }
 
-        *result_ptr = intx::mulmod(*a_ptr, *b_ptr, *n_ptr);
+        *result_ptr = vm::utils::mulmod(*a_ptr, *b_ptr, *n_ptr);
     }
 
     template <evmc_revision Rev>
@@ -102,7 +100,8 @@ namespace monad::vm::runtime
         vm::utils::uint256_t const *a_ptr,
         vm::utils::uint256_t const *exponent_ptr) noexcept
     {
-        auto exponent_byte_size = intx::count_significant_bytes(*exponent_ptr);
+        auto exponent_byte_size =
+            vm::utils::count_significant_bytes(*exponent_ptr);
 
         auto exponent_cost = [] -> decltype(exponent_byte_size) {
             if constexpr (Rev >= EVMC_SPURIOUS_DRAGON) {
@@ -115,7 +114,7 @@ namespace monad::vm::runtime
 
         ctx->deduct_gas(exponent_byte_size * exponent_cost);
 
-        *result_ptr = intx::exp(*a_ptr, *exponent_ptr);
+        *result_ptr = vm::utils::exp(*a_ptr, *exponent_ptr);
     }
 
     /**
@@ -126,10 +125,10 @@ namespace monad::vm::runtime
     [[gnu::always_inline]] inline vm::utils::uint256_t
     unrolled_add(vm::utils::uint256_t const &a, vm::utils::uint256_t const &b)
     {
-        auto [s0, c0] = intx::addc(a[0], b[0], false);
-        auto [s1, c1] = intx::addc(a[1], b[1], c0);
-        auto [s2, c2] = intx::addc(a[2], b[2], c1);
-        auto [s3, c3] = intx::addc(a[3], b[3], c2);
+        auto [s0, c0] = vm::utils::addc(a[0], b[0], false);
+        auto [s1, c1] = vm::utils::addc(a[1], b[1], c0);
+        auto [s2, c2] = vm::utils::addc(a[2], b[2], c1);
+        auto [s3, c3] = vm::utils::addc(a[3], b[3], c2);
         return {s0, s1, s2, s3};
     }
 }

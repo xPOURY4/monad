@@ -42,7 +42,7 @@ namespace monad::vm::interpreter
         auto comma = "";
         for (auto i = stack_size - 1; i >= 0; --i) {
             std::cerr << std::format(
-                "{}\"0x{}\"", comma, intx::to_string(*(stack_top - i), 16));
+                "{}\"0x{}\"", comma, (stack_top - i)->to_string(16));
             comma = ",";
         }
 

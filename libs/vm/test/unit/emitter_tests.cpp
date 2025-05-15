@@ -12,8 +12,6 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
-#include <intx/intx.hpp>
-
 #include <asmjit/core/jitruntime.h>
 
 #include <gtest/gtest.h>
@@ -31,7 +29,7 @@
 namespace runtime = monad::vm::runtime;
 using namespace monad::vm::compiler;
 using namespace monad::vm::compiler::native;
-using namespace intx;
+using namespace monad::vm::utils;
 
 namespace
 {
@@ -224,12 +222,12 @@ namespace
 
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         if (dup) {
-            ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
+            ASSERT_EQ(uint256_t::load_le(ret.offset), result);
         }
         else {
-            ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0);
+            ASSERT_EQ(uint256_t::load_le(ret.offset), 0);
         }
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+        ASSERT_EQ(uint256_t::load_le(ret.size), result);
     }
 
     void pure_una_instr_test_instance(
@@ -278,12 +276,12 @@ namespace
 
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         if (dup) {
-            ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
+            ASSERT_EQ(uint256_t::load_le(ret.offset), result);
         }
         else {
-            ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0);
+            ASSERT_EQ(uint256_t::load_le(ret.offset), 0);
         }
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+        ASSERT_EQ(uint256_t::load_le(ret.size), result);
     }
 
     void pure_bin_instr_test(
@@ -441,8 +439,8 @@ namespace
         auto stack_memory = test_stack_memory();
         entry(&ctx, stack_memory.get());
 
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+        ASSERT_EQ(uint256_t::load_le(ret.offset), 2);
+        ASSERT_EQ(uint256_t::load_le(ret.size), 1);
     }
 
     basic_blocks::BasicBlocksIR get_jumpi_ir(
@@ -590,8 +588,8 @@ namespace
         else {
             ASSERT_EQ(ret.status, runtime::StatusCode::Success);
         }
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), dest);
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), cond);
+        ASSERT_EQ(uint256_t::load_le(ret.offset), dest);
+        ASSERT_EQ(uint256_t::load_le(ret.size), cond);
     }
 
     void block_epilogue_test(
@@ -675,8 +673,8 @@ namespace
         entry(&ctx, stack_memory.get());
 
         ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 869);
-        ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 2);
+        ASSERT_EQ(uint256_t::load_le(ret.offset), 869);
+        ASSERT_EQ(uint256_t::load_le(ret.size), 2);
     }
 
     void runtime_test_12_arg_fun(
@@ -848,8 +846,8 @@ TEST(Emitter, return_)
     entry(&ctx, nullptr);
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), offset_value);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), size_value);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), offset_value);
+    ASSERT_EQ(uint256_t::load_le(ret.size), size_value);
 }
 
 TEST(Emitter, revert)
@@ -872,8 +870,8 @@ TEST(Emitter, revert)
     entry(&ctx, nullptr);
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Revert);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), offset_value);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), size_value);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), offset_value);
+    ASSERT_EQ(uint256_t::load_le(ret.size), size_value);
 }
 
 TEST(Emitter, mov_stack_index_to_avx_reg)
@@ -932,8 +930,8 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
     entry(&ctx, stack_memory.get());
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 2);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
 TEST(Emitter, mov_stack_index_to_general_reg)
@@ -993,8 +991,8 @@ TEST(Emitter, mov_stack_index_to_general_reg)
     entry(&ctx, stack_memory.get());
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 2);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
 TEST(Emitter, mov_stack_index_to_stack_offset)
@@ -1058,8 +1056,8 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
     entry(&ctx, stack_memory.get());
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 2);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 2);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
 TEST(Emitter, discharge_deferred_comparison)
@@ -1109,8 +1107,8 @@ TEST(Emitter, discharge_deferred_comparison)
     entry(&ctx, stack_memory.get());
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
 TEST(Emitter, discharge_negated_deferred_comparison)
@@ -1199,8 +1197,8 @@ TEST(Emitter, discharge_negated_deferred_comparison)
     entry(&ctx, stack_memory.get());
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 1);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
 TEST(Emitter, lt)
@@ -1299,7 +1297,7 @@ TEST(Emitter, sub_with_elim_operation)
 {
     asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
-    uint256 y{0};
+    uint256_t y{0};
     pure_bin_instr_test(rt, SUB, &Emitter::sub, x, y, x - y);
     pure_bin_instr_test(rt, SUB, &Emitter::sub, y, x, y - x);
     y[3] = 10;
@@ -1360,7 +1358,7 @@ TEST(Emitter, add_with_elim_operation)
 {
     asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
-    uint256 y{0};
+    uint256_t y{0};
     pure_bin_instr_test(rt, ADD, &Emitter::add, x, y, x + y);
     pure_bin_instr_test(rt, ADD, &Emitter::add, y, x, x + y);
     y[3] = 10;
@@ -1542,7 +1540,7 @@ TEST(Emitter, sdiv)
         {-(bit64 * 3 + bit63), -bit64}};
     asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
-        auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).quot;
+        auto const expected = b == 0 ? 0 : sdivrem(a, b).quot;
         pure_bin_instr_test(
             rt,
             PUSH0,
@@ -1638,7 +1636,7 @@ TEST(Emitter, smod)
 
     asmjit::JitRuntime rt;
     for (auto const &[a, b] : inputs) {
-        auto const expected = b == 0 ? 0 : intx::sdivrem(a, b).rem;
+        auto const expected = b == 0 ? 0 : sdivrem(a, b).rem;
         pure_bin_instr_test(
             rt,
             PUSH0,
@@ -1681,7 +1679,7 @@ TEST(Emitter, addmod_opt)
               0xFFFFFFFFFFFFFFFF,
               0xFFFFFFFFFFFFFFFF}}};
         for (auto &[a, b, m] : inputs) {
-            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            auto expected = m == 0 ? 0 : addmod(a, b, m);
             pure_bin_instr_test(
                 rt,
                 PUSH0,
@@ -1750,7 +1748,7 @@ TEST(Emitter, addmod_opt)
             {0, std::numeric_limits<uint256_t>::max(), 2},
             {std::numeric_limits<uint256_t>::max(), 0, 2}};
         for (auto &[a, b, m] : inputs) {
-            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            auto expected = m == 0 ? 0 : addmod(a, b, m);
             pure_bin_instr_test(
                 rt,
                 PUSH0,
@@ -1787,7 +1785,7 @@ TEST(Emitter, addmod_opt_with_elim_operation)
     for (int const shift : shifts) {
         uint256_t m = uint256_t{1} << shift;
         for (auto [a, b] : inputs) {
-            auto expected = m == 0 ? 0 : intx::addmod(a, b, m);
+            auto expected = m == 0 ? 0 : addmod(a, b, m);
             pure_bin_instr_test(
                 rt,
                 PUSH0,
@@ -1902,7 +1900,7 @@ TEST(Emitter, mulmod)
     for (auto const &s : shifts) {
         for (auto &[a, b] : inputs) {
             uint256_t m = uint256_t{1} << s;
-            auto expected = m == 0 ? 0 : intx::mulmod(a, b, m);
+            auto expected = m == 0 ? 0 : mulmod(a, b, m);
             pure_bin_instr_test(
                 rt,
                 PUSH0,
@@ -1935,7 +1933,7 @@ TEST(Emitter, mulmod)
         uint256_t{31}, clear0, clear234, -uint256_t{31}, -clear0, -clear234};
     for (auto const &m : non_shift_mods) {
         for (auto &[a, b] : inputs) {
-            auto expected = m == 0 ? 0 : intx::mulmod(a, b, m);
+            auto expected = m == 0 ? 0 : mulmod(a, b, m);
             pure_bin_instr_test(
                 rt,
                 PUSH0,
@@ -1983,7 +1981,7 @@ TEST(Emitter, and_with_elim_operation)
 {
     asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
-    uint256 y{std::numeric_limits<uint256_t>::max()};
+    uint256_t y{std::numeric_limits<uint256_t>::max()};
     pure_bin_instr_test(rt, AND, &Emitter::and_, x, y, x & y);
     pure_bin_instr_test(rt, AND, &Emitter::and_, y, x, y & x);
     y[3] = 1 << 20;
@@ -2043,7 +2041,7 @@ TEST(Emitter, or_with_elim_operation)
 {
     asmjit::JitRuntime rt;
     uint256_t const x{uint64_t{1} << 63, 3 << 1, 7 << 10, 15 << 20};
-    uint256 y{0};
+    uint256_t y{0};
     pure_bin_instr_test(rt, OR, &Emitter::or_, x, y, x | y);
     pure_bin_instr_test(rt, OR, &Emitter::or_, y, x, y | x);
     y[3] = 10;
@@ -2472,8 +2470,8 @@ TEST(Emitter, call_runtime_12_arg_fun)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 5);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 5);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0);
 }
 
 TEST(Emitter, call_runtime_11_arg_fun)
@@ -2509,8 +2507,8 @@ TEST(Emitter, call_runtime_11_arg_fun)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 5);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 5);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0);
 }
 
 TEST(Emitter, runtime_exit)
@@ -2562,8 +2560,8 @@ TEST(Emitter, address)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), result);
+    ASSERT_EQ(uint256_t::load_le(ret.size), result);
 }
 
 TEST(Emitter, origin)
@@ -2585,8 +2583,8 @@ TEST(Emitter, origin)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x200);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x200);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0x200);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0x200);
 }
 
 TEST(Emitter, gasprice)
@@ -2608,8 +2606,8 @@ TEST(Emitter, gasprice)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x300);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x300);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0x300);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0x300);
 }
 
 TEST(Emitter, gaslimit)
@@ -2631,8 +2629,8 @@ TEST(Emitter, gaslimit)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 4);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 4);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 4);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 4);
 }
 
 TEST(Emitter, coinbase)
@@ -2654,8 +2652,8 @@ TEST(Emitter, coinbase)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x500);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x500);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0x500);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0x500);
 }
 
 TEST(Emitter, timestamp)
@@ -2677,8 +2675,8 @@ TEST(Emitter, timestamp)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 6);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 6);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 6);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 6);
 }
 
 TEST(Emitter, number)
@@ -2700,8 +2698,8 @@ TEST(Emitter, number)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 7);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 7);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 7);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 7);
 }
 
 TEST(Emitter, prevrandao)
@@ -2723,8 +2721,8 @@ TEST(Emitter, prevrandao)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x800);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x800);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0x800);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0x800);
 }
 
 TEST(Emitter, chainid)
@@ -2746,8 +2744,8 @@ TEST(Emitter, chainid)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0x900);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0x900);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0x900);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0x900);
 }
 
 TEST(Emitter, basefee)
@@ -2769,8 +2767,8 @@ TEST(Emitter, basefee)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xa00);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xa00);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0xa00);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0xa00);
 }
 
 TEST(Emitter, blobbasefee)
@@ -2792,8 +2790,8 @@ TEST(Emitter, blobbasefee)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xb00);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xb00);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0xb00);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0xb00);
 }
 
 TEST(Emitter, caller)
@@ -2822,8 +2820,8 @@ TEST(Emitter, caller)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), result);
+    ASSERT_EQ(uint256_t::load_le(ret.size), result);
 }
 
 TEST(Emitter, calldatasize)
@@ -2844,8 +2842,8 @@ TEST(Emitter, calldatasize)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 5);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 5);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 5);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 5);
 }
 
 TEST(Emitter, returndatasize)
@@ -2867,8 +2865,8 @@ TEST(Emitter, returndatasize)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 6);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 6);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 6);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 6);
 }
 
 TEST(Emitter, msize)
@@ -2889,8 +2887,8 @@ TEST(Emitter, msize)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 0xffffffff);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 0xffffffff);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 0xffffffff);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 0xffffffff);
 }
 
 TEST(Emitter, gas)
@@ -2910,8 +2908,8 @@ TEST(Emitter, gas)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), 12);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), 12);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 12);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 12);
 }
 
 TEST(Emitter, callvalue)
@@ -2940,8 +2938,8 @@ TEST(Emitter, callvalue)
 
     entry(&ctx, nullptr);
 
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.offset), result);
-    ASSERT_EQ(intx::le::load<uint256_t>(ret.size), result);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), result);
+    ASSERT_EQ(uint256_t::load_le(ret.size), result);
 }
 
 TEST(Emitter, iszero)

@@ -85,9 +85,8 @@ static void dump_result(evmc::Result const &result)
         if (result.output_size == 0) {
             return;
         }
-        uint256_t const x =
-            intx::be::unsafe::load<uint256_t>(&result.output_data[0]);
-        std::cout << intx::to_string(x, 16) << std::endl;
+        uint256_t const x = uint256_t::load_be_unsafe(&result.output_data[0]);
+        std::cout << x.to_string(16) << std::endl;
         return;
     }
     std::cerr << "fatal error: ";

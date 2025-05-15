@@ -224,7 +224,7 @@ namespace monad::vm::utils
         }
 
         if (v > 0) {
-            err("value too large for push", intx::to_string(value));
+            err("value too large for push", value.to_string());
         }
     }
 

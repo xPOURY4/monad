@@ -109,8 +109,7 @@ TEST_F(EvmTest, SignextendLiveIndexBug)
     execute(
         100, {GAS, DUP1, SIGNEXTEND, PUSH0, MSTORE, PUSH1, 32, PUSH0, RETURN});
     ASSERT_EQ(result_.output_size, 32);
-    ASSERT_EQ(
-        intx::be::unsafe::load<uint256_t>(result_.output_data), uint256_t{98});
+    ASSERT_EQ(uint256_t::load_be_unsafe(result_.output_data), uint256_t{98});
 }
 
 TEST_F(EvmTest, JumpiLiveDestDeferredComparisonBug)

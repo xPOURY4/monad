@@ -100,7 +100,7 @@ namespace monad::vm::utils
 
         std::memcpy(&dst[32 - n], src, std::min(n, remaining));
 
-        return intx::be::load<uint256_t>(dst);
+        return uint256_t::load_be(dst);
     }
 
     uint256_t from_bytes(std::size_t const n, uint8_t const *src)

@@ -124,3 +124,24 @@ TEST(uint256, bit_width)
 {
     test_bit_width<255>();
 }
+
+TEST(uint256, intx_iso)
+{
+    uint256_t x;
+    ::intx::uint256 intx;
+
+    x = 0xff00;
+    intx = 0xff00;
+    ASSERT_EQ(x.to_intx(), intx);
+    ASSERT_EQ(x, uint256_t(intx));
+
+    x = 0xabcd;
+    intx = 0xabcd;
+    ASSERT_EQ(x.to_intx(), intx);
+    ASSERT_EQ(x, uint256_t(intx));
+
+    x = {0xaa, 0xbb, 0xcc, 0xdd};
+    intx = {0xaa, 0xbb, 0xcc, 0xdd};
+    ASSERT_EQ(x.to_intx(), intx);
+    ASSERT_EQ(x, uint256_t(intx));
+}

@@ -256,7 +256,7 @@ namespace monad::vm::interpreter
         check_requirements<SLT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
-        b = intx::slt(a, b);
+        b = slt(a, b);
         return {gas_remaining, instr_ptr + 1};
     }
 
@@ -269,7 +269,7 @@ namespace monad::vm::interpreter
         check_requirements<SGT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
-        b = intx::slt(b, a); // note swapped arguments
+        b = slt(b, a); // note swapped arguments
         return {gas_remaining, instr_ptr + 1};
     }
 

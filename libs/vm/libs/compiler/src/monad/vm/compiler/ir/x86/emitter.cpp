@@ -12,8 +12,6 @@
 
 #include <evmc/evmc.h>
 
-#include <intx/intx.hpp>
-
 #include <asmjit/core/api-config.h>
 #include <asmjit/core/codeholder.h>
 #include <asmjit/core/emitter.h>
@@ -185,8 +183,7 @@ namespace
     {
         std::cout << msg << ": stack: ";
         for (size_t i = 0; i < stack_size; ++i) {
-            std::cout << '(' << i << ": " << intx::to_string(stack[-i - 1])
-                      << ')';
+            std::cout << '(' << i << ": " << stack[-i - 1].to_string() << ')';
         }
         std::cout << std::endl;
     }
@@ -203,8 +200,8 @@ namespace
         char const *msg, monad::vm::utils::uint256_t const *x,
         monad::vm::utils::uint256_t const *y)
     {
-        std::cout << msg << ": " << intx::to_string(*x) << " and "
-                  << intx::to_string(*y) << std::endl;
+        std::cout << msg << ": " << x->to_string() << " and " << y->to_string()
+                  << std::endl;
     }
 }
 
@@ -2917,7 +2914,7 @@ namespace monad::vm::compiler::native
         if (pre_dst->literal() && pre_src->literal()) {
             auto const &x = pre_dst->literal()->value;
             auto const &y = pre_src->literal()->value;
-            push(intx::slt(x, y));
+            push(vm::utils::slt(x, y));
             return;
         }
         discharge_deferred_comparison();
@@ -5227,7 +5224,8 @@ namespace monad::vm::compiler::native
                 stack_.pop();
                 stack_.pop();
                 if constexpr (is_sdiv) {
-                    stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).quot);
+                    stack_.push_literal(
+                        b == 0 ? 0 : vm::utils::sdivrem(a, b).quot);
                 }
                 else {
                     stack_.push_literal(b == 0 ? 0 : a / b);
@@ -5364,7 +5362,8 @@ namespace monad::vm::compiler::native
                 stack_.pop();
                 stack_.pop();
                 if constexpr (is_smod) {
-                    stack_.push_literal(b == 0 ? 0 : intx::sdivrem(a, b).rem);
+                    stack_.push_literal(
+                        b == 0 ? 0 : vm::utils::sdivrem(a, b).rem);
                 }
                 else {
                     stack_.push_literal(b == 0 ? 0 : a % b);
@@ -5761,7 +5760,7 @@ namespace monad::vm::compiler::native
     // Discharge
     bool Emitter::addmod_opt()
     {
-        return modop_optimized<intx::addmod, 0, 0, &Emitter::add_mod2>();
+        return modop_optimized<vm::utils::addmod, 0, 0, &Emitter::add_mod2>();
     }
 
     void Emitter::add_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
@@ -6092,7 +6091,7 @@ namespace monad::vm::compiler::native
     // Discharge
     bool Emitter::mulmod_opt()
     {
-        return modop_optimized<intx::mulmod, 1, 0, &Emitter::mul_mod2>();
+        return modop_optimized<vm::utils::mulmod, 1, 0, &Emitter::mul_mod2>();
     }
 
     void Emitter::mul_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
