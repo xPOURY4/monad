@@ -310,7 +310,7 @@ namespace
 
 static arguments parse_args(int const argc, char **const argv)
 {
-    auto app = CLI::App("Fuzz-test Monad EVM compiler");
+    auto app = CLI::App("Monad VM Fuzzer");
     auto args = arguments{};
 
     app.add_option(

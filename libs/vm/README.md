@@ -138,31 +138,25 @@ from `monad-compiler`.
 
 ### Fuzzer
 
-Configure with
+Configure build with testing enabled
 
 ```
 $ cmake -S . -B build -DMONAD_COMPILER_TESTING=ON
 ```
 
-and set envoronment variable
+and build
 
 ```
-export MONAD_COMPILER_FUZZING=1
+cmake --build
 ```
 
-to enable saving the EVM stack for both evmone and the compiler on
-the `STOP`, `RETURN` and `SELFDESTRUCT` opcodes.
+Use the helper script `scrips/fuzzer.sh` to run the fuzzer.
 
-Run the fuzzer with
+Execute
 ```
-./build/test/fuzzer/monad-compiler-fuzzer --help
+scrips/fuzzer.sh --help
 ```
 for more information.
-
-Remember to unset or change the value of the `MONAD_COMPILER_FUZZING`
-environment variable before running other tests, because having
-`MONAD_COMPILER_FUZZING=1` during units tests or ethereum tests,
-will make the tests fail.
 
 ### Directory Type Check Test
 

@@ -807,9 +807,19 @@ namespace monad::vm::fuzzing
     {
         auto prog = std::vector<std::uint8_t>{};
 
-        auto blocks_dist = std::geometric_distribution(0.20);
-        // Approximately 33% probability of 6 or more basic blocks,
-        // and 20% probability of just 1 basic block.
+        auto const block_dist_p = discrete_choice<double>(
+            eng,
+            [](auto &) {
+                // Approximately 24% probability of 5 or more basic blocks,
+                // and 30% probability of just 1 basic block.
+                return 0.30;
+            },
+            Choice(0.10, [](auto &) {
+                // Approximately 50% probability of 17 or more basic blocks,
+                // and 4% probability of just 1 basic block.
+                return 0.04;
+            }));
+        auto blocks_dist = std::geometric_distribution(block_dist_p);
         auto const n_blocks = 1 + blocks_dist(eng);
 
         auto exit_blocks_dist = std::uniform_int_distribution(1, n_blocks);
@@ -845,13 +855,23 @@ namespace monad::vm::fuzzing
     {
         using gas_t = decltype(evmc_message::gas);
 
-        auto const base_gas =
+        auto const base_gas = discrete_choice<double>(
+            eng,
+            [](auto &g) {
+                auto base_dist = std::normal_distribution<double>(
+                    /* mean */ 1'000'000, /* stddev */ 400'000);
+                return std::max(0.0, base_dist(g));
+            },
+            Choice(0.10, [](auto &) { return 0.0; }));
+
+        auto const factor =
             address_lookup(target).first.size() * known_addresses.size();
 
-        auto factor_dist = std::normal_distribution(8.0);
-        auto const factor = std::max(0.0, factor_dist(eng));
+        auto scale_dist = std::normal_distribution(
+            /* mean */ 32.0, /* stddev */ 16.0);
+        auto const scale = std::max(0.0, scale_dist(eng));
 
-        auto const gas = static_cast<double>(base_gas) * factor;
+        auto const gas = base_gas + static_cast<double>(factor) * scale;
 
         MONAD_VM_DEBUG_ASSERT(
             gas <= static_cast<double>(std::numeric_limits<gas_t>::max()));
