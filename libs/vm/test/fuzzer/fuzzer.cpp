@@ -6,8 +6,7 @@
 #include "host.hpp"
 #include "state.hpp"
 
-#include <monad/vm/compiler/ir/x86/emitter.hpp>
-#include <monad/vm/compiler/ir/x86/virtual_stack.hpp>
+#include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/fuzzing/generator/choice.hpp>
@@ -39,6 +38,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <random>
 #include <span>
 #include <string_view>

@@ -2,6 +2,7 @@
 
 #include <monad/vm/interpreter/call_runtime.hpp>
 #include <monad/vm/runtime/runtime.hpp>
+#include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <intx/intx.hpp>
@@ -89,6 +90,30 @@ namespace monad::vm::interpreter
         call_runtime(f, ctx, stack_top, gas_remaining);
         return {gas_remaining, instr_ptr + 1};
     }
+
+#ifdef MONAD_COMPILER_TESTING
+    inline void fuzz_tstore_stack(
+        runtime::Context const &ctx, utils::uint256_t const *stack_bottom,
+        utils::uint256_t const *stack_top, std::uint64_t base_offset)
+    {
+        if (!utils::is_fuzzing_monad_vm) {
+            return;
+        }
+        monad::vm::runtime::debug_tstore_stack(
+            &ctx,
+            stack_top + 1,
+            static_cast<uint64_t>(stack_top - stack_bottom),
+            0,
+            base_offset);
+    }
+#else
+    [[gnu::always_inline]] inline void fuzz_tstore_stack(
+        runtime::Context const &, utils::uint256_t const *,
+        utils::uint256_t const *, std::uint64_t)
+    {
+        // nop
+    }
+#endif
 
     // Arithmetic
     template <evmc_revision Rev>
@@ -1207,6 +1232,11 @@ namespace monad::vm::interpreter
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
+        fuzz_tstore_stack(
+            ctx,
+            stack_bottom,
+            stack_top,
+            static_cast<uint64_t>(instr_ptr - analysis.code()));
         check_requirements<JUMPDEST, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         return {gas_remaining, instr_ptr + 1};
@@ -1360,6 +1390,7 @@ namespace monad::vm::interpreter
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *)
     {
+        fuzz_tstore_stack(ctx, stack_bottom, stack_top, analysis.code_size());
         check_requirements<RETURN, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         return_impl(Success, ctx, stack_top, gas_remaining);
@@ -1382,6 +1413,7 @@ namespace monad::vm::interpreter
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
+        fuzz_tstore_stack(ctx, stack_bottom, stack_top, analysis.code_size());
         return checked_runtime_call<SELFDESTRUCT, Rev>(
             runtime::selfdestruct<Rev>,
             ctx,
@@ -1393,9 +1425,11 @@ namespace monad::vm::interpreter
     }
 
     [[gnu::noinline]] inline OpcodeResult stop(
-        runtime::Context &ctx, Intercode const &, utils::uint256_t const *,
-        utils::uint256_t *, std::int64_t gas_remaining, std::uint8_t const *)
+        runtime::Context &ctx, Intercode const &analysis,
+        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
+        std::int64_t gas_remaining, std::uint8_t const *)
     {
+        fuzz_tstore_stack(ctx, stack_bottom, stack_top, analysis.code_size());
         ctx.gas_remaining = gas_remaining;
         ctx.exit(Success);
     }

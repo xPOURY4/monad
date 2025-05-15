@@ -107,4 +107,8 @@ namespace monad::vm::runtime
         ctx->host->set_transient_storage(
             ctx->context, &ctx->env.recipient, &key, &val);
     }
+
+    bool debug_tstore_stack(
+        Context const *ctx, utils::uint256_t const *stack, uint64_t stack_size,
+        uint64_t offset, uint64_t base_offset);
 }

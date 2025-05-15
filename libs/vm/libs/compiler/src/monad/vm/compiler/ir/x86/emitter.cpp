@@ -5,7 +5,7 @@
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/math.hpp>
-#include <monad/vm/runtime/transmute.hpp>
+#include <monad/vm/runtime/storage.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/debug.hpp>
 #include <monad/vm/utils/uint256.hpp>
@@ -195,32 +195,8 @@ namespace
         runtime::Context const *ctx, monad::vm::utils::uint256_t *stack,
         uint64_t stack_size, uint64_t offset, uint64_t base_offset)
     {
-        auto const magic = monad::vm::utils::uint256_t{0xdeb009};
-        auto const base = (magic + base_offset) * 1024;
-        if (offset == 0) {
-            auto const base_key =
-                monad::vm::runtime::bytes32_from_uint256(base);
-            auto const base_value = ctx->host->get_transient_storage(
-                ctx->context, &ctx->env.recipient, &base_key);
-            if (base_value != evmc::bytes32{}) {
-                // If this transient storage location has already been written,
-                // then we are likely in a loop. We return early in this case
-                // to avoid repeatedly saving stack to transient storage.
-                return 0;
-            }
-        }
-        for (uint64_t i = 0; i < stack_size; ++i) {
-            auto const key =
-                monad::vm::runtime::bytes32_from_uint256(base + i + offset);
-            auto const &x = stack[-i - 1];
-            // Make sure we do not store zero, because incorrect non-zero is
-            // more likely to be noticed, due to zero being the default:
-            auto const s = x < magic ? x + 1 : x;
-            auto const value = monad::vm::runtime::bytes32_from_uint256(s);
-            ctx->host->set_transient_storage(
-                ctx->context, &ctx->env.recipient, &key, &value);
-        }
-        return 1;
+        return runtime::debug_tstore_stack(
+            ctx, stack, stack_size, offset, base_offset);
     }
 
     void runtime_print_top2_impl(
