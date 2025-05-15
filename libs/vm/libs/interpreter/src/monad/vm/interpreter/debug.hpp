@@ -24,7 +24,7 @@ namespace monad::vm::interpreter
     void trace(
         std::uint8_t const instr, runtime::Context const &ctx,
         Intercode const &analysis, utils::uint256_t const *stack_bottom,
-        utils::uint256_t const *stack_top, std::uint64_t gas_remaining,
+        utils::uint256_t const *stack_top, std::int64_t gas_remaining,
         std::uint8_t const *instr_ptr)
     {
         auto const &info = compiler::opcode_table<Rev>[instr];
