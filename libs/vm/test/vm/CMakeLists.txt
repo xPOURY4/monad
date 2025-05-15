@@ -15,5 +15,6 @@ target_link_libraries(blockchain-test-vm
 )
 target_include_directories(blockchain-test-vm
     PUBLIC .
+    PUBLIC "${ROOT_DIRECTORY}/third_party/evmone/test/state"
 )
 monad_compile_options(blockchain-test-vm)

@@ -1,4 +1,5 @@
 #include "test_vm.hpp"
+#include "state.hpp"
 
 #include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
@@ -135,23 +136,12 @@ monad::vm::SharedIntercode const &BlockchainTestVM::get_intercode(
     return it2->second;
 }
 
-evmc::Result BlockchainTestVM::execute_evmone(
-    evmc_host_interface const *host, evmc_host_context *context,
-    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-    size_t code_size)
+std::pair<
+    monad::vm::SharedIntercode const &, monad::vm::SharedNativecode const> const
+BlockchainTestVM::get_intercode_nativecode(
+    evmc_revision const rev, evmc::bytes32 const &code_hash,
+    uint8_t const *code, size_t code_size)
 {
-    auto code_hash = host->get_code_hash(context, &msg->code_address);
-    auto const &a = get_code_analysis(code_hash, code, code_size);
-    return evmc::Result{
-        evmone::baseline::execute(evmone_vm_, *host, context, rev, *msg, a)};
-}
-
-evmc::Result BlockchainTestVM::execute_compiler(
-    evmc_host_interface const *host, evmc_host_context *context,
-    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
-    size_t code_size)
-{
-    auto code_hash = host->get_code_hash(context, &msg->code_address);
     auto const &icode = get_intercode(code_hash, code, code_size);
 
     monad::vm::SharedNativecode ncode;
@@ -171,19 +161,42 @@ evmc::Result BlockchainTestVM::execute_compiler(
             rev, code_hash, icode, base_config);
     }
 
-    if (ncode->entrypoint() == nullptr) {
-        return evmc::Result{evmc_result{
-            .status_code = EVMC_INTERNAL_ERROR,
-            .gas_left = 0,
-            .gas_refund = 0,
-            .output_data = nullptr,
-            .output_size = 0,
-            .release = nullptr,
-            .create_address = {},
-            .padding = {},
-        }};
-    }
+    return {icode, ncode};
+}
 
+void BlockchainTestVM::precompile_contracts(
+    evmc_revision rev, evmone::state::State const &state)
+{
+    for (auto const &[_, account] : state.get_accounts()) {
+        auto const &code_hash = account.code.second;
+        auto const &code = account.code.first.data();
+        auto const &code_size = account.code.first.size();
+        (void)get_code_analysis(code_hash, code, code_size);
+        (void)get_intercode_nativecode(rev, code_hash, code, code_size);
+    }
+}
+
+evmc::Result BlockchainTestVM::execute_evmone(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    auto code_hash = host->get_code_hash(context, &msg->code_address);
+    auto const &a = get_code_analysis(code_hash, code, code_size);
+    return evmc::Result{
+        evmone::baseline::execute(evmone_vm_, *host, context, rev, *msg, a)};
+}
+
+evmc::Result BlockchainTestVM::execute_compiler(
+    evmc_host_interface const *host, evmc_host_context *context,
+    evmc_revision rev, evmc_message const *msg, uint8_t const *code,
+    size_t code_size)
+{
+    auto code_hash = host->get_code_hash(context, &msg->code_address);
+    auto const &[icode, ncode] =
+        get_intercode_nativecode(rev, code_hash, code, code_size);
+
+    MONAD_VM_ASSERT(ncode->entrypoint() != nullptr)
     return monad_vm_.execute_native_entrypoint(
         host, context, msg, icode, ncode->entrypoint());
 }

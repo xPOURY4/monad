@@ -110,6 +110,8 @@ namespace
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
         auto intra_state = burntpix_state();
+        vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
+
         constexpr auto addr =
             0x49206861766520746f6f206d7563682074696d65_address;
         constexpr auto sender =
@@ -194,6 +196,8 @@ namespace
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
         auto intra_state = snailtracer_state();
+        vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
+
         constexpr auto addr =
             0x49206861766520746f6f206d7563682074696d65_address;
         constexpr auto sender =

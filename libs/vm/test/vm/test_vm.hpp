@@ -1,5 +1,7 @@
 #pragma once
 
+#include "test_state.hpp"
+
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/vm.hpp>
@@ -51,6 +53,9 @@ public:
         std::unreachable();
     };
 
+    void
+    precompile_contracts(evmc_revision rev, evmone::state::State const &state);
+
 private:
     Implementation impl_;
     evmone::VM evmone_vm_;
@@ -65,6 +70,13 @@ private:
 
     monad::vm::SharedIntercode const &get_intercode(
         evmc::bytes32 const &code_hash, uint8_t const *code, size_t code_size);
+
+    std::pair<
+        monad::vm::SharedIntercode const &,
+        monad::vm::SharedNativecode const> const
+    get_intercode_nativecode(
+        evmc_revision const rev, evmc::bytes32 const &code_hash,
+        uint8_t const *code, size_t code_size);
 
     evmc::Result execute_evmone(
         evmc_host_interface const *host, evmc_host_context *context,
