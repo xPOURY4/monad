@@ -29,6 +29,22 @@ target_sources(monad-vm-interpreter PRIVATE
 
 monad_compile_options(monad-vm-interpreter)
 
+# This is a workaround for a change made to LLVM between versions 18 and 19:
+# https://github.com/llvm/llvm-project/pull/78582
+#
+# The change in question restricts the default maximum predecessors and
+# successors that a basic block can have if it is to be duplicated (rather than
+# being shared). This affects the dispatch table of the interpreter by causing
+# the "load next instruction, indirect jump" block tail to be emitted as a
+# single shared block rather than being inlined into each opcode's dispatch
+# block. Doing so slows the interpreter down when compiled with Clang 19.
+# Because the LLVM change in question is for _compiler_ performance rather than
+# _runtime_ performance, we can safely disable the pessimisation by setting this
+# flag to a value we know to be large enough for our dispatch table.
+target_compile_options(
+  monad-vm-interpreter
+  PRIVATE $<$<COMPILE_LANG_AND_ID:CXX,Clang>:-mllvm -tail-dup-pred-size=256>)
+
 if(MONAD_VM_INTERPRETER_DEBUG)
   target_compile_definitions(monad-vm-interpreter PRIVATE MONAD_VM_INTERPRETER_DEBUG)
 endif()
