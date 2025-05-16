@@ -10,6 +10,8 @@ if(MONAD_COMPILER_STANDALONE)
 
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wconversion -Werror)
 
+    target_compile_options(${target} PRIVATE -mavx2)
+
     target_compile_options(
       ${target} PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-missing-field-initializers>)
 

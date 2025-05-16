@@ -6,6 +6,10 @@
 #include <intx/intx.hpp>
 #include <limits>
 
+#ifndef __AVX2__
+    #error "Target architecture must support AVX2"
+#endif
+
 namespace monad::vm::utils
 {
     struct uint256_t
@@ -41,7 +45,6 @@ namespace monad::vm::utils
             return ::intx::uint256{words_[0], words_[1], words_[2], words_[3]};
         }
 
-#ifdef __AVX2__
         [[gnu::always_inline]]
         constexpr explicit(true) uint256_t(__m256i x) noexcept
             : words_{std::bit_cast<std::array<uint64_t, num_words>>(x)}
@@ -53,7 +56,6 @@ namespace monad::vm::utils
         {
             return std::bit_cast<__m256i>(words_);
         }
-#endif
 
         template <typename Int>
         [[gnu::always_inline]]
@@ -97,6 +99,7 @@ namespace monad::vm::utils
         INHERIT_INTX_BINOP(uint256_t, +);
         INHERIT_INTX_BINOP(uint256_t, -);
         INHERIT_INTX_BINOP(uint256_t, *);
+
         INHERIT_INTX_BINOP(uint256_t, /);
         INHERIT_INTX_BINOP(uint256_t, %);
         INHERIT_INTX_BINOP(uint256_t, <<);
@@ -107,16 +110,18 @@ namespace monad::vm::utils
         INHERIT_INTX_BINOP(bool, >);
         INHERIT_INTX_BINOP(bool, >=);
 
-#ifdef __AVX2__
-    #define INHERIT_AVX_BINOP(return_ty, op_name)                              \
-        [[gnu::always_inline]] friend inline constexpr return_ty               \
-        operator op_name(uint256_t const &x, uint256_t const &y)               \
-        {                                                                      \
-            return return_ty(x.to_avx() op_name y.to_avx());                   \
-        }
+#undef INHERIT_INTX_BINOP
+
+#define INHERIT_AVX_BINOP(return_ty, op_name)                                  \
+    [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
+        uint256_t const &x, uint256_t const &y)                                \
+    {                                                                          \
+        return return_ty(x.to_avx() op_name y.to_avx());                       \
+    }
         INHERIT_AVX_BINOP(uint256_t, &);
         INHERIT_AVX_BINOP(uint256_t, |);
         INHERIT_AVX_BINOP(uint256_t, ^);
+#undef INHERIT_AVX_BINOP
 
         [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y)
@@ -130,35 +135,15 @@ namespace monad::vm::utils
             }
         }
 
-    #undef INHERIT_AVX_BINOP
-#else
-        INHERIT_INTX_BINOP(uint256_t, &);
-        INHERIT_INTX_BINOP(uint256_t, |);
-        INHERIT_INTX_BINOP(uint256_t, ^);
-        INHERIT_INTX_BINOP(bool, ==);
-#endif
-#undef INHERIT_INTX_BINOP
-
-#define INHERIT_INTX_UNOP(return_ty, op_name)                                  \
-    [[gnu::always_inline]] inline constexpr return_ty operator op_name()       \
-        const noexcept                                                         \
-    {                                                                          \
-        return return_ty(op_name this->to_intx());                             \
-    }
-        INHERIT_INTX_UNOP(uint256_t, -);
-#ifdef __AVX2__
-    #define INHERIT_AVX_UNOP(return_ty, op_name)                               \
-        [[gnu::always_inline]] inline constexpr return_ty operator op_name()   \
-            const noexcept                                                     \
-        {                                                                      \
-            return return_ty(op_name this->to_avx());                          \
+        [[gnu::always_inline]] inline constexpr uint256_t operator-() const
+        {
+            return uint256_t(-this->to_intx());
         }
-        INHERIT_AVX_UNOP(uint256_t, ~);
-    #undef INHERIT_AVX_UNOP
-#else
-        INHERIT_INTX_UNOP(uint256_t, ~);
-#endif
-#undef INHERIT_INTX_BINOP
+
+        [[gnu::always_inline]] inline constexpr uint256_t operator~() const
+        {
+            return uint256_t(~this->to_avx());
+        }
 
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
