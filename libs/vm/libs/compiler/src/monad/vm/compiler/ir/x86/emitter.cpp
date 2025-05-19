@@ -3823,9 +3823,22 @@ namespace monad::vm::compiler::native
                     },
                     [&](x86::Mem const &src_mem) {
                         x86::Mem temp{src_mem};
-                        for (size_t i = 0; i < 4; ++i) {
-                            if (!isnop(instr_ix, i)) {
+                        if (!src->literal()) {
+                            for (size_t i = 0; i < 4; ++i) {
                                 (as_.*GM[instr_ix++])(dst_gpq[i], temp);
+                                temp.addOffset(8);
+                            }
+                            return;
+                        }
+                        for (size_t i = 0; i < 4; ++i) {
+                            uint64_t const x = src->literal()->value[i];
+                            if (!is_no_operation(instr_ix, x)) {
+                                if (is_uint64_bounded(x)) {
+                                    (as_.*GI[instr_ix++])(dst_gpq[i], x);
+                                }
+                                else {
+                                    (as_.*GM[instr_ix++])(dst_gpq[i], temp);
+                                }
                             }
                             temp.addOffset(8);
                         }
