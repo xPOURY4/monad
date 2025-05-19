@@ -32,6 +32,12 @@ namespace monad::vm::utils
         {
         }
 
+        [[gnu::always_inline]] constexpr explicit(true)
+            uint256_t(std::array<uint64_t, 4> x) noexcept
+            : words_{x}
+        {
+        }
+
         template <typename... T>
         [[gnu::always_inline]]
         constexpr explicit(true) uint256_t(::intx::uint256 x) noexcept
@@ -78,15 +84,15 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline uint8_t *as_bytes() noexcept
+        inline constexpr uint8_t *as_bytes() noexcept
         {
-            return reinterpret_cast<uint8_t *>(&words_);
+            return std::bit_cast<uint8_t *>(&words_);
         }
 
         [[gnu::always_inline]]
-        inline uint8_t const *as_bytes() const noexcept
+        inline constexpr uint8_t const *as_bytes() const noexcept
         {
-            return reinterpret_cast<uint8_t const *>(&words_);
+            return std::bit_cast<uint8_t *>(&words_);
         }
 
 #define INHERIT_INTX_BINOP(return_ty, op_name)                                 \
@@ -206,11 +212,34 @@ namespace monad::vm::utils
             return uint256_t(::intx::be::unsafe::load<::intx::uint256>(bytes));
         }
 
+        [[gnu::always_inline]] static inline constexpr uint256_t
+        load_le_unsafe(uint8_t const *bytes) noexcept
+        {
+            return uint256_t(::intx::le::unsafe::load<::intx::uint256>(bytes));
+        }
+
         template <typename DstT>
         [[gnu::always_inline]]
         inline constexpr DstT store_be() const noexcept
         {
             return ::intx::be::store<DstT>(this->to_intx());
+        }
+
+        [[gnu::always_inline]]
+        inline constexpr void store_be(uint8_t *dest) const noexcept
+        {
+            std::uint64_t ts[4] = {
+                std::byteswap((*this)[3]),
+                std::byteswap((*this)[2]),
+                std::byteswap((*this)[1]),
+                std::byteswap((*this)[0])};
+            std::memcpy(dest, ts, 32);
+        }
+
+        [[gnu::always_inline]]
+        inline constexpr void store_le(uint8_t *dest) const noexcept
+        {
+            std::memcpy(dest, &this->words_, 32);
         }
 
         [[gnu::always_inline]]
