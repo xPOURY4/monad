@@ -40,7 +40,7 @@ namespace monad::vm::utils
 
         template <typename... T>
         [[gnu::always_inline]]
-        constexpr explicit(true) uint256_t(::intx::uint256 x) noexcept
+        constexpr explicit(true) uint256_t(::intx::uint256 const &x) noexcept
             : words_{x[0], x[1], x[2], x[3]}
         {
         }
