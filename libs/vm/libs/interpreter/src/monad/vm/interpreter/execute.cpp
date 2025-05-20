@@ -52,59 +52,18 @@ namespace monad::vm::interpreter
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t *stack_ptr)
         {
-            static constexpr auto dispatch_table = std::array{
-#define MONAD_COMPILER_ON_EVM_OPCODE(op) &&LABEL_##op,
-                MONAD_COMPILER_EVM_ALL_OPCODES
-#undef MONAD_COMPILER_ON_EVM_OPCODE
-            };
-            static_assert(dispatch_table.size() == 256);
-
-            auto *stack_top = stack_ptr - 1;
+            auto *const stack_top = stack_ptr - 1;
             auto const *const stack_bottom = stack_top;
-            auto const *instr_ptr = analysis.code();
+            auto const *const instr_ptr = analysis.code();
+            auto const gas_remaining = ctx.gas_remaining;
 
-            auto gas_remaining = ctx.gas_remaining;
-
-            goto *dispatch_table[*instr_ptr];
-
-#define MONAD_COMPILER_ON_EVM_OPCODE(op)                                       \
-    LABEL_##op:                                                                \
-    {                                                                          \
-        ASM_COMMENT("OPCODE: " #op);                                           \
-                                                                               \
-        stats::begin(op);                                                      \
-                                                                               \
-        if constexpr (debug_enabled) {                                         \
-            trace<Rev>(                                                        \
-                op,                                                            \
-                ctx,                                                           \
-                analysis,                                                      \
-                stack_bottom,                                                  \
-                stack_top,                                                     \
-                gas_remaining,                                                 \
-                instr_ptr);                                                    \
-        }                                                                      \
-                                                                               \
-        static constexpr auto eval = instruction_table<Rev>[op];               \
-        auto const [gas_rem, ip] = eval(                                       \
-            ctx, analysis, stack_bottom, stack_top, gas_remaining, instr_ptr); \
-                                                                               \
-        static constexpr auto delta =                                          \
-            compiler::opcode_table<Rev>[op].stack_increase -                   \
-            compiler::opcode_table<Rev>[op].min_stack;                         \
-                                                                               \
-        gas_remaining = gas_rem;                                               \
-        instr_ptr = ip;                                                        \
-        stack_top = stack_top + delta;                                         \
-                                                                               \
-        stats::end();                                                          \
-                                                                               \
-        goto *dispatch_table[*instr_ptr];                                      \
-    }
-            MONAD_COMPILER_EVM_ALL_OPCODES
-#undef MONAD_COMPILER_ON_EVM_OPCODE
-
-            MONAD_VM_ASSERT(false);
+            instruction_table<Rev>[*instr_ptr](
+                ctx,
+                analysis,
+                stack_bottom,
+                stack_top,
+                gas_remaining,
+                instr_ptr);
         }
     }
 

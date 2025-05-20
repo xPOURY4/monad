@@ -19,6 +19,46 @@
 #include <cstdint>
 #include <memory>
 
+#if __has_attribute(musttail)
+    #define MUSTTAIL __attribute__((musttail))
+#else
+    #error "No compiler support for __attribute__((musttail))"
+#endif
+
+#define NEXT(OP)                                                               \
+    do {                                                                       \
+        static constexpr auto delta =                                          \
+            compiler::opcode_table<Rev>[(OP)].stack_increase -                 \
+            compiler::opcode_table<Rev>[(OP)].min_stack;                       \
+                                                                               \
+        ++instr_ptr;                                                           \
+        MUSTTAIL return instruction_table<Rev>[*instr_ptr](                    \
+            ctx,                                                               \
+            analysis,                                                          \
+            stack_bottom,                                                      \
+            stack_top + delta,                                                 \
+            gas_remaining,                                                     \
+            instr_ptr);                                                        \
+    }                                                                          \
+    while (false);
+
+#define NEXT_PUSH(OP)                                                          \
+    do {                                                                       \
+        static constexpr auto delta =                                          \
+            compiler::opcode_table<Rev>[(OP)].stack_increase -                 \
+            compiler::opcode_table<Rev>[(OP)].min_stack;                       \
+                                                                               \
+        instr_ptr += (((OP) - PUSH0) + 1);                                     \
+        MUSTTAIL return instruction_table<Rev>[*instr_ptr](                    \
+            ctx,                                                               \
+            analysis,                                                          \
+            stack_bottom,                                                      \
+            stack_top + delta,                                                 \
+            gas_remaining,                                                     \
+            instr_ptr);                                                        \
+    }                                                                          \
+    while (false);
+
 namespace monad::vm::interpreter
 {
     using enum runtime::StatusCode;
@@ -312,15 +352,14 @@ namespace monad::vm::interpreter
 
     // Instruction implementations
     template <std::uint8_t Opcode, evmc_revision Rev, typename... FnArgs>
-    OpcodeResult checked_runtime_call(
+    [[gnu::always_inline]] inline void checked_runtime_call(
         void (*f)(FnArgs...), runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+        std::int64_t &gas_remaining, std::uint8_t const *)
     {
         check_requirements<Opcode, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         call_runtime(f, ctx, stack_top, gas_remaining);
-        return {gas_remaining, instr_ptr + 1};
     }
 
 #ifdef MONAD_COMPILER_TESTING
@@ -349,25 +388,26 @@ namespace monad::vm::interpreter
 
     // Arithmetic
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     add(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<ADD, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = runtime::unrolled_add(a, b);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(ADD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     mul(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MUL, Rev>(
+        checked_runtime_call<MUL, Rev>(
             monad_vm_runtime_mul,
             ctx,
             analysis,
@@ -375,28 +415,31 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MUL);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sub(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SUB, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a - b;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SUB);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult udiv(
+    void udiv(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<DIV, Rev>(
+        checked_runtime_call<DIV, Rev>(
             runtime::udiv,
             ctx,
             analysis,
@@ -404,15 +447,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(DIV);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sdiv(
+    void sdiv(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SDIV, Rev>(
+        checked_runtime_call<SDIV, Rev>(
             runtime::sdiv,
             ctx,
             analysis,
@@ -420,15 +465,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SDIV);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult umod(
+    void umod(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MOD, Rev>(
+        checked_runtime_call<MOD, Rev>(
             runtime::umod,
             ctx,
             analysis,
@@ -436,15 +483,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MOD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult smod(
+    void smod(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SMOD, Rev>(
+        checked_runtime_call<SMOD, Rev>(
             runtime::smod,
             ctx,
             analysis,
@@ -452,15 +501,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SMOD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult addmod(
+    void addmod(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<ADDMOD, Rev>(
+        checked_runtime_call<ADDMOD, Rev>(
             runtime::addmod,
             ctx,
             analysis,
@@ -468,15 +519,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(ADDMOD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mulmod(
+    void mulmod(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MULMOD, Rev>(
+        checked_runtime_call<MULMOD, Rev>(
             runtime::mulmod,
             ctx,
             analysis,
@@ -484,15 +537,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MULMOD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     exp(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<EXP, Rev>(
+        checked_runtime_call<EXP, Rev>(
             runtime::exp<Rev>,
             ctx,
             analysis,
@@ -500,89 +555,97 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(EXP);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult signextend(
+    void signextend(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SIGNEXTEND, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[b, x] = pop_for_overwrite(stack_top);
+        auto &&[b, x] = top_two(stack_top);
         x = utils::signextend(b, x);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SIGNEXTEND);
     }
 
     // Boolean
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     lt(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<LT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a < b;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(LT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     gt(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<GT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a > b;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(GT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     slt(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SLT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = intx::slt(a, b);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SLT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sgt(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SGT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = intx::slt(b, a); // note swapped arguments
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SGT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     eq(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<EQ, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = (a == b);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(EQ);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult iszero(
+    void iszero(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -590,53 +653,56 @@ namespace monad::vm::interpreter
         check_requirements<ISZERO, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &a = *stack_top;
-        a = (a == 0);
-        return {gas_remaining, instr_ptr + 1};
+        a = !a;
+
+        NEXT(ISZERO);
     }
 
     // Bitwise
     template <evmc_revision Rev>
-    OpcodeResult and_(
+    void and_(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<AND, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a & b;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(AND);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     or_(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<OR, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a | b;
 
-        return {gas_remaining, instr_ptr + 1};
+        NEXT(OR);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult xor_(
+    void xor_(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<XOR, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[a, b] = pop_for_overwrite(stack_top);
+        auto &&[a, b] = top_two(stack_top);
         b = a ^ b;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(XOR);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult not_(
+    void not_(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -645,69 +711,74 @@ namespace monad::vm::interpreter
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &a = *stack_top;
         a = ~a;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(NOT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult byte(
+    void byte(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<BYTE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[i, x] = pop_for_overwrite(stack_top);
+        auto &&[i, x] = top_two(stack_top);
         x = utils::byte(i, x);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(BYTE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     shl(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SHL, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[shift, value] = pop_for_overwrite(stack_top);
+        auto &&[shift, value] = top_two(stack_top);
         value <<= shift;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SHL);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     shr(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SHR, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[shift, value] = pop_for_overwrite(stack_top);
+        auto &&[shift, value] = top_two(stack_top);
         value >>= shift;
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SHR);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sar(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SAR, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        auto &&[shift, value] = pop_for_overwrite(stack_top);
+        auto &&[shift, value] = top_two(stack_top);
         value = utils::sar(shift, value);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(SAR);
     }
 
     // Data
     template <evmc_revision Rev>
-    OpcodeResult sha3(
+    void sha3(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SHA3, Rev>(
+        checked_runtime_call<SHA3, Rev>(
             runtime::sha3,
             ctx,
             analysis,
@@ -715,10 +786,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SHA3);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult address(
+    void address(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -726,16 +799,17 @@ namespace monad::vm::interpreter
         check_requirements<ADDRESS, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_address(ctx.env.recipient));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(ADDRESS);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult balance(
+    void balance(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<BALANCE, Rev>(
+        checked_runtime_call<BALANCE, Rev>(
             runtime::balance<Rev>,
             ctx,
             analysis,
@@ -743,10 +817,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(BALANCE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult origin(
+    void origin(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -756,11 +832,12 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_address(ctx.env.tx_context.tx_origin));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(ORIGIN);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult caller(
+    void caller(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -768,11 +845,12 @@ namespace monad::vm::interpreter
         check_requirements<CALLER, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_address(ctx.env.sender));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(CALLER);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult callvalue(
+    void callvalue(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -780,16 +858,17 @@ namespace monad::vm::interpreter
         check_requirements<CALLVALUE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, runtime::uint256_from_bytes32(ctx.env.value));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(CALLVALUE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldataload(
+    void calldataload(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CALLDATALOAD, Rev>(
+        checked_runtime_call<CALLDATALOAD, Rev>(
             runtime::calldataload,
             ctx,
             analysis,
@@ -797,10 +876,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CALLDATALOAD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldatasize(
+    void calldatasize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -808,16 +889,17 @@ namespace monad::vm::interpreter
         check_requirements<CALLDATASIZE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.input_data_size);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(CALLDATASIZE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult calldatacopy(
+    void calldatacopy(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CALLDATACOPY, Rev>(
+        checked_runtime_call<CALLDATACOPY, Rev>(
             runtime::calldatacopy,
             ctx,
             analysis,
@@ -825,10 +907,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CALLDATACOPY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult codesize(
+    void codesize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -836,16 +920,17 @@ namespace monad::vm::interpreter
         check_requirements<CODESIZE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.code_size);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(CODESIZE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult codecopy(
+    void codecopy(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CODECOPY, Rev>(
+        checked_runtime_call<CODECOPY, Rev>(
             runtime::codecopy,
             ctx,
             analysis,
@@ -853,10 +938,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CODECOPY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult gasprice(
+    void gasprice(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -866,16 +953,17 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.tx_gas_price));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(GAS);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodesize(
+    void extcodesize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<EXTCODESIZE, Rev>(
+        checked_runtime_call<EXTCODESIZE, Rev>(
             runtime::extcodesize<Rev>,
             ctx,
             analysis,
@@ -883,15 +971,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(EXTCODESIZE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodecopy(
+    void extcodecopy(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<EXTCODECOPY, Rev>(
+        checked_runtime_call<EXTCODECOPY, Rev>(
             runtime::extcodecopy<Rev>,
             ctx,
             analysis,
@@ -899,10 +989,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(EXTCODECOPY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult returndatasize(
+    void returndatasize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -910,16 +1002,17 @@ namespace monad::vm::interpreter
         check_requirements<RETURNDATASIZE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.return_data_size);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(RETURNDATASIZE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult returndatacopy(
+    void returndatacopy(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<RETURNDATACOPY, Rev>(
+        checked_runtime_call<RETURNDATACOPY, Rev>(
             runtime::returndatacopy,
             ctx,
             analysis,
@@ -927,15 +1020,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(RETURNDATACOPY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult extcodehash(
+    void extcodehash(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<EXTCODEHASH, Rev>(
+        checked_runtime_call<EXTCODEHASH, Rev>(
             runtime::extcodehash<Rev>,
             ctx,
             analysis,
@@ -943,15 +1038,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(EXTCODEHASH);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blockhash(
+    void blockhash(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<BLOCKHASH, Rev>(
+        checked_runtime_call<BLOCKHASH, Rev>(
             runtime::blockhash,
             ctx,
             analysis,
@@ -959,10 +1056,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(BLOCKHASH);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult coinbase(
+    void coinbase(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -972,11 +1071,12 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_address(ctx.env.tx_context.block_coinbase));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(COINBASE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult timestamp(
+    void timestamp(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -984,11 +1084,12 @@ namespace monad::vm::interpreter
         check_requirements<TIMESTAMP, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_timestamp);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(TIMESTAMP);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult number(
+    void number(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -996,11 +1097,12 @@ namespace monad::vm::interpreter
         check_requirements<NUMBER, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_number);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(NUMBER);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult prevrandao(
+    void prevrandao(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1011,11 +1113,12 @@ namespace monad::vm::interpreter
             stack_top,
             runtime::uint256_from_bytes32(
                 ctx.env.tx_context.block_prev_randao));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(DIFFICULTY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult gaslimit(
+    void gaslimit(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1023,11 +1126,12 @@ namespace monad::vm::interpreter
         check_requirements<GASLIMIT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.env.tx_context.block_gas_limit);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(GASLIMIT);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult chainid(
+    void chainid(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1037,16 +1141,17 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.chain_id));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(CHAINID);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult selfbalance(
+    void selfbalance(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SELFBALANCE, Rev>(
+        checked_runtime_call<SELFBALANCE, Rev>(
             runtime::selfbalance,
             ctx,
             analysis,
@@ -1054,10 +1159,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SELFBALANCE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult basefee(
+    void basefee(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1067,16 +1174,17 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.block_base_fee));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(BASEFEE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blobhash(
+    void blobhash(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<BLOBHASH, Rev>(
+        checked_runtime_call<BLOBHASH, Rev>(
             runtime::blobhash,
             ctx,
             analysis,
@@ -1084,10 +1192,12 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(BLOBHASH);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult blobbasefee(
+    void blobbasefee(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1097,17 +1207,18 @@ namespace monad::vm::interpreter
         push(
             stack_top,
             runtime::uint256_from_bytes32(ctx.env.tx_context.blob_base_fee));
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(BLOBBASEFEE);
     }
 
     // Memory & Storage
     template <evmc_revision Rev>
-    OpcodeResult mload(
+    void mload(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MLOAD, Rev>(
+        checked_runtime_call<MLOAD, Rev>(
             runtime::mload,
             ctx,
             analysis,
@@ -1115,15 +1226,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MLOAD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mstore(
+    void mstore(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MSTORE, Rev>(
+        checked_runtime_call<MSTORE, Rev>(
             runtime::mstore,
             ctx,
             analysis,
@@ -1131,15 +1244,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MSTORE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mstore8(
+    void mstore8(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MSTORE8, Rev>(
+        checked_runtime_call<MSTORE8, Rev>(
             runtime::mstore8,
             ctx,
             analysis,
@@ -1147,15 +1262,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MSTORE8);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult mcopy(
+    void mcopy(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MCOPY, Rev>(
+        checked_runtime_call<MCOPY, Rev>(
             runtime::mcopy,
             ctx,
             analysis,
@@ -1163,15 +1280,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(MCOPY);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sstore(
+    void sstore(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SSTORE, Rev>(
+        checked_runtime_call<SSTORE, Rev>(
             runtime::sstore<Rev>,
             ctx,
             analysis,
@@ -1179,15 +1298,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SSTORE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult sload(
+    void sload(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<SLOAD, Rev>(
+        checked_runtime_call<SLOAD, Rev>(
             runtime::sload<Rev>,
             ctx,
             analysis,
@@ -1195,15 +1316,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(SLOAD);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult tstore(
+    void tstore(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<TSTORE, Rev>(
+        checked_runtime_call<TSTORE, Rev>(
             runtime::tstore,
             ctx,
             analysis,
@@ -1211,15 +1334,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(TSTORE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult tload(
+    void tload(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<TLOAD, Rev>(
+        checked_runtime_call<TLOAD, Rev>(
             runtime::tload,
             ctx,
             analysis,
@@ -1227,11 +1352,13 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(TLOAD);
     }
 
     // Execution Intercode
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     pc(runtime::Context &ctx, Intercode const &analysis,
        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1239,11 +1366,12 @@ namespace monad::vm::interpreter
         check_requirements<PC, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, instr_ptr - analysis.code());
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(PC);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult msize(
+    void msize(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1251,11 +1379,12 @@ namespace monad::vm::interpreter
         check_requirements<MSIZE, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, ctx.memory.size);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(MSIZE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     gas(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1263,36 +1392,38 @@ namespace monad::vm::interpreter
         check_requirements<GAS, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         push(stack_top, gas_remaining);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(GAS);
     }
 
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    OpcodeResult push(
+    void push(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return push_impl<N, Rev>::push(
+        push_impl<N, Rev>::push(
             ctx, analysis, stack_bottom, stack_top, gas_remaining, instr_ptr);
+
+        NEXT_PUSH(PUSH0 + N);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     pop(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<POP, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        --stack_top;
-        return {gas_remaining, instr_ptr + 1};
+        NEXT(POP);
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult
+    void
     dup(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1303,20 +1434,24 @@ namespace monad::vm::interpreter
         auto const old_top = stack_top;
         push(stack_top, *(old_top - (N - 1)));
 
-        return {gas_remaining, instr_ptr + 1};
+        NEXT(DUP1 + (N - 1));
     }
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult swap(
+    void swap(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         check_requirements<SWAP1 + (N - 1), Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        std::swap(*stack_top, *(stack_top - N));
-        return {gas_remaining, instr_ptr + 1};
+
+        auto const top = stack_top->to_avx();
+        *stack_top = *(stack_top - N);
+        *(stack_top - N) = utils::uint256_t{top};
+
+        NEXT(SWAP1 + (N - 1));
     }
 
     // Control Flow
@@ -1341,7 +1476,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jump(
+    void jump(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *)
@@ -1350,11 +1485,13 @@ namespace monad::vm::interpreter
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto const &target = pop(stack_top);
         auto const new_ip = jump_impl(ctx, analysis, target);
-        return {gas_remaining, new_ip};
+
+        MUSTTAIL return instruction_table<Rev>[*new_ip](
+            ctx, analysis, stack_bottom, stack_top, gas_remaining, new_ip);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jumpi(
+    void jumpi(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1366,15 +1503,24 @@ namespace monad::vm::interpreter
 
         if (cond) {
             auto const new_ip = jump_impl(ctx, analysis, target);
-            return {gas_remaining, new_ip};
+
+            MUSTTAIL return instruction_table<Rev>[*new_ip](
+                ctx, analysis, stack_bottom, stack_top, gas_remaining, new_ip);
         }
         else {
-            return {gas_remaining, instr_ptr + 1};
+            ++instr_ptr;
+            MUSTTAIL return instruction_table<Rev>[*instr_ptr](
+                ctx,
+                analysis,
+                stack_bottom,
+                stack_top,
+                gas_remaining,
+                instr_ptr);
         }
     }
 
     template <evmc_revision Rev>
-    OpcodeResult jumpdest(
+    void jumpdest(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1386,13 +1532,14 @@ namespace monad::vm::interpreter
             static_cast<uint64_t>(instr_ptr - analysis.code()));
         check_requirements<JUMPDEST, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        return {gas_remaining, instr_ptr + 1};
+
+        NEXT(JUMPDEST);
     }
 
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
-    OpcodeResult
+    void
     log(runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
@@ -1405,7 +1552,7 @@ namespace monad::vm::interpreter
             &runtime::log4,
         };
 
-        return checked_runtime_call<LOG0 + N, Rev>(
+        checked_runtime_call<LOG0 + N, Rev>(
             std::get<N>(impls),
             ctx,
             analysis,
@@ -1413,16 +1560,18 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(LOG0 + N);
     }
 
     // Call & Create
     template <evmc_revision Rev>
-    OpcodeResult create(
+    void create(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CREATE, Rev>(
+        checked_runtime_call<CREATE, Rev>(
             runtime::create<Rev>,
             ctx,
             analysis,
@@ -1430,15 +1579,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CREATE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult call(
+    void call(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CALL, Rev>(
+        checked_runtime_call<CALL, Rev>(
             runtime::call<Rev>,
             ctx,
             analysis,
@@ -1446,15 +1597,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CALL);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult callcode(
+    void callcode(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CALLCODE, Rev>(
+        checked_runtime_call<CALLCODE, Rev>(
             runtime::callcode<Rev>,
             ctx,
             analysis,
@@ -1462,15 +1615,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CALLCODE);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult delegatecall(
+    void delegatecall(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<DELEGATECALL, Rev>(
+        checked_runtime_call<DELEGATECALL, Rev>(
             runtime::delegatecall<Rev>,
             ctx,
             analysis,
@@ -1478,15 +1633,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(DELEGATECALL);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult create2(
+    void create2(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<CREATE2, Rev>(
+        checked_runtime_call<CREATE2, Rev>(
             runtime::create2<Rev>,
             ctx,
             analysis,
@@ -1494,15 +1651,17 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(CREATE2);
     }
 
     template <evmc_revision Rev>
-    OpcodeResult staticcall(
+    void staticcall(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<STATICCALL, Rev>(
+        checked_runtime_call<STATICCALL, Rev>(
             runtime::staticcall<Rev>,
             ctx,
             analysis,
@@ -1510,6 +1669,8 @@ namespace monad::vm::interpreter
             stack_top,
             gas_remaining,
             instr_ptr);
+
+        NEXT(STATICCALL);
     }
 
     // VM Control
@@ -1532,7 +1693,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult return_(
+    void return_(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *)
@@ -1544,7 +1705,7 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult revert(
+    void revert(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *)
@@ -1555,13 +1716,13 @@ namespace monad::vm::interpreter
     }
 
     template <evmc_revision Rev>
-    OpcodeResult selfdestruct(
+    void selfdestruct(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
         fuzz_tstore_stack(ctx, stack_bottom, stack_top, analysis.code_size());
-        return checked_runtime_call<SELFDESTRUCT, Rev>(
+        checked_runtime_call<SELFDESTRUCT, Rev>(
             runtime::selfdestruct<Rev>,
             ctx,
             analysis,
@@ -1571,7 +1732,7 @@ namespace monad::vm::interpreter
             instr_ptr);
     }
 
-    inline OpcodeResult stop(
+    inline void stop(
         runtime::Context &ctx, Intercode const &analysis,
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *)
@@ -1581,7 +1742,7 @@ namespace monad::vm::interpreter
         ctx.exit(Success);
     }
 
-    inline OpcodeResult invalid(
+    inline void invalid(
         runtime::Context &ctx, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t gas_remaining, std::uint8_t const *)
     {
@@ -1589,3 +1750,7 @@ namespace monad::vm::interpreter
         ctx.exit(Error);
     }
 }
+
+#undef MUSTTAIL
+#undef NEXT
+#undef NEXT_PUSH

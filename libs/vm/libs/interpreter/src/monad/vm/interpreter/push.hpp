@@ -49,10 +49,10 @@ namespace monad::vm::interpreter
 
         template <std::size_t N, evmc_revision Rev>
             requires(!detail::use_avx2_push(N))
-        [[gnu::always_inline]] inline OpcodeResult generic_push(
+        [[gnu::always_inline]] inline void generic_push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
         {
             static constexpr auto whole_words = N / 8;
             static constexpr auto leading_part = N % 8;
@@ -121,16 +121,14 @@ namespace monad::vm::interpreter
                         read_unaligned(instr_ptr + 1),
                     });
             }
-
-            return {gas_remaining, instr_ptr + N + 1};
         }
 
         template <std::size_t N, evmc_revision Rev>
             requires(detail::use_avx2_push(N))
-        [[gnu::always_inline]] inline OpcodeResult avx2_push(
+        [[gnu::always_inline]] inline void avx2_push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
         {
             static constexpr auto whole_words = N / 8;
             static constexpr auto leading_part = N % 8;
@@ -145,12 +143,14 @@ namespace monad::vm::interpreter
             // initial 30 bytes of padding to `instr_ptr`.
             static_assert(N > 0);
             __m256i y;
+
             if constexpr (N == 32) {
                 std::memcpy(&y, instr_ptr + 1, 32);
             }
             else {
                 std::memcpy(&y, instr_ptr - (31 - N), 32);
             }
+
             // y = {[y00...y07], [y10...y17], [y20...y27], [y30...y37]}
             y = _mm256_permute4x64_epi64(y, 27);
             // y = {[y30...y37], [y20...y27], [y10...y17], [y00...y07]}
@@ -169,20 +169,18 @@ namespace monad::vm::interpreter
             // For N = 32:
             // y = {[y37...y30], [y27...y20], [y17...y10], [y07...y00]}
             std::memcpy(reinterpret_cast<uint8_t *>(stack_top + 1), &y, 32);
-
-            return {gas_remaining, instr_ptr + N + 1};
         }
     }
 
     template <std::size_t N, evmc_revision Rev>
     struct push_impl
     {
-        [[gnu::always_inline]] static inline OpcodeResult push(
+        [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
         {
-            return detail::generic_push<N, Rev>(
+            detail::generic_push<N, Rev>(
                 ctx,
                 analysis,
                 stack_bottom,
@@ -195,15 +193,14 @@ namespace monad::vm::interpreter
     template <evmc_revision Rev>
     struct push_impl<0, Rev>
     {
-        [[gnu::always_inline]] static inline OpcodeResult push(
+        [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+            std::int64_t &gas_remaining, std::uint8_t const *)
         {
             check_requirements<PUSH0, Rev>(
                 ctx, analysis, stack_bottom, stack_top, gas_remaining);
             interpreter::push(stack_top, 0);
-            return {gas_remaining, instr_ptr + 1};
         }
     };
 
@@ -211,12 +208,12 @@ namespace monad::vm::interpreter
         requires(detail::use_avx2_push(N))
     struct push_impl<N, Rev>
     {
-        [[gnu::always_inline]] static inline OpcodeResult push(
+        [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
             utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
+            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
         {
-            return detail::avx2_push<N, Rev>(
+            detail::avx2_push<N, Rev>(
                 ctx,
                 analysis,
                 stack_bottom,

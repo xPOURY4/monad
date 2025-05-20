@@ -58,9 +58,9 @@ namespace monad::vm::interpreter
     }
 
     [[gnu::always_inline]] inline void
-    push(utils::uint256_t *&stack_top, utils::uint256_t const &x)
+    push(utils::uint256_t *stack_top, utils::uint256_t const &x)
     {
-        *++stack_top = x;
+        *(stack_top + 1) = x;
     }
 
     [[gnu::always_inline]] inline utils::uint256_t &
@@ -76,4 +76,10 @@ namespace monad::vm::interpreter
         return std::tie(a, *stack_top);
     }
 
+    [[gnu::always_inline]] inline auto
+    top_two(utils::uint256_t *const stack_top)
+    {
+        auto const &a = *stack_top;
+        return std::tie(a, *(stack_top - 1));
+    }
 }

@@ -9,428 +9,428 @@ namespace monad::vm::interpreter
 {
     // Arithmetic
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     add(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     mul(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sub(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult udiv(
+    void udiv(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult sdiv(
+    void sdiv(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult umod(
+    void umod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult smod(
+    void smod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult addmod(
+    void addmod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult mulmod(
+    void mulmod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     exp(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult signextend(
+    void signextend(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Boolean
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     lt(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     gt(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     slt(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sgt(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     eq(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult iszero(
+    void iszero(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Bitwise
     template <evmc_revision Rev>
-    OpcodeResult and_(
+    void and_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     or_(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult xor_(
+    void xor_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult not_(
+    void not_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult byte(
+    void byte(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     shl(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     shr(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     sar(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Data
     template <evmc_revision Rev>
-    OpcodeResult sha3(
+    void sha3(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult address(
+    void address(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult balance(
+    void balance(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult origin(
+    void origin(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult caller(
+    void caller(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult callvalue(
+    void callvalue(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult calldataload(
+    void calldataload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult calldatasize(
+    void calldatasize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult calldatacopy(
+    void calldatacopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult codesize(
+    void codesize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult codecopy(
+    void codecopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult gasprice(
+    void gasprice(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult extcodesize(
+    void extcodesize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult extcodecopy(
+    void extcodecopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult returndatasize(
+    void returndatasize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult returndatacopy(
+    void returndatacopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult extcodehash(
+    void extcodehash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult blockhash(
+    void blockhash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult coinbase(
+    void coinbase(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult timestamp(
+    void timestamp(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult number(
+    void number(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult prevrandao(
+    void prevrandao(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult gaslimit(
+    void gaslimit(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult chainid(
+    void chainid(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult selfbalance(
+    void selfbalance(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult basefee(
+    void basefee(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult blobhash(
+    void blobhash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult blobbasefee(
+    void blobbasefee(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Memory & Storage
     template <evmc_revision Rev>
-    OpcodeResult mload(
+    void mload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult mstore(
+    void mstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult mstore8(
+    void mstore8(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult mcopy(
+    void mcopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult sstore(
+    void sstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult sload(
+    void sload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult tstore(
+    void tstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult tload(
+    void tload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Execution Intercode
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     pc(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult msize(
+    void msize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     gas(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    OpcodeResult push(
+    void push(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult
+    void
     pop(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult
+    void
     dup(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    OpcodeResult swap(
+    void swap(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult jump(
+    void jump(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult jumpi(
+    void jumpi(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult jumpdest(
+    void jumpdest(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
-    OpcodeResult
+    void
     log(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Call & Create
     template <evmc_revision Rev>
-    OpcodeResult create(
+    void create(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult call(
+    void call(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult callcode(
+    void callcode(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult delegatecall(
+    void delegatecall(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult create2(
+    void create2(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult staticcall(
+    void staticcall(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // VM Control
     template <evmc_revision Rev>
-    OpcodeResult return_(
+    void return_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult revert(
+    void revert(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    OpcodeResult selfdestruct(
+    void selfdestruct(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
-    inline OpcodeResult stop(
+    inline void stop(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
-    inline OpcodeResult invalid(
+    inline void invalid(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 }
