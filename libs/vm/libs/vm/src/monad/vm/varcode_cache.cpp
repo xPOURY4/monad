@@ -23,7 +23,7 @@ namespace
 
 namespace monad::vm
 {
-    VarcodeCache::VarcodeCache(std::uint32_t max_cache_kb)
+    VarcodeCache::VarcodeCache()
         : weight_cache_{max_cache_kb}
     {
     }

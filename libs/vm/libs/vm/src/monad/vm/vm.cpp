@@ -27,21 +27,34 @@ namespace monad::vm
     {
         auto const &icode = vcode->intercode();
         auto const &ncode = vcode->nativecode();
-        if (ncode != nullptr && ncode->revision() == rev) {
+        if (MONAD_VM_LIKELY(ncode != nullptr)) {
+            // The bytecode is compiled.
+            if (MONAD_VM_UNLIKELY(ncode->revision() != rev)) {
+                // Revision change. The bytecode was compiled pre revision
+                // change, so start async compilation immediately for the new
+                // revision. Execute with interpreter in the meantime.
+                compiler_.async_compile(
+                    rev, code_hash, icode, compiler_config_);
+                return execute_intercode(rev, host, context, msg, icode);
+            }
             auto const entry = ncode->entrypoint();
             if (MONAD_VM_UNLIKELY(entry == nullptr)) {
                 // Compilation has failed in this revision, so just execute
                 // with interpreter.
                 return execute_intercode(rev, host, context, msg, icode);
             }
-            else {
-                return execute_native_entrypoint(
-                    host, context, msg, icode, entry);
-            }
+            // Bytecode has been successfully compiled for the right revision.
+            return execute_native_entrypoint(host, context, msg, icode, entry);
         }
-        // Contract has not been attempted compiled yet in this revision, so
-        // execute with interpreter. We will start async compile job when the
-        // execution gas spent by interpreter becomes sufficiently high.
+        if (!compiler_.is_varcode_cache_warm()) {
+            // If cache is not warm then start async compilation immediately,
+            // and execute with interpreter in the meantime.
+            compiler_.async_compile(rev, code_hash, icode, compiler_config_);
+            return execute_intercode(rev, host, context, msg, icode);
+        }
+        // Execute with interpreter. We will start async compilation when
+        // the accumulated execution gas spent by interpreter on the bytecode
+        // becomes sufficiently high.
         auto result = execute_intercode(rev, host, context, msg, icode);
         auto const bound = compiler::native::max_code_size(
             compiler_config_.max_code_size_offset, icode->code_size());

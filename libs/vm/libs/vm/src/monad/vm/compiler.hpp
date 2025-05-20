@@ -65,6 +65,11 @@ namespace monad::vm
             return varcode_cache_.try_set(code_hash, icode);
         }
 
+        bool is_varcode_cache_warm()
+        {
+            return varcode_cache_.is_warm();
+        }
+
         // For testing: wait for compile job queue to become empty.
         void debug_wait_for_empty_queue();
 

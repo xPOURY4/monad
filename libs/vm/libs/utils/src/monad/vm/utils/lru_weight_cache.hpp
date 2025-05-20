@@ -101,6 +101,13 @@ namespace monad::vm::utils
             return true;
         }
 
+        /// Get approximate total weight of the cached elements.
+        uint64_t approx_weight()
+        {
+            return static_cast<uint64_t>(
+                weight_.load(std::memory_order_acquire));
+        }
+
         // For testing: to check internal invariants. Not safe with
         // concurrent `insert` calls.
         bool unsafe_check_consistent()
