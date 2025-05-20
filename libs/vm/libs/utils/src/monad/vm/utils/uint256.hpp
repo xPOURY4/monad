@@ -33,7 +33,7 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]] constexpr explicit(true)
-            uint256_t(std::array<uint64_t, 4> x) noexcept
+            uint256_t(std::array<uint64_t, 4> const &x) noexcept
             : words_{x}
         {
         }
