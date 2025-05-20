@@ -15,8 +15,11 @@ template <bool instrument>
 class InstrumentableCompiler
 {
 public:
-    InstrumentableCompiler(asmjit::JitRuntime &rt)
+    InstrumentableCompiler(
+        asmjit::JitRuntime &rt,
+        monad::vm::compiler::native::CompilerConfig const &config)
         : rt_(rt)
+        , config_(config)
     {
     }
 
@@ -26,17 +29,18 @@ public:
     {
         if constexpr (instrument) {
             CACHEGRIND_START_INSTRUMENTATION;
-            auto ans =
-                monad::vm::compiler::native::compile_basic_blocks(rev, rt_, ir);
+            auto ans = monad::vm::compiler::native::compile_basic_blocks(
+                rev, rt_, ir, config_);
             CACHEGRIND_STOP_INSTRUMENTATION;
             return ans;
         }
         else {
             return monad::vm::compiler::native::compile_basic_blocks(
-                rev, rt_, ir);
+                rev, rt_, ir, config_);
         }
     }
 
 private:
     asmjit::JitRuntime &rt_;
+    monad::vm::compiler::native::CompilerConfig const &config_;
 };

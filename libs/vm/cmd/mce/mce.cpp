@@ -32,6 +32,7 @@ struct arguments
     bool instrument_parse = false;
     bool instrument_compile = false;
     bool instrument_execute = false;
+    std::optional<std::string> asm_log_file;
 };
 
 static arguments parse_args(int const argc, char **const argv)
@@ -64,6 +65,10 @@ static arguments parse_args(int const argc, char **const argv)
         args.instrument_execute,
         std::format(
             "Instrument execution (default: {})", args.instrument_execute));
+    app.add_option(
+        "--log-asm",
+        args.asm_log_file,
+        std::format("Log assembly output to file"));
 
     try {
         app.parse(argc, argv);
@@ -141,13 +146,17 @@ int mce_main(arguments const &args)
     }
 
     asmjit::JitRuntime rt{};
+    monad::vm::compiler::native::CompilerConfig config{};
+    if (args.asm_log_file) {
+        config.asm_log_path = args.asm_log_file->c_str();
+    }
     std::shared_ptr<native::Nativecode> const ncode = [&]() {
         if (args.instrument_compile) {
-            InstrumentableCompiler<true> compiler(rt);
+            InstrumentableCompiler<true> compiler(rt, config);
             return compiler.compile(Rev, *ir);
         }
         else {
-            InstrumentableCompiler<false> compiler(rt);
+            InstrumentableCompiler<false> compiler(rt, config);
             return compiler.compile(Rev, *ir);
         }
     }();
