@@ -9,428 +9,428 @@ namespace monad::vm::interpreter
 {
     // Arithmetic
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     add(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     mul(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     sub(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void udiv(
+    MONAD_VM_INSTRUCTION_CALL void udiv(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void sdiv(
+    MONAD_VM_INSTRUCTION_CALL void sdiv(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void umod(
+    MONAD_VM_INSTRUCTION_CALL void umod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void smod(
+    MONAD_VM_INSTRUCTION_CALL void smod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void addmod(
+    MONAD_VM_INSTRUCTION_CALL void addmod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void mulmod(
+    MONAD_VM_INSTRUCTION_CALL void mulmod(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     exp(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void signextend(
+    MONAD_VM_INSTRUCTION_CALL void signextend(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Boolean
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     lt(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     gt(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     slt(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     sgt(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     eq(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void iszero(
+    MONAD_VM_INSTRUCTION_CALL void iszero(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Bitwise
     template <evmc_revision Rev>
-    void and_(
+    MONAD_VM_INSTRUCTION_CALL void and_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     or_(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void xor_(
+    MONAD_VM_INSTRUCTION_CALL void xor_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void not_(
+    MONAD_VM_INSTRUCTION_CALL void not_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void byte(
+    MONAD_VM_INSTRUCTION_CALL void byte(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     shl(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     shr(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     sar(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Data
     template <evmc_revision Rev>
-    void sha3(
+    MONAD_VM_INSTRUCTION_CALL void sha3(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void address(
+    MONAD_VM_INSTRUCTION_CALL void address(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void balance(
+    MONAD_VM_INSTRUCTION_CALL void balance(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void origin(
+    MONAD_VM_INSTRUCTION_CALL void origin(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void caller(
+    MONAD_VM_INSTRUCTION_CALL void caller(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void callvalue(
+    MONAD_VM_INSTRUCTION_CALL void callvalue(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void calldataload(
+    MONAD_VM_INSTRUCTION_CALL void calldataload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void calldatasize(
+    MONAD_VM_INSTRUCTION_CALL void calldatasize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void calldatacopy(
+    MONAD_VM_INSTRUCTION_CALL void calldatacopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void codesize(
+    MONAD_VM_INSTRUCTION_CALL void codesize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void codecopy(
+    MONAD_VM_INSTRUCTION_CALL void codecopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void gasprice(
+    MONAD_VM_INSTRUCTION_CALL void gasprice(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void extcodesize(
+    MONAD_VM_INSTRUCTION_CALL void extcodesize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void extcodecopy(
+    MONAD_VM_INSTRUCTION_CALL void extcodecopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void returndatasize(
+    MONAD_VM_INSTRUCTION_CALL void returndatasize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void returndatacopy(
+    MONAD_VM_INSTRUCTION_CALL void returndatacopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void extcodehash(
+    MONAD_VM_INSTRUCTION_CALL void extcodehash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void blockhash(
+    MONAD_VM_INSTRUCTION_CALL void blockhash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void coinbase(
+    MONAD_VM_INSTRUCTION_CALL void coinbase(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void timestamp(
+    MONAD_VM_INSTRUCTION_CALL void timestamp(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void number(
+    MONAD_VM_INSTRUCTION_CALL void number(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void prevrandao(
+    MONAD_VM_INSTRUCTION_CALL void prevrandao(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void gaslimit(
+    MONAD_VM_INSTRUCTION_CALL void gaslimit(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void chainid(
+    MONAD_VM_INSTRUCTION_CALL void chainid(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void selfbalance(
+    MONAD_VM_INSTRUCTION_CALL void selfbalance(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void basefee(
+    MONAD_VM_INSTRUCTION_CALL void basefee(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void blobhash(
+    MONAD_VM_INSTRUCTION_CALL void blobhash(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void blobbasefee(
+    MONAD_VM_INSTRUCTION_CALL void blobbasefee(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Memory & Storage
     template <evmc_revision Rev>
-    void mload(
+    MONAD_VM_INSTRUCTION_CALL void mload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void mstore(
+    MONAD_VM_INSTRUCTION_CALL void mstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void mstore8(
+    MONAD_VM_INSTRUCTION_CALL void mstore8(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void mcopy(
+    MONAD_VM_INSTRUCTION_CALL void mcopy(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void sstore(
+    MONAD_VM_INSTRUCTION_CALL void sstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void sload(
+    MONAD_VM_INSTRUCTION_CALL void sload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void tstore(
+    MONAD_VM_INSTRUCTION_CALL void tstore(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void tload(
+    MONAD_VM_INSTRUCTION_CALL void tload(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Execution Intercode
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     pc(runtime::Context &, Intercode const &, utils::uint256_t const *,
        utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void msize(
+    MONAD_VM_INSTRUCTION_CALL void msize(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     gas(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Stack
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 32)
-    void push(
+    MONAD_VM_INSTRUCTION_CALL void push(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     pop(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     dup(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <std::size_t N, evmc_revision Rev>
         requires(N >= 1)
-    void swap(
+    MONAD_VM_INSTRUCTION_CALL void swap(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void jump(
+    MONAD_VM_INSTRUCTION_CALL void jump(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void jumpi(
+    MONAD_VM_INSTRUCTION_CALL void jumpi(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void jumpdest(
+    MONAD_VM_INSTRUCTION_CALL void jumpdest(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Logging
     template <std::size_t N, evmc_revision Rev>
         requires(N <= 4)
-    void
+    MONAD_VM_INSTRUCTION_CALL void
     log(runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // Call & Create
     template <evmc_revision Rev>
-    void create(
+    MONAD_VM_INSTRUCTION_CALL void create(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void call(
+    MONAD_VM_INSTRUCTION_CALL void call(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void callcode(
+    MONAD_VM_INSTRUCTION_CALL void callcode(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void delegatecall(
+    MONAD_VM_INSTRUCTION_CALL void delegatecall(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void create2(
+    MONAD_VM_INSTRUCTION_CALL void create2(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void staticcall(
+    MONAD_VM_INSTRUCTION_CALL void staticcall(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     // VM Control
     template <evmc_revision Rev>
-    void return_(
+    MONAD_VM_INSTRUCTION_CALL void return_(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void revert(
+    MONAD_VM_INSTRUCTION_CALL void revert(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
     template <evmc_revision Rev>
-    void selfdestruct(
+    MONAD_VM_INSTRUCTION_CALL void selfdestruct(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
-    inline void stop(
+    MONAD_VM_INSTRUCTION_CALL inline void stop(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 
-    inline void invalid(
+    MONAD_VM_INSTRUCTION_CALL inline void invalid(
         runtime::Context &, Intercode const &, utils::uint256_t const *,
         utils::uint256_t *, std::int64_t, std::uint8_t const *);
 }
