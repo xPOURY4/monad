@@ -86,7 +86,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr uint8_t *as_bytes() noexcept
         {
-            return std::bit_cast<uint8_t *>(&words_);
+            return reinterpret_cast<uint8_t *>(&words_);
         }
 
         [[gnu::always_inline]]
