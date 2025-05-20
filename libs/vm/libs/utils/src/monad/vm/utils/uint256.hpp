@@ -92,7 +92,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr uint8_t const *as_bytes() const noexcept
         {
-            return reinterpret_cast<uint8_t *>(&words_);
+            return reinterpret_cast<uint8_t const *>(&words_);
         }
 
 #define INHERIT_INTX_BINOP(return_ty, op_name)                                 \
