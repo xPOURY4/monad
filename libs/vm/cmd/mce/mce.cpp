@@ -68,7 +68,7 @@ static arguments parse_args(int const argc, char **const argv)
     app.add_option(
         "--log-asm",
         args.asm_log_file,
-        std::format("Log assembly output to file"));
+       "Log assembly output to file");
 
     try {
         app.parse(argc, argv);
