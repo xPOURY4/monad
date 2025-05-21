@@ -66,9 +66,7 @@ static arguments parse_args(int const argc, char **const argv)
         std::format(
             "Instrument execution (default: {})", args.instrument_execute));
     app.add_option(
-        "--log-asm",
-        args.asm_log_file,
-       "Log assembly output to file");
+        "--dump-asm", args.asm_log_file, "Dump assembly output to file");
 
     try {
         app.parse(argc, argv);
