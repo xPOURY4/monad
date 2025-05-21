@@ -318,6 +318,8 @@ namespace monad::vm::compiler::basic_blocks
     std::variant<Instruction, Terminator, JumpDest> BasicBlocksIR::scan_from(
         std::span<std::uint8_t const> bytes, std::uint32_t &current_offset)
     {
+        MONAD_VM_DEBUG_ASSERT(current_offset < bytes.size());
+
         auto opcode = bytes[current_offset];
         auto opcode_offset = current_offset;
 
@@ -347,13 +349,15 @@ namespace monad::vm::compiler::basic_blocks
             break;
         }
 
-        auto imm_size = info.num_args;
+        auto const imm_size = info.num_args;
         uint256_t imm_value{0};
-        if (imm_size) {
+
+        if (imm_size > 0) {
             imm_value = utils::from_bytes(
                 imm_size,
                 bytes.size() - current_offset,
-                &bytes[current_offset]);
+                bytes.data() + current_offset);
+
             current_offset += imm_size;
         }
 
