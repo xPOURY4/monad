@@ -544,8 +544,8 @@ namespace monad::vm::compiler::native
 
         void discharge_deferred_comparison(StackElem *, Comparison);
 
-        asmjit::Label const &append_literal(Literal);
-        asmjit::Label const &append_external_function(void *);
+        asmjit::Label append_literal(Literal);
+        asmjit::Label append_external_function(void *);
 
         Gpq256 &general_reg_to_gpq256(GeneralReg);
 

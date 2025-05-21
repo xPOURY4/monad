@@ -1347,13 +1347,13 @@ namespace monad::vm::compiler::native
         }
     }
 
-    asmjit::Label const &Emitter::append_literal(Literal lit)
+    asmjit::Label Emitter::append_literal(Literal lit)
     {
         literals_.emplace_back(as_.newLabel(), lit);
         return literals_.back().first;
     }
 
-    asmjit::Label const &Emitter::append_external_function(void *f)
+    asmjit::Label Emitter::append_external_function(void *f)
     {
         external_functions_.emplace_back(as_.newLabel(), f);
         return external_functions_.back().first;
