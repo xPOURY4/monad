@@ -2845,7 +2845,7 @@ namespace monad::vm::compiler::native
         // Permute qwords in avx register y:
         // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
         // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
-        auto const &lbl = append_literal(Literal{uint256_t{
+        auto const lbl = append_literal(Literal{uint256_t{
             0x0001020304050607,
             0x08090a0b0c0d0e0f,
             0x0001020304050607,
@@ -3079,7 +3079,7 @@ namespace monad::vm::compiler::native
     {
         MONAD_VM_DEBUG_ASSERT(!ix->literal().has_value());
 
-        auto const &bound_lbl = append_literal(Literal{31});
+        auto const bound_lbl = append_literal(Literal{31});
         auto bound_mem = x86::qword_ptr(bound_lbl);
         bool const nb = cmp_stack_elem_to_int32(ix, 32, std::make_tuple(src));
 
@@ -3371,7 +3371,7 @@ namespace monad::vm::compiler::native
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        auto const &bound_lbl = append_literal(Literal{256});
+        auto const bound_lbl = append_literal(Literal{256});
         bool const nb = cmp_stack_elem_to_int32(shift, 257, {});
 
         // We only need to preserve rcx if it is in a stack element which is
@@ -5127,7 +5127,7 @@ namespace monad::vm::compiler::native
             }
             as_.setnz(x86::al);
 
-            auto const &lbl =
+            auto const lbl =
                 append_literal(Literal{static_cast<uint64_t>(1) << 63});
             as_.test(x86::qword_ptr(lbl), gpq[3]);
             as_.setnz(x86::ah);
@@ -5322,7 +5322,7 @@ namespace monad::vm::compiler::native
 
         auto const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        auto const &sign_lbl =
+        auto const sign_lbl =
             append_literal(Literal{static_cast<uint64_t>(1) << 63});
         auto non_negative_lbl = as_.newLabel();
         auto after_lbl = as_.newLabel();
@@ -5334,7 +5334,7 @@ namespace monad::vm::compiler::native
                 }
             }
             else {
-                auto const &lbl = append_literal({mask});
+                auto const lbl = append_literal({mask});
                 auto m = x86::qword_ptr(lbl);
                 for (size_t i = 0; i < 4; ++i) {
                     as_.and_(dst_gpq[i], m);
