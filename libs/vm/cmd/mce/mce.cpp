@@ -128,9 +128,9 @@ static void dump_result(arguments const &args, evmc::Result const &result)
             object["result"] = json("");
         }
         else {
-            uint256_t const x =
-                uint256_t::load_be_unsafe(&result.output_data[0]);
-            object["result"] = json(x.to_string(16));
+            uint256_t const x = monad::vm::utils::uint256_t::load_be_unsafe(
+                &result.output_data[0]);
+            object["result"] = json(x.to_string());
         }
         uint256_t const x = uint256_t::load_be_unsafe(&result.output_data[0]);
         std::cout << x.to_string(16) << std::endl;

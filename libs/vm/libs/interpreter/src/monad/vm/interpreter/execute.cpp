@@ -14,7 +14,6 @@
 
 #include <array>
 #include <cstdint>
-#include <cstdlib>
 
 /**
  * Assembly trampoline into the interpreter's core loop (see entry.S). This
