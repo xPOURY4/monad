@@ -11,8 +11,6 @@
 #include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/debug.hpp>
 
-#include <intx/intx.hpp>
-
 #include <evmc/evmc.h>
 
 #include <array>
@@ -615,7 +613,7 @@ namespace monad::vm::interpreter
         check_requirements<SLT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = top_two(stack_top);
-        b = intx::slt(a, b);
+        b = slt(a, b);
 
         MONAD_VM_NEXT(SLT);
     }
@@ -629,7 +627,7 @@ namespace monad::vm::interpreter
         check_requirements<SGT, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = top_two(stack_top);
-        b = intx::slt(b, a); // note swapped arguments
+        b = slt(b, a); // note swapped arguments
 
         MONAD_VM_NEXT(SGT);
     }
@@ -1686,9 +1684,11 @@ namespace monad::vm::interpreter
         {
             for (auto *result_loc : {&ctx.result.offset, &ctx.result.size}) {
                 std::copy_n(
-                    intx::as_bytes(*stack_top--),
+                    stack_top->as_bytes(),
                     32,
                     reinterpret_cast<std::uint8_t *>(result_loc));
+
+                --stack_top;
             }
 
             ctx.gas_remaining = gas_remaining;
