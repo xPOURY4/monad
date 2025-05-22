@@ -1,5 +1,6 @@
 #pragma once
 
+#include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/interpreter/stack.hpp>
 #include <monad/vm/interpreter/types.hpp>
@@ -16,6 +17,8 @@
 
 namespace monad::vm::interpreter
 {
+    using enum compiler::EvmOpCode;
+
     namespace detail
     {
         consteval bool use_avx2_push(std::size_t const n) noexcept
@@ -222,15 +225,4 @@ namespace monad::vm::interpreter
                 instr_ptr);
         }
     };
-
-    template <std::size_t N, evmc_revision Rev>
-        requires(N <= 32)
-    [[gnu::always_inline]] inline OpcodeResult push(
-        runtime::Context &ctx, Intercode const &analysis,
-        utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-        std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
-    {
-        return push_impl<N, Rev>::push(
-            ctx, analysis, stack_bottom, stack_top, gas_remaining, instr_ptr);
-    }
 }
