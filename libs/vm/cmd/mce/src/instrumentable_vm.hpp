@@ -1,6 +1,7 @@
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/allocator.hpp>
+#include <stopwatch.hpp>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>
@@ -87,9 +88,11 @@ public:
         auto stack_ptr = stack_allocator.allocate();
 
         if constexpr (instrument) {
+            timer.start();
             CACHEGRIND_START_INSTRUMENTATION;
             entry(&ctx, stack_ptr.get());
             CACHEGRIND_STOP_INSTRUMENTATION;
+            timer.pause();
         }
         else {
             entry(&ctx, stack_ptr.get());

@@ -3,6 +3,7 @@
 #include <monad/vm/core/assert.h>
 #include <monad/vm/utils/load_program.hpp>
 #include <monad/vm/utils/parser.hpp>
+#include <stopwatch.hpp>
 
 #include <valgrind/cachegrind.h>
 
@@ -25,10 +26,12 @@ public:
         if (filename.extension() == ".mevm") {
             std::string contents(bytes.begin(), bytes.end());
             if constexpr (instrument) {
+                timer.start();
                 CACHEGRIND_START_INSTRUMENTATION;
                 std::vector<uint8_t> const code =
                     monad::vm::utils::parse_opcodes(contents);
                 CACHEGRIND_STOP_INSTRUMENTATION;
+                timer.pause();
                 return code;
             }
             else {
@@ -37,10 +40,12 @@ public:
         }
 
         if constexpr (instrument) {
+            timer.start();
             CACHEGRIND_START_INSTRUMENTATION;
             std::vector<uint8_t> const code =
                 monad::vm::utils::parse_hex_program(bytes);
             CACHEGRIND_STOP_INSTRUMENTATION;
+            timer.pause();
             return code;
         }
         else {

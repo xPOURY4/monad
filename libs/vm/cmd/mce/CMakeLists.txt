@@ -5,7 +5,8 @@ target_sources(mce PRIVATE
   "src/instrumentable_decoder.hpp"
   "src/instrumentable_parser.hpp"
   "src/instrumentable_compiler.hpp"
-  "src/instrumentable_vm.hpp")
+  "src/instrumentable_vm.hpp"
+  "src/stopwatch.hpp")
 
 target_include_directories(mce
   PUBLIC src/
@@ -21,6 +22,7 @@ target_link_libraries(mce
   PRIVATE monad-vm::monad-vm-compiler
   PRIVATE monad-vm::monad-vm
   PRIVATE CLI11::CLI11
+  PRIVATE nlohmann_json::nlohmann_json
 )
 
 monad_compile_options(mce)

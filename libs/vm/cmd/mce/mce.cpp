@@ -1,7 +1,7 @@
 #include <CLI/CLI.hpp>
 #include <asmjit/core/jitruntime.h>
 #include <evmc/evmc.h>
-#include <evmc/evmc.hpp>
+#include <nlohmann/json.hpp>
 
 #include <instrumentable_compiler.hpp>
 #include <instrumentable_decoder.hpp>
@@ -10,6 +10,7 @@
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/compiler/types.hpp>
+#include <stopwatch.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -28,11 +29,15 @@ struct arguments
 {
     std::string filename;
     std::string revision = "latest";
+    std::string timeunit_s = "ns";
+    Timeunit timeunit = Timeunit::nano;
     bool instrument_decode = false;
     bool instrument_parse = false;
     bool instrument_compile = false;
     bool instrument_execute = false;
     std::optional<std::string> asm_log_file;
+    bool wall_clock_time = false;
+    bool report_result = false;
 };
 
 static arguments parse_args(int const argc, char **const argv)
@@ -67,9 +72,24 @@ static arguments parse_args(int const argc, char **const argv)
             "Instrument execution (default: {})", args.instrument_execute));
     app.add_option(
         "--dump-asm", args.asm_log_file, "Dump assembly output to file");
+    app.add_flag(
+        "-r",
+        args.report_result,
+        std::format(
+            "Report execution result (default: {})", args.report_result));
+    app.add_flag(
+        "-w",
+        args.wall_clock_time,
+        std::format(
+            "Report wall clock time (default: {})", args.wall_clock_time));
+    app.add_option(
+        "-u",
+        args.timeunit_s,
+        std::format("Wall clock time unit (default: {})", args.timeunit_s));
 
     try {
         app.parse(argc, argv);
+        args.timeunit = timeunit_of_short_string(args.timeunit_s);
         if (args.filename.empty()) {
             throw CLI::ParseError{"filename: no input file", 105};
         }
@@ -81,36 +101,58 @@ static arguments parse_args(int const argc, char **const argv)
     return args;
 }
 
-static void dump_result(evmc::Result const &result)
+static void dump_result(arguments const &args, evmc::Result const &result)
 {
+    if (!args.report_result && !args.wall_clock_time) {
+        // Nothing to report.
+        return;
+    }
+
+    using json = nlohmann::json;
+
+    json object{};
+    if (args.wall_clock_time) {
+        json time{};
+        time["elapsed"] = json(timer.elapsed_formatted_string(args.timeunit));
+        time["unit"] = json(short_string_of_timeunit(args.timeunit));
+        object["time"] = time;
+    }
+
     if (result.status_code == EVMC_SUCCESS) {
         if (result.output_size == 0) {
-            return;
+            object["result"] = json("");
+        }
+        else {
+            uint256_t const x =
+                intx::be::unsafe::load<uint256_t>(&result.output_data[0]);
+            object["result"] = json(intx::to_string(x, 16));
         }
         uint256_t const x = uint256_t::load_be_unsafe(&result.output_data[0]);
         std::cout << x.to_string(16) << std::endl;
         return;
     }
-    std::cerr << "fatal error: ";
-    switch (result.status_code) {
-    case EVMC_FAILURE:
-        std::cerr << "failure";
-        break;
-    case EVMC_INTERNAL_ERROR:
-        std::cerr << "internal error";
-        break;
-    case EVMC_OUT_OF_GAS:
-        std::cerr << "out of gas";
-        break;
-    case EVMC_STACK_OVERFLOW:
-        std::cerr << "stack overflow";
-        break;
-    case EVMC_STACK_UNDERFLOW:
-        std::cerr << "stack underflow";
-        break;
-    default:
-        std::cerr << "unknown failure";
+    else {
+        switch (result.status_code) {
+        case EVMC_FAILURE:
+            object["error"] = json("failure");
+            break;
+        case EVMC_INTERNAL_ERROR:
+            object["error"] = json("internal error");
+            break;
+        case EVMC_OUT_OF_GAS:
+            object["error"] = json("out of gas");
+            break;
+        case EVMC_STACK_OVERFLOW:
+            object["error"] = json("stack overflow");
+            break;
+        case EVMC_STACK_UNDERFLOW:
+            object["error"] = json("stack underflow");
+            break;
+        default:
+            object["error"] = json("unknown failure");
+        }
     }
+    std::cout << object.dump(2) << std::endl;
 }
 
 template <evmc_revision Rev>
@@ -175,7 +217,7 @@ int mce_main(arguments const &args)
         }
     }();
 
-    dump_result(result);
+    dump_result(args, result);
 
     auto status_code = result.status_code;
 

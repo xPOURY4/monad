@@ -3,6 +3,7 @@
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
+#include <stopwatch.hpp>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>
@@ -28,10 +29,12 @@ public:
         monad::vm::compiler::basic_blocks::BasicBlocksIR const &ir)
     {
         if constexpr (instrument) {
+            timer.start();
             CACHEGRIND_START_INSTRUMENTATION;
             auto ans = monad::vm::compiler::native::compile_basic_blocks(
                 rev, rt_, ir, config_);
             CACHEGRIND_STOP_INSTRUMENTATION;
+            timer.pause();
             return ans;
         }
         else {
