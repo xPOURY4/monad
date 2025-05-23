@@ -63,15 +63,27 @@ namespace monad::vm::utils
             return std::bit_cast<__m256i>(words_);
         }
 
+        [[gnu::always_inline]] friend inline constexpr bool
+        constexpr_operator_bool(uint256_t const &x) noexcept
+        {
+            return x.words_[0] | x.words_[1] | x.words_[2] | x.words_[3];
+        }
+
+        [[gnu::always_inline]]
+        friend inline bool avx2_operator_bool(uint256_t const &x) noexcept
+        {
+            auto mask = _mm256_setr_epi64x(-1, -1, -1, -1);
+            return !_mm256_testz_si256(x.to_avx(), mask);
+        }
+
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
         {
-            if (std::is_constant_evaluated()) {
-                return words_[0] | words_[1] | words_[2] | words_[3];
+            if consteval {
+                return constexpr_operator_bool(*this);
             }
             else {
-                auto mask = _mm256_setr_epi64x(-1, -1, -1, -1);
-                return !_mm256_testz_si256(this->to_avx(), mask);
+                return avx2_operator_bool(*this);
             }
         }
 
@@ -143,14 +155,26 @@ namespace monad::vm::utils
 #undef INHERIT_AVX_BINOP
 
         [[gnu::always_inline]] friend inline constexpr bool
+        constexpr_operator_eq(uint256_t const &x, uint256_t const &y)
+        {
+            return x.to_intx() == y.to_intx();
+        }
+
+        [[gnu::always_inline]] friend inline bool
+        avx2_operator_eq(uint256_t const &x, uint256_t const &y)
+        {
+            auto xor_bits = x.to_avx() ^ y.to_avx();
+            return _mm256_testz_si256(xor_bits, xor_bits);
+        }
+
+        [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y)
         {
-            if (std::is_constant_evaluated()) {
-                return x.to_intx() == y.to_intx();
+            if consteval {
+                return constexpr_operator_eq(x, y);
             }
             else {
-                auto xor_bits = x.to_avx() ^ y.to_avx();
-                return _mm256_testz_si256(xor_bits, xor_bits);
+                return avx2_operator_eq(x, y);
             }
         }
 
