@@ -63,10 +63,23 @@ namespace monad::vm::utils
             return std::bit_cast<__m256i>(words_);
         }
 
+        [[gnu::always_inline]]
+        inline constexpr explicit operator bool() const noexcept
+        {
+            if (std::is_constant_evaluated()) {
+                return words_[0] | words_[1] | words_[2] | words_[3];
+            }
+            else {
+                auto mask = _mm256_setr_epi64x(-1, -1, -1, -1);
+                return !_mm256_testz_si256(this->to_avx(), mask);
+            }
+        }
+
         template <typename Int>
         [[gnu::always_inline]]
         inline constexpr explicit operator Int() const noexcept
-            requires std::is_integral_v<Int>
+            requires(
+                std::is_integral_v<Int> && sizeof(Int) <= sizeof(word_type))
         {
             return static_cast<Int>(words_[0]);
         }

@@ -258,6 +258,20 @@ TEST(uint256, index)
     ASSERT_EQ(x[3], 4);
 }
 
+TEST(uint256, bool_cast)
+{
+    for (size_t i = 0; i < 4; ++i) {
+        uint256_t x = 0;
+        ASSERT_EQ(static_cast<bool>(x), false);
+        x[i] = 1;
+        ASSERT_EQ(static_cast<bool>(x), true);
+        x = 0;
+        ASSERT_EQ(static_cast<bool>(x), false);
+        x[i] = uint64_t{1} << 63;
+        ASSERT_EQ(static_cast<bool>(x), true);
+    }
+}
+
 TEST(uint256, int_cast)
 {
     uint256_t x = {0xabcd, 0xdef0, 0x1234, 0x5678};
