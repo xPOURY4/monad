@@ -17,6 +17,12 @@ namespace monad::vm
         return std::make_shared<Intercode const>(std::forward<Args>(args)...);
     }
 
+    inline SharedIntercode
+    make_shared_intercode(std::initializer_list<uint8_t> a)
+    {
+        return std::make_shared<Intercode const>(a);
+    }
+
     using compiler::native::Nativecode;
     using SharedNativecode = std::shared_ptr<Nativecode const>;
 
