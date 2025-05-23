@@ -22,6 +22,8 @@ std::string short_string_of_timeunit(Timeunit const u)
     case Timeunit::seconds:
         return "s";
     }
+
+    throw std::runtime_error("invalid time unit");
 }
 
 Timeunit timeunit_of_short_string(std::string const &s)
@@ -91,6 +93,8 @@ public:
         case Timeunit::seconds:
             return std::format("{}", elapsed() / 1s);
         }
+
+        throw std::runtime_error("invalid time unit");
     }
 
 private:
