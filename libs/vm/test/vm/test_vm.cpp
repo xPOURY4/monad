@@ -19,6 +19,7 @@
 #include <filesystem>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 using namespace monad;
 using namespace monad::vm::compiler;

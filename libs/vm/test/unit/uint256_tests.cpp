@@ -1,9 +1,19 @@
-#include <cstddef>
-#include <intx/intx.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
 #include <gtest/gtest.h>
+
+#include <intx/intx.hpp>
+
+#include <array>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <stdexcept>
+#include <string>
 #include <sys/types.h>
+#include <tuple>
+#include <vector>
 
 using namespace monad::vm::utils;
 
@@ -135,7 +145,7 @@ TEST(uint256, bit_width)
 TEST(uint256, intx_iso)
 {
     uint64_t ONES = ~uint64_t(0);
-    std::array<uint64_t, 4> inputs[]{
+    std::array<uint64_t, 4> const inputs[]{
         {0, 0, 0, 0},
         {1, 0, 0, 0},
         {0, 1, 0, 0},
@@ -159,7 +169,7 @@ TEST(uint256, intx_iso)
 TEST(uint256, avx_iso)
 {
     uint64_t ones = ~uint64_t(0);
-    std::vector<uint256_t> inputs{
+    std::vector<uint256_t> const inputs{
         {0, 0, 0, 0},
         {1, 0, 0, 0},
         {0, 1, 0, 0},
@@ -400,7 +410,7 @@ TEST(uint256, shifts)
 TEST(uint256, load_store)
 {
     for (auto x : test_inputs) {
-        auto le_bytes = std::bit_cast<uint8_t(*)[32]>(x.as_bytes());
+        auto *le_bytes = std::bit_cast<uint8_t(*)[32]>(x.as_bytes());
         ASSERT_EQ(x, uint256_t::load_le_unsafe(x.as_bytes()));
         ASSERT_EQ(x, uint256_t::load_le(*le_bytes));
 
@@ -414,7 +424,7 @@ TEST(uint256, load_store)
             std::byteswap(x[2]),
             std::byteswap(x[1]),
             std::byteswap(x[0])};
-        auto be_bytes = std::bit_cast<uint8_t(*)[32]>(x_be.as_bytes());
+        auto *be_bytes = std::bit_cast<uint8_t(*)[32]>(x_be.as_bytes());
         ASSERT_EQ(x, uint256_t::load_be_unsafe(x_be.as_bytes()));
         ASSERT_EQ(x, uint256_t::load_be(*be_bytes));
 
@@ -454,12 +464,12 @@ TEST(uint256, string_conversion)
         ASSERT_EQ(uint256_t::from_string("0x" + hex_str), x);
     }
 
-    auto hex_digit_in_dec =
+    auto const *hex_digit_in_dec =
         "ffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d3035";
     ASSERT_THROW(
         uint256_t::from_string(hex_digit_in_dec), std::invalid_argument);
 
-    auto too_big =
+    auto const *too_big =
         "0xffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d30350";
     ASSERT_THROW(uint256_t::from_string(too_big), std::out_of_range);
 }

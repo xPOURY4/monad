@@ -1,8 +1,3 @@
-#include <CLI/CLI.hpp>
-#include <asmjit/core/jitruntime.h>
-#include <evmc/evmc.h>
-#include <nlohmann/json.hpp>
-
 #include <instrumentable_compiler.hpp>
 #include <instrumentable_decoder.hpp>
 #include <instrumentable_parser.hpp>
@@ -11,6 +6,16 @@
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <stopwatch.hpp>
+
+#include <asmjit/core/jitruntime.h>
+
+#include <CLI/CLI.hpp>
+
+#include <evmc/evmc.h>
+#include <evmc/evmc.hpp>
+
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -124,8 +129,8 @@ static void dump_result(arguments const &args, evmc::Result const &result)
         }
         else {
             uint256_t const x =
-                intx::be::unsafe::load<uint256_t>(&result.output_data[0]);
-            object["result"] = json(intx::to_string(x, 16));
+                uint256_t::load_be_unsafe(&result.output_data[0]);
+            object["result"] = json(x.to_string(16));
         }
         uint256_t const x = uint256_t::load_be_unsafe(&result.output_data[0]);
         std::cout << x.to_string(16) << std::endl;
