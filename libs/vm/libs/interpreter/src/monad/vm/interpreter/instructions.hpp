@@ -60,7 +60,7 @@ namespace monad::vm::interpreter
         check_requirements<ADD, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
-        b = runtime::unrolled_add(a, b);
+        b = a + b;
         return {gas_remaining, instr_ptr + 1};
     }
 
@@ -70,14 +70,10 @@ namespace monad::vm::interpreter
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        return checked_runtime_call<MUL, Rev>(
-            monad_vm_runtime_mul,
-            ctx,
-            analysis,
-            stack_bottom,
-            stack_top,
-            gas_remaining,
-            instr_ptr);
+        check_requirements<MUL, Rev>(ctx, analysis, stack_bottom, stack_top, gas_remaining);
+        auto &&[a, b] = pop_for_overwrite(stack_top);
+        b *= a;
+        return {gas_remaining, instr_ptr + 1};
     }
 
     template <evmc_revision Rev>

@@ -6,10 +6,6 @@
 
 #include <evmc/evmc.hpp>
 
-extern "C" void monad_vm_runtime_mul(
-    monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
-    monad::vm::utils::uint256_t const *) noexcept;
-
 extern "C" void monad_vm_runtime_mul_192(
     monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
     monad::vm::utils::uint256_t const *) noexcept;

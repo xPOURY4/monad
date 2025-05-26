@@ -13,6 +13,15 @@
 
 namespace monad::vm::utils
 {
+    struct uint256_t;
+}
+
+extern "C" void monad_vm_runtime_mul(
+    monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
+    monad::vm::utils::uint256_t const *) noexcept;
+
+namespace monad::vm::utils
+{
     struct uint256_t
     {
         using word_type = uint64_t;
@@ -128,21 +137,90 @@ namespace monad::vm::utils
         return return_ty(x.to_intx() op_name y.to_intx());                     \
     }
 
-        INHERIT_INTX_BINOP(uint256_t, +);
-        INHERIT_INTX_BINOP(uint256_t, -);
-        INHERIT_INTX_BINOP(uint256_t, *);
-
         INHERIT_INTX_BINOP(uint256_t, /);
         INHERIT_INTX_BINOP(uint256_t, %);
-        INHERIT_INTX_BINOP(uint256_t, <<);
         INHERIT_INTX_BINOP(uint256_t, >>);
-
-        INHERIT_INTX_BINOP(bool, <);
-        INHERIT_INTX_BINOP(bool, <=);
-        INHERIT_INTX_BINOP(bool, >);
-        INHERIT_INTX_BINOP(bool, >=);
-
 #undef INHERIT_INTX_BINOP
+
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator+(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long carry = 0;
+            uint256_t result;
+            result[0] = __builtin_addcll(lhs[0], rhs[0], carry, &carry);
+            result[1] = __builtin_addcll(lhs[1], rhs[1], carry, &carry);
+            result[2] = __builtin_addcll(lhs[2], rhs[2], carry, &carry);
+            result[3] = __builtin_addcll(lhs[3], rhs[3], carry, &carry);
+            return result;
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator-(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long borrow = 0;
+            uint256_t result;
+            result[0] = __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
+            result[1] = __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
+            result[2] = __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
+            result[3] = __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
+            return result;
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator*(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            uint256_t result = lhs;
+            result *= rhs;
+            return result;
+        }
+
+        [[gnu::always_inline]]
+        inline constexpr uint256_t &
+        operator*=(uint256_t const &rhs) noexcept
+        {
+            monad_vm_runtime_mul(this, this, &rhs);
+            return *this;
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr bool
+        operator<(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long borrow = 0;
+            uint256_t result;
+            result[0] = __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
+            result[1] = __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
+            result[2] = __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
+            result[3] = __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
+            return borrow;
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr bool
+        operator<=(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            return !(rhs > lhs);
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr bool
+        operator>(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            return rhs < lhs;
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr bool
+        operator>=(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            return rhs <= lhs;
+        }
 
 #define INHERIT_AVX_BINOP(return_ty, op_name)                                  \
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
@@ -181,7 +259,7 @@ namespace monad::vm::utils
 
         [[gnu::always_inline]] inline constexpr uint256_t operator-() const
         {
-            return uint256_t(-this->to_intx());
+            return 0 - *this;
         }
 
         [[gnu::always_inline]] inline constexpr uint256_t operator~() const
@@ -200,7 +278,14 @@ namespace monad::vm::utils
         friend inline constexpr uint256_t
         operator<<(uint256_t const &x, std::integral auto shift) noexcept
         {
-            return uint256_t(x.to_intx() << shift);
+            static_assert(sizeof(shift) <= sizeof(uint64_t));
+            return x << static_cast<uint64_t>(shift);
+        }
+
+        [[gnu::always_inline]] friend inline constexpr uint256_t
+        operator<<(uint256_t const &x, uint256_t const &shift) noexcept
+        {
+            return uint256_t(x.to_intx() << shift.to_intx());
         }
 
         [[gnu::always_inline]]
@@ -258,13 +343,13 @@ namespace monad::vm::utils
 
         template <typename DstT>
         [[gnu::always_inline]]
-        inline constexpr DstT store_be() const noexcept
+        inline DstT store_be() const noexcept
         {
             return ::intx::be::store<DstT>(this->to_intx());
         }
 
         [[gnu::always_inline]]
-        inline constexpr void store_be(uint8_t *dest) const noexcept
+        inline void store_be(uint8_t *dest) const noexcept
         {
             std::uint64_t ts[4] = {
                 std::byteswap((*this)[3]),
@@ -275,13 +360,13 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline constexpr void store_le(uint8_t *dest) const noexcept
+        inline void store_le(uint8_t *dest) const noexcept
         {
             std::memcpy(dest, &this->words_, 32);
         }
 
         [[gnu::always_inline]]
-        inline constexpr std::string to_string(int base = 10) const
+        inline std::string to_string(int base = 10) const
         {
             return ::intx::to_string(this->to_intx(), base);
         }
@@ -333,7 +418,14 @@ namespace monad::vm::utils
     [[gnu::always_inline]]
     inline constexpr bool slt(uint256_t const &x, uint256_t const &y) noexcept
     {
-        return ::intx::slt(x.to_intx(), y.to_intx());
+        auto sign_x = x[3] >> 63;
+        auto sign_y = y[3] >> 63;
+        if (sign_x == sign_y) {
+            return x < y;
+        }
+        else {
+            return sign_x;
+        }
     }
 
     [[gnu::always_inline]]
@@ -362,8 +454,19 @@ namespace monad::vm::utils
     inline constexpr result_with_carry
     addc(uint64_t x, uint64_t y, bool carry = false) noexcept
     {
-        auto result = ::intx::addc(x, y, carry);
-        return {result.value, result.carry};
+        if consteval {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long carry_out;
+            auto value = __builtin_addcll(x, y, carry, &carry_out);
+            return result_with_carry { .value = value, .carry = static_cast<bool>(carry_out) };
+        }
+        else {
+            auto sum = x + y;
+            auto c1 = sum < x;
+            auto sum_c = sum + carry;
+            auto c2 = sum_c < sum;
+            return result_with_carry { .value = sum_c, .carry = c1 || c2 };
+        }
     }
 
     [[gnu::always_inline]] inline constexpr uint256_t
@@ -398,7 +501,7 @@ namespace monad::vm::utils
      */
     uint256_t from_bytes(std::size_t n, uint8_t const *src);
 
-    inline size_t countl_zero(uint256_t const &x)
+    inline constexpr size_t countl_zero(uint256_t const &x)
     {
         size_t cnt = 0;
         for (size_t i = 0; i < 4; i++) {
