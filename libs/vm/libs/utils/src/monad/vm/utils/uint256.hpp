@@ -1,7 +1,6 @@
 #pragma once
 
 #include <bit>
-#include <concepts>
 #include <format>
 #include <immintrin.h>
 #include <intx/intx.hpp>
@@ -139,7 +138,6 @@ namespace monad::vm::utils
 
         INHERIT_INTX_BINOP(uint256_t, /);
         INHERIT_INTX_BINOP(uint256_t, %);
-        INHERIT_INTX_BINOP(uint256_t, >>);
 #undef INHERIT_INTX_BINOP
 
         [[gnu::always_inline]]
@@ -180,8 +178,7 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline constexpr uint256_t &
-        operator*=(uint256_t const &rhs) noexcept
+        inline constexpr uint256_t &operator*=(uint256_t const &rhs) noexcept
         {
             monad_vm_runtime_mul(this, this, &rhs);
             return *this;
@@ -205,7 +202,7 @@ namespace monad::vm::utils
         friend inline constexpr bool
         operator<=(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            return !(rhs > lhs);
+            return !(lhs > rhs);
         }
 
         [[gnu::always_inline]]
@@ -268,50 +265,186 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator<<(uint256_t const &x, uint64_t shift) noexcept
+        [[gnu::used]]
+        static constexpr inline uint64_t
+        shld(uint64_t high, uint64_t low, uint8_t shift)
+        {
+            if consteval {
+                return (high << shift) | ((low >> 1) >> (63 - shift));
+            }
+            else {
+                register uint8_t cl asm("cl") = shift;
+                asm("shldq %%cl, %1, %0"
+                    : "+r"(high)
+                    : "r"(low), "r"(high), "r"(cl)
+                    : "cc");
+                return high;
+            }
+        }
+
+        [[gnu::always_inline]]
+        [[gnu::used]]
+        static constexpr inline uint64_t
+        shrd(uint64_t high, uint64_t low, uint8_t shift)
+        {
+            if consteval {
+                return (low >> shift) | ((high << 1) << (63 - shift));
+            }
+            else {
+                register uint8_t cl asm("cl") = shift;
+                asm("shrdq %%cl, %1, %0"
+                    : "+r"(low)
+                    : "r"(high), "r"(low), "r"(cl)
+                    : "cc");
+                return low;
+            }
+        }
+
+        [[gnu::always_inline]]
+        static inline constexpr uint256_t
+        shl_big_switch(uint256_t const &x, uint64_t shift) noexcept
+        {
+            if (shift >= 256) [[unlikely]] {
+                return 0;
+            }
+            uint8_t shift8 = static_cast<uint8_t>(shift);
+
+            if (shift8 < 128) {
+                if (shift8 < 64) {
+                    return uint256_t{
+                        x[0] << shift8,
+                        shld(x[1], x[0], shift8),
+                        shld(x[2], x[1], shift8),
+                        shld(x[3], x[2], shift8)};
+                }
+                else {
+                    shift8 &= 63;
+                    return uint256_t{
+                        0,
+                        x[0] << shift8,
+                        shld(x[1], x[0], shift8),
+                        shld(x[2], x[1], shift8)};
+                }
+            }
+            else {
+                shift8 &= 127;
+                if (shift8 < 64) {
+                    return uint256_t{
+                        0, 0, x[0] << shift8, shld(x[1], x[0], shift8)};
+                }
+                else {
+                    shift8 &= 63;
+                    return uint256_t{0, 0, 0, x[0] << shift8};
+                }
+            }
+        }
+
+        [[gnu::always_inline]]
+        static inline constexpr uint256_t
+        shl_shld_memcpy(uint256_t const &x, uint64_t shift) noexcept
+        {
+            if (shift >= 256) [[unlikely]] {
+                return 0;
+            }
+
+            auto byte_shift = shift / 8;
+            auto bit_shift = static_cast<uint8_t>(shift % 8);
+            uint64_t words[7]
+            {
+                0, 0, 0, x[0] << bit_shift, shld(x[1], x[0], bit_shift),
+                    shld(x[2], x[1], bit_shift),
+                    shld(x[3], x[2], bit_shift)
+            };
+
+            uint256_t result;
+            std::memcpy(&result, reinterpret_cast<uint8_t*>(&words[3]) - byte_shift, sizeof(uint256_t));
+            return result;
+        }
+
+        [[gnu::always_inline]][[gnu::used]] static inline constexpr uint256_t
+        shl_intx(uint256_t const &x, uint64_t shift) noexcept
         {
             return uint256_t(x.to_intx() << shift);
         }
 
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
-        operator<<(uint256_t const &x, std::integral auto shift) noexcept
+        operator<<(uint256_t const &x, uint64_t shift) noexcept
         {
-            static_assert(sizeof(shift) <= sizeof(uint64_t));
-            return x << static_cast<uint64_t>(shift);
-        }
-
-        [[gnu::always_inline]] friend inline constexpr uint256_t
-        operator<<(uint256_t const &x, uint256_t const &shift) noexcept
-        {
-            return uint256_t(x.to_intx() << shift.to_intx());
-        }
-
-        [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator>>(uint256_t const &x, uint64_t shift) noexcept
-        {
-            return uint256_t(x.to_intx() >> shift);
-        }
-
-        [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator>>(uint256_t const &x, std::integral auto shift) noexcept
-        {
-            return uint256_t(x.to_intx() >> shift);
-        }
-
-        [[gnu::always_inline]]
-        inline constexpr uint256_t &operator>>=(uint256_t const &shift) noexcept
-        {
-            return *this = *this >> shift;
+            //return shl_intx(x, shift);
+            return shl_big_switch(x, shift);
+            //return shl_shld_memcpy(x, shift);
         }
 
         [[gnu::always_inline]]
         inline constexpr uint256_t &operator<<=(uint256_t const &shift) noexcept
         {
             return *this = *this << shift;
+        }
+
+        [[gnu::always_inline]] friend inline constexpr uint256_t
+        operator<<(uint256_t const &x, uint256_t const &shift) noexcept
+        {
+            if (shift[1] | shift[2] | shift[3]) [[unlikely]] {
+                return 0;
+            }
+            return x << shift[0];
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator>>(uint256_t const &x, uint64_t shift) noexcept
+        {
+            if (shift >= 256) [[unlikely]] {
+                return 0;
+            }
+            uint8_t shift8 = static_cast<uint8_t>(shift);
+
+            if (shift8 < 128) {
+                if (shift8 < 64) {
+                    return uint256_t{
+                        shrd(x[1], x[0], shift8),
+                        shrd(x[2], x[1], shift8),
+                        shrd(x[3], x[2], shift8),
+                        x[3] >> shift8};
+                }
+                else {
+                    shift8 &= 63;
+                    return uint256_t{
+                        shrd(x[2], x[1], shift8),
+                        shrd(x[3], x[2], shift8),
+                        x[3] >> shift8,
+                        0};
+                }
+            }
+            else {
+                shift8 &= 127;
+                if (shift8 < 64) {
+                    return uint256_t{
+                        0, 0, x[0] << shift8, shld(x[1], x[0], shift8)};
+                    return uint256_t{
+                        shrd(x[3], x[2], shift8), x[3] >> shift8, 0, 0};
+                }
+                else {
+                    shift8 &= 63;
+                    return uint256_t{x[3] >> shift8, 0, 0, 0};
+                }
+            }
+        }
+
+        [[gnu::always_inline]] friend inline constexpr uint256_t
+        operator>>(uint256_t const &x, uint256_t const &shift) noexcept
+        {
+            if (shift[1] | shift[2] | shift[3]) [[unlikely]] {
+                return 0;
+            }
+            return x >> shift[0];
+        }
+
+        [[gnu::always_inline]]
+        inline constexpr uint256_t &operator>>=(uint256_t const &shift) noexcept
+        {
+            return *this = *this >> shift;
         }
 
         [[gnu::always_inline]]
@@ -455,17 +588,18 @@ namespace monad::vm::utils
     addc(uint64_t x, uint64_t y, bool carry = false) noexcept
     {
         if consteval {
-            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-            unsigned long long carry_out;
-            auto value = __builtin_addcll(x, y, carry, &carry_out);
-            return result_with_carry { .value = value, .carry = static_cast<bool>(carry_out) };
-        }
-        else {
             auto sum = x + y;
             auto c1 = sum < x;
             auto sum_c = sum + carry;
             auto c2 = sum_c < sum;
-            return result_with_carry { .value = sum_c, .carry = c1 || c2 };
+            return result_with_carry{.value = sum_c, .carry = c1 || c2};
+        }
+        else {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long carry_out;
+            auto value = __builtin_addcll(x, y, carry, &carry_out);
+            return result_with_carry{
+                .value = value, .carry = static_cast<bool>(carry_out)};
         }
     }
 
