@@ -142,7 +142,12 @@ namespace monad::vm::interpreter
             // initial 30 bytes of padding to `instr_ptr`.
             static_assert(N > 0);
             __m256i y;
-            std::memcpy(&y, instr_ptr - (31 - N), 32);
+            if constexpr (N == 32) {
+                std::memcpy(&y, instr_ptr + 1, 32);
+            }
+            else {
+                std::memcpy(&y, instr_ptr - (31 - N), 32);
+            }
             // y = {[y00...y07], [y10...y17], [y20...y27], [y30...y37]}
             y = _mm256_permute4x64_epi64(y, 27);
             // y = {[y30...y37], [y20...y27], [y10...y17], [y00...y07]}
