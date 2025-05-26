@@ -154,9 +154,24 @@ Use the helper script `scrips/fuzzer.sh` to run the fuzzer.
 
 Execute
 ```
-scrips/fuzzer.sh --help
+scripts/fuzzer.sh --help
 ```
 for more information.
+
+The script `scripts/tmux-fuzzer.sh` can be used to start concurrent fuzzer
+instances in Tmux sessions. Use
+```
+scripts/tmux-fuzzer.sh start
+```
+to start the concurrent fuzzer Tmux sessions. Then command
+```
+scripts/tmux-fuzzer.sh status
+```
+can be used to query status of the Tmux sessions. Use
+```
+scripts/tmux-fuzzer.sh kill
+```
+to kill all the fuzzer Tmux sessions.
 
 ### Directory Type Check Test
 
