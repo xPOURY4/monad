@@ -18,8 +18,8 @@ jobs:
               - CMAKE_BUILD_TYPE: Debug
                 TOOLCHAIN: gcc-asan
             compiler:
-              - CXX: g++-14
-                CC: gcc-14
+              - CXX: g++-15
+                CC: gcc-15
               - CXX: clang++-19
                 CC: clang-19
             exclude:
@@ -58,108 +58,80 @@ jobs:
                 token: ${{ steps.generate_token.outputs.token }}
                 submodules: recursive
 
-            - name: Install dependencies
-              run: |
-                sudo apt update
-                sudo apt install -y     \
-                    build-essential     \
-                    clang-19            \
-                    clang-tools-19      \
-                    cmake               \
-                    gcc-14              \
-                    g++-14              \
-                    libtbb-dev          \
-                    libbenchmark-dev    \
-                    libcli11-dev        \
-                    libgmock-dev        \
-                    libgtest-dev        \
-                    ninja-build         \
-                    valgrind
+            - name: Setup Docker Buildx
+              uses: docker/setup-buildx-action@v3
 
-            - name: Build compiler
-              run: |
-                cmake -S . -B build                                                           \
-                  -G Ninja                                                                    \
-                  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/${{ matrix.build.TOOLCHAIN }}.cmake \
-                  -DCMAKE_BUILD_TYPE=${{ matrix.build.CMAKE_BUILD_TYPE }}                     \
-                  -DMONAD_COMPILER_BENCHMARKS=OFF                                             \
-                  -DMONAD_COMPILER_TESTING=ON                                                 \
-                  -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }}                                \
-                  -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }}
-                cmake --build build
+            - name: Build `base` stage
+              uses: docker/build-push-action@v5
+              with:
+                context: .
+                file: docker/Dockerfile
+                target: base
+                cache-from: type=gha,scope=base
+                cache-to: type=gha,scope=base,mode=max
 
-            - name: Run unit tests
-              env:
-                UBSAN_OPTIONS: "halt_on_error=1"
-              run: ./build/test/unit/unit-tests
-
-            - name: Run compiler Ethereum tests
-              env:
-                UBSAN_OPTIONS: "halt_on_error=1"
-              run: |
-                ulimit -s 131072
-                ./build/test/blockchain/compiler-blockchain-tests
-
-            - name: Run interpreter Ethereum tests
-              env:
-                UBSAN_OPTIONS: "halt_on_error=1"
-              run: |
-                ulimit -s 131072
-                ./build/test/blockchain/interpreter-blockchain-tests
+            - name: Build `build_and_test` stage
+              uses: docker/build-push-action@v5
+              with:
+                context: .
+                file: docker/Dockerfile
+                build-args: |-
+                  CC=${{ matrix.compiler.CC }}
+                  CXX=${{ matrix.compiler.CXX }}
+                  CMAKE_BUILD_TYPE=${{ matrix.build.CMAKE_BUILD_TYPE }}
+                  TOOLCHAIN=${{ matrix.build.TOOLCHAIN }}
+                target: build_and_test
+                cache-from: type=gha,scope=base
 
     code-quality:
-        name: Code quality checks
-        runs-on: ubuntu-24.04
-        steps:
-            - name: Generate token
-              id: generate_token
-              uses: tibdex/github-app-token@v2
-              with:
-                app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
-                private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
-                # Limit permissions to what we need (these need to be
-                # configured in the app settings as well).
-                permissions: >-
-                  {"contents": "read"}
+      name: Code quality checks
+      runs-on: ubuntu-24.04
+      steps:
+          - name: Generate token
+            id: generate_token
+            uses: tibdex/github-app-token@v2
+            with:
+              app_id: ${{ secrets.REPO_READONLY_GITHUB_APP_ID }}
+              private_key: ${{ secrets.REPO_READONLY_GITHUB_APP_KEY }}
+              # Limit permissions to what we need (these need to be
+              # configured in the app settings as well).
+              permissions: >-
+                {"contents": "read"}
 
-            - name: Tell git to do submodules in parallel
-              run: |
-                git config --global submodule.fetchJobs "$(nproc)"
+          - name: Tell git to do submodules in parallel
+            run: |
+              git config --global submodule.fetchJobs "$(nproc)"
 
-            - uses: actions/checkout@v4
-              with:
-                submodules: recursive
-                token: ${{ steps.generate_token.outputs.token }}
+          - uses: actions/checkout@v4
+            with:
+              submodules: recursive
+              token: ${{ steps.generate_token.outputs.token }}
 
-            - name: Formatting Check
-              uses: jidicula/clang-format-action@v4.13.0
-              with:
-                exclude-regex: '(build|third_party)'
-                clang-format-version: 19
+          - name: Formatting Check
+            uses: jidicula/clang-format-action@v4.13.0
+            with:
+              exclude-regex: '(build|third_party)'
+              clang-format-version: 19
 
-            - name: Install dependencies
-              run: |
-                sudo apt update
-                sudo apt install -y     \
-                    build-essential     \
-                    cmake               \
-                    libtbb-dev          \
-                    libbenchmark-dev    \
-                    libcli11-dev        \
-                    libgtest-dev        \
-                    valgrind
+          - name: Setup Docker Buildx
+            uses: docker/setup-buildx-action@v3
 
-            - name: Set up build system
-              run: |
-                cmake -S . -B build
+          - name: Build `base` stage
+            uses: docker/build-push-action@v5
+            with:
+              context: .
+              file: docker/Dockerfile
+              target: base
+              cache-from: type=gha,scope=base
+              cache-to: type=gha,scope=base,mode=max
 
-            - name: Run clang-tidy checks
-              run: |
-                ./scripts/apply-clang-tidy-fixes.sh build run-clang-tidy-19
-                if [[ ! -z "$(git status --untracked-files=no --porcelain)" ]]; then
-                  echo "Fixes applied; please re-run locally and commit!"
-                  exit 1
-                fi
+          - name: Build `code_quality` stage
+            uses: docker/build-push-action@v5
+            with:
+              context: .
+              file: docker/Dockerfile
+              target: code_quality
+              cache-from: type=gha,scope=base
 
     python-code-quality:
         name: Python code quality checks
