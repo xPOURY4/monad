@@ -1,9 +1,4 @@
 #include <monad/vm/core/assert.h>
-#include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/evm/opcodes_xmacro.hpp>
-#include <monad/vm/interpreter/debug.hpp>
-#include <monad/vm/interpreter/execute.hpp>
-#include <monad/vm/interpreter/instruction_stats.hpp>
 #include <monad/vm/interpreter/instruction_table.hpp>
 #include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
@@ -12,7 +7,6 @@
 
 #include <evmc/evmc.h>
 
-#include <array>
 #include <cstdint>
 
 /**

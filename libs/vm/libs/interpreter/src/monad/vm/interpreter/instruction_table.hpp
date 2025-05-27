@@ -398,7 +398,7 @@ namespace monad::vm::interpreter
         check_requirements<ADD, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = top_two(stack_top);
-        b = runtime::unrolled_add(a, b);
+        b = a + b;
 
         MONAD_VM_NEXT(ADD);
     }
