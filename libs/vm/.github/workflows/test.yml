@@ -22,6 +22,16 @@ jobs:
                 CC: gcc-15
               - CXX: clang++-19
                 CC: clang-19
+            exclude:
+              # GCC's implementation of ASAN breaks the must-tail calling
+              # convention used by the interpreter, so we need to disable that
+              # configuration when running with sanitizers enabled.
+              - build:
+                  CMAKE_BUILD_TYPE: Debug
+                  TOOLCHAIN: gcc-asan
+                compiler:
+                  CXX: g++-15
+                  CC: gcc-15
 
         steps:
             - name: Generate token
