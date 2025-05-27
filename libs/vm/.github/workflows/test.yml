@@ -9,7 +9,7 @@ concurrency:
 jobs:
     build:
         name: Test compiler
-        runs-on: ubuntu-24.04
+        runs-on: ubuntu-24.04-32
         strategy:
           matrix:
             build:
@@ -77,7 +77,7 @@ jobs:
 
     code-quality:
       name: Code quality checks
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-24.04-32
       steps:
           - name: Generate token
             id: generate_token
