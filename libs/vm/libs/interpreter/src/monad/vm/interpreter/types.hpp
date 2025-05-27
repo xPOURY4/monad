@@ -28,6 +28,23 @@
     #define MONAD_VM_INSTRUCTION_CALL
 #endif
 
+/**
+ * The combination of `preserve_none` and Clang's address sanitizer breaks
+ * things, so we disable the calling convention in that scenario. The attribute
+ * is only a marginal optimisation that changes register allocation slightly,
+ * and so it's OK to disable in this specific scenario.
+ *
+ * See: https://github.com/llvm/llvm-project/issues/95928
+ */
+#if defined(__clang__)
+    #if defined(__has_feature)
+        #if __has_feature(address_sanitizer)
+            #undef MONAD_VM_INSTRUCTION_CALL
+            #define MONAD_VM_INSTRUCTION_CALL
+        #endif
+    #endif
+#endif
+
 namespace monad::vm::interpreter
 {
     using InstrEval = void MONAD_VM_INSTRUCTION_CALL (*)(
