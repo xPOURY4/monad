@@ -428,13 +428,19 @@ TEST(uint256, bitwise)
 TEST(uint256, shifts)
 {
     for (auto const &x : test_inputs) {
+        for (uint64_t shift = 0; shift <= 256; shift++) {
+            auto shl = x << shift;
+            ASSERT_EQ(shl, uint256_t(x.to_intx() << shift));
+            ASSERT_EQ(constexpr_operator_shl(x, shift), shl);
+
+            auto shr = x >> shift;
+            ASSERT_EQ(shr, uint256_t(x.to_intx() >> shift))
+                << "Shift: " << shift;
+            ASSERT_EQ(constexpr_operator_shr(x, shift), shr);
+        }
         for (auto const &y : test_inputs) {
             ASSERT_EQ(x << y, uint256_t(x.to_intx() << y.to_intx()));
             ASSERT_EQ(x >> y, uint256_t(x.to_intx() >> y.to_intx()));
-        }
-        for (uint64_t shift = 0; shift <= 256; shift++) {
-            ASSERT_EQ(x << shift, uint256_t(x.to_intx() << shift));
-            ASSERT_EQ(x >> shift, uint256_t(x.to_intx() >> shift));
         }
     }
 }

@@ -70,7 +70,8 @@ namespace monad::vm::interpreter
         utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
         std::int64_t gas_remaining, std::uint8_t const *instr_ptr)
     {
-        check_requirements<MUL, Rev>(ctx, analysis, stack_bottom, stack_top, gas_remaining);
+        check_requirements<MUL, Rev>(
+            ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &&[a, b] = pop_for_overwrite(stack_top);
         b *= a;
         return {gas_remaining, instr_ptr + 1};
