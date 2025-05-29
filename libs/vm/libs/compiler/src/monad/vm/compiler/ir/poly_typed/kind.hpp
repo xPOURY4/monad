@@ -160,7 +160,7 @@ struct std::formatter<monad::vm::compiler::poly_typed::Kind>
         monad::vm::compiler::poly_typed::Kind const &kind,
         std::format_context &ctx) const
     {
-        format_kind(kind, ctx, false);
+        monad::vm::compiler::poly_typed::format_kind(kind, ctx, false);
         return ctx.out();
     }
 };
@@ -177,7 +177,7 @@ struct std::formatter<monad::vm::compiler::poly_typed::ContKind>
         monad::vm::compiler::poly_typed::ContKind const &kind,
         std::format_context &ctx) const
     {
-        format_cont(kind, ctx);
+        monad::vm::compiler::poly_typed::format_cont(kind, ctx);
         return ctx.out();
     }
 };
