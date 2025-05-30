@@ -1063,8 +1063,30 @@ namespace monad::vm::compiler::native
         int32_t const min_delta = stack_.min_delta();
         if (top_index < min_delta) {
             // Nothing on the stack.
+            MONAD_VM_DEBUG_ASSERT(stack_.missing_spill_count() == 0);
             return;
         }
+
+        // The macros defined below are for counting the number of stack
+        // elements written to final stack offset. This is later used to check
+        // the invariant that the number of stack elements written to final
+        // stack offset is the number returned by `Stack::missing_spill_count`.
+#ifdef MONAD_COMPILER_TESTING
+        size_t final_write_count = 0;
+    #define MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT() ++final_write_count
+    #define MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT_IF(b)                     \
+        do {                                                                   \
+            if (b) {                                                           \
+                MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT();                    \
+            }                                                                  \
+        }                                                                      \
+        while (0)
+    #define MONAD_COMPILER_X86_FINAL_WRITE_COUNT final_write_count
+#else
+    #define MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT()
+    #define MONAD_COMPILER_X86_FINAL_WRITE_COUNT 0
+    #define MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT_IF(b) (void)sizeof(b)
+#endif
 
         // Reserve an AVX register which we will use for temporary values.
         // Note that if `spill_elem` is not nullptr, then the spill needs
@@ -1084,6 +1106,11 @@ namespace monad::vm::compiler::native
             MONAD_VM_DEBUG_ASSERT(spill_elem->stack_offset().has_value());
             as_.vmovaps(
                 stack_offset_to_mem(*spill_elem->stack_offset()), init_yx1);
+            // The above mov was a write to a final stack offset if and only
+            // if the new stack offset is a stack index of the stack element:
+            MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT_IF(
+                spill_elem->stack_indices().contains(
+                    spill_elem->stack_offset()->offset));
         }
 
         // Definition. Stack element `e` depends on stack element `d` if
@@ -1175,12 +1202,14 @@ namespace monad::vm::compiler::native
                     if (it != is.end()) {
                         as_.vmovaps(yx1, m);
                     }
+                    MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT();
                 }
             }
             // Move to remaining final stack offsets:
             for (; it != is.end(); ++it) {
                 if (!d->stack_offset() || d->stack_offset()->offset != *it) {
                     as_.vmovaps(stack_offset_to_mem(StackOffset{*it}), yx1);
+                    MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT();
                 }
             }
             // Decrease dependency count of the stack element which depends on
@@ -1259,11 +1288,13 @@ namespace monad::vm::compiler::native
                     yx2, stack_offset_to_mem(*cycle[k - 1]->stack_offset()));
                 for (int32_t const i : cycle[k]->stack_indices()) {
                     as_.vmovaps(stack_offset_to_mem(StackOffset{i}), yx1);
+                    MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT();
                 }
                 std::swap(yx1, yx2);
             }
             for (int32_t const i : e->stack_indices()) {
                 as_.vmovaps(stack_offset_to_mem(StackOffset{i}), yx1);
+                MONAD_COMPILER_X86_INC_FINAL_WRITE_COUNT();
             }
         }
 
@@ -1275,6 +1306,10 @@ namespace monad::vm::compiler::native
                 stack_.remove_stack_offset(*spill_elem);
             }
         }
+
+        MONAD_VM_DEBUG_ASSERT(
+            MONAD_COMPILER_X86_FINAL_WRITE_COUNT ==
+            stack_.missing_spill_count());
     }
 
     void Emitter::discharge_deferred_comparison()
