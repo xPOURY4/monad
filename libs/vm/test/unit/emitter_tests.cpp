@@ -9,10 +9,11 @@
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/utils/uint256.hpp>
 
+#include <asmjit/core/globals.h>
+#include <asmjit/core/jitruntime.h>
+
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
-
-#include <asmjit/core/jitruntime.h>
 
 #include <gtest/gtest.h>
 
@@ -729,6 +730,14 @@ TEST(Emitter, stop)
     entry(&ctx, nullptr);
 
     ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+}
+
+TEST(Emitter, fail_with_error)
+{
+    asmjit::JitRuntime const rt;
+    Emitter emit{rt, 1};
+    // Test that asmjit error handler is in place:
+    EXPECT_THROW(emit.fail_with_error(asmjit::kErrorOk), Emitter::Error);
 }
 
 TEST(Emitter, invalid_instruction)

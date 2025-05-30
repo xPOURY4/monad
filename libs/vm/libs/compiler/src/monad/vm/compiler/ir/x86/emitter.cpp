@@ -561,7 +561,7 @@ namespace monad::vm::compiler::native
         entrypoint_t contract_main;
         auto err = rt.add(&contract_main, &code_holder_);
         if (err != asmjit::kErrorOk) {
-            throw Error{asmjit::DebugUtils::errorAsString(err)};
+            fail_with_error(err);
         }
 
         return contract_main;
@@ -839,6 +839,12 @@ namespace monad::vm::compiler::native
         auto &r = gpq256_regs_[rcx_general_reg.reg];
         std::swap(r[0], r[3]);
         rcx_general_reg_index = rcx_general_reg_index == 0 ? 3 : 0;
+    }
+
+    void Emitter::fail_with_error(asmjit::Error e)
+    {
+        as_.reportError(e);
+        std::unreachable();
     }
 
     Stack &Emitter::get_stack()

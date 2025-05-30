@@ -154,6 +154,7 @@ namespace monad::vm::compiler::native
 
         ////////// Core emit functionality //////////
 
+        [[noreturn]] void fail_with_error(asmjit::Error);
         Stack &get_stack();
         size_t estimate_size();
         void add_jump_dest(byte_offset);
@@ -223,7 +224,6 @@ namespace monad::vm::compiler::native
         void basefee();
         void blobbasefee();
 
-    public:
         // Revision dependent instructions
         template <evmc_revision rev>
         void mul(int32_t remaining_base_gas)
