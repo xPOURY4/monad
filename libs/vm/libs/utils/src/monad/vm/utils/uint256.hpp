@@ -172,16 +172,25 @@ namespace monad::vm::utils
         friend inline constexpr uint256_t
         operator*(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            uint256_t result;
-            monad_vm_runtime_mul(&result, &lhs, &rhs);
-            return result;
+            if consteval {
+                return uint256_t(lhs.to_intx() * rhs.to_intx());
+            }
+            else {
+                uint256_t result;
+                monad_vm_runtime_mul(&result, &lhs, &rhs);
+                return result;
+            }
         }
 
         [[gnu::always_inline]]
         inline constexpr uint256_t &operator*=(uint256_t const &rhs) noexcept
         {
-            monad_vm_runtime_mul(this, this, &rhs);
-            return *this;
+            if consteval {
+                return *this = *this * rhs;
+            } else {
+                monad_vm_runtime_mul(this, this, &rhs);
+                return *this;
+            }
         }
 
         [[gnu::always_inline]]
