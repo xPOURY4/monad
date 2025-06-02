@@ -249,6 +249,105 @@ TEST_F(EvmTest, NativeCodeSizeOutOfBound)
     ASSERT_EQ(ncode->error_code(), Nativecode::ErrorCode::SizeOutOfBound);
 }
 
+TEST_F(EvmTest, MaxDeltaOutOfBound)
+{
+    CompilerConfig const config{.max_code_size_offset = 32 * 1024};
+
+    std::vector<uint8_t> base_bytecode;
+    for (size_t i = 0; i < 1024; ++i) {
+        base_bytecode.push_back(CODESIZE);
+    }
+    std::vector<uint8_t> bytecode1{base_bytecode};
+    bytecode1.push_back(JUMPDEST);
+    auto const icode1 = make_shared_intercode(bytecode1);
+    auto const ncode1 = vm_.compiler().compile(EVMC_CANCUN, icode1, config);
+
+    pre_execute(10'000, {});
+    result_ = vm_.execute_native_entrypoint(
+        &host_.get_interface(),
+        host_.to_context(),
+        &msg_,
+        icode1,
+        ncode1->entrypoint());
+
+    ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
+    ASSERT_EQ(result_.gas_left, 10'000 - (2 * 1024 + 1));
+
+    std::vector<uint8_t> bytecode2{base_bytecode};
+    bytecode2.push_back(CODESIZE);
+    bytecode2.push_back(JUMPDEST);
+    auto const icode2 = make_shared_intercode(bytecode2);
+    auto const ncode2 = vm_.compiler().compile(EVMC_CANCUN, icode2, config);
+
+    pre_execute(10'000, {});
+    result_ = vm_.execute_native_entrypoint(
+        &host_.get_interface(),
+        host_.to_context(),
+        &msg_,
+        icode2,
+        ncode2->entrypoint());
+
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
+
+    // Since the basic block in `ncode2` is known to overflow the stack, with
+    // max_delta > 1024, the native code for the basic block should just jump
+    // to the error label, without block prologue/epilogue and without the
+    // pushes to the evm stack inside the basic block.
+    ASSERT_LT(
+        ncode2->code_size_estimate() + 32 * 1024, ncode1->code_size_estimate());
+}
+
+TEST_F(EvmTest, MinDeltaOutOfBound)
+{
+    CompilerConfig const config{
+        .asm_log_path = "/tmp/file.s", .max_code_size_offset = 32 * 1024};
+
+    std::vector<uint8_t> base_bytecode;
+    for (size_t i = 0; i < 1024; ++i) {
+        base_bytecode.push_back(CODESIZE);
+    }
+    base_bytecode.push_back(JUMPDEST);
+    for (size_t i = 0; i < 1024; ++i) {
+        base_bytecode.push_back(POP);
+    }
+    std::vector<uint8_t> bytecode1{base_bytecode};
+    bytecode1.push_back(JUMPDEST);
+    auto const icode1 = make_shared_intercode(bytecode1);
+    auto const ncode1 = vm_.compiler().compile(EVMC_CANCUN, icode1, config);
+
+    pre_execute(10'000, {});
+    result_ = vm_.execute_native_entrypoint(
+        &host_.get_interface(),
+        host_.to_context(),
+        &msg_,
+        icode1,
+        ncode1->entrypoint());
+
+    ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
+    ASSERT_EQ(result_.gas_left, 10'000 - (2 * 1024 + 1 + 2 * 1024 + 1));
+
+    std::vector<uint8_t> bytecode2{base_bytecode};
+    bytecode2.push_back(POP);
+    bytecode2.push_back(JUMPDEST);
+    auto const icode2 = make_shared_intercode(bytecode2);
+    auto const ncode2 = vm_.compiler().compile(EVMC_CANCUN, icode2, config);
+
+    pre_execute(10'000, {});
+    result_ = vm_.execute_native_entrypoint(
+        &host_.get_interface(),
+        host_.to_context(),
+        &msg_,
+        icode2,
+        ncode2->entrypoint());
+
+    ASSERT_EQ(result_.status_code, EVMC_FAILURE);
+
+    // We expect native code size of `ncode2` to be smaller, because the last
+    // basic block has min_delta < -1024, so will just jump to error label,
+    // without basic block prologue/epilogue.
+    ASSERT_LT(ncode2->code_size_estimate(), ncode1->code_size_estimate());
+}
+
 INSTANTIATE_TEST_SUITE_P(
     EvmTest, EvmFile,
     ::testing::ValuesIn(std::vector<fs::directory_entry>{
