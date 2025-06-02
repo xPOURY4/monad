@@ -136,9 +136,10 @@ namespace
 
         auto evm_state = State{};
         auto block = BlockInfo{};
+        auto hashes = evmone::test::TestBlockHashes{};
         auto tx = Transaction{};
 
-        auto host = Host(EVMC_CANCUN, vm, evm_state, block, tx);
+        auto host = Host(EVMC_CANCUN, vm, evm_state, block, hashes, tx);
 
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
@@ -163,19 +164,20 @@ namespace
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
-        auto intra_state = test_state.to_intra_state();
+        auto intra_state = State{test_state};
         vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
         auto const *const code_acc = intra_state.find(msg.code_address);
         MONAD_VM_DEBUG_ASSERT(code_acc != nullptr);
-        auto const code = evmc::bytes_view{code_acc->code.first};
+        auto const code = evmc::bytes_view{code_acc->code};
 
         for (auto _ : state) {
             state.PauseTiming();
-            auto evm_state = test_state.to_intra_state();
+            auto evm_state = State{test_state};
             auto const block = BlockInfo{};
+            auto const hashes = evmone::test::TestBlockHashes{};
             auto const tx = Transaction{};
 
-            auto host = Host(EVMC_CANCUN, vm, evm_state, block, tx);
+            auto host = Host(EVMC_CANCUN, vm, evm_state, block, hashes, tx);
 
             auto const *interface = &host.get_interface();
             auto *ctx = host.to_context();

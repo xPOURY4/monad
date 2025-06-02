@@ -48,8 +48,8 @@ namespace monad::vm::fuzzing
 
     void assert_equal(State const &a, State const &b)
     {
-        auto const &a_accs = a.get_accounts();
-        auto const &b_accs = b.get_accounts();
+        auto const &a_accs = a.unsafe_get_accounts();
+        auto const &b_accs = b.unsafe_get_accounts();
 
         MONAD_VM_ASSERT(a_accs.size() == b_accs.size());
         for (auto const &[k, v] : a_accs) {

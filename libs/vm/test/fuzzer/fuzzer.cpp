@@ -1,10 +1,12 @@
 #include "assertions.hpp"
+#include "block.hpp"
 #include "compiler_hook.hpp"
 #include "test_vm.hpp"
 
 #include "account.hpp"
 #include "host.hpp"
 #include "state.hpp"
+#include "transaction.hpp"
 
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/core/assert.h>
@@ -33,7 +35,6 @@
 #include <format>
 #include <functional>
 #include <iostream>
-#include <iterator>
 #include <limits>
 #include <map>
 #include <random>
@@ -41,7 +42,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
-#include <variant>
 #include <vector>
 
 using namespace evmone::state;
@@ -124,50 +124,22 @@ static Transaction tx_from(State &state, evmc::address const &addr) noexcept
     return tx;
 }
 
-static constexpr auto deploy_prefix() noexcept
-{
-    return std::array<std::uint8_t, 11>{
-        PUSH1,
-        0x0B,
-        DUP1,
-        CODESIZE,
-        SUB,
-        DUP1,
-        DUP3,
-        PUSH0,
-        CODECOPY,
-        PUSH0,
-        RETURN,
-    };
-}
-
-static evmc::address deploy_contract(
-    State &state, evmc::VM &vm, evmc::address const &from,
-    std::span<std::uint8_t const> const code)
-{
-    auto const create_address =
-        compute_create_address(from, state.get_or_insert(from).nonce);
-    MONAD_VM_DEBUG_ASSERT(state.find(create_address) == nullptr);
-
-    constexpr auto prefix = deploy_prefix();
-    auto calldata = bytes{};
-
-    calldata.reserve(prefix.size() + code.size());
-    std::copy(prefix.begin(), prefix.end(), std::back_inserter(calldata));
-    std::copy(code.begin(), code.end(), std::back_inserter(calldata));
-
-    auto tx = tx_from(state, from);
-    tx.data = calldata;
-
-    auto block = BlockInfo{};
-
-    auto res =
-        transition(state, block, tx, EVMC_CANCUN, vm, block_gas_limit, 0);
-    MONAD_VM_ASSERT(std::holds_alternative<TransactionReceipt>(res));
-    MONAD_VM_ASSERT(state.find(create_address) != nullptr);
-
-    return create_address;
-}
+// static constexpr auto deploy_prefix() noexcept
+// {
+//     return std::array<std::uint8_t, 11>{
+//         PUSH1,
+//         0x0B,
+//         DUP1,
+//         CODESIZE,
+//         SUB,
+//         DUP1,
+//         DUP3,
+//         PUSH0,
+//         CODECOPY,
+//         PUSH0,
+//         RETURN,
+//     };
+// }
 
 // Derived from the evmone transition implementation; transaction-related
 // book-keeping is elided here to keep the implementation simple and allow us to
@@ -180,7 +152,7 @@ static evmc::Result transition(
     // - Clear transient storage.
     // - Set accounts and their storage access status to cold.
     // - Clear the "just created" account flag.
-    for (auto &[addr, acc] : state.get_accounts()) {
+    for (auto &[addr, acc] : state.unsafe_get_accounts()) {
         acc.transient_storage.clear();
         acc.access_status = EVMC_ACCESS_COLD;
         acc.just_created = false;
@@ -194,6 +166,7 @@ static evmc::Result transition(
     // for the moment as zero values from the perspective of the VM
     // implementations.
     auto block = BlockInfo{};
+    auto hashes = evmone::test::TestBlockHashes{};
     auto tx = tx_from(state, msg.sender);
     tx.to = msg.recipient;
 
@@ -206,7 +179,7 @@ static evmc::Result transition(
     ++sender_acc.nonce;
     sender_acc.balance -= block_gas_left * effective_gas_price;
 
-    Host host{rev, vm, state, block, tx};
+    Host host{rev, vm, state, block, hashes, tx};
 
     sender_acc.access_status = EVMC_ACCESS_WARM; // Tx sender is always warm.
     if (tx.to.has_value()) {
@@ -225,7 +198,7 @@ static evmc::Result transition(
 
     // Apply destructs.
     std::erase_if(
-        state.get_accounts(),
+        state.unsafe_get_accounts(),
         [](std::pair<address const, Account> const &p) noexcept {
             return p.second.destructed;
         });
@@ -236,7 +209,7 @@ static evmc::Result transition(
     // TODO: Consider limiting this only to Spurious Dragon.
     if (rev >= EVMC_SPURIOUS_DRAGON) {
         std::erase_if(
-            state.get_accounts(),
+            state.unsafe_get_accounts(),
             [](std::pair<address const, Account> const &p) noexcept {
                 auto const &acc = p.second;
                 return acc.erase_if_empty && acc.is_empty();
@@ -244,6 +217,47 @@ static evmc::Result transition(
     }
 
     return result;
+}
+
+static evmc::address deploy_contract(
+    State &state, evmc::VM &vm, evmc::address const &from,
+    std::span<std::uint8_t const> const code)
+{
+    (void)vm;
+
+    auto const create_address =
+        compute_create_address(from, state.get_or_insert(from).nonce);
+    MONAD_VM_DEBUG_ASSERT(state.find(create_address) == nullptr);
+
+    state.insert(
+        create_address,
+        {Account{
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .transient_storage = {},
+            .code = bytes{code.begin(), code.end()}}});
+
+    // constexpr auto prefix = deploy_prefix();
+    // auto calldata = bytes{};
+
+    // calldata.reserve(prefix.size() + code.size());
+    // std::copy(prefix.begin(), prefix.end(),
+    // std::back_inserter(calldata)); std::copy(code.begin(), code.end(),
+    // std::back_inserter(calldata));
+
+    // auto tx = tx_from(state, from);
+    // tx.data = calldata;
+
+    // auto block = BlockInfo{};
+
+    // auto res =
+    //     transition(state, block, tx, EVMC_CANCUN, vm, block_gas_limit,
+    //     0);
+    // MONAD_VM_ASSERT(std::holds_alternative<TransactionReceipt>(res));
+    MONAD_VM_ASSERT(state.find(create_address) != nullptr);
+
+    return create_address;
 }
 
 // It's possible for the compiler and evmone to reach equivalent-but-not-equal
@@ -256,7 +270,7 @@ static evmc::Result transition(
 // execution to remove cold zero slots.
 static void clean_storage(State &state)
 {
-    for (auto &[addr, acc] : state.get_accounts()) {
+    for (auto &[addr, acc] : state.unsafe_get_accounts()) {
         for (auto it = acc.storage.begin(); it != acc.storage.end();) {
             auto const &[k, v] = *it;
 
@@ -504,7 +518,7 @@ static void do_run(std::size_t const run_index, arguments const &args)
                         return found->code;
                     }
 
-                    return std::pair{evmc::bytes{}, empty_code_hash};
+                    return evmc::bytes{};
                 });
             ++total_messages;
 

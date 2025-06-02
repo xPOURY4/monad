@@ -9,7 +9,6 @@
 #include <test_vm.hpp>
 
 #include "account.hpp"
-#include "hash_utils.hpp"
 #include "host.hpp"
 #include "state.hpp"
 #include "test_state.hpp"
@@ -23,7 +22,6 @@
 #include <cstdint>
 #include <format>
 #include <limits>
-#include <utility>
 
 using namespace evmc::literals;
 using namespace evmone::state;
@@ -32,11 +30,6 @@ using enum BlockchainTestVM::Implementation;
 
 namespace
 {
-    auto make_hashed_code(bytes const code)
-    {
-        return std::pair{code, evmone::keccak256(code)};
-    }
-
     static evmone::state::State burntpix_state()
     {
         evmone::state::State state;
@@ -46,9 +39,7 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = make_hashed_code(bytes{
-                 code_0a743ba7304efcc9e384ece9be7631e2470e401e,
-                 code_0a743ba7304efcc9e384ece9be7631e2470e401e_len})});
+             .code = code_0a743ba7304efcc9e384ece9be7631e2470e401e});
 
         auto &intra_acc = state.insert(
             0x49206861766520746f6f206d7563682074696d65_address,
@@ -56,9 +47,7 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = make_hashed_code(bytes{
-                 code_49206861766520746f6f206d7563682074696d65,
-                 code_49206861766520746f6f206d7563682074696d65_len})});
+             .code = code_49206861766520746f6f206d7563682074696d65});
 
         auto &storage = intra_acc.storage;
         auto val0 =
@@ -77,9 +66,7 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = make_hashed_code(bytes{
-                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75,
-                 code_c917e98213a05d271adc5d93d2fee6c1f1006f75_len})});
+             .code = code_c917e98213a05d271adc5d93d2fee6c1f1006f75});
 
         state.insert(
             0xf529c70db0800449ebd81fbc6e4221523a989f05_address,
@@ -87,9 +74,7 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = make_hashed_code(bytes{
-                 code_f529c70db0800449ebd81fbc6e4221523a989f05,
-                 code_f529c70db0800449ebd81fbc6e4221523a989f05_len})});
+             .code = code_f529c70db0800449ebd81fbc6e4221523a989f05});
 
         return state;
     }
@@ -118,7 +103,7 @@ namespace
             0x49206861766520746f6f206d7563682074696f01_address;
 
         auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code.first};
+        auto const code = evmc::bytes_view{code_acc->code};
 
         InputData input_data{
             .seed = bytes32{seed}, .iterations = bytes32{iterations}};
@@ -142,8 +127,13 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = burntpix_state();
-            auto host =
-                Host(EVMC_CANCUN, vm, evm_state, BlockInfo{}, Transaction{});
+            auto host = Host(
+                EVMC_CANCUN,
+                vm,
+                evm_state,
+                BlockInfo{},
+                evmone::test::TestBlockHashes{},
+                Transaction{});
             auto const *interface = &host.get_interface();
             auto *ctx = host.to_context();
             state.ResumeTiming();
@@ -183,8 +173,7 @@ namespace
              .balance = 0,
              .storage = {},
              .transient_storage = {},
-             .code = make_hashed_code(
-                 bytes{code_snailtracer, code_snailtracer_len})});
+             .code = code_snailtracer});
         return state;
     }
 
@@ -204,7 +193,7 @@ namespace
             0x49206861766520746f6f206d7563682074696f01_address;
 
         auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code.first};
+        auto const code = evmc::bytes_view{code_acc->code};
 
         uint8_t func[4] = {0x30, 0x62, 0x7b, 0x7c};
 
@@ -227,8 +216,13 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = snailtracer_state();
-            auto host =
-                Host(EVMC_CANCUN, vm, evm_state, BlockInfo{}, Transaction{});
+            auto host = Host(
+                EVMC_CANCUN,
+                vm,
+                evm_state,
+                BlockInfo{},
+                evmone::test::TestBlockHashes{},
+                Transaction{});
             auto const *interface = &host.get_interface();
             auto *ctx = host.to_context();
             state.ResumeTiming();

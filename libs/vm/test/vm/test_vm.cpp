@@ -1,4 +1,5 @@
 #include "test_vm.hpp"
+#include "hash_utils.hpp"
 #include "state.hpp"
 
 #include <monad/vm/code.hpp>
@@ -168,10 +169,10 @@ BlockchainTestVM::get_intercode_nativecode(
 void BlockchainTestVM::precompile_contracts(
     evmc_revision rev, evmone::state::State const &state)
 {
-    for (auto const &[_, account] : state.get_accounts()) {
-        auto const &code_hash = account.code.second;
-        auto const &code = account.code.first.data();
-        auto const &code_size = account.code.first.size();
+    for (auto const &[_, account] : state.unsafe_get_accounts()) {
+        auto const &code_hash = evmone::keccak256(account.code);
+        auto const &code = account.code.data();
+        auto const &code_size = account.code.size();
         (void)get_code_analysis(code_hash, code, code_size);
         (void)get_intercode_nativecode(rev, code_hash, code, code_size);
     }

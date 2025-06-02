@@ -6,6 +6,7 @@
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>
 #include <monad/vm/compiler/types.hpp>
+#include <monad/vm/utils/uint256.hpp>
 #include <stopwatch.hpp>
 
 #include <asmjit/core/jitruntime.h>

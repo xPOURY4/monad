@@ -72,9 +72,10 @@ public:
 
         auto evm_state = State{};
         auto block = BlockInfo{};
+        auto hashes = evmone::test::TestBlockHashes{};
         auto tx = Transaction{};
 
-        auto host = Host(rev, vm, evm_state, block, tx);
+        auto host = Host(rev, vm, evm_state, block, hashes, tx);
 
         auto const *interface = &host.get_interface();
         auto *context = host.to_context();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "state.hpp"
 #include "test_state.hpp"
 
 #include <monad/vm/compiler/ir/x86.hpp>

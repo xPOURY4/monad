@@ -864,7 +864,7 @@ namespace monad::vm::fuzzing
             Choice(0.10, [](auto &) { return 0.0; }));
 
         auto const factor =
-            address_lookup(target).first.size() * known_addresses.size();
+            address_lookup(target).size() * known_addresses.size();
 
         auto scale_dist = std::normal_distribution(
             /* mean */ 32.0, /* stddev */ 16.0);
@@ -986,7 +986,7 @@ namespace monad::vm::fuzzing
 
         auto const salt = random_constant(eng).value;
 
-        auto const &[code, _] = address_lookup(target);
+        auto const &code = address_lookup(target);
 
         return message_ptr{new evmc_message{
             .kind = kind,
