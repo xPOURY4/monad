@@ -1,6 +1,7 @@
 #pragma once
 
 #include <bit>
+#include <concepts>
 #include <format>
 #include <immintrin.h>
 #include <intx/intx.hpp>

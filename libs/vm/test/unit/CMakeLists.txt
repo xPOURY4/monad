@@ -3,6 +3,7 @@ add_executable(unit-tests
     compiler_tests.cpp
     evm_fixture.cpp
     evm_tests.cpp
+    evm-as_tests.cpp
     utils_tests.cpp
     uint256_tests.cpp
     rc_ptr_tests.cpp

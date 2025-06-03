@@ -1,3 +1,4 @@
+#include "monad/vm/utils/uint256.hpp"
 #include <instrumentable_compiler.hpp>
 #include <instrumentable_decoder.hpp>
 #include <instrumentable_parser.hpp>
