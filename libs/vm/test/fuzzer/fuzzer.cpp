@@ -124,23 +124,6 @@ static Transaction tx_from(State &state, evmc::address const &addr) noexcept
     return tx;
 }
 
-// static constexpr auto deploy_prefix() noexcept
-// {
-//     return std::array<std::uint8_t, 11>{
-//         PUSH1,
-//         0x0B,
-//         DUP1,
-//         CODESIZE,
-//         SUB,
-//         DUP1,
-//         DUP3,
-//         PUSH0,
-//         CODECOPY,
-//         PUSH0,
-//         RETURN,
-//     };
-// }
-
 // Derived from the evmone transition implementation; transaction-related
 // book-keeping is elided here to keep the implementation simple and allow us to
 // send arbitrary messages to update the state.
@@ -220,11 +203,9 @@ static evmc::Result transition(
 }
 
 static evmc::address deploy_contract(
-    State &state, evmc::VM &vm, evmc::address const &from,
+    State &state, evmc::address const &from,
     std::span<std::uint8_t const> const code)
 {
-    (void)vm;
-
     auto const create_address =
         compute_create_address(from, state.get_or_insert(from).nonce);
     MONAD_VM_DEBUG_ASSERT(state.find(create_address) == nullptr);
@@ -238,23 +219,6 @@ static evmc::address deploy_contract(
             .transient_storage = {},
             .code = bytes{code.begin(), code.end()}}});
 
-    // constexpr auto prefix = deploy_prefix();
-    // auto calldata = bytes{};
-
-    // calldata.reserve(prefix.size() + code.size());
-    // std::copy(prefix.begin(), prefix.end(),
-    // std::back_inserter(calldata)); std::copy(code.begin(), code.end(),
-    // std::back_inserter(calldata));
-
-    // auto tx = tx_from(state, from);
-    // tx.data = calldata;
-
-    // auto block = BlockInfo{};
-
-    // auto res =
-    //     transition(state, block, tx, EVMC_CANCUN, vm, block_gas_limit,
-    //     0);
-    // MONAD_VM_ASSERT(std::holds_alternative<TransactionReceipt>(res));
     MONAD_VM_ASSERT(state.find(create_address) != nullptr);
 
     return create_address;
@@ -491,10 +455,10 @@ static void do_run(std::size_t const run_index, arguments const &args)
                 continue;
             }
 
-            auto const a = deploy_contract(
-                evmone_state, evmone_vm, genesis_address, contract);
-            auto const a1 = deploy_contract(
-                monad_state, monad_vm, genesis_address, contract);
+            auto const a =
+                deploy_contract(evmone_state, genesis_address, contract);
+            auto const a1 =
+                deploy_contract(monad_state, genesis_address, contract);
             MONAD_VM_ASSERT(a == a1);
 
             assert_equal(evmone_state, monad_state);
