@@ -41,6 +41,15 @@ namespace monad::vm::utils
         {
         }
 
+        template <typename T>
+        [[gnu::always_inline]] constexpr explicit(false)
+            uint256_t(T x0) noexcept
+            requires std::is_convertible_v<T, uint64_t>
+            : words_{static_cast<uint64_t>(x0), 0, 0, 0}
+        {
+            // GCC produces better code for words_{x0, 0, 0, 0} than for words_{x0}
+        }
+
         [[gnu::always_inline]] constexpr explicit(true)
             uint256_t(std::array<uint64_t, 4> const &x) noexcept
             : words_{x}
@@ -55,15 +64,17 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline constexpr ::intx::uint256 to_intx() const noexcept
+        inline constexpr ::intx::uint256 const &to_intx() const noexcept
         {
-            return ::intx::uint256{words_[0], words_[1], words_[2], words_[3]};
+            return reinterpret_cast<::intx::uint256 const &>(*this);
         }
 
         [[gnu::always_inline]]
-        constexpr explicit(true) uint256_t(__m256i x) noexcept
-            : words_{std::bit_cast<std::array<uint64_t, num_words>>(x)}
+        explicit(true) uint256_t(__m256i x) noexcept
         {
+            // Clang sometimes miscompiles the std::bit_cast equivalent into a
+            // much slower version, so we prefer memcpy here
+            std::memcpy(&words_, &x, sizeof(words_));
         }
 
         [[gnu::always_inline]]
@@ -187,7 +198,8 @@ namespace monad::vm::utils
         {
             if consteval {
                 return *this = *this * rhs;
-            } else {
+            }
+            else {
                 monad_vm_runtime_mul(this, this, &rhs);
                 return *this;
             }
@@ -199,11 +211,10 @@ namespace monad::vm::utils
         {
             static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
             unsigned long long borrow = 0;
-            uint256_t result;
-            result[0] = __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
-            result[1] = __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
-            result[2] = __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
-            result[3] = __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
+            __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
+            __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
+            __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
+            __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
             return borrow;
         }
 
@@ -283,7 +294,7 @@ namespace monad::vm::utils
             }
             shift &= 255;
             if (shift < 128) {
-                if (shift < 64) [[unlikely]] {
+                if (shift < 64) {
                     return uint256_t{
                         x[0] << shift,
                         (x[1] << shift) | ((x[0] >> 1) >> (63 - shift)),
@@ -325,18 +336,22 @@ namespace monad::vm::utils
 
             uint64_t table_ix = 8 - std::min(shift >> 5, uint64_t{8});
 
-            __m256i r;
-            std::memcpy(&r, &table[table_ix], 32);
-            __m256i l;
-            std::memcpy(&l, &(table + 1)[table_ix], 32);
-            __m256i r_mask;
-            std::memcpy(&r_mask, &(table + 17)[table_ix], 32);
-            __m256i l_mask;
-            std::memcpy(&l_mask, &(table + 18)[table_ix], 32);
+            __m256i x;
+            std::memcpy(&x, &x0, sizeof(__m256i));
 
-            __m256i x = std::bit_cast<__m256i>(x0);
-            auto l_perm = _mm256_permutevar8x32_epi32(x, l) & l_mask;
-            auto r_perm = _mm256_permutevar8x32_epi32(x, r) & r_mask;
+            __m256i r;
+            std::memcpy(&r, &table[table_ix], sizeof(__m256i));
+            __m256i l;
+            std::memcpy(&l, &(table + 1)[table_ix], sizeof(__m256i));
+            __m256i r_mask;
+            std::memcpy(&r_mask, &(table + 17)[table_ix], sizeof(__m256i));
+            __m256i l_mask;
+            std::memcpy(&l_mask, &(table + 18)[table_ix], sizeof(__m256i));
+
+            auto l_perm =
+                _mm256_and_si256(_mm256_permutevar8x32_epi32(x, l), l_mask);
+            auto r_perm =
+                _mm256_and_si256(_mm256_permutevar8x32_epi32(x, r), r_mask);
 
             uint32_t bit_shift = static_cast<uint32_t>(shift & 31);
             auto l_shifted =
@@ -344,18 +359,25 @@ namespace monad::vm::utils
             auto r_shifted =
                 _mm256_srl_epi32(r_perm, _mm_set1_epi64x(32 - bit_shift));
 
-            return std::bit_cast<uint256_t>(l_shifted | r_shifted);
+            __m256i disjunction = _mm256_or_si256(l_shifted, r_shifted);
+            uint256_t result;
+            std::memcpy(&result.words_, &disjunction, sizeof(result.words_));
+            return result;
         }
 
+        template <typename T>
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
-        operator<<(uint256_t const &x, uint64_t shift) noexcept
+        operator<<(uint256_t const &x, T shift) noexcept
+            requires std::is_convertible_v<T, uint64_t>
         {
             if consteval {
-                return constexpr_operator_shl(x, shift);
+                return constexpr_operator_shl(x, static_cast<uint64_t>(shift));
             }
             else {
-                return avx2_operator_shl(x, shift);
+                // return constexpr_operator_shl(x,
+                // static_cast<uint64_t>(shift));
+                return avx2_operator_shl(x, static_cast<uint64_t>(shift));
             }
         }
 
@@ -368,7 +390,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator<<(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift[1] | shift[2] | shift[3]) [[unlikely]] {
+            if (shift >= 256) [[unlikely]] {
                 return 0;
             }
             return x << shift[0];
@@ -383,7 +405,7 @@ namespace monad::vm::utils
             }
             shift &= 255;
             if (shift < 128) {
-                if (shift < 64) [[unlikely]] {
+                if (shift < 64) {
                     return uint256_t{
                         (x[0] >> shift) | ((x[1] << 1) << (63 - shift)),
                         (x[1] >> shift) | ((x[2] << 1) << (63 - shift)),
@@ -426,17 +448,18 @@ namespace monad::vm::utils
 
             uint64_t table_ix = std::min(shift >> 5, uint64_t{8});
 
-            __m256i x = std::bit_cast<__m256i>(x0);
+            __m256i x;
+            std::memcpy(&x, &x0, sizeof(__m256i));
 
             __m256i rs;
-            std::memcpy(&rs, &table[table_ix], 32);
+            std::memcpy(&rs, &table[table_ix], sizeof(__m256i));
             __m256i ls;
-            std::memcpy(&ls, &(table + 1)[table_ix], 32);
+            std::memcpy(&ls, &(table + 1)[table_ix], sizeof(__m256i));
 
             __m256i r_mask;
-            std::memcpy(&r_mask, &(table + 17)[table_ix], 32);
+            std::memcpy(&r_mask, &(table + 17)[table_ix], sizeof(__m256i));
             __m256i l_mask;
-            std::memcpy(&l_mask, &(table + 18)[table_ix], 32);
+            std::memcpy(&l_mask, &(table + 18)[table_ix], sizeof(__m256i));
 
             auto r_perm = _mm256_permutevar8x32_epi32(x, rs) & r_mask;
             auto l_perm = _mm256_permutevar8x32_epi32(x, ls) & l_mask;
@@ -447,7 +470,7 @@ namespace monad::vm::utils
             auto l_shifted =
                 _mm256_sll_epi32(l_perm, _mm_set1_epi64x(32 - bit_shift));
 
-            return std::bit_cast<uint256_t>(r_shifted | l_shifted);
+            return uint256_t{r_shifted | l_shifted};
         }
 
         [[gnu::always_inline]]
@@ -465,7 +488,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator>>(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift[1] | shift[2] | shift[3]) [[unlikely]] {
+            if (shift >= 256) [[unlikely]] {
                 return 0;
             }
             return x >> shift[0];
@@ -593,8 +616,20 @@ namespace monad::vm::utils
     inline constexpr div_result
     sdivrem(uint256_t const &x, uint256_t const &y) noexcept
     {
-        auto result = ::intx::sdivrem(x.to_intx(), y.to_intx());
-        return {uint256_t(result.quot), uint256_t(result.rem)};
+        auto mask = uint64_t{1} << (uint256_t::word_num_bits - 1);
+        auto x_is_neg = x[uint256_t::num_words - 1] & mask;
+        auto y_is_neg = y[uint256_t::num_words - 1] & mask;
+
+        auto x_abs = x_is_neg ? -x : x;
+        auto y_abs = y_is_neg ? -y : y;
+
+        auto quot_is_neg = x_is_neg ^ y_is_neg;
+
+        auto result = ::intx::udivrem(x_abs.to_intx(), y_abs.to_intx());
+
+        return {
+            uint256_t{quot_is_neg ? -result.quot : result.quot},
+            uint256_t{x_is_neg ? -result.rem : result.rem}};
     }
 
     [[gnu::always_inline]]
@@ -637,7 +672,7 @@ namespace monad::vm::utils
     addc(uint64_t x, uint64_t y, bool carry = false) noexcept
     {
         static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-        unsigned long long carry_out;
+        unsigned long long carry_out = 0;
         auto value = __builtin_addcll(x, y, carry, &carry_out);
         return result_with_carry{
             .value = value, .carry = static_cast<bool>(carry_out)};
