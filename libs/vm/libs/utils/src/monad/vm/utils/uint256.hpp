@@ -6,9 +6,11 @@
 #include <intx/intx.hpp>
 #include <limits>
 
+/*
 #ifndef __AVX2__
     #error "Target architecture must support AVX2"
 #endif
+*/
 
 namespace monad::vm::utils
 {
@@ -47,7 +49,8 @@ namespace monad::vm::utils
             requires std::is_convertible_v<T, uint64_t>
             : words_{static_cast<uint64_t>(x0), 0, 0, 0}
         {
-            // GCC produces better code for words_{x0, 0, 0, 0} than for words_{x0}
+            // GCC produces better code for words_{x0, 0, 0, 0} than for
+            // words_{x0}
         }
 
         [[gnu::always_inline]] constexpr explicit(true)
@@ -66,7 +69,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr ::intx::uint256 const &to_intx() const noexcept
         {
-            return reinterpret_cast<::intx::uint256 const &>(*this);
+            return *std::bit_cast<::intx::uint256 const *>(&words_);
         }
 
         [[gnu::always_inline]]
@@ -78,33 +81,17 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline constexpr __m256i to_avx() const noexcept
+        inline __m256i to_avx() const noexcept
         {
-            return std::bit_cast<__m256i>(words_);
-        }
-
-        [[gnu::always_inline]] friend inline constexpr bool
-        constexpr_operator_bool(uint256_t const &x) noexcept
-        {
-            return x.words_[0] | x.words_[1] | x.words_[2] | x.words_[3];
-        }
-
-        [[gnu::always_inline]]
-        friend inline bool avx2_operator_bool(uint256_t const &x) noexcept
-        {
-            auto mask = _mm256_setr_epi64x(-1, -1, -1, -1);
-            return !_mm256_testz_si256(x.to_avx(), mask);
+            __m256i result;
+            std::memcpy(&result, &words_, sizeof(result));
+            return result;
         }
 
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
         {
-            if consteval {
-                return constexpr_operator_bool(*this);
-            }
-            else {
-                return avx2_operator_bool(*this);
-            }
+            return x.words_[0] | x.words_[1] | x.words_[2] | x.words_[3];
         }
 
         template <typename Int>
@@ -239,40 +226,26 @@ namespace monad::vm::utils
             return rhs <= lhs;
         }
 
-#define INHERIT_AVX_BINOP(return_ty, op_name)                                  \
+#define BITWISE_BINOP(return_ty, op_name)                                      \
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
         uint256_t const &x, uint256_t const &y)                                \
     {                                                                          \
-        return return_ty(x.to_avx() op_name y.to_avx());                       \
+        return uint256_t{                                                      \
+            x[0] op_name y[0],                                                 \
+            x[1] op_name y[1],                                                 \
+            x[2] op_name y[2],                                                 \
+            x[3] op_name y[3]};                                                \
     }
-        INHERIT_AVX_BINOP(uint256_t, &);
-        INHERIT_AVX_BINOP(uint256_t, |);
-        INHERIT_AVX_BINOP(uint256_t, ^);
-#undef INHERIT_AVX_BINOP
-
-        [[gnu::always_inline]] friend inline constexpr bool
-        constexpr_operator_eq(uint256_t const &x, uint256_t const &y)
-        {
-            return (x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) |
-                   (x[3] ^ y[3]);
-        }
-
-        [[gnu::always_inline]] friend inline bool
-        avx2_operator_eq(uint256_t const &x, uint256_t const &y)
-        {
-            auto xor_bits = x.to_avx() ^ y.to_avx();
-            return _mm256_testz_si256(xor_bits, xor_bits);
-        }
+        BITWISE_BINOP(uint256_t, &);
+        BITWISE_BINOP(uint256_t, |);
+        BITWISE_BINOP(uint256_t, ^);
+#undef BITWISE_BINOP
 
         [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y)
         {
-            if consteval {
-                return constexpr_operator_eq(x, y);
-            }
-            else {
-                return avx2_operator_eq(x, y);
-            }
+            return (x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) |
+                   (x[3] ^ y[3]);
         }
 
         [[gnu::always_inline]] inline constexpr uint256_t operator-() const
@@ -282,32 +255,52 @@ namespace monad::vm::utils
 
         [[gnu::always_inline]] inline constexpr uint256_t operator~() const
         {
-            return uint256_t(~this->to_avx());
+            return uint256_t{~words_[0], ~words_[1], ~words_[2], ~words_[3]};
         }
 
         [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        constexpr_operator_shl(uint256_t const &x, uint64_t shift)
+        static inline uint64_t shld(uint64_t high, uint64_t low, uint8_t shift)
         {
-            if (shift >= 256) [[unlikely]] {
+            if consteval {
+                return (high << shift) | ((low >> 1) >> (63 - shift));
+            }
+            else {
+                register uint8_t cl asm("cl") = shift;
+                asm("shldq %%cl, %1, %0"
+                    : "+r"(high)
+                    : "r"(high), "r"(low), "r"(cl)
+                    : "cc");
+                return high;
+            }
+        }
+
+        template <typename T>
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator<<(uint256_t const &x, T shift0) noexcept
+            requires std::is_convertible_v<T, uint64_t>
+        {
+            if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
                 return 0;
             }
-            shift &= 255;
+            auto shift = static_cast<uint8_t>(shift0);
             if (shift < 128) {
                 if (shift < 64) {
                     return uint256_t{
                         x[0] << shift,
-                        (x[1] << shift) | ((x[0] >> 1) >> (63 - shift)),
-                        (x[2] << shift) | ((x[1] >> 1) >> (63 - shift)),
-                        (x[3] << shift) | ((x[2] >> 1) >> (63 - shift))};
+                        shld(x[1], x[0], shift),
+                        shld(x[2], x[1], shift),
+                        shld(x[3], x[2], shift),
+                    };
                 }
                 else {
                     shift &= 63;
                     return uint256_t{
                         0,
                         x[0] << shift,
-                        (x[1] << shift) | ((x[0] >> 1) >> (63 - shift)),
-                        (x[2] << shift) | ((x[1] >> 1) >> (63 - shift))};
+                        shld(x[1], x[0], shift),
+                        shld(x[2], x[1], shift),
+                    };
                 }
             }
             else {
@@ -317,7 +310,8 @@ namespace monad::vm::utils
                         0,
                         0,
                         x[0] << shift,
-                        (x[1] << shift) | ((x[0] >> 1) >> (63 - shift))};
+                        shld(x[1], x[0], shift),
+                    };
                 }
                 else {
                     shift &= 63;
@@ -327,64 +321,10 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        friend inline uint256_t
-        avx2_operator_shl(uint256_t const &x0, uint64_t shift)
+        inline constexpr uint256_t &
+        operator<<=(uint256_t const &shift0) noexcept
         {
-            static int32_t const table[34] = {
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  1,  2,  3,  4,  5,  6,  7,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1};
-
-            uint64_t table_ix = 8 - std::min(shift >> 5, uint64_t{8});
-
-            __m256i x;
-            std::memcpy(&x, &x0, sizeof(__m256i));
-
-            __m256i r;
-            std::memcpy(&r, &table[table_ix], sizeof(__m256i));
-            __m256i l;
-            std::memcpy(&l, &(table + 1)[table_ix], sizeof(__m256i));
-            __m256i r_mask;
-            std::memcpy(&r_mask, &(table + 17)[table_ix], sizeof(__m256i));
-            __m256i l_mask;
-            std::memcpy(&l_mask, &(table + 18)[table_ix], sizeof(__m256i));
-
-            auto l_perm =
-                _mm256_and_si256(_mm256_permutevar8x32_epi32(x, l), l_mask);
-            auto r_perm =
-                _mm256_and_si256(_mm256_permutevar8x32_epi32(x, r), r_mask);
-
-            uint32_t bit_shift = static_cast<uint32_t>(shift & 31);
-            auto l_shifted =
-                _mm256_sll_epi32(l_perm, _mm_set1_epi64x(bit_shift));
-            auto r_shifted =
-                _mm256_srl_epi32(r_perm, _mm_set1_epi64x(32 - bit_shift));
-
-            __m256i disjunction = _mm256_or_si256(l_shifted, r_shifted);
-            uint256_t result;
-            std::memcpy(&result.words_, &disjunction, sizeof(result.words_));
-            return result;
-        }
-
-        template <typename T>
-        [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator<<(uint256_t const &x, T shift) noexcept
-            requires std::is_convertible_v<T, uint64_t>
-        {
-            if consteval {
-                return constexpr_operator_shl(x, static_cast<uint64_t>(shift));
-            }
-            else {
-                // return constexpr_operator_shl(x,
-                // static_cast<uint64_t>(shift));
-                return avx2_operator_shl(x, static_cast<uint64_t>(shift));
-            }
-        }
-
-        [[gnu::always_inline]]
-        inline constexpr uint256_t &operator<<=(uint256_t const &shift) noexcept
-        {
-            return *this = *this << shift;
+            return *this = *this << shift0;
         }
 
         [[gnu::always_inline]] friend inline constexpr uint256_t
@@ -397,27 +337,45 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        constexpr_operator_shr(uint256_t const &x, uint64_t shift)
+        static inline constexpr uint64_t shrd(uint64_t high, uint64_t low, uint8_t shift)
         {
-            if (shift >= 256) [[unlikely]] {
+            if consteval {
+                return (low >> shift) | ((high << 1) << (63 - shift));
+            }
+            else {
+                register uint8_t cl asm("cl") = shift;
+                asm("shrdq %%cl, %1, %0"
+                    : "+r"(low)
+                    : "r"(low), "r"(high), "r"(cl)
+                    : "cc");
+                return low;
+            }
+        }
+
+        template<typename T>
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator>>(uint256_t const &x, T shift0) noexcept
+            requires std::is_convertible_v<T, uint64_t>
+        {
+            if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
                 return 0;
             }
-            shift &= 255;
+            auto shift = static_cast<uint8_t>(shift0);
             if (shift < 128) {
                 if (shift < 64) {
                     return uint256_t{
-                        (x[0] >> shift) | ((x[1] << 1) << (63 - shift)),
-                        (x[1] >> shift) | ((x[2] << 1) << (63 - shift)),
-                        (x[2] >> shift) | ((x[3] << 1) << (63 - shift)),
+                        shrd(x[1], x[0], shift),
+                        shrd(x[2], x[1], shift),
+                        shrd(x[3], x[2], shift),
                         x[3] >> shift,
                     };
                 }
                 else {
                     shift &= 63;
                     return uint256_t{
-                        (x[1] >> shift) | ((x[2] << 1) << (63 - shift)),
-                        (x[2] >> shift) | ((x[3] << 1) << (63 - shift)),
+                        shrd(x[2], x[1], shift),
+                        shrd(x[3], x[2], shift),
                         x[3] >> shift,
                         0};
                 }
@@ -426,7 +384,7 @@ namespace monad::vm::utils
                 shift &= 127;
                 if (shift < 64) {
                     return uint256_t{
-                        (x[2] >> shift) | ((x[3] << 1) << (63 - shift)),
+                        shrd(x[3], x[2], shift),
                         x[3] >> shift,
                         0,
                         0};
@@ -435,53 +393,6 @@ namespace monad::vm::utils
                     shift &= 63;
                     return uint256_t{x[3] >> shift, 0, 0, 0};
                 }
-            }
-        }
-
-        [[gnu::always_inline]]
-        friend inline uint256_t
-        avx2_operator_shr(uint256_t const &x0, uint64_t shift)
-        {
-            static int32_t const table[34] = {
-                0,  1,  2,  3,  4,  5,  6,  7,  0, 0, 0, 0, 0, 0, 0, 0, 0,
-                -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-            uint64_t table_ix = std::min(shift >> 5, uint64_t{8});
-
-            __m256i x;
-            std::memcpy(&x, &x0, sizeof(__m256i));
-
-            __m256i rs;
-            std::memcpy(&rs, &table[table_ix], sizeof(__m256i));
-            __m256i ls;
-            std::memcpy(&ls, &(table + 1)[table_ix], sizeof(__m256i));
-
-            __m256i r_mask;
-            std::memcpy(&r_mask, &(table + 17)[table_ix], sizeof(__m256i));
-            __m256i l_mask;
-            std::memcpy(&l_mask, &(table + 18)[table_ix], sizeof(__m256i));
-
-            auto r_perm = _mm256_permutevar8x32_epi32(x, rs) & r_mask;
-            auto l_perm = _mm256_permutevar8x32_epi32(x, ls) & l_mask;
-
-            uint32_t bit_shift = static_cast<uint32_t>(shift & 31);
-            auto r_shifted =
-                _mm256_srl_epi32(r_perm, _mm_set1_epi64x(bit_shift));
-            auto l_shifted =
-                _mm256_sll_epi32(l_perm, _mm_set1_epi64x(32 - bit_shift));
-
-            return uint256_t{r_shifted | l_shifted};
-        }
-
-        [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator>>(uint256_t const &x, uint64_t shift) noexcept
-        {
-            if consteval {
-                return constexpr_operator_shr(x, shift);
-            }
-            else {
-                return avx2_operator_shr(x, shift);
             }
         }
 
