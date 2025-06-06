@@ -34,13 +34,15 @@ int main(int argc, char **argv)
         "GeneralStateTests/VMTests/vmPerformance.loopMul:"
         "GeneralStateTests/stTimeConsuming.CALLBlake2f_MaxRounds:"
         "GeneralStateTests/stTimeConsuming.static_Call50000_sha256:"
-        // Broken
+        // Broken until https://github.com/ethereum/evmone/pull/1220 is included
+        // in a release
         "InvalidBlocks/bcEIP1559.badBlocks:"
         "InvalidBlocks/bcEIP1559.badUncles:"
         "InvalidBlocks/bcEIP1559.gasLimit20m:"
         "InvalidBlocks/bcEIP1559.gasLimit40m:"
         "InvalidBlocks/bcMultiChainTest.UncleFromSideChain:"
         "InvalidBlocks/bcUncleTest.UncleIsBrother:"
+        // Currently skipped on ethereum/evmone master
         "ValidBlocks/bcValidBlockTest.SimpleTx3LowS";
 
     return blockchain_test_main({root}, false, vm);
