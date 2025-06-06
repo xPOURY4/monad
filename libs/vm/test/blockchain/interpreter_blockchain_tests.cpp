@@ -34,7 +34,8 @@ int main(int argc, char **argv)
         "GeneralStateTests/VMTests/vmPerformance.loopMul:"
         "GeneralStateTests/stTimeConsuming.CALLBlake2f_MaxRounds:"
         "GeneralStateTests/stTimeConsuming.static_Call50000_sha256:"
-        // Broken until https://github.com/ethereum/evmone/pull/1220 is included in a release
+        // Broken until https://github.com/ethereum/evmone/pull/1220 is included
+        // in a release
         "InvalidBlocks/bcEIP1559.badBlocks:"
         "InvalidBlocks/bcEIP1559.badUncles:"
         "InvalidBlocks/bcEIP1559.gasLimit20m:"
