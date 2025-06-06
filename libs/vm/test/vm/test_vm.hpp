@@ -54,8 +54,8 @@ public:
         std::unreachable();
     };
 
-    void
-    precompile_contracts(evmc_revision rev, evmone::state::State const &state);
+    void precompile_contracts(
+        evmc_revision rev, evmone::test::TestState const &state);
 
 private:
     Implementation impl_;

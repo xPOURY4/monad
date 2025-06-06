@@ -133,8 +133,9 @@ namespace
         evmc_message const msg)
     {
         auto vm = evmc::VM(new BlockchainTestVM(impl));
+        auto const empty_test_state = evmone::test::TestState{};
 
-        auto evm_state = State{};
+        auto evm_state = State{empty_test_state};
         auto block = BlockInfo{};
         auto hashes = evmone::test::TestBlockHashes{};
         auto tx = Transaction{};
@@ -158,21 +159,19 @@ namespace
 
     void run_benchmark_json(
         benchmark::State &state, BlockchainTestVM::Implementation const impl,
-        evmone::test::TestState const &test_state, evmc_message const msg)
+        evmone::test::TestState const &initial_test_state,
+        evmc_message const msg)
     {
         auto vm = evmc::VM(new BlockchainTestVM(impl));
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
-        auto intra_state = State{test_state};
-        vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
-        auto const *const code_acc = intra_state.find(msg.code_address);
-        MONAD_VM_DEBUG_ASSERT(code_acc != nullptr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        vm_ptr->precompile_contracts(EVMC_CANCUN, initial_test_state);
+        auto const code = initial_test_state.get_account_code(msg.code_address);
 
         for (auto _ : state) {
             state.PauseTiming();
-            auto evm_state = State{test_state};
+            auto evm_state = State{initial_test_state};
             auto const block = BlockInfo{};
             auto const hashes = evmone::test::TestBlockHashes{};
             auto const tx = Transaction{};

@@ -11,6 +11,7 @@
 
 #include "host.hpp"
 #include "state.hpp"
+#include "test_state.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -70,7 +71,8 @@ public:
 
         auto vm = evmc::VM(this);
 
-        auto evm_state = State{};
+        auto const init_state = evmone::test::TestState{};
+        auto evm_state = State{init_state};
         auto block = BlockInfo{};
         auto hashes = evmone::test::TestBlockHashes{};
         auto tx = Transaction{};

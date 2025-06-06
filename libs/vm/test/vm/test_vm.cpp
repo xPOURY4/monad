@@ -167,10 +167,10 @@ BlockchainTestVM::get_intercode_nativecode(
 }
 
 void BlockchainTestVM::precompile_contracts(
-    evmc_revision rev, evmone::state::State const &state)
+    evmc_revision rev, evmone::test::TestState const &state)
 {
-    for (auto const &[_, account] : state.unsafe_get_accounts()) {
-        auto const &code_hash = account.code_hash;
+    for (auto const &[_, account] : state) {
+        auto const &code_hash = evmone::keccak256(account.code);
         auto const &code = account.code.data();
         auto const &code_size = account.code.size();
         (void)get_code_analysis(code_hash, code, code_size);
