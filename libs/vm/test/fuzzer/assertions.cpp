@@ -39,7 +39,7 @@ namespace monad::vm::fuzzing
 
         MONAD_VM_ASSERT(a.nonce == b.nonce);
         MONAD_VM_ASSERT(a.balance == b.balance);
-        MONAD_VM_ASSERT(a.code == b.code);
+        MONAD_VM_ASSERT(a.code_hash == b.code_hash);
         MONAD_VM_ASSERT(a.destructed == b.destructed);
         MONAD_VM_ASSERT(a.erase_if_empty == b.erase_if_empty);
         MONAD_VM_ASSERT(a.just_created == b.just_created);
@@ -48,8 +48,8 @@ namespace monad::vm::fuzzing
 
     void assert_equal(State const &a, State const &b)
     {
-        auto const &a_accs = a.unsafe_get_accounts();
-        auto const &b_accs = b.unsafe_get_accounts();
+        auto const &a_accs = a.get_modified_accounts();
+        auto const &b_accs = b.get_modified_accounts();
 
         MONAD_VM_ASSERT(a_accs.size() == b_accs.size());
         for (auto const &[k, v] : a_accs) {

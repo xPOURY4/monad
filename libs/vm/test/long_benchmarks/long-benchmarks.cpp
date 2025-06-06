@@ -30,51 +30,49 @@ using enum BlockchainTestVM::Implementation;
 
 namespace
 {
-    static evmone::state::State burntpix_state()
+    static evmone::test::TestState burntpix_state()
     {
-        evmone::state::State state;
-        state.insert(
-            0x0a743ba7304efcc9e384ece9be7631e2470e401e_address,
-            {.nonce = 0,
-             .balance = 0,
-             .storage = {},
-             .transient_storage = {},
-             .code = code_0a743ba7304efcc9e384ece9be7631e2470e401e});
+        evmone::test::TestState state;
+        state[0x0a743ba7304efcc9e384ece9be7631e2470e401e_address] = {
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .code = {
+                code_0a743ba7304efcc9e384ece9be7631e2470e401e,
+                code_0a743ba7304efcc9e384ece9be7631e2470e401e_len}};
 
-        auto &intra_acc = state.insert(
-            0x49206861766520746f6f206d7563682074696d65_address,
-            {.nonce = 0,
-             .balance = 0,
-             .storage = {},
-             .transient_storage = {},
-             .code = code_49206861766520746f6f206d7563682074696d65});
+        state[0x49206861766520746f6f206d7563682074696d65_address] = {
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .code = {
+                code_49206861766520746f6f206d7563682074696d65,
+                code_49206861766520746f6f206d7563682074696d65_len}};
 
-        auto &storage = intra_acc.storage;
-        auto val0 =
+        auto &storage =
+            state[0x49206861766520746f6f206d7563682074696d65_address].storage;
+        storage[bytes32{0}] =
             0x000000000000000000000000f529c70db0800449ebd81fbc6e4221523a989f05_bytes32;
-        storage[bytes32{0}] = {.current = val0, .original = val0};
-        auto val1 =
+        storage[bytes32{1}] =
             0x0000000000000000000000000a743ba7304efcc9e384ece9be7631e2470e401e_bytes32;
-        storage[bytes32{1}] = {.current = val1, .original = val1};
-        auto val2 =
+        storage[bytes32{2}] =
             0x000000000000000000000000c917e98213a05d271adc5d93d2fee6c1f1006f75_bytes32;
-        storage[bytes32{2}] = {.current = val2, .original = val2};
 
-        state.insert(
-            0xc917e98213a05d271adc5d93d2fee6c1f1006f75_address,
-            {.nonce = 0,
-             .balance = 0,
-             .storage = {},
-             .transient_storage = {},
-             .code = code_c917e98213a05d271adc5d93d2fee6c1f1006f75});
+        state[0xc917e98213a05d271adc5d93d2fee6c1f1006f75_address] = {
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .code = {
+                code_c917e98213a05d271adc5d93d2fee6c1f1006f75,
+                code_c917e98213a05d271adc5d93d2fee6c1f1006f75_len}};
 
-        state.insert(
-            0xf529c70db0800449ebd81fbc6e4221523a989f05_address,
-            {.nonce = 0,
-             .balance = 0,
-             .storage = {},
-             .transient_storage = {},
-             .code = code_f529c70db0800449ebd81fbc6e4221523a989f05});
+        state[0xf529c70db0800449ebd81fbc6e4221523a989f05_address] = {
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .code = {
+                code_f529c70db0800449ebd81fbc6e4221523a989f05,
+                code_f529c70db0800449ebd81fbc6e4221523a989f05_len}};
 
         return state;
     }
@@ -94,16 +92,15 @@ namespace
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
-        auto intra_state = burntpix_state();
-        vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
+        auto const burntpix_init_state = burntpix_state();
+        vm_ptr->precompile_contracts(EVMC_CANCUN, burntpix_init_state);
 
         constexpr auto addr =
             0x49206861766520746f6f206d7563682074696d65_address;
         constexpr auto sender =
             0x49206861766520746f6f206d7563682074696f01_address;
 
-        auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        auto const code = burntpix_init_state.get_account_code(addr);
 
         InputData input_data{
             .seed = bytes32{seed}, .iterations = bytes32{iterations}};
@@ -126,7 +123,7 @@ namespace
 
         for (auto _ : state) {
             state.PauseTiming();
-            auto evm_state = burntpix_state();
+            auto evm_state = evmone::state::State{burntpix_init_state};
             auto host = Host(
                 EVMC_CANCUN,
                 vm,
@@ -161,19 +158,15 @@ namespace
         }
     }
 
-    static evmone::state::State snailtracer_state()
+    constexpr evmone::test::TestState snailtracer_state()
     {
-        evmone::state::State state;
+        evmone::test::TestState state;
 
-        auto const code_view = bytes{code_snailtracer, code_snailtracer_len};
-
-        state.insert(
-            0x49206861766520746f6f206d7563682074696d65_address,
-            {.nonce = 0,
-             .balance = 0,
-             .storage = {},
-             .transient_storage = {},
-             .code = code_snailtracer});
+        state[0x49206861766520746f6f206d7563682074696d65_address] = {
+            .nonce = 0,
+            .balance = 0,
+            .storage = {},
+            .code = {code_snailtracer, code_snailtracer_len}};
         return state;
     }
 
@@ -184,16 +177,16 @@ namespace
         auto *vm_ptr =
             reinterpret_cast<BlockchainTestVM *>(vm.get_raw_pointer());
 
-        auto intra_state = snailtracer_state();
-        vm_ptr->precompile_contracts(EVMC_CANCUN, intra_state);
+        auto const snailtracer_init_state = snailtracer_state();
+        auto intra_state = State{snailtracer_init_state};
+        vm_ptr->precompile_contracts(EVMC_CANCUN, snailtracer_init_state);
 
         constexpr auto addr =
             0x49206861766520746f6f206d7563682074696d65_address;
         constexpr auto sender =
             0x49206861766520746f6f206d7563682074696f01_address;
 
-        auto const *const code_acc = intra_state.find(addr);
-        auto const code = evmc::bytes_view{code_acc->code};
+        auto const code = intra_state.get_code(addr);
 
         uint8_t func[4] = {0x30, 0x62, 0x7b, 0x7c};
 
@@ -215,7 +208,7 @@ namespace
 
         for (auto _ : state) {
             state.PauseTiming();
-            auto evm_state = snailtracer_state();
+            auto evm_state = State{snailtracer_init_state};
             auto host = Host(
                 EVMC_CANCUN,
                 vm,

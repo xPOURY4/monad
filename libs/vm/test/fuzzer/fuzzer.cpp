@@ -4,8 +4,10 @@
 #include "test_vm.hpp"
 
 #include "account.hpp"
+#include "hash_utils.hpp"
 #include "host.hpp"
 #include "state.hpp"
+#include "test_state.hpp"
 #include "transaction.hpp"
 
 #include <monad/vm/compiler/ir/x86/types.hpp>
@@ -101,17 +103,13 @@ static constexpr auto genesis_address =
 
 static constexpr auto block_gas_limit = 300'000'000;
 
-static Account genesis_account() noexcept
+static evmone::test::TestState initial_state()
 {
-    auto acct = Account{};
-    acct.balance = std::numeric_limits<intx::uint256>::max();
-    return acct;
-}
-
-static State initial_state()
-{
-    auto init = State{};
-    init.insert(genesis_address, genesis_account());
+    auto init = evmone::test::TestState{};
+    init[genesis_address] = {
+        .balance = std::numeric_limits<intx::uint256>::max(),
+        .storage = {},
+        .code = {}};
     return init;
 }
 
@@ -135,7 +133,7 @@ static evmc::Result transition(
     // - Clear transient storage.
     // - Set accounts and their storage access status to cold.
     // - Clear the "just created" account flag.
-    for (auto &[addr, acc] : state.unsafe_get_accounts()) {
+    for (auto &[addr, acc] : state.get_modified_accounts()) {
         acc.transient_storage.clear();
         acc.access_status = EVMC_ACCESS_COLD;
         acc.just_created = false;
@@ -181,7 +179,7 @@ static evmc::Result transition(
 
     // Apply destructs.
     std::erase_if(
-        state.unsafe_get_accounts(),
+        state.get_modified_accounts(),
         [](std::pair<address const, Account> const &p) noexcept {
             return p.second.destructed;
         });
@@ -192,7 +190,7 @@ static evmc::Result transition(
     // TODO: Consider limiting this only to Spurious Dragon.
     if (rev >= EVMC_SPURIOUS_DRAGON) {
         std::erase_if(
-            state.unsafe_get_accounts(),
+            state.get_modified_accounts(),
             [](std::pair<address const, Account> const &p) noexcept {
                 auto const &acc = p.second;
                 return acc.erase_if_empty && acc.is_empty();
@@ -204,20 +202,23 @@ static evmc::Result transition(
 
 static evmc::address deploy_contract(
     State &state, evmc::address const &from,
-    std::span<std::uint8_t const> const code)
+    std::span<std::uint8_t const> const code_)
 {
+    auto code = bytes{code_.data(), code_.size()};
+
     auto const create_address =
-        compute_create_address(from, state.get_or_insert(from).nonce);
+        compute_create_address(from, state.get_or_insert(from).nonce++);
     MONAD_VM_DEBUG_ASSERT(state.find(create_address) == nullptr);
 
     state.insert(
         create_address,
-        {Account{
+        Account{
             .nonce = 0,
             .balance = 0,
+            .code_hash = evmone::keccak256(code),
             .storage = {},
             .transient_storage = {},
-            .code = bytes{code.begin(), code.end()}}});
+            .code = code});
 
     MONAD_VM_ASSERT(state.find(create_address) != nullptr);
 
@@ -234,7 +235,7 @@ static evmc::address deploy_contract(
 // execution to remove cold zero slots.
 static void clean_storage(State &state)
 {
-    for (auto &[addr, acc] : state.unsafe_get_accounts()) {
+    for (auto &[addr, acc] : state.get_modified_accounts()) {
         for (auto it = acc.storage.begin(); it != acc.storage.end();) {
             auto const &[k, v] = *it;
 
@@ -425,8 +426,10 @@ static void do_run(std::size_t const run_index, arguments const &args)
     auto evmone_vm = evmc::VM(evmc_create_evmone());
     auto monad_vm = create_monad_vm(args, engine);
 
-    auto evmone_state = initial_state();
-    auto monad_state = initial_state();
+    auto initial_state_ = initial_state();
+
+    auto evmone_state = State{initial_state_};
+    auto monad_state = State{initial_state_};
 
     auto contract_addresses = std::vector<evmc::address>{};
 
