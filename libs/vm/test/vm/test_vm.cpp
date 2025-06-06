@@ -1,6 +1,6 @@
 #include "test_vm.hpp"
 #include "hash_utils.hpp"
-#include "state.hpp"
+#include "test_state.hpp"
 
 #include <monad/vm/code.hpp>
 #include <monad/vm/compiler/ir/x86/types.hpp>

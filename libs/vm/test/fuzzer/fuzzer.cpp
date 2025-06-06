@@ -24,6 +24,7 @@
 #include <evmc/evmc.hpp>
 
 #include <CLI/CLI.hpp>
+#include <intx/intx.hpp>
 
 #include <algorithm>
 #include <array>
