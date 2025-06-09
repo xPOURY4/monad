@@ -476,10 +476,10 @@ namespace monad::vm::compiler::native
 
         for (auto const &[lbl, rpq, back] : byte_out_of_bounds_handlers_) {
             as_.bind(lbl);
-            as_.xor_(rpq[0], rpq[0]);
-            as_.xor_(rpq[1], rpq[1]);
-            as_.xor_(rpq[2], rpq[2]);
-            as_.xor_(rpq[3], rpq[3]);
+            as_.xor_(rpq[0].r32(), rpq[0].r32());
+            as_.xor_(rpq[1].r32(), rpq[1].r32());
+            as_.xor_(rpq[2].r32(), rpq[2].r32());
+            as_.xor_(rpq[3].r32(), rpq[3].r32());
             as_.jmp(back);
         }
 
@@ -700,7 +700,7 @@ namespace monad::vm::compiler::native
         as_.add(x86::rsp, current_stack_size * 32);
 
         auto skip_lbl = as_.newLabel();
-        as_.test(x86::al, x86::al);
+        as_.test(x86::eax, x86::eax);
         as_.jz(skip_lbl);
 
         as_.mov(x86::rdi, reg_context);
@@ -1504,7 +1504,7 @@ namespace monad::vm::compiler::native
             for (size_t i = 0; i < 4; ++i) {
                 auto const &r = gpq[i];
                 if (lit.value[i] == 0) {
-                    as_.xor_(r, r);
+                    as_.xor_(r.r32(), r.r32());
                 }
                 else {
                     as_.mov(r, lit.value[i]);
@@ -2342,9 +2342,9 @@ namespace monad::vm::compiler::native
         as_.mov(
             gpq[0], x86::qword_ptr(reg_context, context_offset_gas_remaining));
         as_.add(gpq[0], remaining_base_gas);
-        as_.xor_(gpq[1], gpq[1]);
-        as_.xor_(gpq[2], gpq[2]);
-        as_.xor_(gpq[3], gpq[3]);
+        as_.xor_(gpq[1].r32(), gpq[1].r32());
+        as_.xor_(gpq[2].r32(), gpq[2].r32());
+        as_.xor_(gpq[3].r32(), gpq[3].r32());
         stack_.push(std::move(dst));
     }
 
@@ -2872,7 +2872,7 @@ namespace monad::vm::compiler::native
             as_.mov(gpq[3], 0);
         }
         else {
-            as_.xor_(gpq[3], gpq[3]);
+            as_.xor_(gpq[3].r32(), gpq[3].r32());
         }
         stack_.push(std::move(dst));
     }
@@ -2909,9 +2909,9 @@ namespace monad::vm::compiler::native
             as_.mov(gpq[3], 0);
         }
         else {
-            as_.xor_(gpq[1], gpq[1]);
-            as_.xor_(gpq[2], gpq[2]);
-            as_.xor_(gpq[3], gpq[3]);
+            as_.xor_(gpq[1].r32(), gpq[1].r32());
+            as_.xor_(gpq[2].r32(), gpq[2].r32());
+            as_.xor_(gpq[3].r32(), gpq[3].r32());
         }
         stack_.push(std::move(dst));
     }
@@ -2927,9 +2927,9 @@ namespace monad::vm::compiler::native
             as_.mov(gpq[3], 0);
         }
         else {
-            as_.xor_(gpq[1], gpq[1]);
-            as_.xor_(gpq[2], gpq[2]);
-            as_.xor_(gpq[3], gpq[3]);
+            as_.xor_(gpq[1].r32(), gpq[1].r32());
+            as_.xor_(gpq[2].r32(), gpq[2].r32());
+            as_.xor_(gpq[3].r32(), gpq[3].r32());
         }
         stack_.push(std::move(dst));
     }
@@ -2984,10 +2984,10 @@ namespace monad::vm::compiler::native
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        as_.xor_(gpq[0], gpq[0]);
-        as_.xor_(gpq[1], gpq[1]);
-        as_.xor_(gpq[2], gpq[2]);
-        as_.xor_(gpq[3], gpq[3]);
+        as_.xor_(gpq[0].r32(), gpq[0].r32());
+        as_.xor_(gpq[1].r32(), gpq[1].r32());
+        as_.xor_(gpq[2].r32(), gpq[2].r32());
+        as_.xor_(gpq[3].r32(), gpq[3].r32());
         auto m = stack_offset_to_mem(src);
         m.addOffset(i);
         as_.mov(gpq[0].r8Lo(), m);
@@ -3003,9 +3003,9 @@ namespace monad::vm::compiler::native
         Gpq256 const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
         as_.mov(dst_gpq[0], 31);
-        as_.xor_(dst_gpq[1], dst_gpq[1]);
-        as_.xor_(dst_gpq[2], dst_gpq[2]);
-        as_.xor_(dst_gpq[3], dst_gpq[3]);
+        as_.xor_(dst_gpq[1].r32(), dst_gpq[1].r32());
+        as_.xor_(dst_gpq[2].r32(), dst_gpq[2].r32());
+        as_.xor_(dst_gpq[3].r32(), dst_gpq[3].r32());
         if (ix->general_reg()) {
             Gpq256 const &ix_gpq = general_reg_to_gpq256(*ix->general_reg());
             as_.sub(dst_gpq[0], ix_gpq[0]);
@@ -3482,7 +3482,7 @@ namespace monad::vm::compiler::native
         if (cmp_reg != x86::rcx) {
             MONAD_VM_DEBUG_ASSERT(!is_live(shift, live));
             offset_reg = cmp_reg;
-            as_.mov(x86::cl, cmp_reg.r8Lo());
+            as_.mov(x86::ecx, cmp_reg.r32());
         }
         else {
             if (dst_has_rcx) {
@@ -3493,10 +3493,10 @@ namespace monad::vm::compiler::native
             else {
                 offset_reg = dst_gpq[last_i];
             }
-            as_.mov(offset_reg, x86::rcx);
+            as_.mov(offset_reg.r32(), x86::ecx);
         }
-        as_.shr(offset_reg.r16(), 3);
-        as_.and_(x86::cl, 7);
+        as_.shr(offset_reg.r32(), 3);
+        as_.and_(x86::ecx, 7);
 
         static constexpr int32_t base_offset = sp_offset_temp_word2 + 32;
 
@@ -4760,7 +4760,7 @@ namespace monad::vm::compiler::native
             update_dst<Has32Bit>(sub_size, mul_dst);
         }
         else if (!is_dst_initialized_) {
-            em_.as_.xor_(dst_[i], dst_[i]);
+            em_.as_.xor_(dst_[i].r32(), dst_[i].r32());
         }
     }
 
@@ -4997,7 +4997,7 @@ namespace monad::vm::compiler::native
             }
         }
         for (size_t i = dst_word_count; i < 4; ++i) {
-            as_.xor_(dst_gpq[i], dst_gpq[i]);
+            as_.xor_(dst_gpq[i].r32(), dst_gpq[i].r32());
         }
 
         MONAD_VM_DEBUG_ASSERT(
@@ -5161,7 +5161,7 @@ namespace monad::vm::compiler::native
                 as_.and_(x86::rax, gpq[index]);
             }
             else {
-                as_.xor_(x86::rax, x86::rax);
+                as_.xor_(x86::eax, x86::eax);
             }
             while (index--) {
                 as_.or_(x86::rax, gpq[index]);
@@ -5613,13 +5613,7 @@ namespace monad::vm::compiler::native
         for (size_t i = 0; i < numQwords; i++) {
             size_t const occupied_bits =
                 i + 1 == numQwords ? exp - (i * 64) : 64;
-            if (occupied_bits <= 8) {
-                as_.mov(gpq[i].r8Lo(), mem);
-            }
-            else if (occupied_bits <= 16) {
-                as_.mov(gpq[i].r16(), mem);
-            }
-            else if (occupied_bits <= 32) {
+            if (occupied_bits <= 32) {
                 as_.mov(gpq[i].r32(), mem);
             }
             else {
@@ -5642,13 +5636,7 @@ namespace monad::vm::compiler::native
         for (size_t i = 0; i < numQwords; i++) {
             size_t const occupied_bits =
                 i + 1 == numQwords ? exp - (i * 64) : 64;
-            if (occupied_bits <= 8) {
-                as_.mov(gpq[i].r8Lo(), lit.value[i]);
-            }
-            else if (occupied_bits <= 16) {
-                as_.mov(gpq[i].r16(), lit.value[i]);
-            }
-            else if (occupied_bits <= 32) {
+            if (occupied_bits <= 32) {
                 as_.mov(gpq[i].r32(), lit.value[i]);
             }
             else {
@@ -5906,7 +5894,7 @@ namespace monad::vm::compiler::native
                     [&](Gpq256 const &c) {
                         for (size_t i = numQwords; i < 4; i++) {
                             if (!stack_.has_deferred_comparison()) {
-                                as_.xor_(c[i], c[i]);
+                                as_.xor_(c[i].r32(), c[i].r32());
                             }
                             else {
                                 as_.mov(c[i], 0);
@@ -5961,13 +5949,7 @@ namespace monad::vm::compiler::native
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
                             if (i == start_offset) {
-                                if (bits_occupied <= 8) {
-                                    as_.add(a[i].r8Lo(), temp);
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.add(a[i].r16(), temp);
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.add(a[i].r32(), temp);
                                 }
                                 else {
@@ -5976,13 +5958,7 @@ namespace monad::vm::compiler::native
                                 }
                             }
                             else {
-                                if (bits_occupied <= 8) {
-                                    as_.adc(a[i].r8Lo(), temp);
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.adc(a[i].r16(), temp);
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.adc(a[i].r32(), temp);
                                 }
                                 else {
@@ -6000,13 +5976,7 @@ namespace monad::vm::compiler::native
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
                             if (i == start_offset) {
-                                if (bits_occupied <= 8) {
-                                    as_.add(a[i].r8Lo(), b[i]);
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.add(a[i].r16(), b[i]);
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.add(a[i].r32(), b[i]);
                                 }
                                 else {
@@ -6015,13 +5985,7 @@ namespace monad::vm::compiler::native
                                 }
                             }
                             else {
-                                if (bits_occupied <= 8) {
-                                    as_.adc(a[i].r8Lo(), b[i]);
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.adc(a[i].r16(), b[i]);
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.adc(a[i].r32(), b[i]);
                                 }
                                 else {
@@ -6053,13 +6017,7 @@ namespace monad::vm::compiler::native
                             size_t const bits_occupied =
                                 i + 1 == numQwords ? exp - (i * 64) : 64;
                             if (i == start_offset) {
-                                if (bits_occupied <= 8) {
-                                    as_.add(temp, b[i].r8Lo());
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.add(temp, b[i].r16());
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.add(temp, b[i].r32());
                                 }
                                 else {
@@ -6068,13 +6026,7 @@ namespace monad::vm::compiler::native
                                 }
                             }
                             else {
-                                if (bits_occupied <= 8) {
-                                    as_.adc(temp, b[i].r8Lo());
-                                }
-                                else if (bits_occupied <= 16) {
-                                    as_.adc(temp, b[i].r16());
-                                }
-                                else if (bits_occupied <= 32) {
+                                if (bits_occupied <= 32) {
                                     as_.adc(temp, b[i].r32());
                                 }
                                 else {
