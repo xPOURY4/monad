@@ -6,6 +6,9 @@
 #include <intx/intx.hpp>
 #include <limits>
 
+#include <iostream>
+#include <ostream>
+
 /*
 #ifndef __AVX2__
     #error "Target architecture must support AVX2"
@@ -67,9 +70,15 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        inline constexpr ::intx::uint256 const &to_intx() const noexcept
+        inline ::intx::uint256 const &as_intx() const noexcept
         {
-            return *std::bit_cast<::intx::uint256 const *>(&words_);
+            return *reinterpret_cast<::intx::uint256 const *>(this);
+        }
+
+        [[gnu::always_inline]]
+        inline constexpr ::intx::uint256 to_intx() const noexcept
+        {
+            return ::intx::uint256{words_[0], words_[1], words_[2], words_[3]};
         }
 
         [[gnu::always_inline]]
@@ -91,7 +100,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
         {
-            return x.words_[0] | x.words_[1] | x.words_[2] | x.words_[3];
+            return words_[0] | words_[1] | words_[2] | words_[3];
         }
 
         template <typename Int>
@@ -131,7 +140,12 @@ namespace monad::vm::utils
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
         uint256_t const &x, uint256_t const &y) noexcept                       \
     {                                                                          \
-        return return_ty(x.to_intx() op_name y.to_intx());                     \
+        if consteval {                                                         \
+            return return_ty(x.to_intx() op_name y.to_intx());                 \
+        }                                                                      \
+        else {                                                                 \
+            return return_ty(x.as_intx() op_name y.as_intx());                 \
+        }                                                                      \
     }
 
         INHERIT_INTX_BINOP(uint256_t, /);
@@ -228,7 +242,7 @@ namespace monad::vm::utils
 
 #define BITWISE_BINOP(return_ty, op_name)                                      \
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
-        uint256_t const &x, uint256_t const &y)                                \
+        uint256_t const &x, uint256_t const &y) noexcept                       \
     {                                                                          \
         return uint256_t{                                                      \
             x[0] op_name y[0],                                                 \
@@ -244,8 +258,8 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y)
         {
-            return (x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) |
-                   (x[3] ^ y[3]);
+            return ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) |
+                    (x[3] ^ y[3])) == 0;
         }
 
         [[gnu::always_inline]] inline constexpr uint256_t operator-() const
@@ -259,16 +273,16 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        static inline uint64_t shld(uint64_t high, uint64_t low, uint8_t shift)
+        static inline constexpr uint64_t
+        shld(uint64_t high, uint64_t low, uint8_t shift)
         {
             if consteval {
                 return (high << shift) | ((low >> 1) >> (63 - shift));
             }
             else {
-                register uint8_t cl asm("cl") = shift;
-                asm("shldq %%cl, %1, %0"
-                    : "+r"(high)
-                    : "r"(high), "r"(low), "r"(cl)
+                asm("shldq %[shift], %[low], %[high]"
+                    : [high] "+r"(high)
+                    : [low] "r"(low), [shift] "c"(shift)
                     : "cc");
                 return high;
             }
@@ -337,22 +351,22 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
-        static inline constexpr uint64_t shrd(uint64_t high, uint64_t low, uint8_t shift)
+        static inline constexpr uint64_t
+        shrd(uint64_t high, uint64_t low, uint8_t shift)
         {
             if consteval {
                 return (low >> shift) | ((high << 1) << (63 - shift));
             }
             else {
-                register uint8_t cl asm("cl") = shift;
-                asm("shrdq %%cl, %1, %0"
-                    : "+r"(low)
-                    : "r"(low), "r"(high), "r"(cl)
+                asm("shrdq %[shift], %[high], %[low]"
+                    : [low] "+r"(low)
+                    : [high] "r"(high), [shift] "c"(shift)
                     : "cc");
                 return low;
             }
         }
 
-        template<typename T>
+        template <typename T>
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
         operator>>(uint256_t const &x, T shift0) noexcept
@@ -384,10 +398,7 @@ namespace monad::vm::utils
                 shift &= 127;
                 if (shift < 64) {
                     return uint256_t{
-                        shrd(x[3], x[2], shift),
-                        x[3] >> shift,
-                        0,
-                        0};
+                        shrd(x[3], x[2], shift), x[3] >> shift, 0, 0};
                 }
                 else {
                     shift &= 63;
@@ -412,54 +423,66 @@ namespace monad::vm::utils
         }
 
         [[gnu::always_inline]]
+        inline constexpr uint256_t to_be() const noexcept
+        {
+            return uint256_t{
+                std::byteswap(words_[3]),
+                std::byteswap(words_[2]),
+                std::byteswap(words_[1]),
+                std::byteswap(words_[0])};
+        }
+
+        [[gnu::always_inline]]
         static inline constexpr uint256_t
         load_be(uint8_t const (&bytes)[num_bytes]) noexcept
         {
-            return uint256_t(::intx::be::load<::intx::uint256>(bytes));
+            return load_le(bytes).to_be();
         }
 
         [[gnu::always_inline]]
         static inline constexpr uint256_t
         load_le(uint8_t const (&bytes)[num_bytes]) noexcept
         {
-            return uint256_t(::intx::le::load<::intx::uint256>(bytes));
+            return load_le_unsafe(bytes);
         }
 
         [[gnu::always_inline]]
         static inline constexpr uint256_t
         load_be_unsafe(uint8_t const *bytes) noexcept
         {
-            return uint256_t(::intx::be::unsafe::load<::intx::uint256>(bytes));
+            return load_le_unsafe(bytes).to_be();
         }
 
         [[gnu::always_inline]] static inline constexpr uint256_t
         load_le_unsafe(uint8_t const *bytes) noexcept
         {
-            return uint256_t(::intx::le::unsafe::load<::intx::uint256>(bytes));
+            static_assert(std::endian::native == std::endian::little);
+            uint256_t result;
+            std::memcpy(&result.words_, bytes, num_bytes);
+            return result;
         }
 
         template <typename DstT>
         [[gnu::always_inline]]
         inline DstT store_be() const noexcept
         {
-            return ::intx::be::store<DstT>(this->to_intx());
+            DstT result;
+            static_assert(sizeof(result.bytes) == sizeof(words_));
+            store_be(result.bytes);
+            return result;
         }
 
         [[gnu::always_inline]]
         inline void store_be(uint8_t *dest) const noexcept
         {
-            std::uint64_t ts[4] = {
-                std::byteswap((*this)[3]),
-                std::byteswap((*this)[2]),
-                std::byteswap((*this)[1]),
-                std::byteswap((*this)[0])};
-            std::memcpy(dest, ts, 32);
+            uint256_t be = to_be();
+            std::memcpy(dest, &be.words_, num_bytes);
         }
 
         [[gnu::always_inline]]
         inline void store_le(uint8_t *dest) const noexcept
         {
-            std::memcpy(dest, &this->words_, 32);
+            std::memcpy(dest, &words_, num_bytes);
         }
 
         [[gnu::always_inline]]
@@ -511,9 +534,10 @@ namespace monad::vm::utils
             return 0;
         }
         else {
-            auto leading_word_leading_zeros = static_cast<uint32_t>(
-                std::countl_zero(x[significant_words - 1]));
-            return leading_word_leading_zeros + (significant_words - 1) * 8;
+            auto leading_word = x[significant_words - 1];
+            auto leading_significant_bytes = static_cast<uint32_t>(
+                (64 - std::countl_zero(leading_word) + 7) / 8);
+            return leading_significant_bytes + (significant_words - 1) * 8;
         }
     }
 
@@ -597,7 +621,7 @@ namespace monad::vm::utils
             return result << exponent;
         }
 
-        size_t sig_words = count_significant_words(exponent.to_intx());
+        size_t sig_words = count_significant_words(exponent);
         for (size_t w = 0; w < sig_words; w++) {
             uint64_t word_exp = exponent[w];
             int32_t significant_bits =
@@ -643,7 +667,7 @@ namespace monad::vm::utils
     inline constexpr size_t countl_zero(uint256_t const &x)
     {
         size_t cnt = 0;
-        for (size_t i = 0; i < 4; i++) {
+        for (size_t i = 0; i < uint256_t::num_words; i++) {
             cnt += static_cast<size_t>(std::countl_zero(x[3 - i]));
             if (cnt != ((i + 1U) * 64U)) {
                 return cnt;

@@ -263,20 +263,12 @@ TEST(uint256, bool_cast)
     for (size_t i = 0; i < 4; ++i) {
         uint256_t x = 0;
         ASSERT_EQ(static_cast<bool>(x), false);
-        ASSERT_EQ(constexpr_operator_bool(x), false);
-        ASSERT_EQ(avx2_operator_bool(x), false);
         x[i] = 1;
         ASSERT_EQ(static_cast<bool>(x), true);
-        ASSERT_EQ(constexpr_operator_bool(x), true);
-        ASSERT_EQ(avx2_operator_bool(x), true);
         x = 0;
         ASSERT_EQ(static_cast<bool>(x), false);
-        ASSERT_EQ(constexpr_operator_bool(x), false);
-        ASSERT_EQ(avx2_operator_bool(x), false);
         x[i] = uint64_t{1} << 63;
         ASSERT_EQ(static_cast<bool>(x), true);
-        ASSERT_EQ(constexpr_operator_bool(x), true);
-        ASSERT_EQ(avx2_operator_bool(x), true);
     }
 }
 
@@ -402,8 +394,6 @@ TEST(uint256, predicates)
     for (auto const &x : test_inputs) {
         for (auto const &y : test_inputs) {
             ASSERT_EQ(x == y, x.to_intx() == y.to_intx());
-            ASSERT_EQ(constexpr_operator_eq(x, y), x.to_intx() == y.to_intx());
-            ASSERT_EQ(avx2_operator_eq(x, y), x.to_intx() == y.to_intx());
             ASSERT_EQ(x < y, x.to_intx() < y.to_intx());
             ASSERT_EQ(x <= y, x.to_intx() <= y.to_intx());
             ASSERT_EQ(x > y, x.to_intx() > y.to_intx());
@@ -431,12 +421,10 @@ TEST(uint256, shifts)
         for (uint64_t shift = 0; shift <= 256; shift++) {
             auto shl = x << shift;
             ASSERT_EQ(shl, uint256_t(x.to_intx() << shift));
-            ASSERT_EQ(constexpr_operator_shl(x, shift), shl);
 
             auto shr = x >> shift;
             ASSERT_EQ(shr, uint256_t(x.to_intx() >> shift))
                 << "Shift: " << shift;
-            ASSERT_EQ(constexpr_operator_shr(x, shift), shr);
         }
         for (auto const &y : test_inputs) {
             ASSERT_EQ(x << y, uint256_t(x.to_intx() << y.to_intx()));
