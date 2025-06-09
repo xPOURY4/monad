@@ -56,7 +56,7 @@ namespace monad::vm::fuzzing
     template <typename Engine>
     Constant small_constant(Engine &gen)
     {
-        // For testing byte,signextend
+        // For testing byte,signextend,shifts
         auto dist = std::uniform_int_distribution(0, 257);
         return Constant{dist(gen)};
     }

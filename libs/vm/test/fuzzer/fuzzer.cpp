@@ -107,8 +107,10 @@ static constexpr auto block_gas_limit = 300'000'000;
 static evmone::test::TestState initial_state()
 {
     auto init = evmone::test::TestState{};
+    // Genesis account with some large balance, but sufficiently small
+    // so that token supply will not overflow uint256.
     init[genesis_address] = {
-        .balance = std::numeric_limits<intx::uint256>::max(),
+        .balance = std::numeric_limits<intx::uint256>::max() / 2,
         .storage = {},
         .code = {}};
     return init;
