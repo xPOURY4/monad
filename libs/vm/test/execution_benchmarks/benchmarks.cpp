@@ -157,6 +157,14 @@ namespace
         }
     }
 
+    void touch_init_state(
+        evmone::test::TestState const &init_state, evmone::state::State &state)
+    {
+        for (auto const &[addr, _] : init_state) {
+            state.find(addr);
+        }
+    };
+
     void run_benchmark_json(
         benchmark::State &state, BlockchainTestVM::Implementation const impl,
         evmone::test::TestState const &initial_test_state,
@@ -172,6 +180,7 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = State{initial_test_state};
+            touch_init_state(initial_test_state, evm_state);
             auto const block = BlockInfo{};
             auto const hashes = evmone::test::TestBlockHashes{};
             auto const tx = Transaction{};

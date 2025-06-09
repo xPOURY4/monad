@@ -84,6 +84,14 @@ namespace
         bytes32 iterations;
     };
 
+    void touch_init_state(
+        evmone::test::TestState const &init_state, evmone::state::State &state)
+    {
+        for (auto const &[addr, _] : init_state) {
+            state.find(addr);
+        }
+    };
+
     void run_burntpix(
         benchmark::State &state, BlockchainTestVM::Implementation const impl,
         uint64_t const seed, uint64_t const iterations)
@@ -124,6 +132,7 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = evmone::state::State{burntpix_init_state};
+            touch_init_state(burntpix_init_state, evm_state);
             auto host = Host(
                 EVMC_CANCUN,
                 vm,
@@ -209,6 +218,7 @@ namespace
         for (auto _ : state) {
             state.PauseTiming();
             auto evm_state = State{snailtracer_init_state};
+            touch_init_state(snailtracer_init_state, evm_state);
             auto host = Host(
                 EVMC_CANCUN,
                 vm,
