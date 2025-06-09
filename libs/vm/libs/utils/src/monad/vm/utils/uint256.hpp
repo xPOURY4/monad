@@ -26,6 +26,13 @@ extern "C" void monad_vm_runtime_mul(
 
 namespace monad::vm::utils
 {
+    template <typename T>
+    struct result_with_carry
+    {
+        T value;
+        bool carry;
+    };
+
     struct uint256_t
     {
         using word_type = uint64_t;
@@ -81,6 +88,7 @@ namespace monad::vm::utils
             return ::intx::uint256{words_[0], words_[1], words_[2], words_[3]};
         }
 
+#ifdef __AVX2__
         [[gnu::always_inline]]
         explicit(true) uint256_t(__m256i x) noexcept
         {
@@ -96,6 +104,7 @@ namespace monad::vm::utils
             std::memcpy(&result, &words_, sizeof(result));
             return result;
         }
+#endif
 
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
@@ -153,8 +162,8 @@ namespace monad::vm::utils
 #undef INHERIT_INTX_BINOP
 
         [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator+(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        friend inline result_with_carry<uint256_t> constexpr addc(
+            uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
             static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
             unsigned long long carry = 0;
@@ -163,21 +172,37 @@ namespace monad::vm::utils
             result[1] = __builtin_addcll(lhs[1], rhs[1], carry, &carry);
             result[2] = __builtin_addcll(lhs[2], rhs[2], carry, &carry);
             result[3] = __builtin_addcll(lhs[3], rhs[3], carry, &carry);
-            return result;
+            return result_with_carry{
+                .value = result, .carry = static_cast<bool>(carry)};
+        }
+
+        [[gnu::always_inline]]
+        constexpr friend inline result_with_carry<uint256_t>
+        subb(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+            unsigned long long carry = 0;
+            uint256_t result;
+            result[0] = __builtin_subcll(lhs[0], rhs[0], carry, &carry);
+            result[1] = __builtin_subcll(lhs[1], rhs[1], carry, &carry);
+            result[2] = __builtin_subcll(lhs[2], rhs[2], carry, &carry);
+            result[3] = __builtin_subcll(lhs[3], rhs[3], carry, &carry);
+            return result_with_carry{
+                .value = result, .carry = static_cast<bool>(carry)};
+        }
+
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator+(uint256_t const &lhs, uint256_t const &rhs) noexcept
+        {
+            return addc(lhs, rhs).value;
         }
 
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
         operator-(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-            unsigned long long borrow = 0;
-            uint256_t result;
-            result[0] = __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
-            result[1] = __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
-            result[2] = __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
-            result[3] = __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
-            return result;
+            return subb(lhs, rhs).value;
         }
 
         [[gnu::always_inline]]
@@ -210,13 +235,7 @@ namespace monad::vm::utils
         friend inline constexpr bool
         operator<(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-            unsigned long long borrow = 0;
-            __builtin_subcll(lhs[0], rhs[0], borrow, &borrow);
-            __builtin_subcll(lhs[1], rhs[1], borrow, &borrow);
-            __builtin_subcll(lhs[2], rhs[2], borrow, &borrow);
-            __builtin_subcll(lhs[3], rhs[3], borrow, &borrow);
-            return borrow;
+            return subb(lhs, rhs).carry;
         }
 
         [[gnu::always_inline]]
@@ -596,19 +615,13 @@ namespace monad::vm::utils
             ::intx::mulmod(x.to_intx(), y.to_intx(), mod.to_intx()));
     }
 
-    struct result_with_carry
-    {
-        uint64_t value;
-        bool carry;
-    };
-
     [[gnu::always_inline]]
-    inline constexpr result_with_carry
+    inline constexpr result_with_carry<uint64_t>
     addc(uint64_t x, uint64_t y, bool carry = false) noexcept
     {
         static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
         unsigned long long carry_out = 0;
-        auto value = __builtin_addcll(x, y, carry, &carry_out);
+        uint64_t value = __builtin_addcll(x, y, carry, &carry_out);
         return result_with_carry{
             .value = value, .carry = static_cast<bool>(carry_out)};
     }
