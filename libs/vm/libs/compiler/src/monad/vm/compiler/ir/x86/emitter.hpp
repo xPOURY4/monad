@@ -558,8 +558,6 @@ namespace monad::vm::compiler::native
         void
         mov_literal_to_unaligned_mem(Literal const &, asmjit::x86::Mem const &);
         void mov_avx_reg_to_unaligned_mem(AvxReg, asmjit::x86::Mem const &);
-        void mov_stack_offset_to_unaligned_mem(
-            StackOffset, asmjit::x86::Mem const &);
         void
         mov_stack_elem_to_unaligned_mem(StackElemRef, asmjit::x86::Mem const &);
 

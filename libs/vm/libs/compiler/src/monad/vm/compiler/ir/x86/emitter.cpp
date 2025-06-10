@@ -1458,15 +1458,6 @@ namespace monad::vm::compiler::native
         as_.vmovups(mem, avx_reg_to_ymm(reg));
     }
 
-    void Emitter::mov_stack_offset_to_unaligned_mem(
-        StackOffset offset, asmjit::x86::Mem const &mem)
-    {
-        auto [elem, reserv] = alloc_avx_reg();
-        AvxReg const reg = *elem->avx_reg();
-        as_.vmovaps(avx_reg_to_ymm(reg), stack_offset_to_mem(offset));
-        mov_avx_reg_to_unaligned_mem(reg, mem);
-    }
-
     void Emitter::mov_stack_elem_to_unaligned_mem(
         StackElemRef elem, asmjit::x86::Mem const &mem)
     {
@@ -1476,12 +1467,9 @@ namespace monad::vm::compiler::native
         else if (elem->general_reg()) {
             mov_general_reg_to_mem(*elem->general_reg(), mem);
         }
-        else if (elem->literal()) {
-            mov_literal_to_unaligned_mem(*elem->literal(), mem);
-        }
         else {
-            MONAD_VM_ASSERT(elem->stack_offset().has_value());
-            mov_stack_offset_to_unaligned_mem(*elem->stack_offset(), mem);
+            mov_stack_elem_to_avx_reg(elem);
+            mov_avx_reg_to_unaligned_mem(*elem->avx_reg(), mem);
         }
     }
 
