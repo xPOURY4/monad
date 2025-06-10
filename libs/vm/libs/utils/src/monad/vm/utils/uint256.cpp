@@ -53,23 +53,48 @@ namespace monad::vm::utils
         return ret;
     }
 
-    uint256_t sar(uint256_t const &shift_index_256, uint256_t const &x)
+    uint256_t sar(uint256_t const &shift0, uint256_t const &x)
     {
-        int64_t shift_index = shift_index_256 >= 255
-                                  ? 255
-                                  : static_cast<int64_t>(shift_index_256[0]);
-        uint64_t const sign_bit =
-            x[3] & static_cast<uint64_t>(std::numeric_limits<int64_t>::min());
-        uint256_t sign_bits{0};
-        size_t i = 4;
-        while (shift_index > 0) {
-            uint64_t const shift =
-                std::min(uint64_t{63}, static_cast<uint64_t>(shift_index));
-            sign_bits[--i] =
-                static_cast<uint64_t>(static_cast<int64_t>(sign_bit) >> shift);
-            shift_index -= 64;
+        int64_t const sign_bit =
+            static_cast<int64_t>(x[3]) & std::numeric_limits<int64_t>::min();
+        uint64_t fill = static_cast<uint64_t>(sign_bit >> 63);
+        if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
+            return uint256_t{fill, fill, fill, fill};
         }
-        return (x >> shift_index_256) | sign_bits;
+        auto shift = static_cast<uint8_t>(shift0);
+        if (shift < 128) {
+            if (shift < 64) {
+                return uint256_t{
+                    uint256_t::shrd(x[1], x[0], shift),
+                    uint256_t::shrd(x[2], x[1], shift),
+                    uint256_t::shrd(x[3], x[2], shift),
+                    uint256_t::shrd(fill, x[3], shift),
+                };
+            }
+            else {
+                shift &= 63;
+                return uint256_t{
+                    uint256_t::shrd(x[2], x[1], shift),
+                    uint256_t::shrd(x[3], x[2], shift),
+                    uint256_t::shrd(fill, x[3], shift),
+                    fill};
+            }
+        }
+        else {
+            shift &= 127;
+            if (shift < 64) {
+                return uint256_t{
+                    uint256_t::shrd(x[3], x[2], shift),
+                    uint256_t::shrd(fill, x[3], shift),
+                    fill,
+                    fill};
+            }
+            else {
+                shift &= 63;
+                return uint256_t{
+                    uint256_t::shrd(fill, x[3], shift), fill, fill, fill};
+            }
+        }
     }
 
     uint256_t countr_zero(uint256_t const &x)

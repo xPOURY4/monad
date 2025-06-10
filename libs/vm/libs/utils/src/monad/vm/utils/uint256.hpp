@@ -9,11 +9,9 @@
 #include <iostream>
 #include <ostream>
 
-/*
 #ifndef __AVX2__
     #error "Target architecture must support AVX2"
 #endif
-*/
 
 namespace monad::vm::utils
 {
@@ -88,7 +86,6 @@ namespace monad::vm::utils
             return ::intx::uint256{words_[0], words_[1], words_[2], words_[3]};
         }
 
-#ifdef __AVX2__
         [[gnu::always_inline]]
         explicit(true) uint256_t(__m256i x) noexcept
         {
@@ -104,7 +101,6 @@ namespace monad::vm::utils
             std::memcpy(&result, &words_, sizeof(result));
             return result;
         }
-#endif
 
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
@@ -235,7 +231,17 @@ namespace monad::vm::utils
         friend inline constexpr bool
         operator<(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            return subb(lhs, rhs).carry;
+            // On random data, this implementation outperforms both intx
+            // and a branchless approach, since the branch predictor will
+            // get it right almost always. It is possible to construct
+            // adversarial examples where this is slower than either approach,
+            // however
+            for (size_t i = 0; i < num_words; i++) {
+                if (lhs[3 - i] != rhs[3 - i]) [[likely]] {
+                    return lhs[3 - i] < rhs[3 - i];
+                }
+            }
+            return false;
         }
 
         [[gnu::always_inline]]
@@ -256,7 +262,7 @@ namespace monad::vm::utils
         friend inline constexpr bool
         operator>=(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            return rhs <= lhs;
+            return !(lhs < rhs);
         }
 
 #define BITWISE_BINOP(return_ty, op_name)                                      \
@@ -277,8 +283,10 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y)
         {
-            return ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2]) |
-                    (x[3] ^ y[3])) == 0;
+            // Even if this branch gets mispredicted 50% of the time, the
+            // branching version is overall faster
+            if (x[3] != y[3]) return false;
+            return ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2])) == 0;
         }
 
         [[gnu::always_inline]] inline constexpr uint256_t operator-() const
@@ -570,49 +578,60 @@ namespace monad::vm::utils
     inline constexpr div_result
     sdivrem(uint256_t const &x, uint256_t const &y) noexcept
     {
-        auto mask = uint64_t{1} << (uint256_t::word_num_bits - 1);
-        auto x_is_neg = x[uint256_t::num_words - 1] & mask;
-        auto y_is_neg = y[uint256_t::num_words - 1] & mask;
+        auto sign_bit = uint64_t{1} << 63;
+        auto x_neg = x[uint256_t::num_words - 1] & sign_bit;
+        auto y_neg = y[uint256_t::num_words - 1] & sign_bit;
 
-        auto x_abs = x_is_neg ? -x : x;
-        auto y_abs = y_is_neg ? -y : y;
+        auto x_abs = x_neg ? -x : x;
+        auto y_abs = y_neg ? -y : y;
 
-        auto quot_is_neg = x_is_neg ^ y_is_neg;
+        auto quot_neg = x_neg ^ y_neg;
 
         auto result = ::intx::udivrem(x_abs.to_intx(), y_abs.to_intx());
 
         return {
-            uint256_t{quot_is_neg ? -result.quot : result.quot},
-            uint256_t{x_is_neg ? -result.rem : result.rem}};
+            uint256_t{quot_neg ? -result.quot : result.quot},
+            uint256_t{x_neg ? -result.rem : result.rem}};
     }
 
     [[gnu::always_inline]]
     inline constexpr bool slt(uint256_t const &x, uint256_t const &y) noexcept
     {
-        auto sign_x = x[3] >> 63;
-        auto sign_y = y[3] >> 63;
-        if (sign_x == sign_y) {
-            return x < y;
-        }
-        else {
-            return sign_x;
-        }
+        auto x_neg = x[uint256_t::num_words - 1] >> 63;
+        auto y_neg = y[uint256_t::num_words - 1] >> 63;
+        auto diff = x_neg ^ y_neg;
+        // intx branches on the sign bit, which will be mispredicted on random
+        // data ~50% of the time. The branchless version does not add much
+        // overhead so it is probably worth it
+        return (~diff & (x < y)) | (x_neg & ~y_neg);
     }
 
     [[gnu::always_inline]]
     inline constexpr uint256_t addmod(
         uint256_t const &x, uint256_t const &y, uint256_t const &mod) noexcept
     {
-        return uint256_t(
-            ::intx::addmod(x.to_intx(), y.to_intx(), mod.to_intx()));
+        if consteval {
+            return uint256_t(
+                ::intx::addmod(x.to_intx(), y.to_intx(), mod.to_intx()));
+        }
+        else {
+            return uint256_t(
+                ::intx::addmod(x.as_intx(), y.as_intx(), mod.as_intx()));
+        }
     }
 
     [[gnu::always_inline]]
     inline constexpr uint256_t mulmod(
         uint256_t const &x, uint256_t const &y, uint256_t const &mod) noexcept
     {
-        return uint256_t(
-            ::intx::mulmod(x.to_intx(), y.to_intx(), mod.to_intx()));
+        if consteval {
+            return uint256_t(
+                ::intx::mulmod(x.to_intx(), y.to_intx(), mod.to_intx()));
+        }
+        else {
+            return uint256_t(
+                ::intx::mulmod(x.as_intx(), y.as_intx(), mod.as_intx()));
+        }
     }
 
     [[gnu::always_inline]]
