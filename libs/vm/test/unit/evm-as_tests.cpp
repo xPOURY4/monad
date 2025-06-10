@@ -6,6 +6,7 @@
 #include "monad/vm/utils/uint256.hpp"
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/evm/opcodes.hpp>
@@ -22,6 +23,8 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <sstream>
+#include <string>
 #include <vector>
 
 using namespace monad::vm;
@@ -927,4 +930,119 @@ TEST(EvmAs, ValidationSlack)
     ASSERT_EQ(errors.size(), 1);
     ASSERT_EQ(errors[0].msg, "Stack underflow");
     ASSERT_EQ(errors[0].offset, 3);
+}
+
+static evm_as::mnemonic_config mconfig{false, true, 12};
+
+TEST(EvmAs, Annotation1)
+{
+    auto eb = evm_as::latest();
+
+    std::string const expected = "PUSH1 0x1   // [1]\n"
+                                 "PUSH1 0x3F  // [63, 1]\n"
+                                 "ADD         // [X0]\n";
+
+    eb.push(1).push(63).add();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+}
+
+TEST(EvmAs, Annotation2)
+{
+    auto eb = evm_as::latest();
+
+    uint32_t u32max = std::numeric_limits<uint32_t>::max();
+
+    std::string expected = std::format(
+        "PUSH4 0x{:X} // [{}]\n"
+        "PUSH1 0x1   // [1, {}]\n"
+        "ADD         // [X0]\n",
+        u32max,
+        u32max,
+        u32max);
+
+    eb.push(u32max).push(1).add();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+
+    // "Large" inputs get named.
+    expected = std::format(
+        "PUSH5 0x{:X} // [X0]\n"
+        "PUSH1 0x1   // [1, X0]\n"
+        "ADD         // [Y0]\n",
+        static_cast<uint64_t>(u32max) + 1);
+
+    eb = evm_as::latest();
+    eb.push(static_cast<uint64_t>(u32max) + 1).push(1).add();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+}
+
+TEST(EvmAs, Annotation3)
+{
+    auto eb = evm_as::latest();
+
+    std::string const expected = "PUSH0       // [0]\n"
+                                 "PUSH1 0x1   // [1, 0]\n"
+                                 "PUSH1 0x2   // [2, 1, 0]\n"
+                                 "PUSH1 0x3   // [3, 2, 1, 0]\n"
+                                 "PUSH1 0x4   // [4, 3, 2, 1, 0]\n"
+                                 "PUSH1 0x5   // [5, 4, 3, 2, 1, 0]\n"
+                                 "PUSH1 0x6   // [6, 5, 4, 3, 2, 1, 0]\n"
+                                 "PUSH1 0x7   // [7, 6, 5, 4, 3, 2, 1, 0]\n"
+                                 "PUSH1 0x8   // [8, 7, 6, 5, 4, 3, ..., 0]\n";
+
+    eb.push0().push(1).push(2).push(3).push(4).push(5).push(6).push(7).push(8);
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+}
+
+TEST(EvmAs, Annotation4)
+{
+    auto eb = evm_as::latest();
+
+    size_t large =
+        static_cast<size_t>(std::numeric_limits<uint32_t>::max()) + 1;
+
+    std::string const expected = std::format(
+        "PUSH5 0x{:X} // [X0]\n"
+        "PUSH5 0x{:X} // [Y0, X0]\n"
+        "PUSH5 0x{:X} // [Z0, Y0, X0]\n"
+        "PUSH5 0x{:X} // [A0, Z0, Y0, X0]\n"
+        "PUSH5 0x{:X} // [B0, A0, Z0, Y0, X0]\n"
+        "PUSH5 0x{:X} // [C0, B0, A0, Z0, Y0, X0]\n"
+        "PUSH5 0x{:X} // [X1, C0, B0, A0, Z0, Y0, X0]\n",
+        large,
+        large,
+        large,
+        large,
+        large,
+        large,
+        large);
+
+    for (size_t i = 0; i < 7; i++) {
+        eb.push(large);
+    }
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+}
+
+TEST(EvmAs, Annotation5)
+{
+    auto eb = evm_as::latest();
+
+    size_t large =
+        static_cast<size_t>(std::numeric_limits<uint32_t>::max()) + 1;
+
+    std::string const expected_last_line = std::format(
+        "PUSH5 0x{:X} // [X100, C99, B99, A99, Z99, Y99, ..., X0]", large);
+
+    for (size_t i = 0; i < 601; i++) {
+        eb.push(large);
+    }
+
+    std::stringstream output(evm_as::mcompile(eb, mconfig));
+    std::string line;
+    std::vector<std::string> lines;
+
+    while (std::getline(output, line, '\n')) {
+        lines.push_back(line);
+    }
+    ASSERT_TRUE(lines.size() > 0);
+    ASSERT_EQ(lines[lines.size() - 1], expected_last_line);
 }

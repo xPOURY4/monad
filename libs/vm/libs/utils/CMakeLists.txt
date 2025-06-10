@@ -11,6 +11,7 @@ target_sources(monad-vm-utils PRIVATE
     "src/monad/vm/utils/evmc_utils.hpp"
     "src/monad/vm/utils/evm-as.hpp"
     "src/monad/vm/utils/evm-as/builder.hpp"
+    "src/monad/vm/utils/evm-as/compiler.cpp"
     "src/monad/vm/utils/evm-as/compiler.hpp"
     "src/monad/vm/utils/evm-as/instruction.hpp"
     "src/monad/vm/utils/evm-as/resolver.hpp"

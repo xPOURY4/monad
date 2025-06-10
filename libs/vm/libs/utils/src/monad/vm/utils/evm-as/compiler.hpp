@@ -14,12 +14,74 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <variant>
 #include <vector>
+
+namespace monad::vm::utils::evm_as::internal
+{
+    using namespace monad::vm::utils::evm_as;
+
+    struct annot_context
+    {
+        std::vector<std::string> vstack{};
+        size_t next_subscript = 0;
+        size_t next_letter = 0;
+    };
+
+    void emit_annotation(
+        annot_context &ctx, size_t prefix_len, size_t desired_offset,
+        std::ostream &os);
+
+    std::string new_var(annot_context &ctx);
+
+    template <evmc_revision Rev>
+    bool simulate_stack_effect(Instruction::T inst, annot_context &ctx)
+    {
+        return std::visit(
+            Cases{
+                [&](PlainI const &plain) -> bool {
+                    auto const &info =
+                        compiler::opcode_table<Rev>[plain.opcode];
+                    if (info.min_stack <= ctx.vstack.size()) {
+                        for (size_t i = 0; i < info.min_stack; i++) {
+                            ctx.vstack.pop_back();
+                        }
+                    }
+
+                    if (info.stack_increase > 0) {
+                        if (plain.opcode == compiler::EvmOpCode::PUSH0) {
+                            ctx.vstack.push_back("0");
+                        }
+                        else {
+                            for (size_t i = 0; i < info.stack_increase; i++) {
+                                ctx.vstack.push_back(new_var(ctx));
+                            }
+                        }
+                    }
+                    return true;
+                },
+                [&](PushI const &push) -> bool {
+                    if (push.imm > std::numeric_limits<uint32_t>::max()) {
+                        ctx.vstack.push_back(new_var(ctx));
+                    }
+                    else {
+                        ctx.vstack.push_back(push.imm.to_string(10));
+                    }
+                    return true;
+                },
+                [&](PushLabelI const &push) -> bool {
+                    ctx.vstack.push_back(push.label);
+                    return true;
+                },
+                [](auto const &) -> bool { return false; }},
+            inst);
+    }
+}
 
 namespace monad::vm::utils::evm_as
 {
@@ -111,20 +173,54 @@ namespace monad::vm::utils::evm_as
         return ss.str();
     }
 
+    // Mnemonic compiler config
+    struct mnemonic_config
+    {
+        constexpr mnemonic_config()
+            : resolve_labels(false)
+            , annotate(false)
+            , desired_annotation_offset(32)
+        {
+        }
+
+        constexpr mnemonic_config(
+            bool resolve_labels, bool annotate, size_t offset)
+            : resolve_labels(resolve_labels)
+            , annotate(annotate)
+            , desired_annotation_offset(offset)
+        {
+        }
+
+        bool resolve_labels;
+        bool annotate;
+        size_t desired_annotation_offset;
+    };
+
     //
     // Mnemonic compiler
     //
     template <evmc_revision Rev>
-    inline void mcompile(EvmBuilder<Rev> const &eb, std::ostream &os)
+    inline void mcompile(
+        EvmBuilder<Rev> const &eb, std::ostream &os,
+        mnemonic_config config = mnemonic_config())
     {
+        auto const label_offsets =
+            [&]() -> std::unordered_map<std::string, size_t> {
+            if (config.resolve_labels) {
+                return resolve_labels<Rev>(eb);
+            }
+            return {};
+        }();
+        internal::annot_context ctx{{}, 0};
         for (auto const &ins : eb) {
-            std::visit(
+            size_t length = std::visit(
                 Cases{
-                    [&](PlainI const &plain) -> void {
+                    [&](PlainI const &plain) -> size_t {
                         auto const info = mc::opcode_table<Rev>[plain.opcode];
-                        os << info.name << std::endl;
+                        os << info.name;
+                        return info.name.size();
                     },
-                    [&](PushI const &push) -> void {
+                    [&](PushI const &push) -> size_t {
                         auto const info = mc::opcode_table<Rev>[push.opcode];
                         std::string imm_str = push.imm.to_string(16);
                         std::transform(
@@ -132,39 +228,78 @@ namespace monad::vm::utils::evm_as
                             imm_str.end(),
                             imm_str.begin(),
                             ::toupper);
-                        os << info.name << " 0x" << imm_str << std::endl;
+
+                        os << info.name << " 0x" << imm_str;
+                        return info.name.size() + 3 + imm_str.size();
                     },
-                    [&](PushLabelI const &push) -> void {
-                        os << "PUSH " << push.label << std::endl;
+                    [&](PushLabelI const &push) -> size_t {
+                        if (config.resolve_labels) {
+                            auto const it = label_offsets.find(push.label);
+                            if (it == label_offsets.end()) {
+                                // Undefined label
+                                os << "INVALID";
+                                return 7;
+                            }
+                            size_t offset = it->second;
+                            size_t n =
+                                offset == 0 ? offset : byte_width(offset);
+                            std::string str =
+                                std::format("PUSH{} 0x{:X}", n, offset);
+                            os << str;
+                            return str.size();
+                        }
+                        else {
+                            os << "PUSH " << push.label;
+                            return 5 + push.label.size();
+                        }
                     },
-                    [&](JumpdestI const &jumpdest) -> void {
-                        os << "JUMPDEST " << jumpdest.label << std::endl;
+                    [&](JumpdestI const &jumpdest) -> size_t {
+                        os << "JUMPDEST";
+                        if (!config.resolve_labels) {
+                            os << ' ' << jumpdest.label;
+                            return 9 + jumpdest.label.size();
+                        }
+                        return 8;
                     },
-                    [&](InvalidI const &) -> void {
-                        os << "INVALID" << std::endl;
+                    [&](InvalidI const &) -> size_t {
+                        os << "INVALID";
+                        return 7;
                     },
-                    [&](CommentI const &comment) -> void {
+                    [&](CommentI const &comment) -> size_t {
                         if (comment.msg.empty()) {
-                            os << "//" << std::endl;
-                            return;
+                            os << "//";
+                            return 0;
                         }
                         std::stringstream ss(comment.msg);
                         std::string msg;
+                        bool first = true;
                         while (std::getline(ss, msg, '\n')) {
-                            os << "// " << msg << std::endl;
+                            if (!first) {
+                                os << std::endl;
+                            }
+                            os << "// " << msg;
+                            first = false;
                         }
+                        return 0;
                     }},
                 ins);
+            if (config.annotate && length > 0) {
+                internal::simulate_stack_effect<Rev>(ins, ctx);
+                internal::emit_annotation(
+                    ctx, length, config.desired_annotation_offset, os);
+            }
+            os << std::endl;
         }
     }
 
     // Returns a mnemonic representation of the provided builder object
     // as a string; convenient for testing.
     template <evmc_revision Rev>
-    inline std::string mcompile(EvmBuilder<Rev> const &eb)
+    inline std::string mcompile(
+        EvmBuilder<Rev> const &eb, mnemonic_config config = mnemonic_config())
     {
         std::stringstream ss{};
-        mcompile(eb, ss);
+        mcompile(eb, ss, config);
         return ss.str();
     }
 }
