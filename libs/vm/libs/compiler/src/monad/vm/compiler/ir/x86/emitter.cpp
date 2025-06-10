@@ -170,6 +170,12 @@ namespace
         return x86::Ymm(reg.reg);
     }
 
+    x86::Xmm avx_reg_to_xmm(AvxReg reg)
+    {
+        MONAD_VM_DEBUG_ASSERT(reg.reg < 32);
+        return x86::Xmm(reg.reg);
+    }
+
     void runtime_print_gas_remaining_impl(
         char const *msg, runtime::Context const *ctx)
     {
@@ -1648,17 +1654,38 @@ namespace monad::vm::compiler::native
         }
     }
 
+    void Emitter::mov_general_reg_to_avx_reg(StackElemRef elem, int32_t)
+    {
+        mov_general_reg_to_avx_reg(elem);
+    }
     void Emitter::mov_general_reg_to_avx_reg(StackElemRef elem)
     {
-        int32_t const preferred = elem->preferred_stack_offset();
-        mov_general_reg_to_avx_reg(std::move(elem), preferred);
-    }
+        MONAD_VM_DEBUG_ASSERT(elem->general_reg().has_value());
+        Gpq256 const &gpq = general_reg_to_gpq256(*elem->general_reg());
+        insert_avx_reg(elem);
+        auto elem_avx = *elem->avx_reg();
+        auto xmm0 = avx_reg_to_xmm(elem_avx);
+        auto ymm0 = avx_reg_to_ymm(elem_avx);
+        if (stack_.has_free_avx_reg()) {
+            auto [temporary, reserv, offset] = stack_.alloc_avx_reg();
+            auto temporary_avx = *temporary->avx_reg();
+            auto xmm1 = avx_reg_to_xmm(temporary_avx);
+            auto ymm1 = avx_reg_to_ymm(temporary_avx);
 
-    void
-    Emitter::mov_general_reg_to_avx_reg(StackElemRef elem, int32_t preferred)
-    {
-        mov_general_reg_to_stack_offset(elem, preferred);
-        mov_stack_offset_to_avx_reg(elem);
+            as_.movq(xmm0, gpq[0]);
+            as_.movq(xmm1, gpq[2]);
+            as_.pinsrq(xmm0, gpq[1], 1);
+            as_.pinsrq(xmm1, gpq[3], 1);
+            as_.vinserti128(ymm0, ymm0, ymm1, 1);
+        }
+        else {
+            // Slower algorithm to avoid spilling a live avx register
+            as_.movq(xmm0, gpq[2]);
+            as_.pinsrq(xmm0, gpq[3], 1);
+            as_.vinserti128(ymm0, ymm0, ymm0, 1);
+            as_.movq(xmm0, gpq[0]);
+            as_.movq(xmm0, gpq[1]);
+        }
     }
 
     void Emitter::mov_literal_to_avx_reg(StackElemRef elem)
@@ -1724,15 +1751,43 @@ namespace monad::vm::compiler::native
 
     void Emitter::mov_avx_reg_to_general_reg(StackElemRef elem)
     {
+        /*
         int32_t const preferred = elem->preferred_stack_offset();
         mov_avx_reg_to_general_reg(std::move(elem), preferred);
+        */
+        MONAD_VM_DEBUG_ASSERT(elem->avx_reg().has_value());
+        auto xmm0 = avx_reg_to_xmm(*elem->avx_reg());
+        auto ymm0 = avx_reg_to_ymm(*elem->avx_reg());
+        insert_general_reg(elem);
+        Gpq256 const &gpq = general_reg_to_gpq256(*elem->general_reg());
+
+        if (stack_.has_free_avx_reg()) {
+            auto [temporary, reserv, offset] = stack_.alloc_avx_reg();
+            auto temporary_avx = *temporary->avx_reg();
+            auto xmm1 = avx_reg_to_xmm(temporary_avx);
+            as_.vextracti128(xmm1, ymm0, 1);
+            as_.pextrq(gpq[0], xmm0, 0);
+            as_.pextrq(gpq[1], xmm0, 1);
+            as_.pextrq(gpq[2], xmm1, 0);
+            as_.pextrq(gpq[3], xmm1, 1);
+        }
+        else {
+            as_.pextrq(gpq[0], xmm0, 0);
+            as_.pextrq(gpq[1], xmm0, 1);
+            as_.vextracti128(xmm0, ymm0, 1);
+            as_.pextrq(gpq[2], xmm0, 0);
+            as_.pextrq(gpq[3], xmm0, 1);
+        }
     }
 
     void
-    Emitter::mov_avx_reg_to_general_reg(StackElemRef elem, int32_t preferred)
+    Emitter::mov_avx_reg_to_general_reg(StackElemRef elem, int32_t)
     {
+        /*
         mov_avx_reg_to_stack_offset(elem, preferred);
         mov_stack_offset_to_general_reg(elem);
+        */
+        mov_avx_reg_to_general_reg(elem);
     }
 
     void Emitter::mov_literal_to_general_reg(StackElemRef elem)

@@ -908,7 +908,6 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
         !e0->general_reg());
 
     emit.mov_stack_index_to_general_reg(0);
-    stack.spill_stack_offset(e0);
     (void)stack.spill_avx_reg(e0);
     ASSERT_TRUE(
         e0->general_reg() && !e0->stack_offset() && !e0->literal() &&
@@ -968,7 +967,6 @@ TEST(Emitter, mov_stack_index_to_general_reg)
         !e1->avx_reg());
 
     emit.mov_stack_index_to_avx_reg(1);
-    stack.spill_stack_offset(e1);
     (void)stack.spill_general_reg(e1);
     ASSERT_TRUE(
         e1->avx_reg() && !e1->stack_offset() && !e1->literal() &&
