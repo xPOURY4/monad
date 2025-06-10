@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <format>
 #include <ios>
 #include <iostream>
 #include <iterator>
@@ -33,6 +34,7 @@ struct arguments
     bool binary = false;
     bool stdin = false;
     bool compile = false;
+    bool validate = false;
     std::vector<std::string> filenames;
 };
 
@@ -50,6 +52,10 @@ arguments parse_args(int const argc, char **const argv)
         "process input files as binary and show evm opcodes/data as text");
 
     app.add_flag("-c,--compile", args.compile, "compile the input files");
+    app.add_option(
+        "--validate",
+        args.validate,
+        std::format("validate input files (default: {})", args.validate));
 
     app.add_flag("-v,--verbose", args.verbose, "send debug info to stdout");
 
@@ -67,15 +73,15 @@ arguments parse_args(int const argc, char **const argv)
 }
 
 std::vector<uint8_t> do_parse(
-    bool verbose, std::string const &filename, std::string const &s,
-    std::string const &outfile, std::ostream &os)
+    parser_config const &config, std::string const &filename,
+    std::string const &s, std::string const &outfile, std::ostream &os)
 {
-    if (verbose) {
+    if (config.verbose) {
         std::cerr << "parsing " << filename << '\n';
     }
 
-    auto opcodes = verbose ? parse_opcodes_verbose(s) : parse_opcodes(s);
-    if (verbose) {
+    auto opcodes = parse_opcodes(config, s);
+    if (config.verbose) {
         std::cerr << "writing " << outfile << '\n';
     }
     os.write(
@@ -85,10 +91,10 @@ std::vector<uint8_t> do_parse(
 }
 
 void do_binary(
-    bool verbose, std::string const &filename,
+    parser_config const &config, std::string const &filename,
     std::vector<uint8_t> const &opcodes)
 {
-    if (verbose) {
+    if (config.verbose) {
         std::cerr << "printing " << filename << '\n';
     }
 
@@ -99,17 +105,18 @@ int main(int argc, char **argv)
 {
     auto args = parse_args(argc, argv);
 
+    parser_config const config{args.verbose, args.validate};
+
     if (args.stdin) {
         std::stringstream buffer;
         buffer << std::cin.rdbuf();
         std::string s = buffer.str();
         auto opcodes =
-            args.binary
-                ? std::vector<uint8_t>(s.begin(), s.end())
-                : do_parse(args.verbose, "<stdin>", s, "<stdout>", std::cout);
+            args.binary ? std::vector<uint8_t>(s.begin(), s.end())
+                        : do_parse(config, "<stdin>", s, "<stdout>", std::cout);
 
         if (args.binary) {
-            do_binary(args.verbose, "<stdin>", opcodes);
+            do_binary(config, "<stdin>", opcodes);
         }
 
         if (args.compile) {
@@ -128,7 +135,7 @@ int main(int argc, char **argv)
             auto opcodes = std::vector<uint8_t>(
                 std::istreambuf_iterator<char>(in),
                 std::istreambuf_iterator<char>());
-            do_binary(args.verbose, filename, opcodes);
+            do_binary(config, filename, opcodes);
         }
         else {
             auto s = std::string(
@@ -136,7 +143,7 @@ int main(int argc, char **argv)
                 std::istreambuf_iterator<char>());
             auto outfile = filename + ".evm";
             auto os = std::ofstream(outfile, std::ios::binary);
-            auto opcodes = do_parse(args.verbose, filename, s, outfile, os);
+            auto opcodes = do_parse(config, filename, s, outfile, os);
             if (args.compile) {
                 auto outfile_asm = filename + ".asm";
                 auto rt = asmjit::JitRuntime{};

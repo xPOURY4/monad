@@ -9,6 +9,15 @@
 
 namespace monad::vm::utils
 {
+
+    struct parser_config
+    {
+        // Whether to write info to stderr during parsing.
+        bool const verbose;
+        // Whether to validate the parsed program.
+        bool const validate;
+    };
+
     /**
      * parse an evm opcode string and
      * return the resulting vector of evm bytecode
@@ -23,12 +32,8 @@ namespace monad::vm::utils
      * end of line comments (// .. \n) and whitespace are ignored
      *
      */
-    std::vector<uint8_t> parse_opcodes(std::string const &str);
-
-    /**
-     * the same as parse_opcodes but it writes info to stderr as it is working
-     */
-    std::vector<uint8_t> parse_opcodes_verbose(std::string const &str);
+    std::vector<uint8_t>
+    parse_opcodes(parser_config const &config, std::string const &str);
 
     /**
      *  convert from binary evm bytecode to text opcodes and data

@@ -25,17 +25,18 @@ public:
         std::vector<char> const bytes = read_file(filename);
         if (filename.extension() == ".mevm") {
             std::string contents(bytes.begin(), bytes.end());
+            monad::vm::utils::parser_config config{false, false};
             if constexpr (instrument) {
                 timer.start();
                 CACHEGRIND_START_INSTRUMENTATION;
                 std::vector<uint8_t> const code =
-                    monad::vm::utils::parse_opcodes(contents);
+                    monad::vm::utils::parse_opcodes(config, contents);
                 CACHEGRIND_STOP_INSTRUMENTATION;
                 timer.pause();
                 return code;
             }
             else {
-                return monad::vm::utils::parse_opcodes(contents);
+                return monad::vm::utils::parse_opcodes(config, contents);
             }
         }
 
