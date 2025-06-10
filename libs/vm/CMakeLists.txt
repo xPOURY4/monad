@@ -117,6 +117,7 @@ add_subdirectory(cmd/parser)
 
 if(MONAD_COMPILER_BENCHMARKS)
     add_subdirectory(cmd/mce)
+    add_subdirectory(cmd/kernel-generator)
 endif()
 
 if(MONAD_COMPILER_TESTING OR MONAD_COMPILER_BENCHMARKS)

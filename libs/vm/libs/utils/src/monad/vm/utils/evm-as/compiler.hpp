@@ -39,6 +39,16 @@ namespace monad::vm::utils::evm_as::internal
 
     std::string new_var(annot_context &ctx);
 
+    static inline bool simulate_binop(annot_context &ctx, char const &binop)
+    {
+        auto const elem_a = ctx.vstack.back();
+        ctx.vstack.pop_back();
+        auto const elem_b = ctx.vstack.back();
+        ctx.vstack.pop_back();
+        ctx.vstack.push_back(std::format("({} {} {})", elem_a, binop, elem_b));
+        return true;
+    }
+
     template <evmc_revision Rev>
     bool simulate_stack_effect(Instruction::T inst, annot_context &ctx)
     {
@@ -47,10 +57,56 @@ namespace monad::vm::utils::evm_as::internal
                 [&](PlainI const &plain) -> bool {
                     auto const &info =
                         compiler::opcode_table<Rev>[plain.opcode];
-                    if (info.min_stack <= ctx.vstack.size()) {
-                        for (size_t i = 0; i < info.min_stack; i++) {
-                            ctx.vstack.pop_back();
-                        }
+                    if (info.min_stack > ctx.vstack.size()) {
+                        // Stack underflow
+                        return false;
+                    }
+
+                    if (compiler::EvmOpCode::DUP1 <= plain.opcode &&
+                        plain.opcode <= compiler::EvmOpCode::DUP16) {
+                        auto const n =
+                            static_cast<size_t>(
+                                plain.opcode - compiler::EvmOpCode::DUP1) +
+                            1;
+                        auto const elem = ctx.vstack[ctx.vstack.size() - n];
+                        ctx.vstack.push_back(elem);
+                        return true;
+                    }
+
+                    if (compiler::EvmOpCode::SWAP1 <= plain.opcode &&
+                        plain.opcode <= compiler::EvmOpCode::SWAP16) {
+                        auto const n =
+                            static_cast<size_t>(
+                                plain.opcode - compiler::EvmOpCode::SWAP1) +
+                            1;
+                        std::swap(
+                            ctx.vstack[ctx.vstack.size() - 1],
+                            ctx.vstack[ctx.vstack.size() - 1 - n]);
+                        return true;
+                    }
+
+                    switch (plain.opcode) {
+                    case compiler::EvmOpCode::ADD:
+                        return simulate_binop(ctx, '+');
+                    case compiler::EvmOpCode::SUB:
+                        return simulate_binop(ctx, '-');
+                    case compiler::EvmOpCode::MUL:
+                        return simulate_binop(ctx, '*');
+                    case compiler::EvmOpCode::DIV:
+                    case compiler::EvmOpCode::SDIV:
+                        return simulate_binop(ctx, '/');
+                    case compiler::EvmOpCode::MOD:
+                    case compiler::EvmOpCode::SMOD:
+                        return simulate_binop(ctx, '%');
+                    case compiler::EvmOpCode::EXP:
+                        return simulate_binop(ctx, '^');
+                    default:
+                        break;
+                    }
+
+                    // Default case
+                    for (size_t i = 0; i < info.min_stack; i++) {
+                        ctx.vstack.pop_back();
                     }
 
                     if (info.stack_increase > 0) {
@@ -63,7 +119,7 @@ namespace monad::vm::utils::evm_as::internal
                             }
                         }
                     }
-                    return true;
+                    return info.min_stack > 0 || info.stack_increase > 0;
                 },
                 [&](PushI const &push) -> bool {
                     if (push.imm > std::numeric_limits<uint32_t>::max()) {
@@ -285,9 +341,10 @@ namespace monad::vm::utils::evm_as
                     }},
                 ins);
             if (config.annotate && length > 0) {
-                internal::simulate_stack_effect<Rev>(ins, ctx);
-                internal::emit_annotation(
-                    ctx, length, config.desired_annotation_offset, os);
+                if (internal::simulate_stack_effect<Rev>(ins, ctx)) {
+                    internal::emit_annotation(
+                        ctx, length, config.desired_annotation_offset, os);
+                }
             }
             os << std::endl;
         }

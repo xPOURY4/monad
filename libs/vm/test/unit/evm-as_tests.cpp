@@ -941,7 +941,7 @@ TEST(EvmAs, Annotation1)
 
     std::string const expected = "PUSH1 0x1   // [1]\n"
                                  "PUSH1 0x3F  // [63, 1]\n"
-                                 "ADD         // [X0]\n";
+                                 "ADD         // [(63 + 1)]\n";
 
     eb.push(1).push(63).add();
     ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
@@ -956,7 +956,7 @@ TEST(EvmAs, Annotation2)
     std::string expected = std::format(
         "PUSH4 0x{:X} // [{}]\n"
         "PUSH1 0x1   // [1, {}]\n"
-        "ADD         // [X0]\n",
+        "ADD         // [(1 + 4294967295)]\n",
         u32max,
         u32max,
         u32max);
@@ -968,7 +968,7 @@ TEST(EvmAs, Annotation2)
     expected = std::format(
         "PUSH5 0x{:X} // [X0]\n"
         "PUSH1 0x1   // [1, X0]\n"
-        "ADD         // [Y0]\n",
+        "ADD         // [(1 + X0)]\n",
         static_cast<uint64_t>(u32max) + 1);
 
     eb = evm_as::latest();
@@ -1046,4 +1046,56 @@ TEST(EvmAs, Annotation5)
     }
     ASSERT_TRUE(lines.size() > 0);
     ASSERT_EQ(lines[lines.size() - 1], expected_last_line);
+}
+
+TEST(EvmAs, Annotation6)
+{
+    auto eb = evm_as::latest();
+
+    std::string expected = std::format(
+        "PUSH1 0x{:X}  // [123]\n"
+        "DUP1        // [123, 123]\n",
+        123);
+
+    eb.push(123).dup1();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+
+    expected = std::format(
+        "PUSH1 0x{:X}   // [1]\n"
+        "PUSH1 0x{:X}   // [2, 1]\n"
+        "PUSH1 0x{:X}   // [3, 2, 1]\n"
+        "DUP3        // [1, 3, 2, 1]\n",
+        1,
+        2,
+        3);
+    eb = evm_as::latest();
+    eb.push(1).push(2).push(3).dup3();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+}
+
+TEST(EvmAs, Annotation7)
+{
+    auto eb = evm_as::latest();
+
+    std::string expected = std::format(
+        "PUSH1 0x{:X}   // [1]\n"
+        "PUSH1 0x{:X}   // [2, 1]\n"
+        "SWAP1       // [1, 2]\n",
+        1,
+        2);
+
+    eb.push(1).push(2).swap1();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
+
+    expected = std::format(
+        "PUSH1 0x{:X}   // [1]\n"
+        "PUSH1 0x{:X}   // [2, 1]\n"
+        "PUSH1 0x{:X}   // [3, 2, 1]\n"
+        "SWAP2       // [1, 2, 3]\n",
+        1,
+        2,
+        3);
+    eb = evm_as::latest();
+    eb.push(1).push(2).push(3).swap2();
+    ASSERT_EQ(evm_as::mcompile(eb, mconfig), expected);
 }
