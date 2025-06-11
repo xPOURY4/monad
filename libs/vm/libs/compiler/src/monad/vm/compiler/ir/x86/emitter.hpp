@@ -569,7 +569,6 @@ namespace monad::vm::compiler::native
         void mov_literal_to_ymm(Literal const &, asmjit::x86::Ymm const &);
 
         void mov_stack_elem_to_avx_reg(StackElemRef);
-        void mov_stack_elem_to_avx_reg(StackElemRef, int32_t preferred_offset);
         void mov_stack_elem_to_general_reg(StackElemRef);
         void
         mov_stack_elem_to_general_reg(StackElemRef, int32_t preferred_offset);
@@ -578,7 +577,6 @@ namespace monad::vm::compiler::native
         mov_stack_elem_to_stack_offset(StackElemRef, int32_t preferred_offset);
 
         void mov_general_reg_to_avx_reg(StackElemRef);
-        void mov_general_reg_to_avx_reg(StackElemRef, int32_t preferred_offset);
         void mov_literal_to_avx_reg(StackElemRef);
         void mov_stack_offset_to_avx_reg(StackElemRef);
 

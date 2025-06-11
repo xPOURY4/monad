@@ -1566,24 +1566,6 @@ namespace monad::vm::compiler::native
         }
     }
 
-    void
-    Emitter::mov_stack_elem_to_avx_reg(StackElemRef elem, int32_t preferred)
-    {
-        if (elem->avx_reg()) {
-            return;
-        }
-        if (elem->literal()) {
-            mov_literal_to_avx_reg(std::move(elem));
-        }
-        else if (elem->stack_offset()) {
-            mov_stack_offset_to_avx_reg(std::move(elem));
-        }
-        else {
-            MONAD_VM_ASSERT(elem->general_reg().has_value());
-            mov_general_reg_to_avx_reg(std::move(elem), preferred);
-        }
-    }
-
     void Emitter::mov_stack_elem_to_general_reg(StackElemRef elem)
     {
         if (elem->general_reg()) {
@@ -1652,11 +1634,6 @@ namespace monad::vm::compiler::native
             MONAD_VM_ASSERT(elem->literal().has_value());
             mov_literal_to_stack_offset(std::move(elem), preferred_offset);
         }
-    }
-
-    void Emitter::mov_general_reg_to_avx_reg(StackElemRef elem, int32_t)
-    {
-        mov_general_reg_to_avx_reg(elem);
     }
 
     void Emitter::mov_general_reg_to_avx_reg(StackElemRef elem)
