@@ -1648,21 +1648,20 @@ namespace monad::vm::compiler::native
             auto [temporary, reserv, offset] = stack_.alloc_avx_reg();
             auto temporary_avx = *temporary->avx_reg();
             auto xmm1 = avx_reg_to_xmm(temporary_avx);
-            auto ymm1 = avx_reg_to_ymm(temporary_avx);
 
             as_.movq(xmm0, gpq[0]);
             as_.movq(xmm1, gpq[2]);
             as_.pinsrq(xmm0, gpq[1], 1);
             as_.pinsrq(xmm1, gpq[3], 1);
-            as_.vinserti128(ymm0, ymm0, ymm1, 1);
+            as_.vinserti128(ymm0, ymm0, xmm1, 1);
         }
         else {
             // Slower algorithm to avoid spilling a live avx register
             as_.movq(xmm0, gpq[2]);
             as_.pinsrq(xmm0, gpq[3], 1);
-            as_.vinserti128(ymm0, ymm0, ymm0, 1);
+            as_.vinserti128(ymm0, ymm0, xmm0, 1);
             as_.movq(xmm0, gpq[0]);
-            as_.movq(xmm0, gpq[1]);
+            as_.pinsrq(xmm0, gpq[1], 1);
         }
     }
 
