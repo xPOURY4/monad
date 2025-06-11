@@ -525,7 +525,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline std::string to_string(int base = 10) const
         {
-            return ::intx::to_string(this->to_intx(), base);
+            return ::intx::to_string(this->as_intx(), base);
         }
 
         [[gnu::always_inline]] static inline constexpr uint256_t
@@ -597,7 +597,13 @@ namespace monad::vm::utils
 
         auto quot_neg = x_neg ^ y_neg;
 
-        auto result = ::intx::udivrem(x_abs.to_intx(), y_abs.to_intx());
+        ::intx::div_result<::intx::uint256, ::intx::uint256> result;
+        if consteval {
+            result = ::intx::udivrem(x_abs.to_intx(), y_abs.to_intx());
+        }
+        else {
+            result = ::intx::udivrem(x_abs.as_intx(), y_abs.as_intx());
+        }
 
         return {
             uint256_t{quot_neg ? -result.quot : result.quot},
@@ -829,6 +835,6 @@ struct std::formatter<monad::vm::utils::uint256_t>
     format(monad::vm::utils::uint256_t const &v, std::format_context &ctx) const
     {
         return std::format_to(
-            ctx.out(), "0x{}", intx::to_string(v.to_intx(), 16));
+            ctx.out(), "0x{}", intx::to_string(v.as_intx(), 16));
     }
 };
