@@ -57,44 +57,11 @@ namespace monad::vm::utils
     {
         int64_t const sign_bit =
             static_cast<int64_t>(x[3]) & std::numeric_limits<int64_t>::min();
-        uint64_t fill = static_cast<uint64_t>(sign_bit >> 63);
-        if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
+        uint64_t const fill = static_cast<uint64_t>(sign_bit >> 63);
+        if (shift0[3] | shift0[2] | shift0[1]) [[unlikely]] {
             return uint256_t{fill, fill, fill, fill};
         }
-        auto shift = static_cast<uint8_t>(shift0);
-        if (shift < 128) {
-            if (shift < 64) {
-                return uint256_t{
-                    uint256_t::shrd(x[1], x[0], shift),
-                    uint256_t::shrd(x[2], x[1], shift),
-                    uint256_t::shrd(x[3], x[2], shift),
-                    uint256_t::shrd(fill, x[3], shift),
-                };
-            }
-            else {
-                shift &= 63;
-                return uint256_t{
-                    uint256_t::shrd(x[2], x[1], shift),
-                    uint256_t::shrd(x[3], x[2], shift),
-                    uint256_t::shrd(fill, x[3], shift),
-                    fill};
-            }
-        }
-        else {
-            shift &= 127;
-            if (shift < 64) {
-                return uint256_t{
-                    uint256_t::shrd(x[3], x[2], shift),
-                    uint256_t::shrd(fill, x[3], shift),
-                    fill,
-                    fill};
-            }
-            else {
-                shift &= 63;
-                return uint256_t{
-                    uint256_t::shrd(fill, x[3], shift), fill, fill, fill};
-            }
-        }
+        return shr_fill(x, shift0[0], fill);
     }
 
     uint256_t countr_zero(uint256_t const &x)

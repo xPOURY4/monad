@@ -6,9 +6,6 @@
 #include <intx/intx.hpp>
 #include <limits>
 
-#include <iostream>
-#include <ostream>
-
 #ifndef __AVX2__
     #error "Target architecture must support AVX2"
 #endif
@@ -237,7 +234,7 @@ namespace monad::vm::utils
             // adversarial examples where this is slower than either approach,
             // however
             for (size_t i = 0; i < num_words; i++) {
-                if (lhs[3 - i] != rhs[3 - i]) [[likely]] {
+                if (lhs[3 - i] != rhs[3 - i]) {
                     return lhs[3 - i] < rhs[3 - i];
                 }
             }
@@ -285,7 +282,9 @@ namespace monad::vm::utils
         {
             // Even if this branch gets mispredicted 50% of the time, the
             // branching version is overall faster
-            if (x[3] != y[3]) return false;
+            if (x[3] != y[3]) {
+                return false;
+            }
             return ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2])) == 0;
         }
 
@@ -371,7 +370,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator<<(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift >= 256) [[unlikely]] {
+            if (shift[3] | shift[2] | shift[1]) [[unlikely]] {
                 return 0;
             }
             return x << shift[0];
@@ -393,51 +392,62 @@ namespace monad::vm::utils
             }
         }
 
-        template <typename T>
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
-        operator>>(uint256_t const &x, T shift0) noexcept
-            requires std::is_convertible_v<T, uint64_t>
+        shr_fill(uint256_t const &x, uint64_t shift0, uint64_t fill) noexcept
         {
-            if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
-                return 0;
+            if (shift0 >= 256) [[unlikely]] {
+                return uint256_t{fill, fill, fill, fill};
             }
             auto shift = static_cast<uint8_t>(shift0);
             if (shift < 128) {
                 if (shift < 64) {
                     return uint256_t{
-                        shrd(x[1], x[0], shift),
-                        shrd(x[2], x[1], shift),
-                        shrd(x[3], x[2], shift),
-                        x[3] >> shift,
+                        uint256_t::shrd(x[1], x[0], shift),
+                        uint256_t::shrd(x[2], x[1], shift),
+                        uint256_t::shrd(x[3], x[2], shift),
+                        uint256_t::shrd(fill, x[3], shift),
                     };
                 }
                 else {
                     shift &= 63;
                     return uint256_t{
-                        shrd(x[2], x[1], shift),
-                        shrd(x[3], x[2], shift),
-                        x[3] >> shift,
-                        0};
+                        uint256_t::shrd(x[2], x[1], shift),
+                        uint256_t::shrd(x[3], x[2], shift),
+                        uint256_t::shrd(fill, x[3], shift),
+                        fill};
                 }
             }
             else {
                 shift &= 127;
                 if (shift < 64) {
                     return uint256_t{
-                        shrd(x[3], x[2], shift), x[3] >> shift, 0, 0};
+                        uint256_t::shrd(x[3], x[2], shift),
+                        uint256_t::shrd(fill, x[3], shift),
+                        fill,
+                        fill};
                 }
                 else {
                     shift &= 63;
-                    return uint256_t{x[3] >> shift, 0, 0, 0};
+                    return uint256_t{
+                        uint256_t::shrd(fill, x[3], shift), fill, fill, fill};
                 }
             }
+        }
+
+        template <typename T>
+        [[gnu::always_inline]]
+        friend inline constexpr uint256_t
+        operator>>(uint256_t const &x, T shift0) noexcept
+            requires std::is_convertible_v<T, uint64_t>
+        {
+            return shr_fill(x, static_cast<uint64_t>(shift0), 0);
         }
 
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator>>(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift >= 256) [[unlikely]] {
+            if (shift[3] | shift[2] | shift[1]) [[unlikely]] {
                 return 0;
             }
             return x >> shift[0];
