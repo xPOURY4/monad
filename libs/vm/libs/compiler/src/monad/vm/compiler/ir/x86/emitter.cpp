@@ -1658,6 +1658,7 @@ namespace monad::vm::compiler::native
     {
         mov_general_reg_to_avx_reg(elem);
     }
+
     void Emitter::mov_general_reg_to_avx_reg(StackElemRef elem)
     {
         MONAD_VM_DEBUG_ASSERT(elem->general_reg().has_value());
