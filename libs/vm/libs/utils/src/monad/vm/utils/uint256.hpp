@@ -1,5 +1,7 @@
 #pragma once
 
+#include <monad/vm/core/assert.h>
+
 #include <bit>
 #include <format>
 #include <immintrin.h>
@@ -320,7 +322,7 @@ namespace monad::vm::utils
         operator<<(uint256_t const &x, T shift0) noexcept
             requires std::is_convertible_v<T, uint64_t>
         {
-            if (static_cast<uint64_t>(shift0) >= 256) [[unlikely]] {
+            if (MONAD_VM_UNLIKELY(static_cast<uint64_t>(shift0) >= 256)) {
                 return 0;
             }
             auto shift = static_cast<uint8_t>(shift0);
@@ -370,7 +372,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator<<(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift[3] | shift[2] | shift[1]) [[unlikely]] {
+            if (MONAD_VM_UNLIKELY(shift[3] | shift[2] | shift[1])) {
                 return 0;
             }
             return x << shift[0];
@@ -396,7 +398,7 @@ namespace monad::vm::utils
         friend inline constexpr uint256_t
         shr_fill(uint256_t const &x, uint64_t shift0, uint64_t fill) noexcept
         {
-            if (shift0 >= 256) [[unlikely]] {
+            if (MONAD_VM_UNLIKELY(shift0 >= 256)) {
                 return uint256_t{fill, fill, fill, fill};
             }
             auto shift = static_cast<uint8_t>(shift0);
@@ -447,7 +449,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator>>(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (shift[3] | shift[2] | shift[1]) [[unlikely]] {
+            if (MONAD_VM_UNLIKELY(shift[3] | shift[2] | shift[1])) {
                 return 0;
             }
             return x >> shift[0];
@@ -512,7 +514,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline void store_be(uint8_t *dest) const noexcept
         {
-            uint256_t be = to_be();
+            uint256_t const be = to_be();
             std::memcpy(dest, &be.words_, num_bytes);
         }
 
@@ -566,13 +568,13 @@ namespace monad::vm::utils
     inline constexpr uint32_t
     count_significant_bytes(uint256_t const &x) noexcept
     {
-        auto significant_words = count_significant_words(x);
+        auto const significant_words = count_significant_words(x);
         if (significant_words == 0) {
             return 0;
         }
         else {
-            auto leading_word = x[significant_words - 1];
-            auto leading_significant_bytes = static_cast<uint32_t>(
+            auto const leading_word = x[significant_words - 1];
+            auto const leading_significant_bytes = static_cast<uint32_t>(
                 (64 - std::countl_zero(leading_word) + 7) / 8);
             return leading_significant_bytes + (significant_words - 1) * 8;
         }
@@ -588,14 +590,14 @@ namespace monad::vm::utils
     inline constexpr div_result
     sdivrem(uint256_t const &x, uint256_t const &y) noexcept
     {
-        auto sign_bit = uint64_t{1} << 63;
-        auto x_neg = x[uint256_t::num_words - 1] & sign_bit;
-        auto y_neg = y[uint256_t::num_words - 1] & sign_bit;
+        auto const sign_bit = uint64_t{1} << 63;
+        auto const x_neg = x[uint256_t::num_words - 1] & sign_bit;
+        auto const y_neg = y[uint256_t::num_words - 1] & sign_bit;
 
-        auto x_abs = x_neg ? -x : x;
-        auto y_abs = y_neg ? -y : y;
+        auto const x_abs = x_neg ? -x : x;
+        auto const y_abs = y_neg ? -y : y;
 
-        auto quot_neg = x_neg ^ y_neg;
+        auto const quot_neg = x_neg ^ y_neg;
 
         ::intx::div_result<::intx::uint256, ::intx::uint256> result;
         if consteval {
@@ -613,9 +615,9 @@ namespace monad::vm::utils
     [[gnu::always_inline]]
     inline constexpr bool slt(uint256_t const &x, uint256_t const &y) noexcept
     {
-        auto x_neg = x[uint256_t::num_words - 1] >> 63;
-        auto y_neg = y[uint256_t::num_words - 1] >> 63;
-        auto diff = x_neg ^ y_neg;
+        auto const x_neg = x[uint256_t::num_words - 1] >> 63;
+        auto const y_neg = y[uint256_t::num_words - 1] >> 63;
+        auto const diff = x_neg ^ y_neg;
         // intx branches on the sign bit, which will be mispredicted on random
         // data ~50% of the time. The branchless version does not add much
         // overhead so it is probably worth it
@@ -669,7 +671,7 @@ namespace monad::vm::utils
             return result << exponent;
         }
 
-        size_t sig_words = count_significant_words(exponent);
+        size_t const sig_words = count_significant_words(exponent);
         for (size_t w = 0; w < sig_words; w++) {
             uint64_t word_exp = exponent[w];
             int32_t significant_bits =
