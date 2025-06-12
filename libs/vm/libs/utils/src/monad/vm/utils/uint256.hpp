@@ -421,8 +421,8 @@ namespace monad::vm::utils
                 }
             }
             else {
-                shift &= 127;
-                if (shift < 64) {
+                if (shift < 192) {
+                    shift &= 127;
                     return uint256_t{
                         uint256_t::shrd(x[3], x[2], shift),
                         uint256_t::shrd(fill, x[3], shift),
