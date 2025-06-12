@@ -346,8 +346,8 @@ namespace monad::vm::utils
                 }
             }
             else {
-                shift &= 127;
-                if (shift < 64) {
+                if (shift < 192) {
+                    shift &= 127;
                     return uint256_t{
                         0,
                         0,
