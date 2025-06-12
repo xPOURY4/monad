@@ -110,6 +110,7 @@ namespace
         ASSERT_TRUE(
             elem->literal() && !elem->stack_offset() && !elem->avx_reg() &&
             !elem->general_reg());
+        auto literal = *elem->literal();
         switch (loc) {
         case Emitter::LocationType::AvxReg:
             emit.mov_stack_index_to_avx_reg(stack_index);
@@ -128,8 +129,14 @@ namespace
         case Emitter::LocationType::StackOffset:
             emit.mov_stack_index_to_stack_offset(stack_index);
             stack.spill_literal(elem);
-            spill = stack.spill_avx_reg(elem);
-            ASSERT_EQ(spill, nullptr);
+            if (Emitter::is_literal_bounded(literal)) {
+                ASSERT_FALSE(elem->avx_reg().has_value());
+            }
+            else {
+                ASSERT_TRUE(elem->avx_reg().has_value());
+                spill = stack.spill_avx_reg(elem);
+                ASSERT_EQ(spill, nullptr);
+            }
             ASSERT_TRUE(
                 elem->stack_offset() && !elem->general_reg() &&
                 !elem->literal() && !elem->avx_reg());
@@ -1023,16 +1030,9 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
     stack.spill_literal(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
-        e1->avx_reg());
-
-    auto *spill = stack.spill_avx_reg(e1);
-    ASSERT_EQ(spill, nullptr);
-    ASSERT_TRUE(
-        e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
         !e1->avx_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // stack offset -> stack offset
-    stack.spill_literal(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
         !e1->avx_reg());
@@ -1044,7 +1044,7 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->general_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // avx reg -> stack offset
-    spill = stack.spill_avx_reg(e1);
+    auto *spill = stack.spill_avx_reg(e1);
     ASSERT_EQ(spill, nullptr);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&

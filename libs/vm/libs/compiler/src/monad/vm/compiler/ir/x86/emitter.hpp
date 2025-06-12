@@ -35,6 +35,9 @@ namespace monad::vm::compiler::native
             GeneralReg
         };
 
+        static bool is_uint64_bounded(uint64_t);
+        static bool is_literal_bounded(Literal const &);
+
         static char const *location_type_to_string(LocationType);
 
         using Gpq256 = std::array<asmjit::x86::Gpq, 4>;
@@ -170,6 +173,11 @@ namespace monad::vm::compiler::native
         [[nodiscard]] std::pair<StackElemRef, GeneralRegReserv>
         alloc_general_reg();
         [[nodiscard]] GeneralRegReserv insert_general_reg(StackElemRef);
+
+        template <typename... LiveSet>
+        [[nodiscard]] StackElemRef
+        release_general_reg(StackElemRef, std::tuple<LiveSet...> const &);
+
         void discharge_deferred_comparison(); // Leaves eflags unchanged
 
         ////////// Move functionality //////////
@@ -550,6 +558,10 @@ namespace monad::vm::compiler::native
 
         Gpq256 &general_reg_to_gpq256(GeneralReg);
 
+        template <typename... LiveSet>
+        unsigned get_stack_elem_general_order_index(
+            StackElemRef, std::tuple<LiveSet...> const &);
+
         ////////// Private move functionality //////////
 
         template <bool remember_intermediate, bool assume_aligned>
@@ -566,7 +578,9 @@ namespace monad::vm::compiler::native
 
         void mov_general_reg_to_gpq256(GeneralReg, Gpq256 const &);
         void mov_literal_to_gpq256(Literal const &, Gpq256 const &);
+        void mov_mem_to_gpq256(asmjit::x86::Mem, Gpq256 const &);
         void mov_stack_offset_to_gpq256(StackOffset, Gpq256 const &);
+        template <bool remember_intermediate>
         void mov_stack_elem_to_gpq256(StackElemRef, Gpq256 const &);
 
         void mov_literal_to_ymm(Literal const &, asmjit::x86::Ymm const &);
@@ -793,17 +807,17 @@ namespace monad::vm::compiler::native
         StackElemRef shift_by_general_reg_or_stack_offset(
             StackElemRef shift, StackElemRef, std::tuple<LiveSet...> const &);
 
-        template <bool commutative, typename... LiveSet>
+        template <typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         prepare_general_dest_and_source(
-            StackElemRef dst, std::optional<int32_t> dst_stack_index,
-            StackElemRef src, std::tuple<LiveSet...> const &);
+            bool commutative, StackElemRef dst, StackElemRef src,
+            std::tuple<LiveSet...> const &);
 
-        template <bool commutative, typename... LiveSet>
+        template <typename... LiveSet>
         std::tuple<StackElemRef, LocationType, StackElemRef, LocationType>
         get_general_dest_and_source(
-            StackElemRef dst, std::optional<int32_t> dst_stack_index,
-            StackElemRef src, std::tuple<LiveSet...> const &);
+            bool commutative, StackElemRef dst, StackElemRef src,
+            std::tuple<LiveSet...> const &);
 
         Operand get_operand(
             StackElemRef, LocationType, bool always_append_literal = false);
@@ -821,7 +835,7 @@ namespace monad::vm::compiler::native
 
         template <typename... LiveSet>
         std::tuple<StackElemRef, StackElemRef, LocationType> get_una_arguments(
-            StackElemRef dst, std::optional<int32_t> dst_stack_index,
+            bool is_dst_mutated, StackElemRef dst,
             std::tuple<LiveSet...> const &);
 
         template <typename... LiveSet>
@@ -848,11 +862,13 @@ namespace monad::vm::compiler::native
             StackElemRef right, LocationType right_loc,
             std::function<bool(size_t, uint64_t)> is_no_operation);
 
+        template <typename... LiveSet>
         std::tuple<
             StackElemRef, Emitter::LocationType, StackElemRef,
             Emitter::LocationType>
         prepare_mod2_bin_dest_and_source(
-            StackElemRef dst, StackElemRef src, size_t exp);
+            StackElemRef dst, StackElemRef src, size_t exp,
+            std::tuple<LiveSet...> const &live);
         template <typename... LiveSet>
         std::tuple<
             StackElemRef, Emitter::LocationType, StackElemRef,

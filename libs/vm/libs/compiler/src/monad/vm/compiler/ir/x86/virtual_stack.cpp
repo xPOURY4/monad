@@ -617,7 +617,7 @@ namespace monad::vm::compiler::native
             if (e->avx_reg_.has_value()) {
                 score |= 0b1;
             }
-            if (score >= best_score) {
+            if (score > best_score) {
                 best_score = score;
                 best_index = i;
             }
