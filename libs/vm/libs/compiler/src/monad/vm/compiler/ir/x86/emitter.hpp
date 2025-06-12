@@ -165,10 +165,11 @@ namespace monad::vm::compiler::native
         void spill_caller_save_regs(bool spill_avx);
         void spill_all_caller_save_general_regs();
         void spill_all_avx_regs();
-        std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
-        AvxRegReserv insert_avx_reg(StackElemRef);
-        std::pair<StackElemRef, GeneralRegReserv> alloc_general_reg();
-        GeneralRegReserv insert_general_reg(StackElemRef);
+        [[nodiscard]] std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
+        [[nodiscard]] AvxRegReserv insert_avx_reg(StackElemRef);
+        [[nodiscard]] std::pair<StackElemRef, GeneralRegReserv>
+        alloc_general_reg();
+        [[nodiscard]] GeneralRegReserv insert_general_reg(StackElemRef);
         void discharge_deferred_comparison(); // Leaves eflags unchanged
 
         ////////// Move functionality //////////
@@ -551,13 +552,15 @@ namespace monad::vm::compiler::native
 
         ////////// Private move functionality //////////
 
+        template <bool remember_intermediate, bool assume_aligned>
+        void mov_literal_to_mem(StackElemRef, asmjit::x86::Mem const &);
+
         template <bool assume_aligned>
         void mov_literal_to_mem(Literal const &, asmjit::x86::Mem const &);
 
         void mov_general_reg_to_mem(GeneralReg, asmjit::x86::Mem const &);
-        void
-        mov_literal_to_unaligned_mem(Literal const &, asmjit::x86::Mem const &);
-        void mov_avx_reg_to_unaligned_mem(AvxReg, asmjit::x86::Mem const &);
+
+        template <bool remember_intermediate>
         void
         mov_stack_elem_to_unaligned_mem(StackElemRef, asmjit::x86::Mem const &);
 

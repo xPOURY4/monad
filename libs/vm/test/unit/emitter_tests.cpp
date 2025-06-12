@@ -104,6 +104,7 @@ namespace
     void mov_literal_to_location_type(
         Emitter &emit, int32_t stack_index, Emitter::LocationType loc)
     {
+        StackElem *spill;
         Stack &stack = emit.get_stack();
         auto elem = stack.get(stack_index);
         ASSERT_TRUE(
@@ -127,6 +128,8 @@ namespace
         case Emitter::LocationType::StackOffset:
             emit.mov_stack_index_to_stack_offset(stack_index);
             stack.spill_literal(elem);
+            spill = stack.spill_avx_reg(elem);
+            ASSERT_EQ(spill, nullptr);
             ASSERT_TRUE(
                 elem->stack_offset() && !elem->general_reg() &&
                 !elem->literal() && !elem->avx_reg());
@@ -1020,6 +1023,12 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
     stack.spill_literal(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
+        e1->avx_reg());
+
+    auto *spill = stack.spill_avx_reg(e1);
+    ASSERT_EQ(spill, nullptr);
+    ASSERT_TRUE(
+        e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
         !e1->avx_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // stack offset -> stack offset
@@ -1035,7 +1044,8 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->general_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // avx reg -> stack offset
-    (void)stack.spill_avx_reg(e1);
+    spill = stack.spill_avx_reg(e1);
+    ASSERT_EQ(spill, nullptr);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
@@ -1047,7 +1057,8 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->stack_offset());
 
     emit.mov_stack_index_to_stack_offset(1); // general reg -> stack offset
-    (void)stack.spill_general_reg(e1);
+    spill = stack.spill_general_reg(e1);
+    ASSERT_EQ(spill, nullptr);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&
         !e1->general_reg());
@@ -3179,4 +3190,44 @@ TEST(Emitter, QuadraticCompileTimeRegression)
     emit.stop();
 
     ASSERT_LT(emit.estimate_size(), 256 * 1024);
+}
+
+TEST(Emitter, SpillInMovGeneralRegToAvxRegRegression)
+{
+    std::vector<uint8_t> bytecode;
+    for (size_t i = 0; i < 17; ++i) {
+        bytecode.push_back(PUSH0);
+    }
+
+    auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks().at(0));
+
+    Stack &stack = emit.get_stack();
+
+    for (int32_t i = 0; i < 16; ++i) {
+        emit.push(i);
+        ASSERT_TRUE(stack.has_free_avx_reg());
+        mov_literal_to_location_type(emit, i, Emitter::LocationType::AvxReg);
+    }
+    ASSERT_FALSE(stack.has_free_avx_reg());
+
+    emit.push(16);
+    mov_literal_to_location_type(emit, 16, Emitter::LocationType::GeneralReg);
+    emit.mov_stack_index_to_avx_reg(16);
+    (void)stack.spill_general_reg(stack.get(16));
+
+    emit.return_();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    auto stack_memory = test_stack_memory();
+    entry(&ctx, stack_memory.get());
+
+    ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+    ASSERT_EQ(uint256_t::load_le(ret.offset), 16);
+    ASSERT_EQ(uint256_t::load_le(ret.size), 15);
 }

@@ -691,7 +691,7 @@ namespace monad::vm::compiler::native
 
         auto j = 0;
         for (int32_t i = stack_.min_delta(); i <= stack_.top_index(); ++i) {
-            mov_stack_elem_to_unaligned_mem(
+            mov_stack_elem_to_unaligned_mem<false>(
                 stack_.get(i), x86::qword_ptr(x86::rsp, j));
             j += 32;
         }
@@ -1427,19 +1427,36 @@ namespace monad::vm::compiler::native
         mov_stack_elem_to_stack_offset(stack_.get(stack_index));
     }
 
-    template <bool assume_aligned>
+    template <bool remember_intermediate, bool assume_aligned>
     void
-    Emitter::mov_literal_to_mem(Literal const &lit, asmjit::x86::Mem const &mem)
+    Emitter::mov_literal_to_mem(StackElemRef elem, asmjit::x86::Mem const &mem)
     {
-        auto elem = stack_.alloc_literal(lit);
-        mov_literal_to_avx_reg(elem);
-        auto reg = *elem->avx_reg();
+        MONAD_VM_ASSERT(elem->literal().has_value());
+        AvxReg reg;
+        if constexpr (remember_intermediate) {
+            mov_literal_to_avx_reg(elem);
+            reg = *elem->avx_reg();
+        }
+        else {
+            auto [t, _] = alloc_avx_reg();
+            reg = *t->avx_reg();
+            mov_literal_to_ymm(*elem->literal(), avx_reg_to_ymm(reg));
+            elem = std::move(t);
+        }
         if constexpr (assume_aligned) {
             as_.vmovaps(mem, avx_reg_to_ymm(reg));
         }
         else {
-            mov_avx_reg_to_unaligned_mem(reg, mem);
+            as_.vmovups(mem, avx_reg_to_ymm(reg));
         }
+    }
+
+    template <bool assume_aligned>
+    void
+    Emitter::mov_literal_to_mem(Literal const &lit, asmjit::x86::Mem const &mem)
+    {
+        mov_literal_to_mem<true, assume_aligned>(
+            stack_.alloc_literal(lit), mem);
     }
 
     void
@@ -1452,30 +1469,29 @@ namespace monad::vm::compiler::native
         }
     }
 
-    void Emitter::mov_literal_to_unaligned_mem(
-        Literal const &lit, asmjit::x86::Mem const &mem)
-    {
-        mov_literal_to_mem<false>(lit, mem);
-    }
-
-    void Emitter::mov_avx_reg_to_unaligned_mem(
-        AvxReg reg, asmjit::x86::Mem const &mem)
-    {
-        as_.vmovups(mem, avx_reg_to_ymm(reg));
-    }
-
+    template <bool remember_intermediate>
     void Emitter::mov_stack_elem_to_unaligned_mem(
         StackElemRef elem, asmjit::x86::Mem const &mem)
     {
         if (elem->avx_reg()) {
-            mov_avx_reg_to_unaligned_mem(*elem->avx_reg(), mem);
+            as_.vmovups(mem, avx_reg_to_ymm(*elem->avx_reg()));
         }
         else if (elem->general_reg()) {
             mov_general_reg_to_mem(*elem->general_reg(), mem);
         }
-        else {
+        else if constexpr (remember_intermediate) {
             mov_stack_elem_to_avx_reg(elem);
-            mov_avx_reg_to_unaligned_mem(*elem->avx_reg(), mem);
+            as_.vmovups(mem, avx_reg_to_ymm(*elem->avx_reg()));
+        }
+        else if (elem->literal()) {
+            mov_literal_to_mem<false, false>(elem, mem);
+        }
+        else {
+            MONAD_VM_DEBUG_ASSERT(elem->stack_offset().has_value());
+            auto [t, reserv] = alloc_avx_reg();
+            auto ymm = avx_reg_to_ymm(*t->avx_reg());
+            as_.vmovaps(ymm, stack_offset_to_mem(*elem->stack_offset()));
+            as_.vmovups(mem, ymm);
         }
     }
 
@@ -1640,12 +1656,12 @@ namespace monad::vm::compiler::native
     {
         MONAD_VM_DEBUG_ASSERT(elem->general_reg().has_value());
         Gpq256 const &gpq = general_reg_to_gpq256(*elem->general_reg());
-        insert_avx_reg(elem);
+        auto reserv0 = insert_avx_reg(elem);
         auto elem_avx = *elem->avx_reg();
         auto xmm0 = avx_reg_to_xmm(elem_avx);
         auto ymm0 = avx_reg_to_ymm(elem_avx);
 
-        auto [temp_reg, reserv] = alloc_avx_reg();
+        auto [temp_reg, reserv1] = alloc_avx_reg();
         auto xmm1 = avx_reg_to_xmm(*temp_reg->avx_reg());
 
         as_.vmovq(xmm0, gpq[0]);
@@ -1665,7 +1681,7 @@ namespace monad::vm::compiler::native
     void Emitter::mov_stack_offset_to_avx_reg(StackElemRef elem)
     {
         MONAD_VM_DEBUG_ASSERT(elem->stack_offset().has_value());
-        insert_avx_reg(elem);
+        auto reserv = insert_avx_reg(elem);
         as_.vmovaps(
             avx_reg_to_ymm(*elem->avx_reg()),
             stack_offset_to_mem(*elem->stack_offset()));
@@ -1712,8 +1728,8 @@ namespace monad::vm::compiler::native
     {
         MONAD_VM_DEBUG_ASSERT(elem->literal().has_value());
         stack_.insert_stack_offset(elem, preferred);
-        mov_literal_to_mem<true>(
-            *elem->literal(), stack_offset_to_mem(*elem->stack_offset()));
+        mov_literal_to_mem<true, true>(
+            elem, stack_offset_to_mem(*elem->stack_offset()));
     }
 
     void Emitter::mov_avx_reg_to_general_reg(StackElemRef elem)
@@ -1732,7 +1748,7 @@ namespace monad::vm::compiler::native
     void Emitter::mov_literal_to_general_reg(StackElemRef elem)
     {
         MONAD_VM_DEBUG_ASSERT(elem->literal().has_value());
-        insert_general_reg(elem);
+        auto reserv = insert_general_reg(elem);
         mov_literal_to_gpq256(
             *elem->literal(), general_reg_to_gpq256(*elem->general_reg()));
     }
@@ -1740,7 +1756,7 @@ namespace monad::vm::compiler::native
     void Emitter::mov_stack_offset_to_general_reg(StackElemRef elem)
     {
         MONAD_VM_DEBUG_ASSERT(elem->stack_offset().has_value());
-        insert_general_reg(elem);
+        auto reserv = insert_general_reg(elem);
         mov_stack_offset_to_gpq256(
             *elem->stack_offset(), general_reg_to_gpq256(*elem->general_reg()));
     }
@@ -2533,9 +2549,9 @@ namespace monad::vm::compiler::native
         auto size = stack_.pop();
         RegReserv const size_avx_reserv{size};
         status_code(status);
-        mov_stack_elem_to_unaligned_mem(
+        mov_stack_elem_to_unaligned_mem<true>(
             offset, qword_ptr(reg_context, context_offset_result_offset));
-        mov_stack_elem_to_unaligned_mem(
+        mov_stack_elem_to_unaligned_mem<true>(
             size, qword_ptr(reg_context, context_offset_result_size));
         as_.jmp(epilogue_label_);
     }
@@ -2614,7 +2630,7 @@ namespace monad::vm::compiler::native
         else if (!dest->stack_offset()) {
             MONAD_VM_DEBUG_ASSERT(dest->avx_reg().has_value());
             x86::Mem const m = x86::qword_ptr(x86::rsp, sp_offset_temp_word1);
-            mov_avx_reg_to_unaligned_mem(*dest->avx_reg(), m);
+            as_.vmovups(m, avx_reg_to_ymm(*dest->avx_reg()));
             op = m;
         }
         return {op, spill_elem};
@@ -3079,7 +3095,8 @@ namespace monad::vm::compiler::native
         static constexpr int32_t byte_off = sp_offset_temp_word2 - 1;
         int32_t const stack_ix = byte_off - byte_ix;
 
-        mov_stack_elem_to_unaligned_mem(src, x86::ptr(x86::rsp, stack_ix));
+        mov_stack_elem_to_unaligned_mem<true>(
+            src, x86::ptr(x86::rsp, stack_ix));
 
         auto [dst, dst_reserv] = alloc_avx_reg();
         auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
@@ -3139,7 +3156,7 @@ namespace monad::vm::compiler::native
             stack_mem = x86::qword_ptr(x86::rsp, x86::rax, 0, byte_off);
         }
 
-        mov_stack_elem_to_unaligned_mem(src, stack_mem);
+        mov_stack_elem_to_unaligned_mem<true>(src, stack_mem);
 
         auto [dst, dst_reserv] = alloc_avx_reg();
         auto dst_ymm = avx_reg_to_ymm(*dst->avx_reg());
@@ -3190,26 +3207,26 @@ namespace monad::vm::compiler::native
                 as_.mov(qword_ptr(x86::rsp, base_offset - 40), 0);
             }
             else {
-                mov_literal_to_unaligned_mem(
+                mov_literal_to_mem<false>(
                     Literal{0}, qword_ptr(x86::rsp, base_offset - 64));
             }
-            mov_stack_elem_to_unaligned_mem(
+            mov_stack_elem_to_unaligned_mem<true>(
                 value, qword_ptr(x86::rsp, base_offset - 32));
         }
         else if constexpr (shift_type == ShiftType::SHR) {
-            mov_stack_elem_to_unaligned_mem(
+            mov_stack_elem_to_unaligned_mem<true>(
                 value, qword_ptr(x86::rsp, base_offset - 64));
             if (additional_byte_count <= 8) {
                 as_.mov(qword_ptr(x86::rsp, base_offset - 32), 0);
             }
             else {
-                mov_literal_to_unaligned_mem(
+                mov_literal_to_mem<false>(
                     Literal{0}, qword_ptr(x86::rsp, base_offset - 32));
             }
         }
         else {
             static_assert(shift_type == ShiftType::SAR);
-            mov_stack_elem_to_unaligned_mem(
+            mov_stack_elem_to_unaligned_mem<true>(
                 value, qword_ptr(x86::rsp, base_offset - 64));
             auto reg = x86::rax;
             if (value->general_reg()) {
@@ -5587,7 +5604,7 @@ namespace monad::vm::compiler::native
         MONAD_VM_DEBUG_ASSERT(elem->stack_offset().has_value());
 
         x86::Mem mem{stack_offset_to_mem(*elem->stack_offset())};
-        insert_general_reg(elem);
+        auto reserv = insert_general_reg(elem);
         MONAD_VM_DEBUG_ASSERT(elem->general_reg());
         auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
 
@@ -5610,7 +5627,7 @@ namespace monad::vm::compiler::native
         MONAD_VM_DEBUG_ASSERT(exp > 0);
         MONAD_VM_DEBUG_ASSERT(elem->literal().has_value());
 
-        insert_general_reg(elem);
+        auto reserv = insert_general_reg(elem);
         auto const &gpq = general_reg_to_gpq256(*elem->general_reg());
         auto const &lit =
             *elem->literal(); // literal_to_imm256(*elem->literal());
