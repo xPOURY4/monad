@@ -652,17 +652,6 @@ namespace monad::vm::utils
         }
     }
 
-    [[gnu::always_inline]]
-    inline constexpr result_with_carry<uint64_t>
-    addc(uint64_t x, uint64_t y, bool carry = false) noexcept
-    {
-        static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-        unsigned long long carry_out = 0;
-        uint64_t value = __builtin_addcll(x, y, carry, &carry_out);
-        return result_with_carry{
-            .value = value, .carry = static_cast<bool>(carry_out)};
-    }
-
     [[gnu::always_inline]] inline constexpr uint256_t
     exp(uint256_t base, uint256_t const &exponent) noexcept
     {

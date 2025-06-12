@@ -112,19 +112,4 @@ namespace monad::vm::runtime
 
         *result_ptr = vm::utils::exp(*a_ptr, *exponent_ptr);
     }
-
-    /**
-     * GCC doesn't unroll the default intx implementation of 256-bit add with
-     * carry, so we need to replace it with our own implementation to ensure
-     * that we get good codegen.
-     */
-    [[gnu::always_inline]] inline vm::utils::uint256_t
-    unrolled_add(vm::utils::uint256_t const &a, vm::utils::uint256_t const &b)
-    {
-        auto [s0, c0] = vm::utils::addc(a[0], b[0], false);
-        auto [s1, c1] = vm::utils::addc(a[1], b[1], c0);
-        auto [s2, c2] = vm::utils::addc(a[2], b[2], c1);
-        auto [s3, c3] = vm::utils::addc(a[3], b[3], c2);
-        return {s0, s1, s2, s3};
-    }
 }
