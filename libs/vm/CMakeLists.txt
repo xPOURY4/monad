@@ -74,7 +74,7 @@ target_include_directories(evmone PUBLIC "third_party/evmone/lib")
 
 # always compile baseline with optimization due to stack size of dispatch_cgoto
 set_source_files_properties(
-    third_party/evmone/lib/evmone/baseline.cpp
+    third_party/evmone/lib/evmone/baseline_execution.cpp
     TARGET_DIRECTORY evmone
     PROPERTIES
         COMPILE_OPTIONS -O2
