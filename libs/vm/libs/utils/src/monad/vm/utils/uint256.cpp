@@ -58,7 +58,7 @@ namespace monad::vm::utils
         int64_t const sign_bit =
             static_cast<int64_t>(x[3]) & std::numeric_limits<int64_t>::min();
         uint64_t const fill = static_cast<uint64_t>(sign_bit >> 63);
-        if (shift0[3] | shift0[2] | shift0[1]) [[unlikely]] {
+        if (MONAD_VM_UNLIKELY(shift0[3] | shift0[2] | shift0[1])) {
             return uint256_t{fill, fill, fill, fill};
         }
         return shr_fill(x, shift0[0], fill);
