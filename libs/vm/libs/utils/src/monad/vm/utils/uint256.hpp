@@ -309,7 +309,7 @@ namespace monad::vm::utils
             }
             else {
                 asm("shldq %[shift], %[low], %[high]"
-                    : [high] "+r"(high)
+                    : [high] "+rm"(high)
                     : [low] "r"(low), [shift] "c"(shift)
                     : "cc");
                 return high;
@@ -387,7 +387,7 @@ namespace monad::vm::utils
             }
             else {
                 asm("shrdq %[shift], %[high], %[low]"
-                    : [low] "+r"(low)
+                    : [low] "+rm"(low)
                     : [high] "r"(high), [shift] "c"(shift)
                     : "cc");
                 return low;
