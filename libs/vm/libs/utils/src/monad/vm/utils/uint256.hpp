@@ -414,7 +414,8 @@ namespace monad::vm::utils
                                          std::numeric_limits<int64_t>::min();
                 fill = static_cast<uint64_t>(sign_bit >> 63);
             }
-            if (MONAD_VM_UNLIKELY(shift0[3] | shift0[2] | shift0[1] | (shift0[0] >= 256))) {
+            if (MONAD_VM_UNLIKELY(
+                    shift0[3] | shift0[2] | shift0[1] | (shift0[0] >= 256))) {
                 return uint256_t{fill, fill, fill, fill};
             }
             auto shift = static_cast<uint8_t>(shift0);
@@ -550,7 +551,6 @@ namespace monad::vm::utils
 
     uint256_t signextend(uint256_t const &byte_index, uint256_t const &x);
     uint256_t byte(uint256_t const &byte_index, uint256_t const &x);
-
 
     [[gnu::always_inline]]
     inline uint256_t sar(uint256_t const &shift, uint256_t const &x)
