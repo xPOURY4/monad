@@ -394,21 +394,44 @@ namespace monad::vm::utils
             }
         }
 
+        enum class RightShiftType
+        {
+            Arithmetic,
+            Logical
+        };
+
+        template <RightShiftType type>
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
-        shr_fill(uint256_t const &x, uint64_t shift0, uint64_t fill) noexcept
+        shift_right(uint256_t const &x, uint256_t shift0) noexcept
         {
-            if (MONAD_VM_UNLIKELY(shift0 >= 256)) {
+            uint64_t fill;
+            if constexpr (type == RightShiftType::Logical) {
+                fill = 0;
+            }
+            else {
+                int64_t const sign_bit = static_cast<int64_t>(x[3]) &
+                                         std::numeric_limits<int64_t>::min();
+                fill = static_cast<uint64_t>(sign_bit >> 63);
+            }
+            if (MONAD_VM_UNLIKELY(shift0[3] | shift0[2] | shift0[1] | (shift0[0] >= 256))) {
                 return uint256_t{fill, fill, fill, fill};
             }
             auto shift = static_cast<uint8_t>(shift0);
+            uint64_t tail;
+            if constexpr (type == RightShiftType::Logical) {
+                tail = x[3] >> shift;
+            }
+            else {
+                tail = uint256_t::shrd(fill, x[3], shift);
+            }
             if (shift < 128) {
                 if (shift < 64) {
                     return uint256_t{
                         uint256_t::shrd(x[1], x[0], shift),
                         uint256_t::shrd(x[2], x[1], shift),
                         uint256_t::shrd(x[3], x[2], shift),
-                        uint256_t::shrd(fill, x[3], shift),
+                        tail,
                     };
                 }
                 else {
@@ -416,7 +439,7 @@ namespace monad::vm::utils
                     return uint256_t{
                         uint256_t::shrd(x[2], x[1], shift),
                         uint256_t::shrd(x[3], x[2], shift),
-                        uint256_t::shrd(fill, x[3], shift),
+                        tail,
                         fill};
                 }
             }
@@ -424,35 +447,19 @@ namespace monad::vm::utils
                 if (shift < 192) {
                     shift &= 127;
                     return uint256_t{
-                        uint256_t::shrd(x[3], x[2], shift),
-                        uint256_t::shrd(fill, x[3], shift),
-                        fill,
-                        fill};
+                        uint256_t::shrd(x[3], x[2], shift), tail, fill, fill};
                 }
                 else {
                     shift &= 63;
-                    return uint256_t{
-                        uint256_t::shrd(fill, x[3], shift), fill, fill, fill};
+                    return uint256_t{tail, fill, fill, fill};
                 }
             }
-        }
-
-        template <typename T>
-        [[gnu::always_inline]]
-        friend inline constexpr uint256_t
-        operator>>(uint256_t const &x, T shift0) noexcept
-            requires std::is_convertible_v<T, uint64_t>
-        {
-            return shr_fill(x, static_cast<uint64_t>(shift0), 0);
         }
 
         [[gnu::always_inline]] friend inline constexpr uint256_t
         operator>>(uint256_t const &x, uint256_t const &shift) noexcept
         {
-            if (MONAD_VM_UNLIKELY(shift[3] | shift[2] | shift[1])) {
-                return 0;
-            }
-            return x >> shift[0];
+            return shift_right<RightShiftType::Logical>(x, shift);
         }
 
         [[gnu::always_inline]]
@@ -543,7 +550,14 @@ namespace monad::vm::utils
 
     uint256_t signextend(uint256_t const &byte_index, uint256_t const &x);
     uint256_t byte(uint256_t const &byte_index, uint256_t const &x);
-    uint256_t sar(uint256_t const &shift_index, uint256_t const &x);
+
+
+    [[gnu::always_inline]]
+    inline uint256_t sar(uint256_t const &shift, uint256_t const &x)
+    {
+        return shift_right<uint256_t::RightShiftType::Arithmetic>(x, shift);
+    }
+
     uint256_t countr_zero(uint256_t const &x);
 
     constexpr size_t popcount(uint256_t const &x)

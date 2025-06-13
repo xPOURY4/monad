@@ -53,17 +53,6 @@ namespace monad::vm::utils
         return ret;
     }
 
-    uint256_t sar(uint256_t const &shift0, uint256_t const &x)
-    {
-        int64_t const sign_bit =
-            static_cast<int64_t>(x[3]) & std::numeric_limits<int64_t>::min();
-        uint64_t const fill = static_cast<uint64_t>(sign_bit >> 63);
-        if (MONAD_VM_UNLIKELY(shift0[3] | shift0[2] | shift0[1])) {
-            return uint256_t{fill, fill, fill, fill};
-        }
-        return shr_fill(x, shift0[0], fill);
-    }
-
     uint256_t countr_zero(uint256_t const &x)
     {
         int total_count = 0;
