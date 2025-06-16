@@ -23,6 +23,15 @@ extern "C" void monad_vm_runtime_mul(
 
 namespace monad::vm::utils
 {
+    [[gnu::always_inline]] constexpr inline uint64_t
+    force(uint64_t expr) noexcept
+    {
+        if !consteval {
+            asm("" : "+r"(expr));
+        }
+        return expr;
+    }
+
     template <typename T>
     struct result_with_carry
     {
@@ -104,7 +113,7 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
         {
-            return words_[0] | words_[1] | words_[2] | words_[3];
+            return *this != 0;
         }
 
         template <typename Int>
@@ -230,17 +239,7 @@ namespace monad::vm::utils
         friend inline constexpr bool
         operator<(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            // On random data, this implementation outperforms both intx
-            // and a branchless approach, since the branch predictor will
-            // get it right almost always. It is possible to construct
-            // adversarial examples where this is slower than either approach,
-            // however
-            for (size_t i = 0; i < num_words; i++) {
-                if (lhs[3 - i] != rhs[3 - i]) {
-                    return lhs[3 - i] < rhs[3 - i];
-                }
-            }
-            return false;
+            return subb(lhs, rhs).carry;
         }
 
         [[gnu::always_inline]]
@@ -280,22 +279,23 @@ namespace monad::vm::utils
 #undef BITWISE_BINOP
 
         [[gnu::always_inline]] friend inline constexpr bool
-        operator==(uint256_t const &x, uint256_t const &y)
+        operator==(uint256_t const &x, uint256_t const &y) noexcept
         {
-            // Even if this branch gets mispredicted 50% of the time, the
-            // branching version is overall faster
-            if (x[3] != y[3]) {
-                return false;
-            }
-            return ((x[0] ^ y[0]) | (x[1] ^ y[1]) | (x[2] ^ y[2])) == 0;
+            auto e0 = force(x[0] ^ y[0]);
+            auto e1 = force(x[1] ^ y[1]);
+            auto e2 = force(x[2] ^ y[2]);
+            auto e3 = force(x[3] ^ y[3]);
+            return !(force(e0 | e1) | force(e2 | e3));
         }
 
-        [[gnu::always_inline]] inline constexpr uint256_t operator-() const
+        [[gnu::always_inline]] inline constexpr uint256_t
+        operator-() const noexcept
         {
             return 0 - *this;
         }
 
-        [[gnu::always_inline]] inline constexpr uint256_t operator~() const
+        [[gnu::always_inline]] inline constexpr uint256_t
+        operator~() const noexcept
         {
             return uint256_t{~words_[0], ~words_[1], ~words_[2], ~words_[3]};
         }
@@ -421,10 +421,10 @@ namespace monad::vm::utils
             auto shift = static_cast<uint8_t>(shift0);
             uint64_t tail;
             if constexpr (type == RightShiftType::Logical) {
-                tail = x[3] >> shift;
+                tail = x[3] >> (shift & 63);
             }
             else {
-                tail = uint256_t::shrd(fill, x[3], shift);
+                tail = uint256_t::shrd(fill, x[3], shift & 63);
             }
             if (shift < 128) {
                 if (shift < 64) {
@@ -632,9 +632,9 @@ namespace monad::vm::utils
         auto const x_neg = x[uint256_t::num_words - 1] >> 63;
         auto const y_neg = y[uint256_t::num_words - 1] >> 63;
         auto const diff = x_neg ^ y_neg;
-        // intx branches on the sign bit, which will be mispredicted on random
-        // data ~50% of the time. The branchless version does not add much
-        // overhead so it is probably worth it
+        // intx branches on the sign bit, which will be mispredicted on
+        // random data ~50% of the time. The branchless version does not add
+        // much overhead so it is probably worth it
         return (~diff & (x < y)) | (x_neg & ~y_neg);
     }
 
@@ -697,23 +697,23 @@ namespace monad::vm::utils
     }
 
     /**
-     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
-     * value.
+     * Parse a range of raw bytes with length `n` into a 256-bit big-endian
+     * word value.
      *
-     * If there are fewer than `n` bytes remaining in the source data (that is,
-     * `remaining < n`), then treat the input as if it had been padded to the
-     * right with zero bytes.
+     * If there are fewer than `n` bytes remaining in the source data (that
+     * is, `remaining < n`), then treat the input as if it had been padded
+     * to the right with zero bytes.
      */
     uint256_t
     from_bytes(std::size_t n, std::size_t remaining, uint8_t const *src);
 
     /**
-     * Parse a range of raw bytes with length `n` into a 256-bit big-endian word
-     * value.
+     * Parse a range of raw bytes with length `n` into a 256-bit big-endian
+     * word value.
      *
-     * There must be at least `n` bytes readable from `src`; if there are not,
-     * use the safe overload that allows for the number of bytes remaining to be
-     * specified.
+     * There must be at least `n` bytes readable from `src`; if there are
+     * not, use the safe overload that allows for the number of bytes
+     * remaining to be specified.
      */
     uint256_t from_bytes(std::size_t n, uint8_t const *src);
 
@@ -736,6 +736,7 @@ namespace monad::vm::utils
 }
 
 namespace std
+
 {
     template <>
     struct numeric_limits<monad::vm::utils::uint256_t>
