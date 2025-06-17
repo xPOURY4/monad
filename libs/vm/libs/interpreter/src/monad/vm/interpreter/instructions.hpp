@@ -290,7 +290,7 @@ namespace monad::vm::interpreter
         check_requirements<ISZERO, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto &a = *stack_top;
-        a = (a == 0);
+        a = !a;
         return {gas_remaining, instr_ptr + 1};
     }
 

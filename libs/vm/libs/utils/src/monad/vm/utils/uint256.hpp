@@ -113,7 +113,11 @@ namespace monad::vm::utils
         [[gnu::always_inline]]
         inline constexpr explicit operator bool() const noexcept
         {
-            return *this != 0;
+            auto w0 = force(words_[0]);
+            auto w1 = force(words_[1]);
+            auto w2 = force(words_[2]);
+            auto w3 = force(words_[3]);
+            return force(w0 | w1) | force(w2 | w3);
         }
 
         template <typename Int>
@@ -309,7 +313,7 @@ namespace monad::vm::utils
             }
             else {
                 asm("shldq %[shift], %[low], %[high]"
-                    : [high] "+rm"(high)
+                    : [high] "+r"(high)
                     : [low] "r"(low), [shift] "c"(shift)
                     : "cc");
                 return high;
@@ -387,7 +391,7 @@ namespace monad::vm::utils
             }
             else {
                 asm("shrdq %[shift], %[high], %[low]"
-                    : [low] "+rm"(low)
+                    : [low] "+r"(low)
                     : [high] "r"(high), [shift] "c"(shift)
                     : "cc");
                 return low;
