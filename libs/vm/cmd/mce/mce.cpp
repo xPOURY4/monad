@@ -2,6 +2,7 @@
 #include <instrumentable_decoder.hpp>
 #include <instrumentable_parser.hpp>
 #include <instrumentable_vm.hpp>
+#include <instrumentation_device.hpp>
 #include <stopwatch.hpp>
 
 #include <monad/vm/compiler/ir/basic_blocks.hpp>
@@ -163,25 +164,28 @@ static void dump_result(arguments const &args, evmc::Result const &result)
 template <evmc_revision Rev>
 int mce_main(arguments const &args)
 {
+    auto const device = args.wall_clock_time
+                            ? InstrumentationDevice::WallClock
+                            : InstrumentationDevice::Cachegrind;
     std::vector<uint8_t> const bytes = [&]() {
         if (args.instrument_decode) {
             InstrumentableDecoder<true> decoder{};
-            return decoder.decode(args.filename);
+            return decoder.decode(args.filename, device);
         }
         else {
             InstrumentableDecoder<false> decoder{};
-            return decoder.decode(args.filename);
+            return decoder.decode(args.filename, device);
         }
     }();
 
     std::optional<basic_blocks::BasicBlocksIR> const ir = [&]() {
         if (args.instrument_parse) {
             InstrumentableParser<true> parser{};
-            return parser.parse<Rev>(bytes);
+            return parser.parse<Rev>(bytes, device);
         }
         else {
             InstrumentableParser<false> parser{};
-            return parser.parse<Rev>(bytes);
+            return parser.parse<Rev>(bytes, device);
         }
     }();
     if (!ir) {
@@ -197,11 +201,11 @@ int mce_main(arguments const &args)
     std::shared_ptr<native::Nativecode> const ncode = [&]() {
         if (args.instrument_compile) {
             InstrumentableCompiler<true> compiler(rt, config);
-            return compiler.compile(Rev, *ir);
+            return compiler.compile(Rev, *ir, device);
         }
         else {
             InstrumentableCompiler<false> compiler(rt, config);
-            return compiler.compile(Rev, *ir);
+            return compiler.compile(Rev, *ir, device);
         }
     }();
 
@@ -213,11 +217,11 @@ int mce_main(arguments const &args)
     evmc::Result const result = [&]() {
         if (args.instrument_execute) {
             InstrumentableVM<true> vm(rt);
-            return vm.execute(Rev, ncode->entrypoint());
+            return vm.execute(Rev, ncode->entrypoint(), device);
         }
         else {
             InstrumentableVM<false> vm(rt);
-            return vm.execute(Rev, ncode->entrypoint());
+            return vm.execute(Rev, ncode->entrypoint(), device);
         }
     }();
 

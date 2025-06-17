@@ -1,7 +1,9 @@
+#include <instrumentation_device.hpp>
+#include <stopwatch.hpp>
+
 #include <monad/vm/compiler/ir/x86.hpp>
 #include <monad/vm/core/assert.h>
 #include <monad/vm/runtime/allocator.hpp>
-#include <stopwatch.hpp>
 
 #include <asmjit/x86.h>
 #include <evmc/evmc.h>
@@ -48,6 +50,20 @@ public:
     {
     }
 
+    evmc::Result execute(
+        evmc_revision rev, native::entrypoint_t entry,
+        InstrumentationDevice const device)
+    {
+        switch (device) {
+        case InstrumentationDevice::Cachegrind:
+            return execute<InstrumentationDevice::Cachegrind>(rev, entry);
+        case InstrumentationDevice::WallClock:
+            return execute<InstrumentationDevice::WallClock>(rev, entry);
+        }
+        std::unreachable();
+    }
+
+    template <InstrumentationDevice device>
     evmc::Result execute(evmc_revision rev, native::entrypoint_t entry)
     {
         MONAD_VM_ASSERT(entry != nullptr);
@@ -91,11 +107,16 @@ public:
         auto stack_ptr = stack_allocator.allocate();
 
         if constexpr (instrument) {
-            timer.start();
-            CACHEGRIND_START_INSTRUMENTATION;
-            entry(&ctx, stack_ptr.get());
-            CACHEGRIND_STOP_INSTRUMENTATION;
-            timer.pause();
+            if constexpr (device == InstrumentationDevice::Cachegrind) {
+                CACHEGRIND_START_INSTRUMENTATION;
+                entry(&ctx, stack_ptr.get());
+                CACHEGRIND_STOP_INSTRUMENTATION;
+            }
+            else {
+                timer.start();
+                entry(&ctx, stack_ptr.get());
+                timer.pause();
+            }
         }
         else {
             entry(&ctx, stack_ptr.get());

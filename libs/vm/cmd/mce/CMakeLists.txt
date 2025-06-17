@@ -6,6 +6,7 @@ target_sources(mce PRIVATE
   "src/instrumentable_parser.hpp"
   "src/instrumentable_compiler.hpp"
   "src/instrumentable_vm.hpp"
+  "src/instrumentation_device.hpp"
   "src/stopwatch.hpp")
 
 target_include_directories(mce

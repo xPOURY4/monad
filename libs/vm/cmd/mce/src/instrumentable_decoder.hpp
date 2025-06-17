@@ -20,20 +20,40 @@ template <bool instrument>
 class InstrumentableDecoder
 {
 public:
+    std::vector<uint8_t>
+    decode(fs::path const &filename, InstrumentationDevice const device)
+    {
+        switch (device) {
+        case InstrumentationDevice::Cachegrind:
+            return decode<InstrumentationDevice::Cachegrind>(filename);
+        case InstrumentationDevice::WallClock:
+            return decode<InstrumentationDevice::WallClock>(filename);
+        }
+        std::unreachable();
+    }
+
+    template <InstrumentationDevice device>
     std::vector<uint8_t> decode(fs::path const &filename)
     {
-        std::vector<char> const bytes = read_file(filename);
+        std::vector<char> const bytes = this->read_file(filename);
         if (filename.extension() == ".mevm") {
             std::string contents(bytes.begin(), bytes.end());
             monad::vm::utils::parser_config config{false, false};
             if constexpr (instrument) {
-                timer.start();
-                CACHEGRIND_START_INSTRUMENTATION;
-                std::vector<uint8_t> const code =
-                    monad::vm::utils::parse_opcodes(config, contents);
-                CACHEGRIND_STOP_INSTRUMENTATION;
-                timer.pause();
-                return code;
+                if constexpr (device == InstrumentationDevice::Cachegrind) {
+                    CACHEGRIND_START_INSTRUMENTATION;
+                    std::vector<uint8_t> const code =
+                        monad::vm::utils::parse_opcodes(config, contents);
+                    CACHEGRIND_STOP_INSTRUMENTATION;
+                    return code;
+                }
+                else {
+                    timer.start();
+                    std::vector<uint8_t> const code =
+                        monad::vm::utils::parse_opcodes(config, contents);
+                    timer.pause();
+                    return code;
+                }
             }
             else {
                 return monad::vm::utils::parse_opcodes(config, contents);
@@ -41,13 +61,24 @@ public:
         }
 
         if constexpr (instrument) {
-            timer.start();
-            CACHEGRIND_START_INSTRUMENTATION;
-            std::vector<uint8_t> const code =
-                monad::vm::utils::parse_hex_program(bytes);
-            CACHEGRIND_STOP_INSTRUMENTATION;
-            timer.pause();
-            return code;
+            if constexpr (device == InstrumentationDevice::Cachegrind) {
+
+                CACHEGRIND_START_INSTRUMENTATION;
+                std::vector<uint8_t> const code =
+                    monad::vm::utils::parse_hex_program(bytes);
+                CACHEGRIND_STOP_INSTRUMENTATION;
+
+                return code;
+            }
+            else {
+                timer.start();
+
+                std::vector<uint8_t> const code =
+                    monad::vm::utils::parse_hex_program(bytes);
+
+                timer.pause();
+                return code;
+            }
         }
         else {
             return monad::vm::utils::parse_hex_program(bytes);
