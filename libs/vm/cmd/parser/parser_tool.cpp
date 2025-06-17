@@ -55,7 +55,10 @@ arguments parse_args(int const argc, char **const argv)
     app.add_option(
         "--validate",
         args.validate,
-        std::format("validate input files (default: {})", args.validate));
+        std::format(
+            "validate input files (default: {})"
+            " - reports incorrect errors in some programs",
+            args.validate));
 
     app.add_flag("-v,--verbose", args.verbose, "send debug info to stdout");
 
