@@ -1648,8 +1648,8 @@ namespace monad::vm::compiler::native
         auto [temp_reg, reserv] = alloc_avx_reg();
         auto xmm1 = avx_reg_to_xmm(*temp_reg->avx_reg());
 
-        as_.movq(xmm0, gpq[0]);
-        as_.movq(xmm1, gpq[2]);
+        as_.vmovq(xmm0, gpq[0]);
+        as_.vmovq(xmm1, gpq[2]);
         as_.vpinsrq(xmm0, xmm0, gpq[1], 1);
         as_.vpinsrq(xmm1, xmm1, gpq[3], 1);
         as_.vinserti128(ymm0, ymm0, xmm1, 1);
