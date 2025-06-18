@@ -1004,7 +1004,11 @@ namespace monad::vm::interpreter
     {
         check_requirements<SWAP1 + (N - 1), Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
-        std::swap(*stack_top, *(stack_top - N));
+        // In Clang 19, codegen for the equivalent call to std::swap will
+        // allocate a temporary on the stack and incur extra mov operations
+        auto const top = stack_top->to_avx();
+        *stack_top = *(stack_top - N);
+        *(stack_top - N) = utils::uint256_t{top};
         return {gas_remaining, instr_ptr + 1};
     }
 
