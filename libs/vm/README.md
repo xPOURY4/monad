@@ -336,3 +336,14 @@ To run the formatter, call:
 ```console
 find {cmd,libs,test} -iname '*.h*' -o -iname '*.c*' | xargs clang-format-19 -i
 ```
+
+## Dumping assembly
+
+Passing `-DMONAD_COMPILER_DUMP_ASM=On` to CMake, will dump all `.s` assembly files for the monad code into `build/asm`. One can then use the following vscode extension: https://github.com/dseight/vscode-disasexpl to view the assembly. In order for this to work, add the following setting to `.vscode/settings.json` file inside the `monad-compiler` repo (if your CMake build folder is called something else, modify appropriately):
+
+```json
+"disasexpl.associations": {
+    "**/*.c": "${workspaceFolder}/build/asm/${fileBasename}.s",
+    "**/*.cpp": "${workspaceFolder}/build/asm/${fileBasename}.s"
+}
+```

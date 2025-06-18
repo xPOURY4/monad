@@ -12,6 +12,7 @@ option(MONAD_COMPILER_STANDALONE "Build as a standalone project" ON)
 option(MONAD_COMPILER_COVERAGE "Build with coverage" OFF)
 option(MONAD_COMPILER_TESTING "Build compiler tests" ON)
 option(MONAD_COMPILER_BENCHMARKS "Build compiler benchmarks" OFF)
+option(MONAD_COMPILER_DUMP_ASM "Dump assembly files into build/asm" OFF)
 
 include(cmake/MonadCompileOptions.cmake)
 
