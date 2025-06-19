@@ -90,7 +90,7 @@ namespace monad::vm::runtime
             : allocator_{allocator}
             , size{}
             , capacity{initial_capacity}
-            , data{alloc(capacity)}
+            , data{allocator_.aligned_alloc_cached()}
             , cost{}
         {
             memset(data, 0, capacity);
@@ -135,17 +135,6 @@ namespace monad::vm::runtime
             capacity = 0;
             data = nullptr;
             cost = 0;
-        }
-
-        [[gnu::always_inline]]
-        uint8_t *alloc(std::uint32_t n)
-        {
-            if (n == initial_capacity) {
-                return allocator_.aligned_alloc_cached();
-            }
-            else {
-                return static_cast<uint8_t *>(std::aligned_alloc(32, n));
-            }
         }
 
         [[gnu::always_inline]]
@@ -206,6 +195,8 @@ namespace monad::vm::runtime
             return static_cast<int64_t>((c * c) / 512 + (3 * c));
         }
 
+        void increase_capacity(uint32_t old_size, Bin<31> new_size);
+
         void expand_memory(Bin<30> min_size)
         {
             if (memory.size < *min_size) {
@@ -215,24 +206,14 @@ namespace monad::vm::runtime
                 Bin<31> const new_size = shl<5>(wsize);
                 MONAD_VM_DEBUG_ASSERT(new_cost >= memory.cost);
                 std::int64_t const expansion_cost = new_cost - memory.cost;
-                // Gas check before expanding:
+                // Gas check before increasing capacity:
                 deduct_gas(expansion_cost);
-                if (memory.capacity < *new_size) {
-                    // The `memory.capacity * 2` will not overflow
-                    // `std::uint32_t`, because `new_size` is `Bin<31>`.
-                    memory.capacity = std::max(memory.capacity * 2, *new_size);
-                    MONAD_VM_DEBUG_ASSERT((memory.capacity & 31) == 0);
-                    std::uint8_t *new_data = memory.alloc(memory.capacity);
-                    std::memcpy(new_data, memory.data, memory.size);
-                    std::memset(
-                        new_data + memory.size,
-                        0,
-                        memory.capacity - memory.size);
-                    memory.dealloc(memory.data);
-                    memory.data = new_data;
-                }
+                uint32_t old_size = memory.size;
                 memory.size = *new_size;
                 memory.cost = new_cost;
+                if (memory.capacity < *new_size) {
+                    increase_capacity(old_size, new_size);
+                }
             }
         }
 
@@ -255,3 +236,7 @@ namespace monad::vm::runtime
         copy_result_data();
     };
 }
+
+extern "C" void monad_vm_runtime_increase_capacity(
+    monad::vm::runtime::Context *, uint32_t old_size,
+    monad::vm::runtime::Bin<31> new_size);

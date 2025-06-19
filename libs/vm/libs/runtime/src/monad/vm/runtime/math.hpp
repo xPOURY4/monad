@@ -6,9 +6,12 @@
 
 #include <evmc/evmc.hpp>
 
+// It is assumed that if the `result` pointer overlaps with `left` and/or
+// `right`, then `result` pointer is equal to `left` and/or `right`.
 extern "C" void monad_vm_runtime_mul_192(
-    monad::vm::utils::uint256_t *, monad::vm::utils::uint256_t const *,
-    monad::vm::utils::uint256_t const *) noexcept;
+    monad::vm::utils::uint256_t *result,
+    monad::vm::utils::uint256_t const *left,
+    monad::vm::utils::uint256_t const *right) noexcept;
 
 namespace monad::vm::runtime
 {

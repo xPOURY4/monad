@@ -13,7 +13,28 @@
 #include <cstdlib>
 #include <cstring>
 #include <span>
+#include <type_traits>
 #include <variant>
+
+using namespace monad::vm::runtime;
+
+static_assert(sizeof(Bin<31>) == sizeof(uint32_t));
+static_assert(alignof(Bin<31>) == alignof(uint32_t));
+static_assert(std::is_standard_layout_v<Bin<31>>);
+
+extern "C" void monad_vm_runtime_increase_capacity(
+    Context *ctx, uint32_t old_size, Bin<31> new_size)
+{
+    MONAD_VM_DEBUG_ASSERT(old_size < *new_size);
+    MONAD_VM_DEBUG_ASSERT((*new_size & 31) == 0);
+    ctx->memory.capacity = *shl<1>(new_size);
+    std::uint8_t *new_data =
+        static_cast<uint8_t *>(std::malloc(ctx->memory.capacity));
+    std::memcpy(new_data, ctx->memory.data, old_size);
+    std::memset(new_data + old_size, 0, ctx->memory.capacity - old_size);
+    ctx->memory.dealloc(ctx->memory.data);
+    ctx->memory.data = new_data;
+}
 
 namespace monad::vm::runtime
 {
@@ -84,6 +105,11 @@ namespace monad::vm::runtime
             .result = {},
             .memory = Memory(EvmMemoryAllocator{}),
         };
+    }
+
+    void Context::increase_capacity(uint32_t old_size, Bin<31> new_size)
+    {
+        monad_vm_runtime_increase_capacity(this, old_size, new_size);
     }
 
     static evmc::Result evmc_error_result(evmc_status_code const code) noexcept
