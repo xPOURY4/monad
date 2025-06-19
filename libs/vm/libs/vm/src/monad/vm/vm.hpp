@@ -15,10 +15,11 @@ namespace monad::vm
         runtime::EvmMemoryAllocator memory_allocator_;
 
     public:
-        VM(std::size_t max_stack_cache_byte_size =
-               runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE,
-           std::size_t max_memory_cache_byte_size =
-               runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE);
+        explicit VM(
+            std::size_t max_stack_cache_byte_size =
+                runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE,
+            std::size_t max_memory_cache_byte_size =
+                runtime::EvmMemoryAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE);
 
         std::optional<SharedVarcode>
         find_varcode(evmc::bytes32 const &code_hash)

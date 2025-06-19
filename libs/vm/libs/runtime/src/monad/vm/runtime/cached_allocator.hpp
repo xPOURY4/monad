@@ -55,9 +55,9 @@ namespace monad::vm::utils
 
         ~CachedAllocatorList()
         {
-            auto e = elements;
+            auto *e = elements;
             while (e) {
-                auto next = e->next;
+                auto *next = e->next;
                 std::free(e);
                 e = next;
             }
@@ -86,7 +86,7 @@ namespace monad::vm::utils
         /// Create an allocator which will allow up to
         /// `max_cache_byte_size_per_thread` number of bytes being
         /// consumed by each (thread local) cache.
-        constexpr CachedAllocator(
+        constexpr explicit CachedAllocator(
             size_t max_cache_byte_size_per_thread = DEFAULT_MAX_CACHE_BYTE_SIZE)
         {
             max_slots_in_cache = max_cache_byte_size_per_thread / alloc_size;

@@ -39,7 +39,7 @@ namespace monad::vm::interpreter
             info.dynamic_gas ? 0 : info.min_gas,
             ctx.memory.size);
 
-        auto comma = "";
+        auto const *comma = "";
         for (auto i = stack_size - 1; i >= 0; --i) {
             std::cerr << std::format(
                 "{}\"0x{}\"", comma, (stack_top - i)->to_string(16));

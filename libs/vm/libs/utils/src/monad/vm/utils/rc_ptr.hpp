@@ -131,13 +131,13 @@ namespace monad::vm::utils
             return &rc_object->object;
         }
 
-        operator bool() const
+        explicit operator bool() const
         {
             return rc_object;
         }
 
     private:
-        RcPtr(RcObject<T> *rco)
+        explicit RcPtr(RcObject<T> *rco)
             : rc_object{rco}
         {
         }

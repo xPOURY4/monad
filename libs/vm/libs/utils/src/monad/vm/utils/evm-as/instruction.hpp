@@ -57,12 +57,11 @@ namespace monad::vm::utils::evm_as
         {
         }
 
-        ~PushLabelI() {}
+        ~PushLabelI() = default;
 
         PushLabelI(PushLabelI const &other)
-            : label(other.label)
-        {
-        }
+
+            = default;
 
         PushLabelI(PushLabelI &&other) noexcept
         {
@@ -90,12 +89,11 @@ namespace monad::vm::utils::evm_as
         {
         }
 
-        ~JumpdestI() {}
+        ~JumpdestI() = default;
 
         JumpdestI(JumpdestI const &other)
-            : label(other.label)
-        {
-        }
+
+            = default;
 
         JumpdestI(JumpdestI &&other) noexcept
         {
@@ -123,12 +121,11 @@ namespace monad::vm::utils::evm_as
         {
         }
 
-        ~CommentI() {}
+        ~CommentI() = default;
 
         CommentI(CommentI const &other)
-            : msg(other.msg)
-        {
-        }
+
+            = default;
 
         CommentI(CommentI &&other) noexcept
         {
@@ -161,12 +158,11 @@ namespace monad::vm::utils::evm_as
         {
         }
 
-        ~InvalidI() {}
+        ~InvalidI() = default;
 
         InvalidI(InvalidI const &other)
-            : name(other.name)
-        {
-        }
+
+            = default;
 
         InvalidI(InvalidI &&other) noexcept
         {

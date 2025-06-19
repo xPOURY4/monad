@@ -989,7 +989,7 @@ namespace monad::vm::interpreter
         check_requirements<DUP1 + (N - 1), Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
 
-        auto const old_top = stack_top;
+        auto *const old_top = stack_top;
         push(stack_top, *(old_top - (N - 1)));
 
         return {gas_remaining, instr_ptr + 1};
@@ -1042,7 +1042,7 @@ namespace monad::vm::interpreter
         check_requirements<JUMP, Rev>(
             ctx, analysis, stack_bottom, stack_top, gas_remaining);
         auto const &target = pop(stack_top);
-        auto const new_ip = jump_impl(ctx, analysis, target);
+        auto const *const new_ip = jump_impl(ctx, analysis, target);
         return {gas_remaining, new_ip};
     }
 
@@ -1058,7 +1058,7 @@ namespace monad::vm::interpreter
         auto const &cond = pop(stack_top);
 
         if (cond) {
-            auto const new_ip = jump_impl(ctx, analysis, target);
+            auto const *const new_ip = jump_impl(ctx, analysis, target);
             return {gas_remaining, new_ip};
         }
         else {

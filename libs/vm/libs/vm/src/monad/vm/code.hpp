@@ -29,7 +29,7 @@ namespace monad::vm
     class Varcode
     {
     public:
-        Varcode(SharedIntercode icode)
+        explicit Varcode(SharedIntercode icode)
             : intercode_gas_used_{0}
             , intercode_{std::move(icode)}
         {

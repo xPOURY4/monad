@@ -27,17 +27,17 @@ namespace monad::vm::compiler::test
 
         EvmTest() noexcept = default;
 
-        monad::vm::VM vm_ = {};
+        monad::vm::VM vm_{};
 
         evmc_revision rev_ = EVMC_CANCUN;
 
-        evmc_message msg_ = {};
+        evmc_message msg_{};
 
         evmc::MockedHost host_;
 
         evmc::Result result_;
 
-        std::span<uint8_t const> output_data_ = {};
+        std::span<uint8_t const> output_data_{};
 
         void pre_execute(
             std::int64_t gas_limit,

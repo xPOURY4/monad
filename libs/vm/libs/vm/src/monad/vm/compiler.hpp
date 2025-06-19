@@ -30,7 +30,7 @@ namespace monad::vm
         using CompileJobQueue = tbb::concurrent_queue<evmc::bytes32>;
 
     public:
-        Compiler(size_t compile_job_soft_limit = 1000);
+        explicit Compiler(size_t compile_job_soft_limit = 1000);
 
         ~Compiler();
 

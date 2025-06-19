@@ -75,7 +75,8 @@ namespace monad::vm::utils::evm_as
                                     return 1;
                                 }
                                 auto const offset = it->second;
-                                size_t n = offset == 0 ? 0 : byte_width(offset);
+                                size_t const n =
+                                    offset == 0 ? 0 : byte_width(offset);
 
                                 // Expand to either PUSH0 or
                                 // PUSHn.

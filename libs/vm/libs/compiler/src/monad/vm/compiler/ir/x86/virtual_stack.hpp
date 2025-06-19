@@ -139,7 +139,7 @@ namespace monad::vm::compiler::native
         friend struct StackElemDeleter;
 
     public:
-        StackElem(Stack *);
+        explicit StackElem(Stack *);
         StackElem(StackElem const &) = delete;
         StackElem &operator=(StackElem const &) = delete;
         ~StackElem();
@@ -237,7 +237,7 @@ namespace monad::vm::compiler::native
     class AvxRegReserv
     {
     public:
-        AvxRegReserv(StackElemRef e)
+        explicit AvxRegReserv(StackElemRef e)
             : stack_elem_{std::move(e)}
         {
             stack_elem_->reserve_avx_reg();
@@ -279,7 +279,7 @@ namespace monad::vm::compiler::native
     class GeneralRegReserv
     {
     public:
-        GeneralRegReserv(StackElemRef e)
+        explicit GeneralRegReserv(StackElemRef e)
             : stack_elem_{std::move(e)}
         {
             stack_elem_->reserve_general_reg();
@@ -310,7 +310,7 @@ namespace monad::vm::compiler::native
     class RegReserv
     {
     public:
-        RegReserv(StackElemRef e)
+        explicit RegReserv(StackElemRef e)
             : avx_reserv{e}
             , general_reserv{std::move(e)}
         {
@@ -322,10 +322,10 @@ namespace monad::vm::compiler::native
     };
 
     using AvxRegQueue =
-        std::priority_queue<AvxReg, std::vector<AvxReg>, std::greater<AvxReg>>;
+        std::priority_queue<AvxReg, std::vector<AvxReg>, std::greater<>>;
 
     using GeneralRegQueue = std::priority_queue<
-        GeneralReg, std::vector<GeneralReg>, std::greater<GeneralReg>>;
+        GeneralReg, std::vector<GeneralReg>, std::greater<>>;
 
     /**
      * A `Stack` manages a virtual representation of the EVM stack, specialized
@@ -352,7 +352,7 @@ namespace monad::vm::compiler::native
         /*
          * A stack prepared for code generation of given basic block.
          */
-        Stack(basic_blocks::Block const &);
+        explicit Stack(basic_blocks::Block const &);
 
         ~Stack();
 

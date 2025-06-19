@@ -123,8 +123,9 @@ namespace monad::vm::utils::evm_as
                             return;
                         }
 
-                        size_t offset = it->second;
-                        size_t n = offset == 0 ? offset : byte_width(offset);
+                        size_t const offset = it->second;
+                        size_t const n =
+                            offset == 0 ? offset : byte_width(offset);
                         emit_byte(
                             mc::EvmOpCode::PUSH0 + static_cast<uint8_t>(n));
                         // Note: assumes we are executing on a
@@ -243,7 +244,7 @@ namespace monad::vm::utils::evm_as
                             size_t offset = it->second;
                             size_t n =
                                 offset == 0 ? offset : byte_width(offset);
-                            std::string str =
+                            std::string const str =
                                 std::format("PUSH{} 0x{:X}", n, offset);
                             os << str;
                             return str.size();

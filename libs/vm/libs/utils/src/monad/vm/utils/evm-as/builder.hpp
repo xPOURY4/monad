@@ -26,7 +26,7 @@ namespace monad::vm::utils::evm_as
     class EvmBuilder
     {
     public:
-        EvmBuilder() {}
+        EvmBuilder() = default;
 
         EvmBuilder(EvmBuilder const &prefix, EvmBuilder const &suffix)
         {
@@ -91,7 +91,7 @@ namespace monad::vm::utils::evm_as
         EvmBuilder &spush(int64_t const imm) noexcept
         {
             if (imm < 0) {
-                uint256_t x{imm};
+                uint256_t const x{imm};
                 return push(monad::vm::utils::signextend(7, imm));
             }
             return push(static_cast<uint64_t>(imm));

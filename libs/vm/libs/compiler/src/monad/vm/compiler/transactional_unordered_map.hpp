@@ -130,7 +130,7 @@ namespace monad::vm::compiler
         {
             MONAD_VM_DEBUG_ASSERT(!checkpoints.empty());
 
-            size_t last_point = checkpoints.back();
+            size_t const last_point = checkpoints.back();
             checkpoints.pop_back();
 
             while (journal.size() > last_point) {

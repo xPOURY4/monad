@@ -36,7 +36,7 @@ namespace monad::vm::utils::evm_as::internal
     struct EvmDebugValidator
     {
 
-        EvmDebugValidator(std::vector<ValidationError> &errors)
+        explicit EvmDebugValidator(std::vector<ValidationError> &errors)
             : errors(errors)
             , vstack_size(0)
             , pos(0)

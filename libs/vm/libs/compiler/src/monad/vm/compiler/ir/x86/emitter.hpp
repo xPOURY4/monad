@@ -16,8 +16,8 @@ namespace monad::vm::compiler::native
     public:
         struct Error : std::runtime_error
         {
-            Error(std::string const &msg);
-            Error(char const *msg);
+            explicit Error(std::string const &msg);
+            explicit Error(char const *msg);
         };
 
         struct EmitErrorHandler : asmjit::ErrorHandler

@@ -30,7 +30,7 @@ namespace monad::vm::runtime
         template <std::size_t M>
             requires(N >= M)
         [[gnu::always_inline]]
-        constexpr Bin(Bin<M> const &x) noexcept
+        constexpr explicit(false) Bin(Bin<M> const &x) noexcept
             : value_{*x}
         {
         }

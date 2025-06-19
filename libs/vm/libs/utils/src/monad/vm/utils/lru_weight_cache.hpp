@@ -127,7 +127,7 @@ namespace monad::vm::utils
                     if (MONAD_VM_UNLIKELY(!target)) {
                         break;
                     }
-                    int64_t n = evict(target);
+                    int64_t const n = evict(target);
                     weight_.fetch_sub(n, std::memory_order_acq_rel);
                     evicted_weight += n;
                 }
@@ -146,7 +146,7 @@ namespace monad::vm::utils
             Accessor acc;
             bool const found = hmap_.find(acc, target->first);
             MONAD_VM_ASSERT(found);
-            uint32_t wt = acc->second.cache_weight_;
+            uint32_t const wt = acc->second.cache_weight_;
             hmap_.erase(acc);
             return wt;
         }
@@ -160,7 +160,7 @@ namespace monad::vm::utils
             Value value_;
             uint32_t cache_weight_;
 
-            HashMapValue() {}
+            HashMapValue() = default;
 
             HashMapValue(Value const &value, uint32_t weight)
                 : value_{value}
@@ -210,7 +210,7 @@ namespace monad::vm::utils
             int64_t lru_update_period_;
 
         public:
-            LruList(int64_t lru_update_period)
+            explicit LruList(int64_t lru_update_period)
                 : lru_update_period_{lru_update_period}
             {
                 base_.second.next_ = &base_;
@@ -219,7 +219,7 @@ namespace monad::vm::utils
 
             void update_lru(ListNode const *node)
             {
-                std::unique_lock l(mutex_);
+                std::unique_lock const l(mutex_);
                 if (node->second.is_in_list()) {
                     delink(node);
                     front_link(node);
@@ -229,14 +229,14 @@ namespace monad::vm::utils
 
             void push_front(ListNode const *node)
             {
-                std::unique_lock l(mutex_);
+                std::unique_lock const l(mutex_);
                 front_link(node);
                 node->second.update_lru_time(lru_update_period_);
             }
 
             ListNode const *evict()
             {
-                std::unique_lock l(mutex_);
+                std::unique_lock const l(mutex_);
                 ListNode const *const target = base_.second.prev_;
                 if (target == &base_) {
                     return nullptr;

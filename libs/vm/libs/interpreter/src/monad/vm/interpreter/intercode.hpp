@@ -22,7 +22,7 @@ namespace monad::vm::interpreter
     public:
         using JumpdestMap = std::vector<bool>;
 
-        Intercode(std::span<std::uint8_t const> const);
+        explicit Intercode(std::span<std::uint8_t const> const);
 
         Intercode(std::uint8_t const *code, std::size_t code_size)
             : Intercode{std::span<std::uint8_t const>{code, code_size}}

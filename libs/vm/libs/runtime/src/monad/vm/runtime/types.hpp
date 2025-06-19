@@ -86,7 +86,7 @@ namespace monad::vm::runtime
 
         Memory() = delete;
 
-        Memory(EvmMemoryAllocator allocator)
+        explicit Memory(EvmMemoryAllocator allocator)
             : allocator_{allocator}
             , size{}
             , capacity{initial_capacity}
@@ -210,10 +210,11 @@ namespace monad::vm::runtime
         {
             if (memory.size < *min_size) {
                 auto wsize = shr_ceil<5>(min_size);
-                std::int64_t new_cost = memory_cost_from_word_count(wsize);
-                Bin<31> new_size = shl<5>(wsize);
+                std::int64_t const new_cost =
+                    memory_cost_from_word_count(wsize);
+                Bin<31> const new_size = shl<5>(wsize);
                 MONAD_VM_DEBUG_ASSERT(new_cost >= memory.cost);
-                std::int64_t expansion_cost = new_cost - memory.cost;
+                std::int64_t const expansion_cost = new_cost - memory.cost;
                 // Gas check before expanding:
                 deduct_gas(expansion_cost);
                 if (memory.capacity < *new_size) {

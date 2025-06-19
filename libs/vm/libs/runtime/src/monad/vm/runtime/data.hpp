@@ -68,13 +68,13 @@ namespace monad::vm::runtime
         auto size_in_words = shr_ceil<5>(size);
         ctx->deduct_gas(size_in_words * bin<3>);
 
-        std::uint32_t start =
+        std::uint32_t const start =
             is_bounded_by_bits<32>(offset_word)
                 ? std::min(static_cast<std::uint32_t>(offset_word), len)
                 : len;
 
         auto copy_size = std::min(*size, len - start);
-        auto dest_ptr = ctx->memory.data + *dest_offset;
+        auto *dest_ptr = ctx->memory.data + *dest_offset;
         std::copy_n(source + start, copy_size, dest_ptr);
         std::fill_n(dest_ptr + copy_size, *size - copy_size, 0);
     }
@@ -139,12 +139,12 @@ namespace monad::vm::runtime
         if (*size > 0) {
             auto offset = clamp_cast<std::uint32_t>(*offset_ptr);
 
-            auto dest_ptr = ctx->memory.data + *dest_offset;
+            auto *dest_ptr = ctx->memory.data + *dest_offset;
             auto n = ctx->host->copy_code(
                 ctx->context, &address, offset, dest_ptr, *size);
 
-            auto begin = dest_ptr + static_cast<std::uint32_t>(n);
-            auto end = dest_ptr + *size;
+            auto *begin = dest_ptr + static_cast<std::uint32_t>(n);
+            auto *end = dest_ptr + *size;
 
             std::fill(begin, end, 0);
         }

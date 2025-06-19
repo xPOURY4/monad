@@ -203,7 +203,8 @@ namespace monad::vm::compiler::basic_blocks
          * Construct basic blocks from a bytecode program.
          */
         template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
-        BasicBlocksIR(std::span<std::uint8_t const>, RevisionMarker<Rev> = {});
+        explicit BasicBlocksIR(
+            std::span<std::uint8_t const>, RevisionMarker<Rev> = {});
 
         template <evmc_revision Rev = EVMC_LATEST_STABLE_REVISION>
         BasicBlocksIR(
@@ -490,7 +491,7 @@ struct std::formatter<monad::vm::compiler::basic_blocks::Terminator>
         monad::vm::compiler::basic_blocks::Terminator const &t,
         std::format_context &ctx) const
     {
-        auto v = [t] {
+        auto const *v = [t] {
             using enum monad::vm::compiler::basic_blocks::Terminator;
 
             switch (t) {

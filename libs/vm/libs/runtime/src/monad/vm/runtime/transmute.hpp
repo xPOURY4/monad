@@ -62,7 +62,7 @@ namespace monad::vm::runtime
     [[gnu::always_inline]]
     inline evmc::address address_from_uint256(vm::utils::uint256_t const &x)
     {
-        auto bytes = intx::as_bytes(x);
+        auto const *bytes = intx::as_bytes(x);
 
         std::uint64_t t2;
         std::memcpy(&t2, bytes, 8);
