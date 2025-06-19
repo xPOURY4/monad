@@ -3,6 +3,7 @@
 #include <monad/vm/core/assert.h>
 
 #include <bit>
+#include <cstdint>
 #include <format>
 #include <immintrin.h>
 #include <intx/intx.hpp>
@@ -40,7 +41,145 @@ namespace monad::vm::utils
     {
         T value;
         bool carry;
+
+        // Only used in unit tests
+        friend inline bool operator==(
+            result_with_carry const &lhs, result_with_carry const &rhs) noexcept
+            requires std::equality_comparable<T>
+        {
+            return lhs.value == rhs.value && lhs.carry == rhs.carry;
+        }
     };
+
+    [[gnu::always_inline]]
+    constexpr inline result_with_carry<uint64_t> addc_constexpr(
+        uint64_t const lhs, uint64_t const rhs, bool const carry_in) noexcept
+    {
+        uint64_t const sum = lhs + rhs;
+        bool carry_out = sum < lhs;
+        uint64_t const sum_carry = sum + carry_in;
+        carry_out |= sum_carry < sum;
+        return result_with_carry{.value = sum_carry, .carry = carry_out};
+    }
+
+    [[gnu::always_inline]]
+    inline result_with_carry<uint64_t> addc_intrinsic(
+        uint64_t const lhs, uint64_t const rhs, bool const carry_in) noexcept
+    {
+        static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+        unsigned long long carry_out = 0;
+        uint64_t const sum_carry =
+            __builtin_addcll(lhs, rhs, carry_in, &carry_out);
+        return result_with_carry{
+            .value = sum_carry, .carry = static_cast<bool>(carry_out)};
+    }
+
+    [[gnu::always_inline]]
+    constexpr inline result_with_carry<uint64_t>
+    addc(uint64_t const lhs, uint64_t const rhs, bool const carry_in) noexcept
+    {
+        if consteval {
+            return addc_constexpr(lhs, rhs, carry_in);
+        }
+        else {
+            return addc_intrinsic(lhs, rhs, carry_in);
+        }
+    }
+
+    [[gnu::always_inline]] constexpr inline result_with_carry<uint64_t>
+    subb_constexpr(
+        uint64_t const lhs, uint64_t const rhs, bool const borrow_in) noexcept
+    {
+        uint64_t const sub = lhs - rhs;
+        bool borrow_out = rhs > lhs;
+        uint64_t const sub_borrow = sub - borrow_in;
+        borrow_out |= borrow_in > sub;
+        return result_with_carry{.value = sub_borrow, .carry = borrow_out};
+    }
+
+    [[gnu::always_inline]] inline result_with_carry<uint64_t> subb_intrinsic(
+        uint64_t const lhs, uint64_t const rhs, bool const borrow_in) noexcept
+    {
+        static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+        unsigned long long borrow_out = 0;
+        uint64_t const sub_borrow =
+            __builtin_subcll(lhs, rhs, borrow_in, &borrow_out);
+        // If we do not force the result here, clang replaces the sub/sbb chain
+        // with a long series of comparisons and flag logic which is worse
+        return result_with_carry{
+            .value = force(sub_borrow), .carry = static_cast<bool>(borrow_out)};
+    }
+
+    [[gnu::always_inline]] constexpr inline result_with_carry<uint64_t>
+    subb(uint64_t const lhs, uint64_t const rhs, bool const borrow_in) noexcept
+    {
+        if consteval {
+            return subb_constexpr(lhs, rhs, borrow_in);
+        }
+        else {
+            return subb_intrinsic(lhs, rhs, borrow_in);
+        }
+    }
+
+    [[gnu::always_inline]]
+    inline uint64_t shld_intrinsic(
+        uint64_t high, uint64_t const low, uint8_t const shift) noexcept
+    {
+        asm("shldq %[shift], %[low], %[high]"
+            : [high] "+r"(high)
+            : [low] "r"(low), [shift] "c"(shift)
+            : "cc");
+        return high;
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint64_t shld_constexpr(
+        uint64_t const high, uint64_t const low, uint8_t const shift) noexcept
+    {
+        return (high << shift) | ((low >> 1) >> (63 - shift));
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint64_t
+    shld(uint64_t const high, uint64_t const low, uint8_t const shift) noexcept
+    {
+        if consteval {
+            return shld_constexpr(high, low, shift);
+        }
+        else {
+            return shld_intrinsic(high, low, shift);
+        }
+    }
+
+    [[gnu::always_inline]]
+    inline uint64_t shrd_intrinsic(
+        uint64_t const high, uint64_t low, uint8_t const shift) noexcept
+    {
+        asm("shrdq %[shift], %[high], %[low]"
+            : [low] "+r"(low)
+            : [high] "r"(high), [shift] "c"(shift)
+            : "cc");
+        return low;
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint64_t shrd_constexpr(
+        uint64_t const high, uint64_t const low, uint8_t const shift) noexcept
+    {
+        return (low >> shift) | ((high << 1) << (63 - shift));
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint64_t
+    shrd(uint64_t const high, uint64_t const low, uint8_t const shift) noexcept
+    {
+        if consteval {
+            return shrd_constexpr(high, low, shift);
+        }
+        else {
+            return shrd_intrinsic(high, low, shift);
+        }
+    }
 
     struct uint256_t
     {
@@ -173,40 +312,25 @@ namespace monad::vm::utils
 #undef INHERIT_INTX_BINOP
 
         [[gnu::always_inline]]
-        friend inline result_with_carry<uint256_t> constexpr addc(
-            uint256_t const &lhs, uint256_t const &rhs) noexcept
-        {
-            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-            unsigned long long carry = 0;
-            uint256_t result;
-            result[0] = __builtin_addcll(lhs[0], rhs[0], carry, &carry);
-            result[1] = __builtin_addcll(lhs[1], rhs[1], carry, &carry);
-            result[2] = __builtin_addcll(lhs[2], rhs[2], carry, &carry);
-            result[3] = __builtin_addcll(lhs[3], rhs[3], carry, &carry);
-            return result_with_carry{
-                .value = result, .carry = static_cast<bool>(carry)};
-        }
-
-        [[gnu::always_inline]]
         constexpr friend inline result_with_carry<uint256_t>
         subb(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-            unsigned long long carry = 0;
-            uint256_t result;
-            result[0] = __builtin_subcll(lhs[0], rhs[0], carry, &carry);
-            result[1] = __builtin_subcll(lhs[1], rhs[1], carry, &carry);
-            result[2] = __builtin_subcll(lhs[2], rhs[2], carry, &carry);
-            result[3] = __builtin_subcll(lhs[3], rhs[3], carry, &carry);
-            return result_with_carry{
-                .value = result, .carry = static_cast<bool>(carry)};
+            auto [w0, b0] = subb(lhs[0], rhs[0], false);
+            auto [w1, b1] = subb(lhs[1], rhs[1], b0);
+            auto [w2, b2] = subb(lhs[2], rhs[2], b1);
+            auto [w3, b3] = subb(lhs[3], rhs[3], b2);
+            return {.value = uint256_t{w0, w1, w2, w3}, .carry = b3};
         }
 
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
         operator+(uint256_t const &lhs, uint256_t const &rhs) noexcept
         {
-            return addc(lhs, rhs).value;
+            auto [w0, c0] = addc(lhs[0], rhs[0], false);
+            auto [w1, c1] = addc(lhs[1], rhs[1], c0);
+            auto [w2, c2] = addc(lhs[2], rhs[2], c1);
+            auto [w3, c3] = addc(lhs[3], rhs[3], c2);
+            return uint256_t{w0, w1, w2, w3};
         }
 
         [[gnu::always_inline]]
@@ -307,22 +431,6 @@ namespace monad::vm::utils
             return uint256_t{~words_[0], ~words_[1], ~words_[2], ~words_[3]};
         }
 
-        [[gnu::always_inline]]
-        static inline constexpr uint64_t
-        shld(uint64_t high, uint64_t low, uint8_t shift)
-        {
-            if consteval {
-                return (high << shift) | ((low >> 1) >> (63 - shift));
-            }
-            else {
-                asm("shldq %[shift], %[low], %[high]"
-                    : [high] "+r"(high)
-                    : [low] "r"(low), [shift] "c"(shift)
-                    : "cc");
-                return high;
-            }
-        }
-
         template <typename T>
         [[gnu::always_inline]]
         friend inline constexpr uint256_t
@@ -385,22 +493,6 @@ namespace monad::vm::utils
             return x << shift[0];
         }
 
-        [[gnu::always_inline]]
-        static inline constexpr uint64_t
-        shrd(uint64_t high, uint64_t low, uint8_t shift)
-        {
-            if consteval {
-                return (low >> shift) | ((high << 1) << (63 - shift));
-            }
-            else {
-                asm("shrdq %[shift], %[high], %[low]"
-                    : [low] "+r"(low)
-                    : [high] "r"(high), [shift] "c"(shift)
-                    : "cc");
-                return low;
-            }
-        }
-
         enum class RightShiftType
         {
             Arithmetic,
@@ -431,22 +523,22 @@ namespace monad::vm::utils
                 tail = x[3] >> (shift & 63);
             }
             else {
-                tail = uint256_t::shrd(fill, x[3], shift & 63);
+                tail = shrd(fill, x[3], shift & 63);
             }
             if (shift < 128) {
                 if (shift < 64) {
                     return uint256_t{
-                        uint256_t::shrd(x[1], x[0], shift),
-                        uint256_t::shrd(x[2], x[1], shift),
-                        uint256_t::shrd(x[3], x[2], shift),
+                        shrd(x[1], x[0], shift),
+                        shrd(x[2], x[1], shift),
+                        shrd(x[3], x[2], shift),
                         tail,
                     };
                 }
                 else {
                     shift &= 63;
                     return uint256_t{
-                        uint256_t::shrd(x[2], x[1], shift),
-                        uint256_t::shrd(x[3], x[2], shift),
+                        shrd(x[2], x[1], shift),
+                        shrd(x[3], x[2], shift),
                         tail,
                         fill};
                 }
@@ -454,8 +546,7 @@ namespace monad::vm::utils
             else {
                 if (shift < 192) {
                     shift &= 127;
-                    return uint256_t{
-                        uint256_t::shrd(x[3], x[2], shift), tail, fill, fill};
+                    return uint256_t{shrd(x[3], x[2], shift), tail, fill, fill};
                 }
                 else {
                     shift &= 63;
