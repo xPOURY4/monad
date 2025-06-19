@@ -235,6 +235,13 @@ namespace monad::vm::runtime
         std::variant<std::span<std::uint8_t const>, evmc_status_code>
         copy_result_data();
     };
+
+    // Update context.S accordingly if these offsets change:
+    static_assert(offsetof(Context, gas_remaining) == 16);
+    static_assert(offsetof(Context, memory) == 512);
+    static_assert(offsetof(Memory, size) == 8);
+    static_assert(offsetof(Memory, capacity) == 12);
+    static_assert(offsetof(Memory, cost) == 24);
 }
 
 extern "C" void monad_vm_runtime_increase_capacity(

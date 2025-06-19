@@ -168,3 +168,62 @@ TEST_F(RuntimeTest, ExpandMemoryNotUsingCachedAllocatorFreeRegression)
 
     ASSERT_EQ(EvmMemoryAllocatorMeta::cache_list.size(), 1);
 }
+
+[[gnu::noinline, gnu::naked]]
+static void runtime_increase_memory_wrapper(Bin<30>, Context *)
+{
+    asm("pushq %%rbx\n\t"
+        "movq %%rsi, %%rbx\n\t"
+        "call monad_vm_runtime_increase_memory\n\t"
+        "popq %%rbx\n\t"
+        "ret"
+        :);
+}
+
+TEST_F(RuntimeTest, RuntimeIncreaseMemory)
+{
+    ctx_.gas_remaining = 1'000'000;
+
+    ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity);
+
+    uint32_t const new_capacity = (Memory::initial_capacity + 32) * 2;
+
+    runtime_increase_memory_wrapper(
+        Bin<30>::unsafe_from(Memory::initial_capacity + 1), &ctx_);
+    ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 32);
+    ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 419);
+    ASSERT_TRUE(std::all_of(
+        ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
+            return b == 0;
+        }));
+
+    runtime_increase_memory_wrapper(
+        Bin<30>::unsafe_from(Memory::initial_capacity + 90), &ctx_);
+    ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 96);
+    ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 426);
+    ASSERT_TRUE(std::all_of(
+        ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
+            return b == 0;
+        }));
+
+    runtime_increase_memory_wrapper(Bin<30>::unsafe_from(new_capacity), &ctx_);
+    ASSERT_EQ(ctx_.memory.size, new_capacity);
+    ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 904);
+    ASSERT_TRUE(std::all_of(
+        ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
+            return b == 0;
+        }));
+
+    runtime_increase_memory_wrapper(
+        Bin<30>::unsafe_from(Memory::initial_capacity * 4 + 1), &ctx_);
+    ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity * 4 + 32);
+    ASSERT_EQ(ctx_.memory.capacity, (Memory::initial_capacity * 4 + 32) * 2);
+    ASSERT_EQ(ctx_.memory.cost, 2053);
+    ASSERT_TRUE(std::all_of(
+        ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
+            return b == 0;
+        }));
+}

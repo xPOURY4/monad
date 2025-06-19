@@ -8,6 +8,7 @@ target_sources(monad-vm-runtime PRIVATE
     "src/monad/vm/runtime/cached_allocator.hpp"
     "src/monad/vm/runtime/bin.hpp"
     "src/monad/vm/runtime/call.hpp"
+    "src/monad/vm/runtime/context.S"
     "src/monad/vm/runtime/context.cpp"
     "src/monad/vm/runtime/create.hpp"
     "src/monad/vm/runtime/data.hpp"
