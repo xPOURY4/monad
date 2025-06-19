@@ -3,8 +3,8 @@
 #include <monad/vm/interpreter/call_runtime.hpp>
 #include <monad/vm/interpreter/stack.hpp>
 #include <monad/vm/runtime/runtime.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/debug.hpp>
-#include <monad/vm/utils/uint256.hpp>
 
 #include <cstdint>
 #include <memory>

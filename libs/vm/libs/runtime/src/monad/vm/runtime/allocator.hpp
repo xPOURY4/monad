@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/vm/utils/cached_allocator.hpp>
+#include <monad/vm/runtime/cached_allocator.hpp>
 
 namespace monad::vm::runtime
 {

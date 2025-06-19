@@ -1,6 +1,6 @@
 #pragma once
 
-#include <monad/vm/utils/cases.hpp>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/utils/evm-as/builder.hpp>
 #include <monad/vm/utils/evm-as/instruction.hpp>
 #include <monad/vm/utils/evm-as/utils.hpp>

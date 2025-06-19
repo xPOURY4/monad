@@ -5,6 +5,7 @@ add_library(monad-vm-core STATIC)
 target_sources(monad-vm-core PRIVATE
     "src/monad/vm/core/assert.c"
     "src/monad/vm/core/assert.h"
+    "src/monad/vm/core/cases.hpp"
 )
 
 monad_compile_options(monad-vm-core)

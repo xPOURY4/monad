@@ -1,13 +1,12 @@
-#include "monad/vm/core/assert.h"
-#include "monad/vm/utils/evm-as/builder.hpp"
-#include "monad/vm/utils/evm-as/compiler.hpp"
-#include "monad/vm/utils/evm-as/validator.hpp"
-#include <iterator>
+#include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/utils/cases.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/evm-as.hpp>
+#include <monad/vm/utils/evm-as/builder.hpp>
+#include <monad/vm/utils/evm-as/compiler.hpp>
+#include <monad/vm/utils/evm-as/validator.hpp>
 #include <monad/vm/utils/parser.hpp>
-#include <monad/vm/utils/uint256.hpp>
 
 #include <CLI/CLI.hpp>
 
@@ -22,6 +21,7 @@
 #include <cstdlib>
 #include <format>
 #include <iostream>
+#include <iterator>
 #include <optional>
 #include <sstream>
 #include <string>

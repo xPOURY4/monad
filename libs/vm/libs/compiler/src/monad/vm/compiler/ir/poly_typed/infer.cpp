@@ -10,6 +10,7 @@
 #include <monad/vm/compiler/ir/poly_typed/unify.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -30,7 +31,7 @@ namespace
 
     void subst_terminator(InferState &state, block_id bid)
     {
-        using monad::vm::utils::Cases;
+        using monad::vm::Cases;
 
         auto new_term = std::visit(
             Cases{

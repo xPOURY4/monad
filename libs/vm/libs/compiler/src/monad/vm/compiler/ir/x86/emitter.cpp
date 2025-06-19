@@ -7,8 +7,8 @@
 #include <monad/vm/runtime/math.hpp>
 #include <monad/vm/runtime/storage.hpp>
 #include <monad/vm/runtime/types.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/debug.hpp>
-#include <monad/vm/utils/uint256.hpp>
 
 #include <evmc/evmc.h>
 
@@ -42,7 +42,7 @@
 namespace runtime = monad::vm::runtime;
 namespace x86 = asmjit::x86;
 
-using monad::vm::utils::Cases;
+using monad::vm::Cases;
 
 static_assert(ASMJIT_ARCH_X86 == 64);
 

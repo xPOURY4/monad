@@ -3,8 +3,8 @@
 #include <monad/vm/compiler/ir/instruction.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/utils/cases.hpp>
 
 #include <evmc/evmc.h>
 
@@ -377,7 +377,7 @@ namespace monad::vm::compiler::basic_blocks
         std::span<std::uint8_t const> bytes, RevisionMarker<Rev>)
         : codesize(bytes.size())
     {
-        using monad::vm::utils::Cases;
+        using monad::vm::Cases;
 
         enum class St
         {

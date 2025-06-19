@@ -6,6 +6,7 @@
 #include <monad/vm/compiler/ir/poly_typed/kind.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -19,7 +20,7 @@
 using namespace monad::vm::compiler;
 using namespace monad::vm::compiler::poly_typed;
 
-using monad::vm::utils::Cases;
+using monad::vm::Cases;
 
 namespace
 {

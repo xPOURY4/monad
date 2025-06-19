@@ -2,8 +2,8 @@
 #include "evmc/evmc.hpp"
 #include "monad/vm/compiler/ir/x86/types.hpp"
 #include "monad/vm/runtime/types.hpp"
+#include "monad/vm/runtime/uint256.hpp"
 #include "monad/vm/utils/evm-as/compiler.hpp"
-#include "monad/vm/utils/uint256.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <format>

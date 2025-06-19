@@ -2,6 +2,7 @@
 #include <monad/vm/compiler/ir/poly_typed/kind.hpp>
 #include <monad/vm/compiler/ir/poly_typed/subst_map.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -109,7 +110,7 @@ namespace monad::vm::compiler::poly_typed
 
     Kind SubstMap::subst(Kind kind, size_t depth, size_t &ticks)
     {
-        using monad::vm::utils::Cases;
+        using monad::vm::Cases;
 
         increment_kind_depth(depth, 1);
 

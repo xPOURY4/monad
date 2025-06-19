@@ -1,10 +1,10 @@
 #pragma once
 
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/fuzzing/generator/choice.hpp>
 #include <monad/vm/fuzzing/generator/instruction_data.hpp>
-#include <monad/vm/utils/cases.hpp>
-#include <monad/vm/utils/uint256.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
@@ -215,7 +215,7 @@ namespace monad::vm::fuzzing
     Push generate_calldata_item(GeneratorFocus focus, Engine &eng)
     {
         return std::visit(
-            utils::Cases{
+            Cases{
                 [&](ValidJumpDest) -> Push { return random_constant(eng); },
                 [](Push const &x) -> Push { return x; }},
             generate_push(focus, eng));
@@ -628,7 +628,7 @@ namespace monad::vm::fuzzing
         std::vector<std::size_t> &jumpdest_patches)
     {
         std::visit(
-            utils::Cases{
+            Cases{
                 [&](ValidAddress) {
                     if (valid_addresses.empty()) {
                         return;
@@ -711,7 +711,7 @@ namespace monad::vm::fuzzing
 
         for (auto const &inst : block) {
             std::visit(
-                utils::Cases{
+                Cases{
                     [&](NonTerminator const &nt) { push_op(nt.opcode); },
                     [&](Terminator const &t) { push_op(t.opcode); },
                     [&](Push const &p) {

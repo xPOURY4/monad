@@ -1,8 +1,8 @@
 #pragma once
 
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/evm/opcodes.hpp>
-#include <monad/vm/utils/cases.hpp>
 #include <monad/vm/utils/evm-as/builder.hpp>
 #include <monad/vm/utils/evm-as/instruction.hpp>
 #include <monad/vm/utils/evm-as/resolver.hpp>

@@ -2,7 +2,7 @@
 
 #include <monad/vm/interpreter/intercode.hpp>
 #include <monad/vm/runtime/types.hpp>
-#include <monad/vm/utils/uint256.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 
 #include <array>
 #include <cstdint>

@@ -3,8 +3,6 @@ enable_language(C)
 add_library(monad-vm-utils STATIC)
 
 target_sources(monad-vm-utils PRIVATE
-    "src/monad/vm/utils/cached_allocator.hpp"
-    "src/monad/vm/utils/cases.hpp"
     "src/monad/vm/utils/debug.cpp"
     "src/monad/vm/utils/debug.hpp"
     "src/monad/vm/utils/evmc_utils.cpp"
@@ -20,8 +18,6 @@ target_sources(monad-vm-utils PRIVATE
     "src/monad/vm/utils/load_program.hpp"
     "src/monad/vm/utils/lru_weight_cache.hpp"
     "src/monad/vm/utils/rc_ptr.hpp"
-    "src/monad/vm/utils/uint256.cpp"
-    "src/monad/vm/utils/uint256.hpp"
     "src/monad/vm/utils/parser.cpp"
     "src/monad/vm/utils/parser.hpp"
     "src/monad/vm/utils/scope_exit.hpp"
@@ -35,8 +31,8 @@ target_include_directories(monad-vm-utils
 )
 
 target_link_libraries(monad-vm-utils
-    PUBLIC intx::intx
     PUBLIC monad-vm::monad-vm-core
+    PUBLIC monad-vm::monad-vm-runtime
     PRIVATE monad-vm::monad-vm-evm
 )
 

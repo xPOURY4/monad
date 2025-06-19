@@ -5,6 +5,7 @@
 #include <monad/vm/compiler/ir/poly_typed/kind.hpp>
 #include <monad/vm/compiler/types.hpp>
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 
 #include <cstdint>
 #include <iterator>
@@ -46,7 +47,7 @@ namespace
 
     ContKind refresh(InferState &state, PolyVarSubstMap &su, ContKind cont)
     {
-        using monad::vm::utils::Cases;
+        using monad::vm::Cases;
 
         std::vector<Kind> kinds;
         for (auto &k : cont->front) {
@@ -75,7 +76,7 @@ namespace
 
     Kind refresh(InferState &state, PolyVarSubstMap &su, Kind kind)
     {
-        using monad::vm::utils::Cases;
+        using monad::vm::Cases;
 
         return std::visit(
             Cases{

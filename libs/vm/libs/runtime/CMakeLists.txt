@@ -5,6 +5,7 @@ add_library(monad-vm-runtime STATIC)
 target_sources(monad-vm-runtime PRIVATE
     "src/monad/vm/runtime/allocator.hpp"
     "src/monad/vm/runtime/allocator.cpp"
+    "src/monad/vm/runtime/cached_allocator.hpp"
     "src/monad/vm/runtime/bin.hpp"
     "src/monad/vm/runtime/call.hpp"
     "src/monad/vm/runtime/context.cpp"
@@ -26,6 +27,8 @@ target_sources(monad-vm-runtime PRIVATE
     "src/monad/vm/runtime/storage_costs.hpp"
     "src/monad/vm/runtime/transmute.hpp"
     "src/monad/vm/runtime/types.hpp"
+    "src/monad/vm/runtime/uint256.cpp"
+    "src/monad/vm/runtime/uint256.hpp"
 )
 
 monad_compile_options(monad-vm-runtime)
@@ -37,9 +40,9 @@ target_include_directories(monad-vm-runtime
 target_link_libraries(monad-vm-runtime
     PUBLIC evmc::evmc
     PUBLIC ethash::keccak
+    PUBLIC intx::intx
     PUBLIC monad-vm::monad-vm-core
     PUBLIC monad-vm::monad-vm-evm
-    PUBLIC monad-vm::monad-vm-utils
 )
 
 add_library(monad-vm::monad-vm-runtime ALIAS monad-vm-runtime)

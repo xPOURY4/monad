@@ -1,9 +1,9 @@
 #include <monad/vm/core/assert.h>
+#include <monad/vm/core/cases.hpp>
 #include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/runtime/types.hpp>
-#include <monad/vm/utils/cases.hpp>
-#include <monad/vm/utils/uint256.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
@@ -182,7 +182,7 @@ namespace monad::vm::runtime
             result.status == Success || result.status == Revert);
 
         return std::visit(
-            vm::utils::Cases{
+            Cases{
                 [](evmc_status_code ec) { return evmc_error_result(ec); },
                 [this](std::span<std::uint8_t const> output) {
                     return evmc::Result{evmc_result{

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <monad/vm/core/assert.h>
-#include <monad/vm/utils/uint256.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 
 #include <evmc/evmc.hpp>
 
