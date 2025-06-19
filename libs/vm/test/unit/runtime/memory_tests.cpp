@@ -1,5 +1,6 @@
 #include "fixture.hpp"
 
+#include <monad/vm/runtime/allocator.hpp>
 #include <monad/vm/runtime/memory.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/runtime/uint256.hpp>
@@ -118,11 +119,14 @@ TEST_F(RuntimeTest, ExpandMemory)
 {
     ctx_.gas_remaining = 1'000'000;
 
+    ASSERT_EQ(ctx_.memory.capacity, Memory::initial_capacity);
+
     uint32_t const new_capacity = (Memory::initial_capacity + 32) * 2;
 
     ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity + 1));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 32);
     ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 419);
     ASSERT_TRUE(std::all_of(
         ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
             return b == 0;
@@ -131,6 +135,7 @@ TEST_F(RuntimeTest, ExpandMemory)
     ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity + 90));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity + 96);
     ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 426);
     ASSERT_TRUE(std::all_of(
         ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
             return b == 0;
@@ -139,6 +144,7 @@ TEST_F(RuntimeTest, ExpandMemory)
     ctx_.expand_memory(Bin<30>::unsafe_from(new_capacity));
     ASSERT_EQ(ctx_.memory.size, new_capacity);
     ASSERT_EQ(ctx_.memory.capacity, new_capacity);
+    ASSERT_EQ(ctx_.memory.cost, 904);
     ASSERT_TRUE(std::all_of(
         ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
             return b == 0;
@@ -147,8 +153,19 @@ TEST_F(RuntimeTest, ExpandMemory)
     ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity * 4 + 1));
     ASSERT_EQ(ctx_.memory.size, Memory::initial_capacity * 4 + 32);
     ASSERT_EQ(ctx_.memory.capacity, (Memory::initial_capacity * 4 + 32) * 2);
+    ASSERT_EQ(ctx_.memory.cost, 2053);
     ASSERT_TRUE(std::all_of(
         ctx_.memory.data, ctx_.memory.data + ctx_.memory.size, [](auto b) {
             return b == 0;
         }));
+}
+
+TEST_F(RuntimeTest, ExpandMemoryNotUsingCachedAllocatorFreeRegression)
+{
+    ASSERT_EQ(EvmMemoryAllocatorMeta::cache_list.size(), 0);
+
+    ctx_.gas_remaining = 1'000'000;
+    ctx_.expand_memory(Bin<30>::unsafe_from(Memory::initial_capacity + 1));
+
+    ASSERT_EQ(EvmMemoryAllocatorMeta::cache_list.size(), 1);
 }

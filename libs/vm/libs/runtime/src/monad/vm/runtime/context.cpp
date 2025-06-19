@@ -27,12 +27,12 @@ extern "C" void monad_vm_runtime_increase_capacity(
 {
     MONAD_VM_DEBUG_ASSERT(old_size < *new_size);
     MONAD_VM_DEBUG_ASSERT((*new_size & 31) == 0);
-    ctx->memory.capacity = *shl<1>(new_size);
-    std::uint8_t *new_data =
-        static_cast<uint8_t *>(std::malloc(ctx->memory.capacity));
+    uint32_t const new_capacity = *shl<1>(new_size);
+    std::uint8_t *new_data = static_cast<uint8_t *>(std::malloc(new_capacity));
     std::memcpy(new_data, ctx->memory.data, old_size);
-    std::memset(new_data + old_size, 0, ctx->memory.capacity - old_size);
+    std::memset(new_data + old_size, 0, new_capacity - old_size);
     ctx->memory.dealloc(ctx->memory.data);
+    ctx->memory.capacity = new_capacity;
     ctx->memory.data = new_data;
 }
 
