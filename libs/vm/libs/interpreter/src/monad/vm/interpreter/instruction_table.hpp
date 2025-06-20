@@ -365,6 +365,7 @@ namespace monad::vm::interpreter
     }
 
 #ifdef MONAD_COMPILER_TESTING
+    [[gnu::always_inline]]
     inline void fuzz_tstore_stack(
         runtime::Context const &ctx, utils::uint256_t const *stack_bottom,
         utils::uint256_t const *stack_top, std::uint64_t base_offset)
@@ -380,7 +381,7 @@ namespace monad::vm::interpreter
             base_offset);
     }
 #else
-    void fuzz_tstore_stack(
+    [[gnu::always_inline]] inline void fuzz_tstore_stack(
         runtime::Context const &, utils::uint256_t const *,
         utils::uint256_t const *, std::uint64_t)
     {
