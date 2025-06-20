@@ -30,7 +30,7 @@
 namespace runtime = monad::vm::runtime;
 using namespace monad::vm::compiler;
 using namespace monad::vm::compiler::native;
-using namespace monad::vm::utils;
+using namespace monad::vm::runtime;
 
 namespace
 {
@@ -1723,39 +1723,41 @@ TEST(Emitter, addmod_opt)
             {1, 1, 0},
             {2, 4, 1},
             {2, 3, 4},
-            {1, 1, monad::vm::utils::pow2(8)},
-            {std::numeric_limits<uint8_t>::max(), 1, monad::vm::utils::pow2(8)},
+            {1, 1, monad::vm::runtime::pow2(8)},
+            {std::numeric_limits<uint8_t>::max(),
+             1,
+             monad::vm::runtime::pow2(8)},
             {std::numeric_limits<uint16_t>::max(),
              1,
-             monad::vm::utils::pow2(16)},
+             monad::vm::runtime::pow2(16)},
             {std::numeric_limits<uint32_t>::max(),
              1,
-             monad::vm::utils::pow2(32)},
+             monad::vm::runtime::pow2(32)},
             {std::numeric_limits<uint32_t>::max(),
              std::numeric_limits<uint32_t>::max(),
-             monad::vm::utils::pow2(32)},
+             monad::vm::runtime::pow2(32)},
             {std::numeric_limits<uint64_t>::max(),
              3,
-             monad::vm::utils::pow2(63)},
+             monad::vm::runtime::pow2(63)},
             {std::numeric_limits<uint64_t>::max(),
              1,
-             monad::vm::utils::pow2(64)},
+             monad::vm::runtime::pow2(64)},
             {std::numeric_limits<uint32_t>::max(),
              std::numeric_limits<uint8_t>::max(),
-             monad::vm::utils::pow2(62)},
+             monad::vm::runtime::pow2(62)},
             {std::numeric_limits<uint64_t>::max(), 1, 16},
             {std::numeric_limits<uint64_t>::max(),
              1,
-             monad::vm::utils::pow2(8)},
+             monad::vm::runtime::pow2(8)},
             {std::numeric_limits<uint64_t>::max(),
              std::numeric_limits<uint32_t>::max(),
-             monad::vm::utils::pow2(72)},
+             monad::vm::runtime::pow2(72)},
             {std::numeric_limits<uint8_t>::max(),
              1,
-             monad::vm::utils::pow2(128)},
+             monad::vm::runtime::pow2(128)},
             {std::numeric_limits<uint8_t>::max(),
              1,
-             monad::vm::utils::pow2(192)},
+             monad::vm::runtime::pow2(192)},
             {{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}, 1, 2},
             {43194, 13481, 1024},
             {0xFFFFFFFFF, 0x1, 512},
@@ -1763,7 +1765,7 @@ TEST(Emitter, addmod_opt)
             {std::numeric_limits<uint256_t>::max() -
                  (std::numeric_limits<uint256_t>::max() / 2),
              std::numeric_limits<uint64_t>::max(),
-             monad::vm::utils::pow2(60)},
+             monad::vm::runtime::pow2(60)},
             {0, std::numeric_limits<uint256_t>::max(), 2},
             {std::numeric_limits<uint256_t>::max(), 0, 2}};
         for (auto &[a, b, m] : inputs) {

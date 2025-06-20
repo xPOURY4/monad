@@ -10,7 +10,7 @@ namespace monad::vm::interpreter
     [[gnu::always_inline]]
     inline void call_runtime(
         void (*f)(FnArgs...), runtime::Context &ctx,
-        utils::uint256_t *&stack_top, std::int64_t &gas_remaining)
+        runtime::uint256_t *&stack_top, std::int64_t &gas_remaining)
     {
         constexpr auto use_context = runtime::detail::uses_context_v<FnArgs...>;
         constexpr auto use_result = runtime::detail::uses_result_v<FnArgs...>;

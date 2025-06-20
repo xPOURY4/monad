@@ -7,14 +7,13 @@
 namespace monad::vm::runtime
 {
     template <evmc_revision Rev>
-    vm::utils::uint256_t call_impl(
-        Context *ctx, vm::utils::uint256_t const &gas_word,
-        vm::utils::uint256_t const &address, bool has_value,
-        evmc_bytes32 const &value, vm::utils::uint256_t const &args_offset_word,
-        vm::utils::uint256_t const &args_size_word,
-        vm::utils::uint256_t const &ret_offset_word,
-        vm::utils::uint256_t const &ret_size_word, evmc_call_kind call_kind,
-        bool static_call, std::int64_t remaining_block_base_gas)
+    uint256_t call_impl(
+        Context *ctx, uint256_t const &gas_word, uint256_t const &address,
+        bool has_value, evmc_bytes32 const &value,
+        uint256_t const &args_offset_word, uint256_t const &args_size_word,
+        uint256_t const &ret_offset_word, uint256_t const &ret_size_word,
+        evmc_call_kind call_kind, bool static_call,
+        std::int64_t remaining_block_base_gas)
     {
         ctx->env.clear_return_data();
 
@@ -126,14 +125,10 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void call(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *gas_ptr,
-        vm::utils::uint256_t const *address_ptr,
-        vm::utils::uint256_t const *value_ptr,
-        vm::utils::uint256_t const *args_offset_ptr,
-        vm::utils::uint256_t const *args_size_ptr,
-        vm::utils::uint256_t const *ret_offset_ptr,
-        vm::utils::uint256_t const *ret_size_ptr,
+        Context *ctx, uint256_t *result_ptr, uint256_t const *gas_ptr,
+        uint256_t const *address_ptr, uint256_t const *value_ptr,
+        uint256_t const *args_offset_ptr, uint256_t const *args_size_ptr,
+        uint256_t const *ret_offset_ptr, uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
@@ -153,14 +148,10 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void callcode(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *gas_ptr,
-        vm::utils::uint256_t const *address_ptr,
-        vm::utils::uint256_t const *value_ptr,
-        vm::utils::uint256_t const *args_offset_ptr,
-        vm::utils::uint256_t const *args_size_ptr,
-        vm::utils::uint256_t const *ret_offset_ptr,
-        vm::utils::uint256_t const *ret_size_ptr,
+        Context *ctx, uint256_t *result_ptr, uint256_t const *gas_ptr,
+        uint256_t const *address_ptr, uint256_t const *value_ptr,
+        uint256_t const *args_offset_ptr, uint256_t const *args_size_ptr,
+        uint256_t const *ret_offset_ptr, uint256_t const *ret_size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
@@ -180,14 +171,10 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void delegatecall(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *gas_ptr,
-        vm::utils::uint256_t const *address_ptr,
-        vm::utils::uint256_t const *args_offset_ptr,
-        vm::utils::uint256_t const *args_size_ptr,
-        vm::utils::uint256_t const *ret_offset_ptr,
-        vm::utils::uint256_t const *ret_size_ptr,
-        std::int64_t remaining_block_base_gas)
+        Context *ctx, uint256_t *result_ptr, uint256_t const *gas_ptr,
+        uint256_t const *address_ptr, uint256_t const *args_offset_ptr,
+        uint256_t const *args_size_ptr, uint256_t const *ret_offset_ptr,
+        uint256_t const *ret_size_ptr, std::int64_t remaining_block_base_gas)
     {
         *result_ptr = call_impl<Rev>(
             ctx,
@@ -206,14 +193,10 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void staticcall(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *gas_ptr,
-        vm::utils::uint256_t const *address_ptr,
-        vm::utils::uint256_t const *args_offset_ptr,
-        vm::utils::uint256_t const *args_size_ptr,
-        vm::utils::uint256_t const *ret_offset_ptr,
-        vm::utils::uint256_t const *ret_size_ptr,
-        std::int64_t remaining_block_base_gas)
+        Context *ctx, uint256_t *result_ptr, uint256_t const *gas_ptr,
+        uint256_t const *address_ptr, uint256_t const *args_offset_ptr,
+        uint256_t const *args_size_ptr, uint256_t const *ret_offset_ptr,
+        uint256_t const *ret_size_ptr, std::int64_t remaining_block_base_gas)
     {
         MONAD_VM_DEBUG_ASSERT(Rev >= EVMC_BYZANTIUM);
         *result_ptr = call_impl<Rev>(

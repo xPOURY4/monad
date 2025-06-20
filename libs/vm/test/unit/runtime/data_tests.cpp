@@ -12,10 +12,9 @@
 using namespace monad;
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace monad::vm::utils;
 
-constexpr auto addr = vm::utils::uint256_t{678};
-constexpr auto wei = vm::utils::uint256_t{782374};
+constexpr auto addr = vm::runtime::uint256_t{678};
+constexpr auto wei = vm::runtime::uint256_t{782374};
 
 TEST_F(RuntimeTest, BalanceHomestead)
 {

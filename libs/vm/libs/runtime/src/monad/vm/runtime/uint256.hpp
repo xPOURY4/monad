@@ -13,7 +13,7 @@
     #error "Target architecture must support AVX2"
 #endif
 
-namespace monad::vm::utils
+namespace monad::vm::runtime
 {
     struct uint256_t;
 }
@@ -21,11 +21,11 @@ namespace monad::vm::utils
 // It is assumed that if the `result` pointer overlaps with `left` and/or
 // `right`, then `result` pointer is equal to `left` and/or `right`.
 extern "C" void monad_vm_runtime_mul(
-    monad::vm::utils::uint256_t *result,
-    monad::vm::utils::uint256_t const *left,
-    monad::vm::utils::uint256_t const *right) noexcept;
+    monad::vm::runtime::uint256_t *result,
+    monad::vm::runtime::uint256_t const *left,
+    monad::vm::runtime::uint256_t const *right) noexcept;
 
-namespace monad::vm::utils
+namespace monad::vm::runtime
 {
     [[gnu::always_inline]] constexpr inline uint64_t
     force(uint64_t expr) noexcept
@@ -837,9 +837,9 @@ namespace std
 
 {
     template <>
-    struct numeric_limits<monad::vm::utils::uint256_t>
+    struct numeric_limits<monad::vm::runtime::uint256_t>
     {
-        using type = monad::vm::utils::uint256_t;
+        using type = monad::vm::runtime::uint256_t;
 
         static constexpr bool is_specialized = true;
         static constexpr bool is_integer = true;
@@ -912,7 +912,7 @@ namespace std
     };
 }
 
-namespace monad::vm::utils
+namespace monad::vm::runtime
 {
     inline size_t bit_width(uint256_t const &x)
     {
@@ -928,15 +928,15 @@ namespace monad::vm::utils
 }
 
 template <>
-struct std::formatter<monad::vm::utils::uint256_t>
+struct std::formatter<monad::vm::runtime::uint256_t>
 {
     constexpr auto parse(std::format_parse_context &ctx)
     {
         return ctx.begin();
     }
 
-    auto
-    format(monad::vm::utils::uint256_t const &v, std::format_context &ctx) const
+    auto format(
+        monad::vm::runtime::uint256_t const &v, std::format_context &ctx) const
     {
         return std::format_to(
             ctx.out(), "0x{}", intx::to_string(v.as_intx(), 16));

@@ -31,7 +31,7 @@ namespace monad::vm::interpreter
 #endif
         }
 
-        using subword_t = utils::uint256_t::word_type;
+        using subword_t = runtime::uint256_t::word_type;
 
         // We need to do this memcpy dance to avoid triggering UB when
         // reading whole words from potentially unaligned addresses in the
@@ -51,8 +51,9 @@ namespace monad::vm::interpreter
             requires(!detail::use_avx2_push(N))
         [[gnu::always_inline]] inline void generic_push(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
+            runtime::uint256_t const *stack_bottom,
+            runtime::uint256_t *stack_top, std::int64_t &gas_remaining,
+            std::uint8_t const *instr_ptr)
         {
             static constexpr auto whole_words = N / 8;
             static constexpr auto leading_part = N % 8;
@@ -78,12 +79,12 @@ namespace monad::vm::interpreter
 
             if constexpr (whole_words == 0) {
                 interpreter::push(
-                    stack_top, utils::uint256_t{leading_word, 0, 0, 0});
+                    stack_top, runtime::uint256_t{leading_word, 0, 0, 0});
             }
             else if constexpr (whole_words == 1) {
                 interpreter::push(
                     stack_top,
-                    utils::uint256_t{
+                    runtime::uint256_t{
                         read_unaligned(instr_ptr + 1 + leading_part),
                         leading_word,
                         0,
@@ -93,7 +94,7 @@ namespace monad::vm::interpreter
             else if constexpr (whole_words == 2) {
                 interpreter::push(
                     stack_top,
-                    utils::uint256_t{
+                    runtime::uint256_t{
                         read_unaligned(instr_ptr + 1 + 8 + leading_part),
                         read_unaligned(instr_ptr + 1 + leading_part),
                         leading_word,
@@ -103,7 +104,7 @@ namespace monad::vm::interpreter
             else if constexpr (whole_words == 3) {
                 interpreter::push(
                     stack_top,
-                    utils::uint256_t{
+                    runtime::uint256_t{
                         read_unaligned(instr_ptr + 1 + 16 + leading_part),
                         read_unaligned(instr_ptr + 1 + 8 + leading_part),
                         read_unaligned(instr_ptr + 1 + leading_part),
@@ -114,7 +115,7 @@ namespace monad::vm::interpreter
                 static_assert(leading_part == 0);
                 interpreter::push(
                     stack_top,
-                    utils::uint256_t{
+                    runtime::uint256_t{
                         read_unaligned(instr_ptr + 1 + 24),
                         read_unaligned(instr_ptr + 1 + 16),
                         read_unaligned(instr_ptr + 1 + 8),
@@ -127,8 +128,9 @@ namespace monad::vm::interpreter
             requires(detail::use_avx2_push(N))
         [[gnu::always_inline]] inline void avx2_push(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
+            runtime::uint256_t const *stack_bottom,
+            runtime::uint256_t *stack_top, std::int64_t &gas_remaining,
+            std::uint8_t const *instr_ptr)
         {
             static constexpr auto whole_words = N / 8;
             static constexpr auto leading_part = N % 8;
@@ -177,8 +179,9 @@ namespace monad::vm::interpreter
     {
         [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
+            runtime::uint256_t const *stack_bottom,
+            runtime::uint256_t *stack_top, std::int64_t &gas_remaining,
+            std::uint8_t const *instr_ptr)
         {
             detail::generic_push<N, Rev>(
                 ctx,
@@ -195,8 +198,9 @@ namespace monad::vm::interpreter
     {
         [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t &gas_remaining, std::uint8_t const *)
+            runtime::uint256_t const *stack_bottom,
+            runtime::uint256_t *stack_top, std::int64_t &gas_remaining,
+            std::uint8_t const *)
         {
             check_requirements<PUSH0, Rev>(
                 ctx, analysis, stack_bottom, stack_top, gas_remaining);
@@ -210,8 +214,9 @@ namespace monad::vm::interpreter
     {
         [[gnu::always_inline]] static inline void push(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t const *stack_bottom, utils::uint256_t *stack_top,
-            std::int64_t &gas_remaining, std::uint8_t const *instr_ptr)
+            runtime::uint256_t const *stack_bottom,
+            runtime::uint256_t *stack_top, std::int64_t &gas_remaining,
+            std::uint8_t const *instr_ptr)
         {
             detail::avx2_push<N, Rev>(
                 ctx,

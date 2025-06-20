@@ -8,7 +8,7 @@
 #include <cstring>
 #include <limits>
 
-namespace monad::vm::utils
+namespace monad::vm::runtime
 {
     uint256_t signextend(uint256_t const &byte_index_256, uint256_t const &x)
     {

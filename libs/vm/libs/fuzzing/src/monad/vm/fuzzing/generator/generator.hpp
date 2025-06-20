@@ -37,17 +37,17 @@ namespace monad::vm::fuzzing
 
     struct Constant
     {
-        utils::uint256_t value;
+        runtime::uint256_t value;
     };
 
     template <typename Engine>
     Constant meaningful_constant(Engine &gen)
     {
-        static constexpr auto values = std::array<utils::uint256_t, 4>{
+        static constexpr auto values = std::array<runtime::uint256_t, 4>{
             0,
             1,
-            exp(utils::uint256_t(2), utils::uint256_t(255)),
-            std::numeric_limits<utils::uint256_t>::max(),
+            exp(runtime::uint256_t(2), runtime::uint256_t(255)),
+            std::numeric_limits<runtime::uint256_t>::max(),
         };
 
         return Constant{uniform_sample(gen, values)};
@@ -68,7 +68,7 @@ namespace monad::vm::fuzzing
         // mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 8);
         auto shift = 32 * dist(gen);
-        return Constant{utils::uint256_t{1} << shift};
+        return Constant{runtime::uint256_t{1} << shift};
     }
 
     template <typename Engine>
@@ -83,7 +83,8 @@ namespace monad::vm::fuzzing
     {
         // To trigger mulmod/addmod/mul/div/sdiv/mod/smod optimization
         auto dist = std::uniform_int_distribution(1, 254);
-        return Constant{exp(utils::uint256_t(2), utils::uint256_t(dist(gen)))};
+        return Constant{
+            exp(runtime::uint256_t(2), runtime::uint256_t(dist(gen)))};
     }
 
     template <typename Engine>
@@ -106,9 +107,9 @@ namespace monad::vm::fuzzing
     {
         static constexpr auto words = Bits / 64;
         auto dist =
-            std::uniform_int_distribution<utils::uint256_t::word_type>();
+            std::uniform_int_distribution<runtime::uint256_t::word_type>();
 
-        return Constant{utils::uint256_t{
+        return Constant{runtime::uint256_t{
             words >= 0 ? dist(gen) : 0,
             words >= 1 ? dist(gen) : 0,
             words >= 2 ? dist(gen) : 0,
@@ -979,7 +980,7 @@ namespace monad::vm::fuzzing
         auto const *input_data =
             generate_input_data(focus, eng, input_size, known_addresses);
 
-        auto const value = discrete_choice<utils::uint256_t>(
+        auto const value = discrete_choice<runtime::uint256_t>(
             eng, [](auto &) { return 0; }, Choice(0.9, [&](auto &g) {
                 return random_constant<128>(g).value;
             }));

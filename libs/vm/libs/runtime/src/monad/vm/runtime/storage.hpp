@@ -13,9 +13,7 @@
 namespace monad::vm::runtime
 {
     template <evmc_revision Rev>
-    void sload(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *key_ptr)
+    void sload(Context *ctx, uint256_t *result_ptr, uint256_t const *key_ptr)
     {
         auto key = bytes32_from_uint256(*key_ptr);
 
@@ -36,8 +34,7 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void sstore(
-        Context *ctx, vm::utils::uint256_t const *key_ptr,
-        vm::utils::uint256_t const *value_ptr,
+        Context *ctx, uint256_t const *key_ptr, uint256_t const *value_ptr,
         std::int64_t remaining_block_base_gas)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
@@ -81,9 +78,8 @@ namespace monad::vm::runtime
         ctx->deduct_gas(gas_used);
     }
 
-    inline void tload(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *key_ptr)
+    inline void
+    tload(Context *ctx, uint256_t *result_ptr, uint256_t const *key_ptr)
     {
         auto key = bytes32_from_uint256(*key_ptr);
 
@@ -93,9 +89,8 @@ namespace monad::vm::runtime
         *result_ptr = uint256_from_bytes32(value);
     }
 
-    inline void tstore(
-        Context *ctx, vm::utils::uint256_t const *key_ptr,
-        vm::utils::uint256_t const *val_ptr)
+    inline void
+    tstore(Context *ctx, uint256_t const *key_ptr, uint256_t const *val_ptr)
     {
         if (ctx->env.evmc_flags == evmc_flags::EVMC_STATIC) {
             ctx->exit(StatusCode::Error);
@@ -109,6 +104,6 @@ namespace monad::vm::runtime
     }
 
     bool debug_tstore_stack(
-        Context const *ctx, utils::uint256_t const *stack, uint64_t stack_size,
+        Context const *ctx, uint256_t const *stack, uint64_t stack_size,
         uint64_t offset, uint64_t base_offset);
 }

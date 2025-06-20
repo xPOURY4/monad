@@ -18,7 +18,7 @@ namespace
 {
     using namespace monad::vm::compiler;
     using namespace monad::vm::compiler::local_stacks;
-    using namespace monad::vm::utils;
+    using namespace monad::vm::runtime;
 
     void
     eval_instruction_fallback(Instruction const &tok, std::deque<Value> &stack)

@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+using namespace monad::vm;
+
 struct arguments
 {
     std::string filename;
@@ -130,8 +132,7 @@ static void dump_result(arguments const &args, evmc::Result const &result)
             object["result"] = json("");
         }
         else {
-            uint256_t const x = monad::vm::utils::uint256_t::load_be_unsafe(
-                &result.output_data[0]);
+            auto const x = uint256_t::load_be_unsafe(&result.output_data[0]);
             object["result"] = json(x.to_string(16));
         }
     }
@@ -173,24 +174,23 @@ int mce_main(arguments const &args)
         }
     }();
 
-    std::optional<monad::vm::compiler::basic_blocks::BasicBlocksIR> const ir =
-        [&]() {
-            if (args.instrument_parse) {
-                InstrumentableParser<true> parser{};
-                return parser.parse<Rev>(bytes);
-            }
-            else {
-                InstrumentableParser<false> parser{};
-                return parser.parse<Rev>(bytes);
-            }
-        }();
+    std::optional<basic_blocks::BasicBlocksIR> const ir = [&]() {
+        if (args.instrument_parse) {
+            InstrumentableParser<true> parser{};
+            return parser.parse<Rev>(bytes);
+        }
+        else {
+            InstrumentableParser<false> parser{};
+            return parser.parse<Rev>(bytes);
+        }
+    }();
     if (!ir) {
         std::cerr << "Parsing failed" << std::endl;
         return 1;
     }
 
     asmjit::JitRuntime rt{};
-    monad::vm::compiler::native::CompilerConfig config{};
+    native::CompilerConfig config{};
     if (args.asm_log_file) {
         config.asm_log_path = args.asm_log_file->c_str();
     }

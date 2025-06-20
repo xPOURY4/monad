@@ -6,7 +6,6 @@
 
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace monad::vm::utils;
 
 TEST_F(RuntimeTest, KeccakEmpty)
 {

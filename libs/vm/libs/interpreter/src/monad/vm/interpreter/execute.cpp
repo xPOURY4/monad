@@ -19,12 +19,12 @@
 extern "C" void monad_vm_interpreter_trampoline(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
     ::monad::vm::interpreter::Intercode const *,
-    ::monad::vm::utils::uint256_t *);
+    ::monad::vm::runtime::uint256_t *);
 
 extern "C" void monad_vm_interpreter_core_loop(
     void *, evmc_revision, ::monad::vm::runtime::Context *,
     ::monad::vm::interpreter::Intercode const *,
-    ::monad::vm::utils::uint256_t *);
+    ::monad::vm::runtime::uint256_t *);
 
 static_assert(
     ::monad::vm::utils::same_signature(
@@ -44,7 +44,7 @@ namespace monad::vm::interpreter
         void
         core_loop_impl(
             runtime::Context &ctx, Intercode const &analysis,
-            utils::uint256_t *stack_ptr)
+            runtime::uint256_t *stack_ptr)
         {
             auto *const stack_top = stack_ptr - 1;
             auto const *const stack_bottom = stack_top;
@@ -70,14 +70,14 @@ namespace monad::vm::interpreter
             rev,
             &ctx,
             &analysis,
-            reinterpret_cast<utils::uint256_t *>(stack_ptr));
+            reinterpret_cast<runtime::uint256_t *>(stack_ptr));
     }
 }
 
 extern "C" void monad_vm_interpreter_core_loop(
     void *, evmc_revision rev, ::monad::vm::runtime::Context *ctx,
     ::monad::vm::interpreter::Intercode const *analysis,
-    ::monad::vm::utils::uint256_t *stack_ptr)
+    ::monad::vm::runtime::uint256_t *stack_ptr)
 {
     using namespace ::monad::vm::interpreter;
 

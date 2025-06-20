@@ -164,8 +164,7 @@ namespace
     }
 
     void runtime_print_input_stack_impl(
-        char const *msg, monad::vm::utils::uint256_t *stack,
-        uint64_t stack_size)
+        char const *msg, runtime::uint256_t *stack, uint64_t stack_size)
     {
         std::cout << msg << ": stack: ";
         for (size_t i = 0; i < stack_size; ++i) {
@@ -175,7 +174,7 @@ namespace
     }
 
     uint64_t runtime_store_input_stack_impl(
-        runtime::Context const *ctx, monad::vm::utils::uint256_t *stack,
+        runtime::Context const *ctx, runtime::uint256_t *stack,
         uint64_t stack_size, uint64_t offset, uint64_t base_offset)
     {
         return runtime::debug_tstore_stack(
@@ -183,8 +182,8 @@ namespace
     }
 
     void runtime_print_top2_impl(
-        char const *msg, monad::vm::utils::uint256_t const *x,
-        monad::vm::utils::uint256_t const *y)
+        char const *msg, runtime::uint256_t const *x,
+        runtime::uint256_t const *y)
     {
         std::cout << msg << ": " << x->to_string() << " and " << y->to_string()
                   << std::endl;
@@ -2004,7 +2003,7 @@ namespace monad::vm::compiler::native
         if (ix->literal() && src->literal()) {
             auto const &i = ix->literal()->value;
             auto const &x = src->literal()->value;
-            push(utils::byte(i, x));
+            push(runtime::byte(i, x));
             return;
         }
 
@@ -2041,7 +2040,7 @@ namespace monad::vm::compiler::native
         if (ix->literal() && src->literal()) {
             auto const &i = ix->literal()->value;
             auto const &x = src->literal()->value;
-            push(utils::signextend(i, x));
+            push(runtime::signextend(i, x));
             return;
         }
 
@@ -2129,7 +2128,7 @@ namespace monad::vm::compiler::native
         if (shift->literal() && value->literal()) {
             auto const &i = shift->literal()->value;
             auto const &x = value->literal()->value;
-            return stack_.alloc_literal({utils::sar(i, x)});
+            return stack_.alloc_literal({runtime::sar(i, x)});
         }
 
         return shift_by_stack_elem<ShiftType::SAR>(
@@ -3022,7 +3021,7 @@ namespace monad::vm::compiler::native
         if (pre_dst->literal() && pre_src->literal()) {
             auto const &x = pre_dst->literal()->value;
             auto const &y = pre_src->literal()->value;
-            push(vm::utils::slt(x, y));
+            push(runtime::slt(x, y));
             return;
         }
         discharge_deferred_comparison();
@@ -4846,11 +4845,11 @@ namespace monad::vm::compiler::native
             a_shift = -a;
         }
 
-        if (utils::popcount(a_shift) == 1) {
+        if (runtime::popcount(a_shift) == 1) {
             stack_.pop();
             stack_.pop();
             auto x = shift_by_literal<ShiftType::SHL>(
-                utils::countr_zero(a_shift), std::move(b_elem), {});
+                runtime::countr_zero(a_shift), std::move(b_elem), {});
             if (a_shift[3] != a[3]) {
                 // The shift was negated. Negate result for correct sign:
                 stack_.push(negate(std::move(x), {}));
@@ -5040,7 +5039,7 @@ namespace monad::vm::compiler::native
                 stack_.pop();
                 if constexpr (is_sdiv) {
                     stack_.push_literal(
-                        b == 0 ? 0 : vm::utils::sdivrem(a, b).quot);
+                        b == 0 ? 0 : runtime::sdivrem(a, b).quot);
                 }
                 else {
                     stack_.push_literal(b == 0 ? 0 : a / b);
@@ -5072,10 +5071,10 @@ namespace monad::vm::compiler::native
             return false;
         }();
 
-        if (utils::popcount(b) == 1) {
+        if (runtime::popcount(b) == 1) {
             stack_.pop();
             stack_.pop();
-            auto shift = utils::countr_zero(b);
+            auto shift = runtime::countr_zero(b);
             auto dst = [&] {
                 if constexpr (is_sdiv) {
                     return sdiv_by_sar(std::move(a_elem), shift, {});
@@ -5178,7 +5177,7 @@ namespace monad::vm::compiler::native
                 stack_.pop();
                 if constexpr (is_smod) {
                     stack_.push_literal(
-                        b == 0 ? 0 : vm::utils::sdivrem(a, b).rem);
+                        b == 0 ? 0 : runtime::sdivrem(a, b).rem);
                 }
                 else {
                     stack_.push_literal(b == 0 ? 0 : a % b);
@@ -5204,7 +5203,7 @@ namespace monad::vm::compiler::native
             stack_.push_literal(0);
             return true;
         }
-        if (utils::popcount(b) == 1) {
+        if (runtime::popcount(b) == 1) {
             stack_.pop();
             stack_.pop();
             if constexpr (is_smod) {
@@ -5487,7 +5486,7 @@ namespace monad::vm::compiler::native
         // (a + b) % m, where m = 2^n
         // as
         // (a + b) & (n - 1)
-        if (vm::utils::popcount(m) != 1) {
+        if (runtime::popcount(m) != 1) {
             return false;
         }
 
@@ -5508,7 +5507,7 @@ namespace monad::vm::compiler::native
             stack_.push(and_(std::move(b_elem), std::move(mask), {}));
         }
         else {
-            size_t const exp = vm::utils::bit_width(m) - 1;
+            size_t const exp = runtime::bit_width(m) - 1;
             // The heavy lifting is done by the following function.
             (this->*ModOpByMask)(std::move(a_elem), std::move(b_elem), exp);
         }
@@ -5519,7 +5518,7 @@ namespace monad::vm::compiler::native
     // Discharge
     bool Emitter::addmod_opt()
     {
-        return modop_optimized<vm::utils::addmod, 0, 0, &Emitter::add_mod2>();
+        return modop_optimized<runtime::addmod, 0, 0, &Emitter::add_mod2>();
     }
 
     void Emitter::add_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)
@@ -5814,7 +5813,7 @@ namespace monad::vm::compiler::native
     // Discharge
     bool Emitter::mulmod_opt()
     {
-        return modop_optimized<vm::utils::mulmod, 1, 0, &Emitter::mul_mod2>();
+        return modop_optimized<runtime::mulmod, 1, 0, &Emitter::mul_mod2>();
     }
 
     void Emitter::mul_mod2(StackElemRef a_elem, StackElemRef b_elem, size_t exp)

@@ -9,10 +9,10 @@ namespace monad::vm::runtime
 {
 #ifdef MONAD_COMPILER_TESTING
     bool debug_tstore_stack(
-        Context const *ctx, utils::uint256_t const *stack, uint64_t stack_size,
+        Context const *ctx, uint256_t const *stack, uint64_t stack_size,
         uint64_t offset, uint64_t base_offset)
     {
-        auto const magic = utils::uint256_t{0xdeb009};
+        auto const magic = uint256_t{0xdeb009};
         auto const base = (magic + base_offset) * 1024;
         if (offset == 0) {
             auto const base_key = bytes32_from_uint256(base);
@@ -39,7 +39,7 @@ namespace monad::vm::runtime
     }
 #else
     bool debug_tstore_stack(
-        Context const *, utils::uint256_t const *, uint64_t, uint64_t, uint64_t)
+        Context const *, uint256_t const *, uint64_t, uint64_t, uint64_t)
     {
         std::terminate();
     }

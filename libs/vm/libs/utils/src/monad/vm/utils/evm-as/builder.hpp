@@ -91,8 +91,8 @@ namespace monad::vm::utils::evm_as
         EvmBuilder &spush(int64_t const imm) noexcept
         {
             if (imm < 0) {
-                uint256_t const x{imm};
-                return push(monad::vm::utils::signextend(7, imm));
+                runtime::uint256_t const x{imm};
+                return push(runtime::signextend(7, imm));
             }
             return push(static_cast<uint64_t>(imm));
         }
@@ -104,10 +104,10 @@ namespace monad::vm::utils::evm_as
             }
             size_t n = byte_width(imm);
             MONAD_VM_ASSERT(n <= 32);
-            return push(n, uint256_t{imm});
+            return push(n, runtime::uint256_t{imm});
         }
 
-        EvmBuilder &push(uint256_t const &imm) noexcept
+        EvmBuilder &push(runtime::uint256_t const &imm) noexcept
         {
             if (imm == 0 && Rev >= EVMC_SHANGHAI) {
                 return push0();
@@ -117,7 +117,7 @@ namespace monad::vm::utils::evm_as
             return push(n, imm);
         }
 
-        EvmBuilder &push(size_t n, uint256_t const &imm) noexcept
+        EvmBuilder &push(size_t n, runtime::uint256_t const &imm) noexcept
         {
             if (n > 32) {
                 return insert(InvalidI{std::format("PUSH{}", n)});

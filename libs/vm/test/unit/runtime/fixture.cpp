@@ -19,8 +19,6 @@
 
 using namespace monad::vm::runtime;
 
-using namespace monad::vm::utils;
-
 namespace monad::vm::compiler::test
 {
     namespace
@@ -134,8 +132,7 @@ namespace monad::vm::compiler::test
         };
     }
 
-    void RuntimeTest::set_balance(
-        vm::utils::uint256_t addr, vm::utils::uint256_t balance)
+    void RuntimeTest::set_balance(uint256_t addr, uint256_t balance)
     {
         host_.accounts[address_from_uint256(addr)].balance =
             bytes32_from_uint256(balance);

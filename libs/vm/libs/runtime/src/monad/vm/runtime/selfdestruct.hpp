@@ -10,8 +10,7 @@
 namespace monad::vm::runtime
 {
     template <evmc_revision Rev>
-    void selfdestruct
-        [[noreturn]] (Context *ctx, vm::utils::uint256_t const *address_ptr)
+    void selfdestruct [[noreturn]] (Context *ctx, uint256_t const *address_ptr)
     {
         if (ctx->env.evmc_flags == EVMC_STATIC) {
             ctx->exit(StatusCode::Error);

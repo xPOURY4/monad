@@ -133,26 +133,24 @@ namespace monad::vm::runtime
             return EVMC_OUT_OF_GAS;
         }
 
-        auto const size_word = std::bit_cast<vm::utils::uint256_t>(result.size);
-        if (!runtime::is_bounded_by_bits<
-                monad::vm::runtime::Memory::offset_bits>(size_word)) {
+        auto const size_word = std::bit_cast<uint256_t>(result.size);
+        if (!is_bounded_by_bits<Memory::offset_bits>(size_word)) {
             return EVMC_OUT_OF_GAS;
         }
 
-        auto size = runtime::Memory::Offset::unsafe_from(
-            static_cast<uint32_t>(size_word));
+        auto size =
+            Memory::Offset::unsafe_from(static_cast<uint32_t>(size_word));
         if (*size == 0) {
             return std::span<std::uint8_t const>({});
         }
 
-        auto offset_word = std::bit_cast<vm::utils::uint256_t>(result.offset);
-        if (!runtime::is_bounded_by_bits<
-                monad::vm::runtime::Memory::offset_bits>(offset_word)) {
+        auto offset_word = std::bit_cast<uint256_t>(result.offset);
+        if (!is_bounded_by_bits<Memory::offset_bits>(offset_word)) {
             return EVMC_OUT_OF_GAS;
         }
 
-        auto offset = runtime::Memory::Offset::unsafe_from(
-            static_cast<uint32_t>(offset_word));
+        auto offset =
+            Memory::Offset::unsafe_from(static_cast<uint32_t>(offset_word));
 
         auto memory_end = offset + size;
 
@@ -173,8 +171,8 @@ namespace monad::vm::runtime
             std::memcpy(output_buf, memory.data + *offset, *size);
         }
         else {
-            auto memory_cost = runtime::Context::memory_cost_from_word_count(
-                shr_ceil<5>(memory_end));
+            auto memory_cost =
+                Context::memory_cost_from_word_count(shr_ceil<5>(memory_end));
             gas_remaining -= memory_cost - memory.cost;
 
             if (gas_remaining < 0) {
@@ -198,7 +196,7 @@ namespace monad::vm::runtime
 
     evmc::Result Context::copy_to_evmc_result()
     {
-        using enum runtime::StatusCode;
+        using enum StatusCode;
 
         if (result.status == Error) {
             return evmc_error_result(EVMC_FAILURE);

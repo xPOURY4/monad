@@ -11,8 +11,7 @@
 namespace monad::vm::runtime
 {
     inline void blockhash(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *block_number_ptr)
+        Context *ctx, uint256_t *result_ptr, uint256_t const *block_number_ptr)
     {
         if (!is_bounded_by_bits<63>(*block_number_ptr)) {
             *result_ptr = 0;
@@ -33,16 +32,15 @@ namespace monad::vm::runtime
         }
     }
 
-    inline void selfbalance(Context *ctx, vm::utils::uint256_t *result_ptr)
+    inline void selfbalance(Context *ctx, uint256_t *result_ptr)
     {
         auto balance =
             ctx->host->get_balance(ctx->context, &ctx->env.recipient);
         *result_ptr = uint256_from_bytes32(balance);
     }
 
-    inline void blobhash(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *index)
+    inline void
+    blobhash(Context *ctx, uint256_t *result_ptr, uint256_t const *index)
     {
         auto const &c = ctx->env.tx_context;
         *result_ptr = (*index < c.blob_hashes_count)

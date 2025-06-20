@@ -16,7 +16,7 @@
 #include <tuple>
 #include <vector>
 
-using namespace monad::vm::utils;
+using namespace monad::vm::runtime;
 
 TEST(uint256, signextend)
 {

@@ -12,9 +12,8 @@
 namespace monad::vm::runtime
 {
     inline void sha3(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *offset_ptr,
-        vm::utils::uint256_t const *size_ptr)
+        Context *ctx, uint256_t *result_ptr, uint256_t const *offset_ptr,
+        uint256_t const *size_ptr)
     {
         Memory::Offset offset;
         auto size = ctx->get_memory_offset(*size_ptr);

@@ -27,7 +27,7 @@ namespace monad::vm::utils::evm_as
     {
 
         constexpr explicit PushI(
-            compiler::EvmOpCode opcode, uint256_t const &imm)
+            compiler::EvmOpCode opcode, runtime::uint256_t const &imm)
             : opcode(opcode)
             , imm(imm)
         {
@@ -39,7 +39,7 @@ namespace monad::vm::utils::evm_as
         }
 
         compiler::EvmOpCode opcode;
-        uint256_t imm;
+        runtime::uint256_t imm;
     };
 
     // NOTE: Below PushLabelI, JumpdestI, CommentI, InvalidI have

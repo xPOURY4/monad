@@ -28,6 +28,7 @@
 #include <vector>
 
 using namespace monad::vm;
+using namespace monad::vm::runtime;
 using namespace monad::vm::utils;
 
 namespace
@@ -114,7 +115,7 @@ namespace
 
     struct jit
     {
-        static uint256_t
+        static runtime::uint256_t
         run(evm_as::EvmBuilder<EVMC_LATEST_STABLE_REVISION> const &eb)
         {
             std::vector<uint8_t> bytecode{};
@@ -137,7 +138,7 @@ namespace
             [&]() { ASSERT_EQ(ret.status, runtime::StatusCode::Success); }();
 
             // TODO: artificial restriction on result offset and size.
-            return uint256_t::load_be_unsafe(ctx.memory.data);
+            return runtime::uint256_t::load_be_unsafe(ctx.memory.data);
         }
     };
 }
@@ -184,7 +185,7 @@ TEST(EvmAs, PushExpansion)
     }
     eb.push(std::numeric_limits<uint64_t>::max());
     for (int nbytes = 9; nbytes < 32; nbytes++) {
-        uint256_t const value = (uint256_t{1} << (8 * nbytes)) - 1;
+        runtime::uint256_t const value = (uint256_t{1} << (8 * nbytes)) - 1;
         eb.push(value);
     }
     eb.push(std::numeric_limits<uint256_t>::max());
@@ -209,7 +210,7 @@ TEST(EvmAs, PushExpansion)
     ASSERT_EQ(j, 1);
 
     auto const push2 = Instruction::as_push(eb[1]);
-    ASSERT_EQ(push2.imm, monad::vm::utils::signextend(7, -1'000'000));
+    ASSERT_EQ(push2.imm, monad::vm::runtime::signextend(7, -1'000'000));
 
     i = push2.imm;
     j = 0;

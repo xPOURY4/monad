@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace monad::vm::utils
+namespace monad::vm::runtime
 {
     struct CachedAllocatorElement
     {

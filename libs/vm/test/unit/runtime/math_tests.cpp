@@ -13,7 +13,7 @@
 using namespace monad;
 using namespace monad::vm::runtime;
 using namespace monad::vm::compiler::test;
-using namespace monad::vm::utils;
+using namespace monad::vm::runtime;
 
 TEST_F(RuntimeTest, Mul)
 {
@@ -40,12 +40,11 @@ TEST_F(RuntimeTest, Mul)
 
 TEST_F(RuntimeTest, Mul_192)
 {
-    vm::utils::uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
-    vm::utils::uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
-    vm::utils::uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
-    vm::utils::uint256_t bit64{static_cast<uint64_t>(1) << 63};
-    std::vector<
-        std::pair<vm::utils::uint256_t, vm::utils::uint256_t>> const inputs{
+    uint256_t bit256{0, 0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit192{0, 0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit128{0, static_cast<uint64_t>(1) << 63};
+    uint256_t bit64{static_cast<uint64_t>(1) << 63};
+    std::vector<std::pair<uint256_t, uint256_t>> const inputs{
         {0, 0},
         {0, bit256},
         {0, bit192},
@@ -84,9 +83,9 @@ TEST_F(RuntimeTest, Mul_192)
          2}};
 
     for (auto const &[a, b] : inputs) {
-        vm::utils::uint256_t result;
+        uint256_t result;
         monad_vm_runtime_mul_192(&result, &a, &b);
-        ASSERT_EQ(result, mulmod(a, b, vm::utils::uint256_t{1} << 192));
+        ASSERT_EQ(result, mulmod(a, b, uint256_t{1} << 192));
     }
 }
 
@@ -104,7 +103,7 @@ TEST_F(RuntimeTest, UDiv)
 
 TEST_F(RuntimeTest, SDiv)
 {
-    constexpr auto neg = [](auto n) { return -vm::utils::uint256_t{n}; };
+    constexpr auto neg = [](auto n) { return -uint256_t{n}; };
 
     auto f = wrap(sdiv);
 

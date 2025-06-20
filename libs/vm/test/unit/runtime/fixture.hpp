@@ -11,11 +11,11 @@
 
 #include <limits>
 
-using namespace monad::vm::runtime;
-using namespace evmc::literals;
-
 namespace monad::vm::compiler::test
 {
+    using namespace runtime;
+    using namespace evmc::literals;
+
     class RuntimeTest : public testing::Test
     {
     protected:
@@ -63,18 +63,17 @@ namespace monad::vm::compiler::test
             return [f, this]<typename... Args>(Args &&...args)
                        -> std::conditional_t<
                            detail::uses_result_v<FnArgs...>,
-                           vm::utils::uint256_t,
+                           uint256_t,
                            void> {
                 (void)this; // Prevent compile error when `this` is not used.
 
-                auto result = vm::utils::uint256_t{};
+                auto result = uint256_t{};
 
-                auto uint_args =
-                    std::array<vm::utils::uint256_t, sizeof...(Args)>{
-                        vm::utils::uint256_t(std::forward<Args>(args))...};
+                auto uint_args = std::array<uint256_t, sizeof...(Args)>{
+                    uint256_t(std::forward<Args>(args))...};
 
-                auto arg_ptrs = std::
-                    array<vm::utils::uint256_t const *, uint_args.size()>{};
+                auto arg_ptrs =
+                    std::array<uint256_t const *, uint_args.size()>{};
                 for (auto i = 0u; i < uint_args.size(); ++i) {
                     arg_ptrs[i] = &uint_args[i];
                 }
@@ -122,8 +121,7 @@ namespace monad::vm::compiler::test
             return wrap(f)(std::forward<Args>(args)...);
         }
 
-        void
-        set_balance(vm::utils::uint256_t addr, vm::utils::uint256_t balance);
+        void set_balance(uint256_t addr, uint256_t balance);
 
         std::basic_string_view<uint8_t> result_data();
     };

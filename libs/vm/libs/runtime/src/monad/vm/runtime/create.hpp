@@ -19,12 +19,10 @@ namespace monad::vm::runtime
     }
 
     template <evmc_revision Rev>
-    vm::utils::uint256_t create_impl(
-        Context *ctx, vm::utils::uint256_t const &value,
-        vm::utils::uint256_t const &offset_word,
-        vm::utils::uint256_t const &size_word,
-        vm::utils::uint256_t const &salt_word, evmc_call_kind kind,
-        std::int64_t remaining_block_base_gas)
+    uint256_t create_impl(
+        Context *ctx, uint256_t const &value, uint256_t const &offset_word,
+        uint256_t const &size_word, uint256_t const &salt_word,
+        evmc_call_kind kind, std::int64_t remaining_block_base_gas)
     {
         if (MONAD_VM_UNLIKELY(ctx->env.evmc_flags == EVMC_STATIC)) {
             ctx->exit(StatusCode::Error);
@@ -90,10 +88,8 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void create(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *value_ptr,
-        vm::utils::uint256_t const *offset_ptr,
-        vm::utils::uint256_t const *size_ptr,
+        Context *ctx, uint256_t *result_ptr, uint256_t const *value_ptr,
+        uint256_t const *offset_ptr, uint256_t const *size_ptr,
         std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
@@ -108,12 +104,9 @@ namespace monad::vm::runtime
 
     template <evmc_revision Rev>
     void create2(
-        Context *ctx, vm::utils::uint256_t *result_ptr,
-        vm::utils::uint256_t const *value_ptr,
-        vm::utils::uint256_t const *offset_ptr,
-        vm::utils::uint256_t const *size_ptr,
-        vm::utils::uint256_t const *salt_ptr,
-        std::int64_t remaining_block_base_gas)
+        Context *ctx, uint256_t *result_ptr, uint256_t const *value_ptr,
+        uint256_t const *offset_ptr, uint256_t const *size_ptr,
+        uint256_t const *salt_ptr, std::int64_t remaining_block_base_gas)
     {
         *result_ptr = create_impl<Rev>(
             ctx,

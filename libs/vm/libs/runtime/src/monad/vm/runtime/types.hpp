@@ -218,7 +218,7 @@ namespace monad::vm::runtime
         }
 
         [[gnu::always_inline]]
-        Memory::Offset get_memory_offset(vm::utils::uint256_t const &offset)
+        Memory::Offset get_memory_offset(uint256_t const &offset)
         {
             if (MONAD_VM_UNLIKELY(
                     !is_bounded_by_bits<Memory::offset_bits>(offset))) {
