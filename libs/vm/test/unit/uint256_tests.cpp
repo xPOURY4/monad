@@ -509,18 +509,35 @@ TEST(uint256, string_conversion)
     }
 
     std::tuple<uint256_t, std::string, std::string> const test_cases[] = {
-        {0_u256, "0", "0"},
-        {1_u256, "1", "1"},
-        {10_u256, "10", "a"},
-        {0xff_u256, "255", "ff"},
-        {0xd6835e065763db1bca70cd12f26ebc651c18c2c94b09b7db8b1220bf20e9c14d_u256,
+        {uint256_t{0}, "0", "0"},
+        {uint256_t{1}, "1", "1"},
+        {uint256_t{10}, "10", "a"},
+        {uint256_t{0xff}, "255", "ff"},
+        {uint256_t{
+             0x8b1220bf20e9c14dUL,
+             0x1c18c2c94b09b7dbUL,
+             0xca70cd12f26ebc65UL,
+             0xd6835e065763db1bUL},
          "970270554974245014818020843390850589381796664120294801326746575421176"
          "12175693",
          "d6835e065763db1bca70cd12f26ebc651c18c2c94b09b7db8b1220bf20e9c14d"},
-        {0xffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d3035_u256,
+        {uint256_t{
+             0xb22176ee483d3035UL,
+             0xaf94def32b9d0f98UL,
+             0x65829e7450e3797cUL,
+             0xffeab2a2c43647e8UL},
          "115754451500915698797016776063775039799476313935046177147294877365978"
          "332475445",
-         "ffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d3035"}};
+         "ffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d3035"},
+        {uint256_t{
+             0xffffffffffffffffUL,
+             0xffffffffffffffffUL,
+             0xffffffffffffffffUL,
+             0xffffffffffffffffUL,
+         },
+         "115792089237316195423570985008687907853269984665640564039457584007913"
+         "129639935",
+         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}};
 
     for (auto const &[x, dec_str, hex_str] : test_cases) {
         ASSERT_EQ(x.to_string(), dec_str);
@@ -535,7 +552,20 @@ TEST(uint256, string_conversion)
     ASSERT_THROW(
         uint256_t::from_string(hex_digit_in_dec), std::invalid_argument);
 
-    auto const *too_big =
+    auto const *too_many_hex_digits =
         "0xffeab2a2c43647e865829e7450e3797caf94def32b9d0f98b22176ee483d30350";
-    ASSERT_THROW(uint256_t::from_string(too_big), std::out_of_range);
+    ASSERT_THROW(
+        uint256_t::from_string(too_many_hex_digits), std::out_of_range);
+
+    auto const *too_many_dec_digits =
+        "115754451500915698797016776063775039799476313935046177147294877365978"
+        "3324754450";
+    ASSERT_THROW(
+        uint256_t::from_string(too_many_dec_digits), std::out_of_range);
+
+    auto const *out_of_range_78_digits =
+        "115792089237316195423570985008687907853269984665640564039457584007913"
+        "129639945";
+    ASSERT_THROW(
+        uint256_t::from_string(out_of_range_78_digits), std::out_of_range);
 }

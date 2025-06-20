@@ -8,6 +8,7 @@
 #include <immintrin.h>
 #include <intx/intx.hpp>
 #include <limits>
+#include <stdexcept>
 
 #ifndef __AVX2__
     #error "Target architecture must support AVX2"
@@ -630,14 +631,37 @@ namespace monad::vm::runtime
             std::memcpy(dest, &words_, num_bytes);
         }
 
-        [[gnu::always_inline]]
-        inline std::string to_string(int base = 10) const
+        // String conversion functions
+        // These are not optimized and should never be used in
+        // performance-critical code.
+        inline std::string to_string(int const base0 = 10) const
         {
-            return ::intx::to_string(this->as_intx(), base);
+            MONAD_VM_ASSERT(base0 >= 2 && base0 <= 36);
+
+            auto num = this->to_intx();
+            auto const base = ::intx::uint256{base0};
+
+            std::string buffer{};
+            do {
+                auto const [div, rem] = ::intx::udivrem(num, base);
+                auto const lsw = rem[0];
+                auto const chr = lsw < 10 ? '0' + lsw : 'a' + lsw - 10;
+                buffer.push_back(static_cast<char>(chr));
+                num = div;
+            }
+            while (num);
+            std::ranges::reverse(buffer);
+
+            return buffer;
         }
 
+        static inline constexpr uint256_t from_string(char const *s);
+
         [[gnu::always_inline]] static inline constexpr uint256_t
-        from_string(std::string const &s);
+        from_string(std::string const &s)
+        {
+            return from_string(s.c_str());
+        }
     };
 
     static_assert(
@@ -791,7 +815,7 @@ namespace monad::vm::runtime
 
     consteval uint256_t operator""_u256(char const *s)
     {
-        return uint256_t(::intx::from_string<intx::uint256>(s));
+        return uint256_t::from_string(s);
     }
 
     /**
@@ -921,9 +945,58 @@ namespace monad::vm::runtime
     }
 
     [[gnu::always_inline]]
-    inline constexpr uint256_t uint256_t::from_string(std::string const &s)
+    inline constexpr uint8_t from_dec(char const chr)
     {
-        return ::intx::from_string<uint256_t>(s);
+        if (chr >= '0' && chr <= '9') {
+            return static_cast<uint8_t>(chr - '0');
+        }
+        throw std::invalid_argument("invalid digit");
+    }
+
+    [[gnu::always_inline]]
+    inline constexpr uint8_t from_hex(char const chr)
+    {
+        char const chr_lower = chr | 0b00100000;
+        if (chr_lower >= 'a' && chr_lower <= 'f') {
+            return static_cast<uint8_t>(chr_lower - 'a' + 10);
+        }
+        return from_dec(chr);
+    }
+
+    inline constexpr uint256_t uint256_t::from_string(char const *const str)
+    {
+        static constexpr uint256_t MAX_MULTIPLIABLE_BY_10 =
+            std::numeric_limits<uint256_t>::max() / 10;
+        char const *ptr = str;
+        uint256_t result{};
+        size_t num_digits = 0;
+
+        if (ptr[0] == '0' && ptr[1] == 'x') {
+            ptr += 2;
+            size_t const max_digits = sizeof(uint256_t) * 2;
+            while (auto const chr = *ptr++) {
+                num_digits += 1;
+                if (num_digits > max_digits) {
+                    throw std::out_of_range(str);
+                }
+                result = (result << 4) | from_hex(chr);
+            }
+        }
+        else {
+            while (auto const chr = *ptr++) {
+                num_digits += 1;
+                if (result > MAX_MULTIPLIABLE_BY_10) {
+                    throw std::out_of_range(str);
+                }
+                auto const digit = from_dec(chr);
+                result = (result * 10) + digit;
+                if (result < digit) {
+                    throw std::out_of_range(str);
+                }
+            }
+        }
+
+        return result;
     }
 }
 
@@ -938,7 +1011,6 @@ struct std::formatter<monad::vm::runtime::uint256_t>
     auto format(
         monad::vm::runtime::uint256_t const &v, std::format_context &ctx) const
     {
-        return std::format_to(
-            ctx.out(), "0x{}", intx::to_string(v.as_intx(), 16));
+        return std::format_to(ctx.out(), "0x{}", v.to_string(16));
     }
 };
