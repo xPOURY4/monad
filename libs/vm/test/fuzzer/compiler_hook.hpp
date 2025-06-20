@@ -61,13 +61,7 @@ namespace monad::vm::fuzzing
 
             // Potentially move around the rdx and/or rcx register.
             with_probability(engine, artificial_swap_prob, [&](auto &) {
-                emit.swap_rdx_general_reg_if_free();
-            });
-            with_probability(engine, artificial_swap_prob, [&](auto &) {
                 emit.swap_rdx_general_reg_index_if_free();
-            });
-            with_probability(engine, artificial_swap_prob, [&](auto &) {
-                emit.swap_rcx_general_reg_if_free();
             });
             with_probability(engine, artificial_swap_prob, [&](auto &) {
                 emit.swap_rcx_general_reg_index_if_free();

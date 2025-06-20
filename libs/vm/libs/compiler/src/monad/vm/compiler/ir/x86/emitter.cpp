@@ -46,89 +46,95 @@ using monad::vm::Cases;
 
 static_assert(ASMJIT_ARCH_X86 == 64);
 
-constexpr auto reg_context = x86::rbx;
-constexpr auto reg_stack = x86::rbp;
-
-constexpr auto context_offset_gas_remaining =
-    offsetof(runtime::Context, gas_remaining);
-constexpr auto context_offset_exit_stack_ptr =
-    offsetof(runtime::Context, exit_stack_ptr);
-constexpr auto context_offset_env_recipient =
-    offsetof(runtime::Context, env) + offsetof(runtime::Environment, recipient);
-constexpr auto context_offset_env_sender =
-    offsetof(runtime::Context, env) + offsetof(runtime::Environment, sender);
-constexpr auto context_offset_env_value =
-    offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
-constexpr auto context_offset_env_input_data_size =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, input_data_size);
-constexpr auto context_offset_env_return_data_size =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, return_data_size);
-constexpr auto context_offset_env_tx_context_origin =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, tx_origin);
-constexpr auto context_offset_env_tx_context_tx_gas_price =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, tx_gas_price);
-constexpr auto context_offset_env_tx_context_block_gas_limit =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_gas_limit);
-constexpr auto context_offset_env_tx_context_block_coinbase =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_coinbase);
-constexpr auto context_offset_env_tx_context_block_timestamp =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_timestamp);
-constexpr auto context_offset_env_tx_context_block_number =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_number);
-constexpr auto context_offset_env_tx_context_block_prev_randao =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_prev_randao);
-constexpr auto context_offset_env_tx_context_chain_id =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, chain_id);
-constexpr auto context_offset_env_tx_context_block_base_fee =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, block_base_fee);
-constexpr auto context_offset_env_tx_context_blob_base_fee =
-    offsetof(runtime::Context, env) +
-    offsetof(runtime::Environment, tx_context) +
-    offsetof(evmc_tx_context, blob_base_fee);
-constexpr auto context_offset_memory_size =
-    offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
-constexpr auto context_offset_result_offset =
-    offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
-constexpr auto context_offset_result_size =
-    offsetof(runtime::Context, result) + offsetof(runtime::Result, size);
-constexpr auto context_offset_result_status =
-    offsetof(runtime::Context, result) + offsetof(runtime::Result, status);
-
-constexpr auto sp_offset_arg1 = 0;
-constexpr auto sp_offset_arg2 = sp_offset_arg1 + 8;
-constexpr auto sp_offset_arg3 = sp_offset_arg2 + 8;
-constexpr auto sp_offset_arg4 = sp_offset_arg3 + 8;
-constexpr auto sp_offset_arg5 = sp_offset_arg4 + 8;
-constexpr auto sp_offset_arg6 = sp_offset_arg5 + 8;
-constexpr auto sp_offset_stack_size = sp_offset_arg6 + 8;
-constexpr auto sp_offset_temp_word1 = sp_offset_stack_size + 8;
-constexpr auto sp_offset_temp_word2 = sp_offset_temp_word1 + 32;
-
-constexpr auto stack_frame_size = sp_offset_temp_word2 + 32;
-
 namespace
 {
     using namespace monad::vm::compiler::native;
+
+    constexpr auto reg_context = x86::rbx;
+    constexpr auto reg_stack = x86::rbp;
+
+    constexpr auto context_offset_gas_remaining =
+        offsetof(runtime::Context, gas_remaining);
+    constexpr auto context_offset_exit_stack_ptr =
+        offsetof(runtime::Context, exit_stack_ptr);
+    constexpr auto context_offset_env_recipient =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, recipient);
+    constexpr auto context_offset_env_sender =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, sender);
+    constexpr auto context_offset_env_value =
+        offsetof(runtime::Context, env) + offsetof(runtime::Environment, value);
+    constexpr auto context_offset_env_input_data_size =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, input_data_size);
+    constexpr auto context_offset_env_return_data_size =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, return_data_size);
+    constexpr auto context_offset_env_tx_context_origin =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, tx_origin);
+    constexpr auto context_offset_env_tx_context_tx_gas_price =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, tx_gas_price);
+    constexpr auto context_offset_env_tx_context_block_gas_limit =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_gas_limit);
+    constexpr auto context_offset_env_tx_context_block_coinbase =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_coinbase);
+    constexpr auto context_offset_env_tx_context_block_timestamp =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_timestamp);
+    constexpr auto context_offset_env_tx_context_block_number =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_number);
+    constexpr auto context_offset_env_tx_context_block_prev_randao =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_prev_randao);
+    constexpr auto context_offset_env_tx_context_chain_id =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, chain_id);
+    constexpr auto context_offset_env_tx_context_block_base_fee =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, block_base_fee);
+    constexpr auto context_offset_env_tx_context_blob_base_fee =
+        offsetof(runtime::Context, env) +
+        offsetof(runtime::Environment, tx_context) +
+        offsetof(evmc_tx_context, blob_base_fee);
+    constexpr auto context_offset_memory_size =
+        offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
+    constexpr auto context_offset_result_offset =
+        offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
+    constexpr auto context_offset_result_size =
+        offsetof(runtime::Context, result) + offsetof(runtime::Result, size);
+    constexpr auto context_offset_result_status =
+        offsetof(runtime::Context, result) + offsetof(runtime::Result, status);
+
+    constexpr auto sp_offset_arg1 = 0;
+    constexpr auto sp_offset_arg2 = sp_offset_arg1 + 8;
+    constexpr auto sp_offset_arg3 = sp_offset_arg2 + 8;
+    constexpr auto sp_offset_arg4 = sp_offset_arg3 + 8;
+    constexpr auto sp_offset_arg5 = sp_offset_arg4 + 8;
+    constexpr auto sp_offset_arg6 = sp_offset_arg5 + 8;
+    constexpr auto sp_offset_stack_size = sp_offset_arg6 + 8;
+    constexpr auto sp_offset_temp_word1 = sp_offset_stack_size + 8;
+    constexpr auto sp_offset_temp_word2 = sp_offset_temp_word1 + 32;
+
+    constexpr auto stack_frame_size = sp_offset_temp_word2 + 32;
+
+    constexpr GeneralReg volatile_general_reg{2};
+    constexpr GeneralReg rcx_general_reg{volatile_general_reg};
+    constexpr GeneralReg rdx_general_reg{volatile_general_reg};
 
     Emitter::Imm256 literal_to_imm256(Literal const &lit)
     {
@@ -458,8 +464,6 @@ namespace monad::vm::compiler::native
         , jump_table_label_{as_.newNamedLabel("JumpTable")}
         , keep_stack_in_next_block_{}
         , gpq256_regs_{Gpq256{x86::r12, x86::r13, x86::r14, x86::r15}, Gpq256{x86::r8, x86::r9, x86::r10, x86::r11}, Gpq256{x86::rcx, x86::rsi, x86::rdx, x86::rdi}}
-        , rcx_general_reg{2}
-        , rdx_general_reg{2}
         , rcx_general_reg_index{}
         , rdx_general_reg_index{2}
         , bytecode_size_{codesize}
@@ -788,25 +792,8 @@ namespace monad::vm::compiler::native
         stack_.swap_general_regs(x, y);
     }
 
-    void Emitter::swap_rdx_general_reg_if_free()
-    {
-        MONAD_VM_ASSERT(rdx_general_reg.reg == 1 || rdx_general_reg.reg == 2);
-        MONAD_VM_ASSERT(
-            rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
-        if (stack_.is_general_reg_on_stack(GeneralReg{1}) ||
-            stack_.is_general_reg_on_stack(GeneralReg{2})) {
-            return;
-        }
-        std::swap(
-            gpq256_regs_[1][rdx_general_reg_index],
-            gpq256_regs_[2][rdx_general_reg_index]);
-        rdx_general_reg =
-            rdx_general_reg.reg == 1 ? GeneralReg{2} : GeneralReg{1};
-    }
-
     void Emitter::swap_rdx_general_reg_index_if_free()
     {
-        MONAD_VM_ASSERT(rdx_general_reg.reg == 1 || rdx_general_reg.reg == 2);
         MONAD_VM_ASSERT(
             rdx_general_reg_index == 1 || rdx_general_reg_index == 2);
         if (stack_.is_general_reg_on_stack(rdx_general_reg)) {
@@ -817,25 +804,8 @@ namespace monad::vm::compiler::native
         rdx_general_reg_index = rdx_general_reg_index == 1 ? 2 : 1;
     }
 
-    void Emitter::swap_rcx_general_reg_if_free()
-    {
-        MONAD_VM_ASSERT(rcx_general_reg.reg == 1 || rcx_general_reg.reg == 2);
-        MONAD_VM_ASSERT(
-            rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
-        if (stack_.is_general_reg_on_stack(GeneralReg{1}) ||
-            stack_.is_general_reg_on_stack(GeneralReg{2})) {
-            return;
-        }
-        std::swap(
-            gpq256_regs_[1][rcx_general_reg_index],
-            gpq256_regs_[2][rcx_general_reg_index]);
-        rcx_general_reg =
-            rcx_general_reg.reg == 1 ? GeneralReg{2} : GeneralReg{1};
-    }
-
     void Emitter::swap_rcx_general_reg_index_if_free()
     {
-        MONAD_VM_ASSERT(rcx_general_reg.reg == 1 || rcx_general_reg.reg == 2);
         MONAD_VM_ASSERT(
             rcx_general_reg_index == 0 || rcx_general_reg_index == 3);
         if (stack_.is_general_reg_on_stack(rcx_general_reg)) {
@@ -3483,24 +3453,9 @@ namespace monad::vm::compiler::native
         // We only need to preserve rcx if it is in a stack element which is
         // currently on the virtual stack.
         // Note that rcx may be used by stack element `value`, `shift` or `dst`.
-        bool preserve_rcx = stack_.is_general_reg_on_stack(rcx_general_reg);
-        if (preserve_rcx &&
-            dst->general_reg()->reg != CALLEE_SAVE_GENERAL_REG_ID) {
-            MONAD_VM_DEBUG_ASSERT(*dst->general_reg() != rcx_general_reg);
-            // Make rcx part of the `dst` stack element, then we do not need to
-            // preserve it. This saves one mov instruction.
-            as_.mov(dst_gpq[rcx_general_reg_index], x86::rcx);
-            static_assert(CALLEE_SAVE_GENERAL_REG_ID == 0);
-            std::swap(
-                gpq256_regs_[1][rcx_general_reg_index],
-                gpq256_regs_[2][rcx_general_reg_index]);
-            rcx_general_reg = *dst->general_reg();
-            preserve_rcx = false;
-        }
-
+        bool const preserve_rcx =
+            stack_.is_general_reg_on_stack(rcx_general_reg);
         if (preserve_rcx) {
-            MONAD_VM_DEBUG_ASSERT(
-                dst->general_reg()->reg == CALLEE_SAVE_GENERAL_REG_ID);
             as_.mov(x86::rax, x86::rcx);
         }
 
