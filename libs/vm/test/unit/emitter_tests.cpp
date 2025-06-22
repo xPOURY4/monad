@@ -101,6 +101,12 @@ namespace
             test_stack_memory_deleter};
     }
 
+    std::vector<Emitter::LocationType> const all_locations = {
+        Emitter::LocationType::Literal,
+        Emitter::LocationType::AvxReg,
+        Emitter::LocationType::GeneralReg,
+        Emitter::LocationType::StackOffset};
+
     void mov_literal_to_location_type(
         Emitter &emit, int32_t stack_index, Emitter::LocationType loc)
     {
@@ -299,16 +305,10 @@ namespace
         asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstr instr,
         uint256_t const &left, uint256_t const &right, uint256_t const &result)
     {
-        std::vector<Emitter::LocationType> const locs = {
-            Emitter::LocationType::Literal,
-            Emitter::LocationType::AvxReg,
-            Emitter::LocationType::GeneralReg,
-            Emitter::LocationType::StackOffset};
-
         std::vector<uint8_t> bytecode1{PUSH0, PUSH0, opcode, PUSH0, RETURN};
         auto ir1 = basic_blocks::BasicBlocksIR(std::move(bytecode1));
-        for (auto left_loc : locs) {
-            for (auto right_loc : locs) {
+        for (auto left_loc : all_locations) {
+            for (auto right_loc : all_locations) {
                 pure_bin_instr_test_instance(
                     rt,
                     instr,
@@ -335,8 +335,8 @@ namespace
             opcode,
             RETURN};
         auto ir2 = basic_blocks::BasicBlocksIR(std::move(bytecode2));
-        for (auto left_loc : locs) {
-            for (auto right_loc : locs) {
+        for (auto left_loc : all_locations) {
+            for (auto right_loc : all_locations) {
                 pure_bin_instr_test_instance(
                     rt,
                     instr,
@@ -363,15 +363,9 @@ namespace
         asmjit::JitRuntime &rt, EvmOpCode opcode, PureEmitterInstr instr,
         uint256_t const &input, uint256_t const &result)
     {
-        std::vector<Emitter::LocationType> const locs = {
-            Emitter::LocationType::Literal,
-            Emitter::LocationType::AvxReg,
-            Emitter::LocationType::GeneralReg,
-            Emitter::LocationType::StackOffset};
-
         std::vector<uint8_t> bytecode1{PUSH0, opcode, PUSH0, RETURN};
         auto ir1 = basic_blocks::BasicBlocksIR(std::move(bytecode1));
-        for (auto loc : locs) {
+        for (auto loc : all_locations) {
             pure_una_instr_test_instance(
                 rt, instr, input, loc, result, ir1, false);
         }
@@ -379,7 +373,7 @@ namespace
         std::vector<uint8_t> bytecode2{
             PUSH0, DUP1, opcode, SWAP1, opcode, RETURN};
         auto ir2 = basic_blocks::BasicBlocksIR(std::move(bytecode2));
-        for (auto loc : locs) {
+        for (auto loc : all_locations) {
             pure_una_instr_test_instance(
                 rt, instr, input, loc, result, ir1, true);
         }
@@ -2912,6 +2906,146 @@ TEST(Emitter, msize)
     ASSERT_EQ(uint256_t::load_le(ret.size), 0xffffffff);
 }
 
+TEST(Emitter, MemoryInstructions)
+{
+    auto run_mstore_mstore8_mload = [](basic_blocks::BasicBlocksIR const &ir,
+                                       unsigned used_reg_count,
+                                       bool dup,
+                                       bool m8,
+                                       Emitter::LocationType store_loc1,
+                                       Emitter::LocationType store_loc2,
+                                       Emitter::LocationType load_loc) {
+        asmjit::JitRuntime rt;
+        Emitter emit{rt, ir.codesize};
+        (void)emit.begin_new_block(ir.blocks()[0]);
+
+        int32_t top_ix = -1;
+
+        for (unsigned i = 0; i < used_reg_count; ++i) {
+            ++top_ix;
+            emit.push(0);
+            mov_literal_to_location_type(
+                emit, top_ix, Emitter::LocationType::GeneralReg);
+        }
+
+        ++top_ix;
+        emit.push(uint256_t{1, 2, 3, 4});
+        mov_literal_to_location_type(emit, top_ix, store_loc1);
+
+        ++top_ix;
+        emit.push(0);
+        mov_literal_to_location_type(emit, top_ix, store_loc2);
+
+        if (dup) {
+            ++top_ix;
+            emit.dup(2);
+            ++top_ix;
+            emit.dup(2);
+        }
+
+        top_ix -= 2;
+        if (m8) {
+            emit.mstore8();
+        }
+        else {
+            emit.mstore();
+        }
+
+        for (unsigned i = 0; i < used_reg_count; ++i) {
+            ++top_ix;
+            emit.push(0);
+            mov_literal_to_location_type(
+                emit, top_ix, Emitter::LocationType::GeneralReg);
+        }
+
+        ++top_ix;
+        emit.push(0);
+        mov_literal_to_location_type(emit, top_ix, load_loc);
+
+        if (dup) {
+            emit.dup(1);
+        }
+
+        emit.mload();
+
+        emit.dup(1);
+        emit.return_();
+
+        entrypoint_t entry = emit.finish_contract(rt);
+        auto ctx = test_context();
+        auto const &ret = ctx.result;
+
+        auto stack_memory = test_stack_memory();
+        entry(&ctx, stack_memory.get());
+
+        if (m8) {
+            ASSERT_EQ(
+                uint256_t::load_le(ret.offset),
+                uint256_t(0, 0, 0, uint64_t{1} << 56));
+            ASSERT_EQ(
+                uint256_t::load_le(ret.size),
+                uint256_t(0, 0, 0, uint64_t{1} << 56));
+        }
+        else {
+            ASSERT_EQ(uint256_t::load_le(ret.offset), uint256_t(1, 2, 3, 4));
+            ASSERT_EQ(uint256_t::load_le(ret.size), uint256_t(1, 2, 3, 4));
+        }
+    };
+
+    for (int i = 0; i < 16; ++i) {
+        std::vector<uint8_t> bytecode;
+        if (i & 4) {
+            // with dup
+            bytecode = {
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                PUSH1,
+                1,
+                PUSH0,
+                DUP2,
+                DUP2,
+                MSTORE,
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                DUP1,
+                MLOAD,
+                DUP1,
+                RETURN};
+        }
+        else {
+            // without dup
+            bytecode = {
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                PUSH1,
+                1,
+                PUSH0,
+                MSTORE,
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                PUSH0,
+                MLOAD,
+                DUP1,
+                RETURN};
+        }
+        auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+        for (auto sloc1 : all_locations) {
+            for (auto sloc2 : all_locations) {
+                for (auto lloc : all_locations) {
+                    run_mstore_mstore8_mload(
+                        ir, i & 3, i & 4, i & 8, sloc1, sloc2, lloc);
+                }
+            }
+        }
+    }
+}
+
 TEST(Emitter, gas)
 {
     auto ir = basic_blocks::BasicBlocksIR({GAS, GAS, RETURN});
@@ -2987,14 +3121,9 @@ TEST(Emitter, not_)
 
 TEST(Emitter, jump)
 {
-    std::vector<Emitter::LocationType> const locs = {
-        Emitter::LocationType::Literal,
-        Emitter::LocationType::AvxReg,
-        Emitter::LocationType::GeneralReg,
-        Emitter::LocationType::StackOffset};
-    for (auto loc1 : locs) {
-        for (auto loc2 : locs) {
-            for (auto loc_dest : locs) {
+    for (auto loc1 : all_locations) {
+        for (auto loc2 : all_locations) {
+            for (auto loc_dest : all_locations) {
                 jump_test(loc1, loc2, loc_dest, false);
                 jump_test(loc1, loc2, loc_dest, true);
             }
@@ -3023,16 +3152,11 @@ TEST(Emitter, jump_bad_jumpdest)
 
 TEST(Emitter, jumpi)
 {
-    std::vector<Emitter::LocationType> const locs = {
-        Emitter::LocationType::Literal,
-        Emitter::LocationType::AvxReg,
-        Emitter::LocationType::GeneralReg,
-        Emitter::LocationType::StackOffset};
     asmjit::JitRuntime rt;
-    for (auto loc1 : locs) {
-        for (auto loc2 : locs) {
-            for (auto loc_cond : locs) {
-                for (auto loc_dest : locs) {
+    for (auto loc1 : all_locations) {
+        for (auto loc2 : all_locations) {
+            for (auto loc_cond : all_locations) {
+                for (auto loc_dest : all_locations) {
                     for (int8_t i = 0; i < 32; ++i) {
                         jumpi_test(
                             rt,
@@ -3074,22 +3198,17 @@ TEST(Emitter, jumpi_bad_jumpdest)
 
 TEST(Emitter, block_epilogue)
 {
-    std::vector<Emitter::LocationType> const locs = {
-        Emitter::LocationType::Literal,
-        Emitter::LocationType::AvxReg,
-        Emitter::LocationType::GeneralReg,
-        Emitter::LocationType::StackOffset};
-    for (auto loc1 : locs) {
+    for (auto loc1 : all_locations) {
         if (loc1 == Emitter::LocationType::Literal) {
             continue;
         }
-        for (auto loc2 : locs) {
+        for (auto loc2 : all_locations) {
             if (loc2 == Emitter::LocationType::Literal) {
                 continue;
             }
-            for (auto loc3 : locs) {
-                for (auto loc4 : locs) {
-                    for (auto loc5 : locs) {
+            for (auto loc3 : all_locations) {
+                for (auto loc4 : all_locations) {
+                    for (auto loc5 : all_locations) {
                         block_epilogue_test(loc1, loc2, loc3, loc4, loc5);
                     }
                 }
@@ -3133,7 +3252,7 @@ TEST(Emitter, SpillGeneralRegister)
 TEST(Emitter, SpillAvxRegister)
 {
     std::vector<uint8_t> bytecode;
-    for (size_t i = 0; i <= AVX_REG_COUNT; ++i) {
+    for (size_t i = 0; i <= 3 + AVX_REG_COUNT; ++i) {
         bytecode.push_back(CALLVALUE);
     }
     auto ir = basic_blocks::BasicBlocksIR(bytecode);
@@ -3144,7 +3263,12 @@ TEST(Emitter, SpillAvxRegister)
 
     Stack &stack = emit.get_stack();
 
-    for (int32_t i = 0; i < AVX_REG_COUNT; ++i) {
+    for (int i = 0; i < 3; ++i) {
+        emit.callvalue();
+        ASSERT_TRUE(stack.get(i)->general_reg().has_value());
+        ASSERT_FALSE(stack.get(i)->avx_reg().has_value());
+    }
+    for (int32_t i = 3; i < 3 + AVX_REG_COUNT; ++i) {
         emit.callvalue();
         ASSERT_TRUE(stack.get(i)->avx_reg().has_value());
     }
@@ -3153,7 +3277,7 @@ TEST(Emitter, SpillAvxRegister)
     ASSERT_TRUE(stack.get(AVX_REG_COUNT)->avx_reg().has_value());
 
     size_t avx_count = 0;
-    for (int32_t i = 0; i <= AVX_REG_COUNT; ++i) {
+    for (int32_t i = 3; i <= 3 + AVX_REG_COUNT; ++i) {
         avx_count += stack.get(i)->avx_reg().has_value();
         if (!stack.get(i)->avx_reg().has_value()) {
             ASSERT_TRUE(stack.get(i)->stack_offset().has_value());

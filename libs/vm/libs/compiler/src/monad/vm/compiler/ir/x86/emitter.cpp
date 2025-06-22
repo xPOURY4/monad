@@ -113,6 +113,8 @@ namespace
         offsetof(evmc_tx_context, blob_base_fee);
     constexpr auto context_offset_memory_size =
         offsetof(runtime::Context, memory) + offsetof(runtime::Memory, size);
+    constexpr auto context_offset_memory_data =
+        offsetof(runtime::Context, memory) + offsetof(runtime::Memory, data);
     constexpr auto context_offset_result_offset =
         offsetof(runtime::Context, result) + offsetof(runtime::Result, offset);
     constexpr auto context_offset_result_size =
@@ -131,6 +133,8 @@ namespace
     constexpr auto sp_offset_temp_word2 = sp_offset_temp_word1 + 32;
 
     constexpr auto stack_frame_size = sp_offset_temp_word2 + 32;
+
+    constexpr AvxReg first_volatile_avx_reg{5};
 
     constexpr GeneralReg volatile_general_reg{2};
     constexpr GeneralReg rcx_general_reg{volatile_general_reg};
@@ -894,6 +898,14 @@ namespace monad::vm::compiler::native
         }
     }
 
+    void Emitter::spill_volatile_avx_regs()
+    {
+        for (auto const &[reg, off] :
+             stack_.spill_avx_reg_range(first_volatile_avx_reg.reg)) {
+            as_.vmovaps(stack_offset_to_mem(off), avx_reg_to_ymm(reg));
+        }
+    }
+
     void Emitter::spill_all_avx_regs()
     {
         for (auto const &[reg, off] : stack_.spill_all_avx_regs()) {
@@ -943,38 +955,63 @@ namespace monad::vm::compiler::native
 
     template <typename... LiveSet>
     StackElemRef Emitter::release_general_reg(
-        StackElemRef elem, std::tuple<LiveSet...> const &live)
+        StackElem &elem, std::tuple<LiveSet...> const &live)
     {
-        if (is_live(elem, live) && !elem->stack_offset() && !elem->literal() &&
-            !elem->avx_reg()) {
+        if (is_live(elem, live) && !elem.stack_offset() && !elem.literal() &&
+            !elem.avx_reg()) {
             if (stack_.has_free_general_reg()) {
                 auto [new_elem, reserv] = alloc_general_reg();
                 mov_general_reg_to_gpq256(
-                    *elem->general_reg(),
+                    *elem.general_reg(),
                     general_reg_to_gpq256(*new_elem->general_reg()));
-                stack_.swap_general_regs(*elem, *new_elem);
+                stack_.swap_general_regs(elem, *new_elem);
                 return new_elem;
             }
             else {
                 mov_general_reg_to_stack_offset(elem);
             }
         }
-        return stack_.release_general_reg(std::move(elem));
+        return stack_.release_general_reg(elem);
+    }
+
+    template <typename... LiveSet>
+    void
+    Emitter::release_volatile_general_reg(std::tuple<LiveSet...> const &live)
+    {
+        auto *volatile_stack_elem =
+            stack_.general_reg_stack_elem(volatile_general_reg);
+        if (volatile_stack_elem) {
+            (void)release_general_reg(*volatile_stack_elem, live);
+        }
+    }
+
+    template <typename... LiveSet>
+    StackElemRef Emitter::release_general_reg(
+        StackElemRef elem, std::tuple<LiveSet...> const &live)
+    {
+        return release_general_reg(*elem, live);
     }
 
     template <typename... LiveSet, size_t... Is>
     bool Emitter::is_live(
-        StackElemRef elem, std::tuple<LiveSet...> const &live,
+        StackElem const &elem, std::tuple<LiveSet...> const &live,
         std::index_sequence<Is...>)
     {
-        return elem->is_on_stack() || (... || (elem == std::get<Is>(live)));
+        return elem.is_on_stack() ||
+               (... || (&elem == std::get<Is>(live).get()));
+    }
+
+    template <typename... LiveSet>
+    bool
+    Emitter::is_live(StackElem const &elem, std::tuple<LiveSet...> const &live)
+    {
+        return is_live(elem, live, std::index_sequence_for<LiveSet...>{});
     }
 
     template <typename... LiveSet>
     bool Emitter::is_live(StackElemRef elem, std::tuple<LiveSet...> const &live)
     {
-        return is_live(
-            std::move(elem), live, std::index_sequence_for<LiveSet...>{});
+        return is_live(*elem, live, std::index_sequence_for<LiveSet...>{});
     }
 
     template <typename... LiveSet, size_t... Is>
@@ -1739,19 +1776,31 @@ namespace monad::vm::compiler::native
         as_.vmovaps(stack_offset_to_mem(*elem->stack_offset()), y);
     }
 
+    void Emitter::mov_general_reg_to_stack_offset(StackElem &elem)
+    {
+        int32_t const preferred = elem.preferred_stack_offset();
+        mov_general_reg_to_stack_offset(elem, preferred);
+    }
+
     void Emitter::mov_general_reg_to_stack_offset(StackElemRef elem)
     {
         int32_t const preferred = elem->preferred_stack_offset();
-        mov_general_reg_to_stack_offset(std::move(elem), preferred);
+        mov_general_reg_to_stack_offset(*elem, preferred);
+    }
+
+    void
+    Emitter::mov_general_reg_to_stack_offset(StackElem &elem, int32_t preferred)
+    {
+        MONAD_VM_DEBUG_ASSERT(elem.general_reg().has_value());
+        stack_.insert_stack_offset(elem, preferred);
+        mov_general_reg_to_mem(
+            *elem.general_reg(), stack_offset_to_mem(*elem.stack_offset()));
     }
 
     void Emitter::mov_general_reg_to_stack_offset(
         StackElemRef elem, int32_t preferred)
     {
-        MONAD_VM_DEBUG_ASSERT(elem->general_reg().has_value());
-        stack_.insert_stack_offset(elem, preferred);
-        mov_general_reg_to_mem(
-            *elem->general_reg(), stack_offset_to_mem(*elem->stack_offset()));
+        return mov_general_reg_to_stack_offset(*elem, preferred);
     }
 
     void Emitter::mov_literal_to_stack_offset(StackElemRef elem)
@@ -1823,6 +1872,91 @@ namespace monad::vm::compiler::native
             *elem->stack_offset(), general_reg_to_gpq256(*elem->general_reg()));
 
         return spill_elem;
+    }
+
+    void Emitter::mov_mem_be_to_general_reg(x86::Mem m, StackElemRef e)
+    {
+        MONAD_VM_DEBUG_ASSERT(e->general_reg().has_value());
+        auto const &gpq = general_reg_to_gpq256(*e->general_reg());
+        for (size_t i = 0; i < 4; ++i) {
+            as_.movbe(gpq[3 - i], m);
+            m.addOffset(8);
+        }
+    }
+
+    void Emitter::mov_mem_be_to_avx_reg(x86::Mem m, StackElemRef e)
+    {
+        MONAD_VM_DEBUG_ASSERT(e->avx_reg().has_value());
+
+        auto y = avx_reg_to_ymm(*e->avx_reg());
+        as_.vpermq(y, m, 27);
+        // Permute qwords in avx register y:
+        // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
+        auto const lbl = append_literal(Literal{uint256_t{
+            0x0001020304050607,
+            0x08090a0b0c0d0e0f,
+            0x0001020304050607,
+            0x08090a0b0c0d0e0f}});
+        // Permute bytes in avx register y:
+        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
+        // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
+        as_.vpshufb(y, y, x86::ptr(lbl));
+    }
+
+    StackElemRef Emitter::read_mem_be(x86::Mem m)
+    {
+        if (stack_.has_free_general_reg()) {
+            auto [dst, _] = alloc_general_reg();
+            mov_mem_be_to_general_reg(m, dst);
+            return dst;
+        }
+        else {
+            auto [dst, _] = alloc_avx_reg();
+            mov_mem_be_to_avx_reg(m, dst);
+            return dst;
+        }
+    }
+
+    void Emitter::mov_stack_elem_to_mem_be(StackElemRef e, x86::Mem m)
+    {
+        if (e->literal()) {
+            auto x = uint256_t::load_be_unsafe(e->literal()->value.as_bytes());
+            mov_literal_to_mem<false>(Literal{x}, m);
+        }
+        else if (e->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*e->general_reg());
+            for (size_t i = 0; i < 4; ++i) {
+                as_.movbe(m, gpq[3 - i]);
+                m.addOffset(8);
+            }
+        }
+        else {
+            auto [tmp_elem, reserv] = alloc_avx_reg();
+            auto y = avx_reg_to_ymm(*tmp_elem->avx_reg());
+            if (e->avx_reg()) {
+                auto y0 = avx_reg_to_ymm(*e->avx_reg());
+                as_.vpermq(y, y0, 27);
+            }
+            else {
+                MONAD_VM_DEBUG_ASSERT(e->stack_offset().has_value());
+                auto m0 = stack_offset_to_mem(*e->stack_offset());
+                as_.vpermq(y, m0, 27);
+            }
+            // Permute qwords in avx register y:
+            // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+            // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
+            auto const lbl = append_literal(Literal{uint256_t{
+                0x0001020304050607,
+                0x08090a0b0c0d0e0f,
+                0x0001020304050607,
+                0x08090a0b0c0d0e0f}});
+            // Permute bytes in avx register y:
+            // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
+            // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
+            as_.vpshufb(y, y, x86::ptr(lbl));
+            as_.vmovups(m, y);
+        }
     }
 
     // No discharge
@@ -2295,9 +2429,9 @@ namespace monad::vm::compiler::native
         else {
             MONAD_VM_DEBUG_ASSERT(left_loc == LocationType::GeneralReg);
             Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
-            for (size_t i = 0; i < 3; ++i) {
-                as_.or_(gpq[i + 1], gpq[i]);
-            }
+            as_.or_(gpq[0], gpq[1]);
+            as_.or_(gpq[2], gpq[3]);
+            as_.or_(gpq[0], gpq[2]);
         }
         stack_.push_deferred_comparison(Comparison::Equal);
     }
@@ -2405,18 +2539,23 @@ namespace monad::vm::compiler::native
     // No discharge
     void Emitter::calldatasize()
     {
+        static_assert(
+            sizeof(runtime::Environment::input_data_size) == sizeof(uint32_t));
         read_context_uint32_to_word(context_offset_env_input_data_size);
     }
 
     // No discharge
     void Emitter::returndatasize()
     {
-        read_context_uint32_to_word(context_offset_env_return_data_size);
+        static_assert(
+            sizeof(runtime::Environment::return_data_size) == sizeof(uint64_t));
+        read_context_uint64_to_word(context_offset_env_return_data_size);
     }
 
     // No discharge
     void Emitter::msize()
     {
+        static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
         read_context_uint32_to_word(context_offset_memory_size);
     }
 
@@ -2486,6 +2625,61 @@ namespace monad::vm::compiler::native
     void Emitter::blobbasefee()
     {
         read_context_word(context_offset_env_tx_context_blob_base_fee);
+    }
+
+    // Discharge through `touch_memory`.
+    void Emitter::mload()
+    {
+        auto offset = stack_.pop();
+        auto mem = touch_memory(std::move(offset), 32, {});
+        if (mem) {
+            stack_.push(read_mem_be(*mem));
+        }
+        else {
+            stack_.push_literal(0);
+        }
+    }
+
+    // Discharge through `touch_memory`.
+    void Emitter::mstore()
+    {
+        auto offset = stack_.pop();
+        auto mem = touch_memory(std::move(offset), 32, {});
+        auto value = stack_.pop();
+        if (mem) {
+            mov_stack_elem_to_mem_be(std::move(value), *mem);
+        }
+    }
+
+    // Discharge through `touch_memory`.
+    void Emitter::mstore8()
+    {
+        auto offset = stack_.pop();
+        auto mem = touch_memory(std::move(offset), 1, {});
+        auto value = stack_.pop();
+        if (!mem) {
+            return;
+        }
+        mem->setSize(1);
+        if (value->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*value->general_reg());
+            as_.mov(*mem, gpq[0].r8());
+        }
+        else if (value->literal()) {
+            uint8_t const b = static_cast<uint8_t>(value->literal()->value);
+            as_.mov(*mem, b);
+        }
+        else if (value->avx_reg()) {
+            as_.vpextrb(*mem, avx_reg_to_xmm(*value->avx_reg()), 0);
+        }
+        else {
+            MONAD_VM_DEBUG_ASSERT(value->stack_offset().has_value());
+            MONAD_VM_DEBUG_ASSERT(volatile_general_reg == rcx_general_reg);
+            MONAD_VM_DEBUG_ASSERT(
+                !stack_.is_general_reg_on_stack(volatile_general_reg));
+            as_.mov(x86::cl, stack_offset_to_mem(*value->stack_offset()));
+            as_.mov(*mem, x86::cl);
+        }
     }
 
     // Discharge
@@ -2915,23 +3109,7 @@ namespace monad::vm::compiler::native
 
     void Emitter::read_context_word(int32_t offset)
     {
-        x86::Mem const m = x86::qword_ptr(reg_context, offset);
-        auto [dst, _] = alloc_avx_reg();
-        auto y = avx_reg_to_ymm(*dst->avx_reg());
-        as_.vpermq(y, m, 27);
-        // Permute qwords in avx register y:
-        // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
-        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
-        auto const lbl = append_literal(Literal{uint256_t{
-            0x0001020304050607,
-            0x08090a0b0c0d0e0f,
-            0x0001020304050607,
-            0x08090a0b0c0d0e0f}});
-        // Permute bytes in avx register y:
-        // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
-        // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
-        as_.vpshufb(y, y, x86::ptr(lbl));
-        stack_.push(std::move(dst));
+        stack_.push(read_mem_be(x86::qword_ptr(reg_context, offset)));
     }
 
     void Emitter::read_context_uint32_to_word(int32_t offset)
@@ -2940,9 +3118,9 @@ namespace monad::vm::compiler::native
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
         as_.mov(gpq[0].r32(), x86::dword_ptr(reg_context, offset));
         if (stack_.has_deferred_comparison()) {
-            as_.mov(gpq[1], 0);
-            as_.mov(gpq[2], 0);
-            as_.mov(gpq[3], 0);
+            as_.mov(gpq[1].r32(), 0);
+            as_.mov(gpq[2].r32(), 0);
+            as_.mov(gpq[3].r32(), 0);
         }
         else {
             as_.xor_(gpq[1].r32(), gpq[1].r32());
@@ -2958,9 +3136,9 @@ namespace monad::vm::compiler::native
         Gpq256 const &gpq = general_reg_to_gpq256(*dst->general_reg());
         as_.mov(gpq[0], x86::qword_ptr(reg_context, offset));
         if (stack_.has_deferred_comparison()) {
-            as_.mov(gpq[1], 0);
-            as_.mov(gpq[2], 0);
-            as_.mov(gpq[3], 0);
+            as_.mov(gpq[1].r32(), 0);
+            as_.mov(gpq[2].r32(), 0);
+            as_.mov(gpq[3].r32(), 0);
         }
         else {
             as_.xor_(gpq[1].r32(), gpq[1].r32());
@@ -4053,6 +4231,142 @@ namespace monad::vm::compiler::native
         as_.adc(gpq[1], 0);
         as_.adc(gpq[2], 0);
         as_.adc(gpq[3], 0);
+    }
+
+    template <typename... LiveSet>
+    std::optional<asmjit::x86::Mem> Emitter::touch_memory(
+        StackElemRef offset, int32_t read_size,
+        std::tuple<LiveSet...> const &live)
+    {
+        discharge_deferred_comparison();
+        spill_volatile_avx_regs();
+
+        MONAD_VM_DEBUG_ASSERT(read_size <= 32);
+
+        // Make sure offset bits are sufficiently small to
+        // not overflow a runtime::Bin<30> after incrementing by `read_size`.
+        static_assert(runtime::Memory::offset_bits <= 29);
+
+        // Make sure reg_context is rbx, because the function
+        // monad_vm_runtime_increase_memory expects context to be passed
+        // in rbx.
+        static_assert(reg_context == x86::rbx);
+
+        auto after_increase_label = as_.newLabel();
+
+        std::variant<x86::Gpq, int32_t> offset_op{x86::rax};
+        if (offset->literal()) {
+            auto const &lit = offset->literal()->value;
+            if (lit >= uint64_t{1} << runtime::Memory::offset_bits) {
+                as_.jmp(error_label_);
+                return std::nullopt;
+            }
+            offset_op = static_cast<int32_t>(lit);
+            auto read_end = static_cast<int32_t>(lit) + read_size;
+
+            offset.reset(); // Clear locations
+            release_volatile_general_reg(live);
+
+            static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
+            as_.cmp(
+                x86::dword_ptr(reg_context, context_offset_memory_size),
+                read_end);
+            as_.jae(after_increase_label);
+            as_.mov(x86::rdi, read_end);
+        }
+        else if (offset->general_reg()) {
+            auto const &gpq = general_reg_to_gpq256(*offset->general_reg());
+            if (is_live(offset, live)) {
+                as_.mov(x86::rax, gpq[0]);
+                as_.and_(x86::rax, int32_t{-1} << runtime::Memory::offset_bits);
+                as_.or_(x86::rax, gpq[1]);
+                as_.or_(x86::rax, gpq[2]);
+                as_.or_(x86::rax, gpq[3]);
+                as_.jnz(error_label_);
+                as_.mov(x86::eax, gpq[0].r32());
+
+                offset.reset(); // Clear locations
+                release_volatile_general_reg(live);
+
+                as_.lea(x86::rdi, x86::byte_ptr(x86::rax, read_size));
+                static_assert(
+                    sizeof(runtime::Memory::size) == sizeof(uint32_t));
+                as_.cmp(
+                    x86::dword_ptr(reg_context, context_offset_memory_size),
+                    x86::edi);
+                as_.jae(after_increase_label);
+            }
+            else {
+                as_.mov(x86::rax, gpq[0]);
+                as_.and_(gpq[0], int32_t{-1} << runtime::Memory::offset_bits);
+                as_.or_(gpq[3], gpq[2]);
+                as_.or_(gpq[1], gpq[0]);
+                as_.or_(gpq[3], gpq[1]);
+                as_.jnz(error_label_);
+
+                offset.reset(); // Clear locations
+                release_volatile_general_reg(live);
+
+                as_.lea(x86::rdi, x86::byte_ptr(x86::rax, read_size));
+                static_assert(
+                    sizeof(runtime::Memory::size) == sizeof(uint32_t));
+                as_.cmp(
+                    x86::dword_ptr(reg_context, context_offset_memory_size),
+                    x86::edi);
+                as_.jae(after_increase_label);
+            }
+        }
+        else {
+            if (!offset->stack_offset()) {
+                MONAD_VM_DEBUG_ASSERT(offset->avx_reg().has_value());
+                mov_avx_reg_to_stack_offset(offset);
+            }
+            auto mem = stack_offset_to_mem(*offset->stack_offset());
+            mem.addOffset(8);
+            as_.mov(x86::rax, mem);
+            mem.addOffset(8);
+            as_.or_(x86::rax, mem);
+            mem.addOffset(8);
+            as_.or_(x86::rax, mem);
+            as_.jnz(error_label_);
+            mem.addOffset(-24);
+            as_.mov(x86::rax, mem);
+            as_.test(x86::rax, int32_t{-1} << runtime::Memory::offset_bits);
+            as_.jnz(error_label_);
+
+            offset.reset(); // Clear locations
+            release_volatile_general_reg(live);
+
+            as_.lea(x86::rdi, x86::byte_ptr(x86::rax, read_size));
+            static_assert(sizeof(runtime::Memory::size) == sizeof(uint32_t));
+            as_.cmp(
+                x86::dword_ptr(reg_context, context_offset_memory_size),
+                x86::edi);
+            as_.jae(after_increase_label);
+        }
+
+        auto increase_memory_lbl = append_external_function(
+            reinterpret_cast<void *>(monad_vm_runtime_increase_memory));
+        as_.call(x86::qword_ptr(increase_memory_lbl));
+
+        as_.bind(after_increase_label);
+
+        if (std::holds_alternative<int32_t>(offset_op)) {
+            as_.mov(
+                x86::rax,
+                x86::qword_ptr(reg_context, context_offset_memory_data));
+            auto i = std::get<int32_t>(offset_op);
+            return x86::qword_ptr(x86::rax, i);
+        }
+        else {
+            MONAD_VM_DEBUG_ASSERT(std::holds_alternative<x86::Gpq>(offset_op));
+            MONAD_VM_DEBUG_ASSERT(std::get<x86::Gpq>(offset_op) == x86::rax);
+            static_assert(sizeof(runtime::Memory::data) == sizeof(uint64_t));
+            as_.add(
+                x86::rax,
+                x86::qword_ptr(reg_context, context_offset_memory_data));
+            return x86::qword_ptr(x86::rax);
+        }
     }
 
     StackElemRef Emitter::negate_by_sub(StackElemRef elem)

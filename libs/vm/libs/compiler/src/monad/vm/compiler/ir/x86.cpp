@@ -206,13 +206,13 @@ namespace
             emit.pop();
             break;
         case MLoad:
-            emit.mload<rev>(remaining_base_gas);
+            emit.mload();
             break;
         case MStore:
-            emit.mstore<rev>(remaining_base_gas);
+            emit.mstore();
             break;
         case MStore8:
-            emit.mstore8<rev>(remaining_base_gas);
+            emit.mstore8();
             break;
         case SLoad:
             emit.sload<rev>(remaining_base_gas);
@@ -406,9 +406,6 @@ namespace
         for (auto const &[d, _] : ir.jump_dests()) {
             emit.add_jump_dest(d);
         }
-        // TODO this calculation will be moved and subject to change.
-        // The `max_native_size` size value may need to be configurable,
-        // to allow fuzzer generate very large programs.
         size_t const max_native_size =
             max_code_size(config.max_code_size_offset, ir.codesize);
         int32_t accumulated_base_gas = 0;

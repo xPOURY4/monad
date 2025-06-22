@@ -166,6 +166,7 @@ namespace monad::vm::compiler::native
         void spill_caller_save_regs(bool spill_avx);
         void spill_all_caller_save_general_regs();
         void spill_all_avx_regs();
+        void spill_volatile_avx_regs();
         [[nodiscard]] std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
         [[nodiscard]] AvxRegReserv insert_avx_reg(StackElemRef);
         [[nodiscard]] std::pair<StackElemRef, GeneralRegReserv>
@@ -174,7 +175,14 @@ namespace monad::vm::compiler::native
 
         template <typename... LiveSet>
         [[nodiscard]] StackElemRef
+        release_general_reg(StackElem &, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        [[nodiscard]] StackElemRef
         release_general_reg(StackElemRef, std::tuple<LiveSet...> const &);
+
+        template <typename... LiveSet>
+        void release_volatile_general_reg(std::tuple<LiveSet...> const &);
 
         void discharge_deferred_comparison(); // Leaves eflags unchanged
 
@@ -230,6 +238,10 @@ namespace monad::vm::compiler::native
         void chainid();
         void basefee();
         void blobbasefee();
+
+        void mload();
+        void mstore();
+        void mstore8();
 
         // Revision dependent instructions
         template <evmc_revision rev>
@@ -378,24 +390,6 @@ namespace monad::vm::compiler::native
         }
 
         template <evmc_revision rev>
-        void mload(int32_t remaining_base_gas)
-        {
-            call_runtime(remaining_base_gas, true, runtime::mload);
-        }
-
-        template <evmc_revision rev>
-        void mstore(int32_t remaining_base_gas)
-        {
-            call_runtime(remaining_base_gas, true, runtime::mstore);
-        }
-
-        template <evmc_revision rev>
-        void mstore8(int32_t remaining_base_gas)
-        {
-            call_runtime(remaining_base_gas, true, runtime::mstore8);
-        }
-
-        template <evmc_revision rev>
         void sload(int32_t remaining_base_gas)
         {
             call_runtime(remaining_base_gas, true, runtime::sload<rev>);
@@ -530,8 +524,11 @@ namespace monad::vm::compiler::native
 
         template <typename... LiveSet, size_t... Is>
         bool is_live(
-            StackElemRef, std::tuple<LiveSet...> const &,
+            StackElem const &, std::tuple<LiveSet...> const &,
             std::index_sequence<Is...>);
+
+        template <typename... LiveSet>
+        bool is_live(StackElem const &, std::tuple<LiveSet...> const &);
 
         template <typename... LiveSet>
         bool is_live(StackElemRef, std::tuple<LiveSet...> const &);
@@ -598,7 +595,10 @@ namespace monad::vm::compiler::native
         void mov_avx_reg_to_stack_offset(StackElemRef);
         void
         mov_avx_reg_to_stack_offset(StackElemRef, int32_t preferred_offset);
+        void mov_general_reg_to_stack_offset(StackElem &);
         void mov_general_reg_to_stack_offset(StackElemRef);
+        void
+        mov_general_reg_to_stack_offset(StackElem &, int32_t preferred_offset);
         void
         mov_general_reg_to_stack_offset(StackElemRef, int32_t preferred_offset);
         void mov_literal_to_stack_offset(StackElemRef);
@@ -609,7 +609,13 @@ namespace monad::vm::compiler::native
         void mov_avx_reg_to_general_reg(StackElemRef, int32_t preferred_offset);
         void mov_literal_to_general_reg(StackElemRef);
         void mov_stack_offset_to_general_reg(StackElemRef);
+
         StackElem *revertible_mov_stack_offset_to_general_reg(StackElemRef);
+
+        void mov_mem_be_to_avx_reg(asmjit::x86::Mem, StackElemRef);
+        void mov_mem_be_to_general_reg(asmjit::x86::Mem, StackElemRef);
+        StackElemRef read_mem_be(asmjit::x86::Mem);
+        void mov_stack_elem_to_mem_be(StackElemRef, asmjit::x86::Mem);
 
         ////////// Private EVM instruction utilities //////////
 
@@ -650,6 +656,11 @@ namespace monad::vm::compiler::native
 
         StackElemRef negate_by_sub(StackElemRef);
         void negate_gpq256(Gpq256 const &);
+
+        template <typename... LiveSet>
+        std::optional<asmjit::x86::Mem> touch_memory(
+            StackElemRef offset, int32_t read_size,
+            std::tuple<LiveSet...> const &);
 
         void call_runtime_impl(RuntimeImpl &rt);
 

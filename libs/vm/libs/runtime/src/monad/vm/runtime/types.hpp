@@ -247,3 +247,8 @@ namespace monad::vm::runtime
 extern "C" void monad_vm_runtime_increase_capacity(
     monad::vm::runtime::Context *, uint32_t old_size,
     monad::vm::runtime::Bin<31> new_size);
+
+// Note: monad_vm_runtime_increase_memory uses non-standard
+// calling convention. Context is passed in rbx and new min
+// memory size if passed in rdi. See context.S.
+extern "C" void monad_vm_runtime_increase_memory();

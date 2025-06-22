@@ -501,11 +501,13 @@ namespace monad::vm::compiler::native
          * `preferred_offset` will be used as offset if it is available.
          */
         void insert_stack_offset(StackElemRef, std::int32_t preferred_offset);
+        void insert_stack_offset(StackElem &, std::int32_t preferred_offset);
 
         /**
          * Find a stack offset for the given stack element.
          */
         void insert_stack_offset(StackElemRef);
+        void insert_stack_offset(StackElem &);
 
         /**
          * Remove stack offset from `elem` and return a new stack element
@@ -549,6 +551,7 @@ namespace monad::vm::compiler::native
          * Remove general register from `elem` and return a new stack element
          * containing the general register.
          */
+        StackElemRef release_general_reg(StackElem &elem);
         StackElemRef release_general_reg(StackElemRef elem);
 
         /**
@@ -662,6 +665,19 @@ namespace monad::vm::compiler::native
         [[nodiscard]]
         std::vector<std::pair<AvxReg, StackOffset>> spill_all_avx_regs();
 
+        /**
+         * Spill the AVX registers with reg ID in the inclusive range
+         * [`first`, `15`] to persistent storage.
+         * Returns `(AvxReg, StackOffset)` pairs which can be used to emit
+         * the code for moving the registers to physical stack memory.
+         * See the `spill_all_caller_save_general_regs` documentation for
+         * an optimization trick when both caller save general registers
+         * and AVX registers need to be spilled.
+         */
+        [[nodiscard]]
+        std::vector<std::pair<AvxReg, StackOffset>>
+        spill_avx_reg_range(uint8_t first);
+
         /** Set of available stack offsets. */
         std::set<std::int32_t> const &available_stack_offsets();
 
@@ -761,17 +777,6 @@ namespace monad::vm::compiler::native
          */
         StackOffset
         find_available_stack_offset(std::int32_t preferred_offset) const;
-
-        /**
-         * Find a stack offset for the given stack element. The given
-         * `preferred_offset` will be used as offset if it is available.
-         */
-        void insert_stack_offset(StackElem *, std::int32_t preferred_offset);
-
-        /**
-         * Find a stack offset for the given stack element.
-         */
-        void insert_stack_offset(StackElem *);
 
         // Linked list of stack element RC objects, using `ref_count`
         // for "next" pointer:

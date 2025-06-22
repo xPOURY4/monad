@@ -506,11 +506,11 @@ namespace monad::vm::compiler::native
         DeferredComparison dc{deferred_comparison_};
         if (dc.stack_elem) {
             dc.stack_elem->discharge_deferred_comparison();
-            insert_stack_offset(dc.stack_elem);
+            insert_stack_offset(*dc.stack_elem);
         }
         if (dc.negated_stack_elem) {
             dc.negated_stack_elem->discharge_negated_deferred_comparison();
-            insert_stack_offset(dc.negated_stack_elem);
+            insert_stack_offset(*dc.negated_stack_elem);
         }
         return dc;
     }
@@ -692,8 +692,14 @@ namespace monad::vm::compiler::native
 
     std::vector<std::pair<AvxReg, StackOffset>> Stack::spill_all_avx_regs()
     {
+        return spill_avx_reg_range(0);
+    }
+
+    std::vector<std::pair<AvxReg, StackOffset>>
+    Stack::spill_avx_reg_range(uint8_t first)
+    {
         std::vector<std::pair<AvxReg, StackOffset>> ret;
-        for (std::uint8_t i = 0; i < AVX_REG_COUNT; ++i) {
+        for (std::uint8_t i = first; i < 16; ++i) {
             auto *e = avx_reg_stack_elems_[i];
             if (e == nullptr) {
                 continue;
@@ -720,26 +726,26 @@ namespace monad::vm::compiler::native
 
     void Stack::insert_stack_offset(StackElemRef e, std::int32_t preferred)
     {
-        insert_stack_offset(e.get(), preferred);
+        insert_stack_offset(*e, preferred);
     }
 
     void Stack::insert_stack_offset(StackElemRef e)
     {
-        insert_stack_offset(e.get());
+        insert_stack_offset(*e);
     }
 
-    void Stack::insert_stack_offset(StackElem *e, std::int32_t preferred)
+    void Stack::insert_stack_offset(StackElem &e, std::int32_t preferred)
     {
-        if (e->stack_offset_.has_value()) {
+        if (e.stack_offset_.has_value()) {
             return;
         }
         auto offset = find_available_stack_offset(preferred);
-        e->insert_stack_offset(offset);
+        e.insert_stack_offset(offset);
     }
 
-    void Stack::insert_stack_offset(StackElem *e)
+    void Stack::insert_stack_offset(StackElem &e)
     {
-        std::int32_t const preferred = e->preferred_stack_offset();
+        std::int32_t const preferred = e.preferred_stack_offset();
         insert_stack_offset(e, preferred);
     }
 
@@ -781,7 +787,7 @@ namespace monad::vm::compiler::native
     StackElemRef Stack::alloc_stack_offset(std::int32_t preferred)
     {
         auto e = new_stack_elem();
-        insert_stack_offset(e, preferred);
+        insert_stack_offset(*e, preferred);
         return e;
     }
 
@@ -825,11 +831,16 @@ namespace monad::vm::compiler::native
         avx_reg_stack_elems_[reg.reg] = &dst;
     }
 
-    StackElemRef Stack::release_general_reg(StackElemRef elem)
+    StackElemRef Stack::release_general_reg(StackElem &elem)
     {
         auto dst = new_stack_elem();
-        move_general_reg(*elem, *dst);
+        move_general_reg(elem, *dst);
         return dst;
+    }
+
+    StackElemRef Stack::release_general_reg(StackElemRef elem)
+    {
+        return release_general_reg(*elem);
     }
 
     void Stack::move_general_reg(StackElem &src, StackElem &dst)
