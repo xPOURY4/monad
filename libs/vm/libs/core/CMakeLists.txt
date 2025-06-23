@@ -3,7 +3,7 @@ enable_language(C)
 add_library(monad-vm-core STATIC)
 
 target_sources(monad-vm-core PRIVATE
-    "src/monad/vm/core/assert.c"
+    "src/monad/vm/core/assert.cpp"
     "src/monad/vm/core/assert.h"
     "src/monad/vm/core/cases.hpp"
 )

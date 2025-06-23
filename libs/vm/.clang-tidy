@@ -47,8 +47,7 @@
                     readability-isolate-declaration,
                     readability-qualified-auto'
   WarningsAsErrors: '*,
-                    -clang-analyzer-optin.cplusplus.UninitializedObject,
-                    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+                    -clang-analyzer-optin.cplusplus.UninitializedObject'
   CheckOptions:
     - key:          bugprone-assert-side-effect.AssertMacros
       value:        assert,MONAD_DEBUG_ASSERT

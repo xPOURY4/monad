@@ -1,19 +1,19 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdlib>
+#include <print>
 
 extern char const *__progname;
 
-void __attribute__((noreturn)) monad_vm_assertion_failed(
+extern "C" void __attribute__((noreturn)) monad_vm_assertion_failed(
     char const *expr, char const *function, char const *file, long line)
 {
-    fprintf(
+    std::print(
         stderr,
-        "%s: %s:%ld: %s: Assertion '%s' failed.\n",
+        "{}: {}:{}: {}: Assertion '{}' failed.\n",
         __progname,
         file,
         line,
         function,
         expr);
 
-    abort();
+    std::abort();
 }
