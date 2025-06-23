@@ -117,8 +117,7 @@ namespace monad::vm::compiler::native
         MONAD_VM_ASSERT(stack_.deferred_comparison_.stack_elem == nullptr);
         MONAD_VM_DEBUG_ASSERT(
             !stack_offset_ && !avx_reg_ && !general_reg_ && !literal_);
-        stack_.deferred_comparison_.stack_elem = this;
-        stack_.deferred_comparison_.comparison = c;
+        stack_.deferred_comparison_.set(this, c);
     }
 
     void StackElem::deferred_comparison()

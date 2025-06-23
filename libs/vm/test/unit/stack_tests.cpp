@@ -621,7 +621,7 @@ TEST(VirtualStack, deferred_comparison_test_1)
     auto dc = stack.discharge_deferred_comparison();
     ASSERT_EQ(dc.stack_elem, stack.get(0).get());
     ASSERT_EQ(dc.negated_stack_elem, nullptr);
-    ASSERT_EQ(dc.comparison, Comparison::Below);
+    ASSERT_EQ(dc.comparison(), Comparison::Below);
 }
 
 TEST(VirtualStack, deferred_comparison_test_2)
@@ -653,7 +653,7 @@ TEST(VirtualStack, deferred_comparison_test_2)
     auto dc = stack.discharge_deferred_comparison();
     ASSERT_EQ(dc.stack_elem, nullptr);
     ASSERT_EQ(dc.negated_stack_elem, stack.get(0).get());
-    ASSERT_EQ(dc.comparison, Comparison::BelowEqual);
+    ASSERT_EQ(dc.comparison(), Comparison::BelowEqual);
 }
 
 TEST(VirtualStack, deferred_comparison_test_3)
@@ -689,7 +689,7 @@ TEST(VirtualStack, deferred_comparison_test_3)
     ASSERT_NE(dc.stack_elem, stack.get(2).get());
     ASSERT_EQ(dc.stack_elem, stack.get(3).get());
     ASSERT_EQ(dc.negated_stack_elem, nullptr);
-    ASSERT_EQ(dc.comparison, Comparison::Greater);
+    ASSERT_EQ(dc.comparison(), Comparison::Greater);
 }
 
 TEST(VirtualStack, deferred_comparison_test_4)
@@ -767,5 +767,5 @@ TEST(VirtualStack, deferred_comparison_test_4)
     ASSERT_NE(dc.negated_stack_elem, stack.get(2).get());
     ASSERT_EQ(dc.negated_stack_elem, stack.get(3).get());
     ASSERT_EQ(dc.stack_elem, stack.get(4).get());
-    ASSERT_EQ(dc.comparison, Comparison::Greater);
+    ASSERT_EQ(dc.comparison(), Comparison::Greater);
 }

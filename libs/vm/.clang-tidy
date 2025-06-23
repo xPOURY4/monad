@@ -46,8 +46,7 @@
                     modernize-use-transparent-functors,
                     readability-isolate-declaration,
                     readability-qualified-auto'
-  WarningsAsErrors: '*,
-                    -clang-analyzer-optin.cplusplus.UninitializedObject'
+  WarningsAsErrors: '*'
   CheckOptions:
     - key:          bugprone-assert-side-effect.AssertMacros
       value:        assert,MONAD_DEBUG_ASSERT

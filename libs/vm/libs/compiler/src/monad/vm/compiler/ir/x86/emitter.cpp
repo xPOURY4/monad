@@ -1351,10 +1351,10 @@ namespace monad::vm::compiler::native
         }
         auto dc = stack_.discharge_deferred_comparison();
         if (dc.stack_elem) {
-            discharge_deferred_comparison(dc.stack_elem, dc.comparison);
+            discharge_deferred_comparison(dc.stack_elem, dc.comparison());
         }
         if (dc.negated_stack_elem) {
-            auto comp = negate_comparison(dc.comparison);
+            auto comp = negate_comparison(dc.comparison());
             discharge_deferred_comparison(dc.negated_stack_elem, comp);
         }
     }
@@ -2801,21 +2801,21 @@ namespace monad::vm::compiler::native
         auto dc = stack_.discharge_deferred_comparison();
         if (dc.stack_elem && (dc.stack_elem == dest.get() ||
                               !dc.stack_elem->stack_indices().empty())) {
-            discharge_deferred_comparison(dc.stack_elem, dc.comparison);
+            discharge_deferred_comparison(dc.stack_elem, dc.comparison());
         }
         if (dc.negated_stack_elem &&
             (dc.negated_stack_elem == dest.get() ||
              !dc.negated_stack_elem->stack_indices().empty())) {
             discharge_deferred_comparison(
-                dc.negated_stack_elem, negate_comparison(dc.comparison));
+                dc.negated_stack_elem, negate_comparison(dc.comparison()));
         }
 
         Comparison comp;
         if (cond.get() == dc.stack_elem) {
-            comp = dc.comparison;
+            comp = dc.comparison();
         }
         else if (cond.get() == dc.negated_stack_elem) {
-            comp = negate_comparison(dc.comparison);
+            comp = negate_comparison(dc.comparison());
         }
         else {
             comp = Comparison::NotEqual;

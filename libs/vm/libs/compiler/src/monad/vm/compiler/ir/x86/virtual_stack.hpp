@@ -108,6 +108,7 @@ namespace monad::vm::compiler::native
         DeferredComparison()
             : stack_elem{}
             , negated_stack_elem{}
+            , comparison_{Comparison::Below}
         {
         }
 
@@ -116,7 +117,22 @@ namespace monad::vm::compiler::native
 
         StackElem *stack_elem;
         StackElem *negated_stack_elem;
-        Comparison comparison;
+
+        Comparison comparison() const noexcept
+        {
+            MONAD_VM_DEBUG_ASSERT(stack_elem || negated_stack_elem);
+            return comparison_;
+        }
+
+        void set(StackElem *const elem, Comparison const c) noexcept
+        {
+            MONAD_VM_DEBUG_ASSERT(!stack_elem && !negated_stack_elem);
+            stack_elem = elem;
+            comparison_ = c;
+        }
+
+    private:
+        Comparison comparison_;
     };
 
     /**
