@@ -47,7 +47,6 @@
                     readability-isolate-declaration,
                     readability-qualified-auto'
   WarningsAsErrors: '*,
-                    -bugprone-use-after-move,
                     -clang-analyzer-optin.cplusplus.UninitializedObject,
                     -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
   CheckOptions:

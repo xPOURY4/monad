@@ -3350,14 +3350,12 @@ namespace monad::vm::compiler::native
         int8_t const c = static_cast<int8_t>(s & 7);
         int32_t const d = s >> 3;
 
-        if (d > 0) {
-            setup_shift_stack<shift_type>(std::move(value), d, live);
-        }
-
         // We do not need the register reservation for `dst`, because
         // we do not allocate any registers below.
         auto dst = [&] {
             if (d > 0) {
+                setup_shift_stack<shift_type>(std::move(value), d, live);
+
                 if (c > 0) {
                     auto [r, _] = alloc_general_reg();
                     return r;
@@ -5411,7 +5409,7 @@ namespace monad::vm::compiler::native
             }
             mov_general_reg_to_stack_offset(dst);
         }
-        auto new_dst = stack_.release_general_reg(std::move(dst));
+        auto new_dst = stack_.release_general_reg(dst);
         if (dst == src) {
             return {new_dst, dst_loc, new_dst, src_loc};
         }
