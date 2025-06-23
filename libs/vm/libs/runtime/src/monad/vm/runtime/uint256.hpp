@@ -296,6 +296,8 @@ namespace monad::vm::runtime
             return reinterpret_cast<uint8_t const *>(&words_);
         }
 
+        // NOLINTBEGIN(bugprone-macro-parentheses)
+
 #define INHERIT_INTX_BINOP(return_ty, op_name)                                 \
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
         uint256_t const &x, uint256_t const &y) noexcept                       \
@@ -311,6 +313,8 @@ namespace monad::vm::runtime
         INHERIT_INTX_BINOP(uint256_t, /);
         INHERIT_INTX_BINOP(uint256_t, %);
 #undef INHERIT_INTX_BINOP
+
+        // NOLINTEND(bugprone-macro-parentheses)
 
         [[gnu::always_inline]]
         constexpr friend inline result_with_carry<uint256_t>
@@ -395,6 +399,8 @@ namespace monad::vm::runtime
             return !(lhs < rhs);
         }
 
+        // NOLINTBEGIN(bugprone-macro-parentheses)
+
 #define BITWISE_BINOP(return_ty, op_name)                                      \
     [[gnu::always_inline]] friend inline constexpr return_ty operator op_name( \
         uint256_t const &x, uint256_t const &y) noexcept                       \
@@ -409,6 +415,8 @@ namespace monad::vm::runtime
         BITWISE_BINOP(uint256_t, |);
         BITWISE_BINOP(uint256_t, ^);
 #undef BITWISE_BINOP
+
+        // NOLINTEND(bugprone-macro-parentheses)
 
         [[gnu::always_inline]] friend inline constexpr bool
         operator==(uint256_t const &x, uint256_t const &y) noexcept
@@ -684,9 +692,10 @@ namespace monad::vm::runtime
 
     constexpr size_t popcount(uint256_t const &x)
     {
-        return static_cast<size_t>(
-            std::popcount(x[0]) + std::popcount(x[1]) + std::popcount(x[2]) +
-            std::popcount(x[3]));
+        return static_cast<size_t>(std::popcount(x[0])) +
+               static_cast<size_t>(std::popcount(x[1])) +
+               static_cast<size_t>(std::popcount(x[2])) +
+               static_cast<size_t>(std::popcount(x[3]));
     }
 
     [[gnu::always_inline]] inline constexpr uint32_t
@@ -956,7 +965,7 @@ namespace monad::vm::runtime
     [[gnu::always_inline]]
     inline constexpr uint8_t from_hex(char const chr)
     {
-        char const chr_lower = chr | 0b00100000;
+        char const chr_lower = static_cast<char>(chr | 0b00100000);
         if (chr_lower >= 'a' && chr_lower <= 'f') {
             return static_cast<uint8_t>(chr_lower - 'a' + 10);
         }

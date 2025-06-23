@@ -66,7 +66,7 @@ namespace monad::vm::interpreter
         std::uint8_t *stack_ptr)
     {
         monad_vm_interpreter_trampoline(
-            &ctx.exit_stack_ptr,
+            static_cast<void *>(&ctx.exit_stack_ptr),
             rev,
             &ctx,
             &analysis,

@@ -13,7 +13,7 @@ namespace monad::vm::utils::evm_as
 {
     template <evmc_revision Rev>
     std::unordered_map<std::string, size_t>
-    resolve_labels(EvmBuilder<Rev> const &eb) noexcept
+    resolve_labels(EvmBuilder<Rev> const &eb)
     {
         std::unordered_map<std::string, size_t> label_offsets{};
 

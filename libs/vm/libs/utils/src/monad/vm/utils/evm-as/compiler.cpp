@@ -59,7 +59,7 @@ namespace monad::vm::utils::evm_as::internal
         else {
             size_t value = ctx.next_subscript;
             while (value > 0) {
-                buffer[i++] = '0' + static_cast<char>(value % 10);
+                buffer[i++] = static_cast<char>('0' + (value % 10));
                 value /= 10;
             }
         }

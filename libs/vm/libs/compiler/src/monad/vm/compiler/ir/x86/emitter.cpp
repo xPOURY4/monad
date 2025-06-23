@@ -3311,7 +3311,7 @@ namespace monad::vm::compiler::native
             }
             as_.sar(reg, 63);
             auto temp = x86::qword_ptr(x86::rsp, base_offset - 32);
-            for (uint8_t i = 0; i < additional_byte_count; i += 8) {
+            for (int32_t i = 0; i < additional_byte_count; i += 8) {
                 as_.mov(temp, reg);
                 temp.addOffset(8);
             }

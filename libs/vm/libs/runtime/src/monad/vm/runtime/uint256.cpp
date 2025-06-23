@@ -20,6 +20,7 @@ namespace monad::vm::runtime
         uint64_t const word = x[word_index];
         int64_t const signed_word = static_cast<int64_t>(word);
         uint64_t const bit_index = (byte_index & 7) * 8;
+        // NOLINTNEXTLINE(bugprone-signed-char-misuse)
         int64_t const signed_byte = static_cast<int8_t>(word >> bit_index);
         uint64_t const upper = static_cast<uint64_t>(signed_byte) << bit_index;
         int64_t const signed_lower =

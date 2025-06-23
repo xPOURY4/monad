@@ -43,7 +43,7 @@ namespace monad::vm::utils::evm_as::internal
         {
         }
 
-        bool validate(EvmBuilder<Rev> const &eb) noexcept
+        bool validate(EvmBuilder<Rev> const &eb)
         {
             // Validate labels
             std::set<std::string> labels{};
