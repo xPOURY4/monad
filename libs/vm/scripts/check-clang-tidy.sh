@@ -48,4 +48,4 @@ mapfile -t inputs < <(\
   -j "$(nproc)"                                   \
   -p "${BUILD_DIR}" "$@"                          \
   -extra-arg='-Wno-unknown-warning-option'        \
-  2>&1 | awk '!/(^Suppressed|^Use -header|^[0-9]+ warnings)/'
+  -quiet
