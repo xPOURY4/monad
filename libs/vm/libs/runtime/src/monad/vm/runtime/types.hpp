@@ -208,7 +208,7 @@ namespace monad::vm::runtime
                 std::int64_t const expansion_cost = new_cost - memory.cost;
                 // Gas check before increasing capacity:
                 deduct_gas(expansion_cost);
-                uint32_t old_size = memory.size;
+                uint32_t const old_size = memory.size;
                 memory.size = *new_size;
                 memory.cost = new_cost;
                 if (memory.capacity < *new_size) {
