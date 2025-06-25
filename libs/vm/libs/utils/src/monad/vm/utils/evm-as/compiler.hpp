@@ -39,7 +39,8 @@ namespace monad::vm::utils::evm_as::internal
 
     std::string new_var(annot_context &ctx);
 
-    static inline bool simulate_binop(annot_context &ctx, char const &binop)
+    static inline bool
+    simulate_binop(annot_context &ctx, std::string_view const &binop)
     {
         auto const elem_a = ctx.vstack.back();
         ctx.vstack.pop_back();
@@ -87,19 +88,21 @@ namespace monad::vm::utils::evm_as::internal
 
                     switch (plain.opcode) {
                     case compiler::EvmOpCode::ADD:
-                        return simulate_binop(ctx, '+');
+                        return simulate_binop(ctx, "+");
                     case compiler::EvmOpCode::SUB:
-                        return simulate_binop(ctx, '-');
+                        return simulate_binop(ctx, "-");
                     case compiler::EvmOpCode::MUL:
-                        return simulate_binop(ctx, '*');
+                        return simulate_binop(ctx, "*");
                     case compiler::EvmOpCode::DIV:
                     case compiler::EvmOpCode::SDIV:
-                        return simulate_binop(ctx, '/');
+                        return simulate_binop(ctx, "/");
                     case compiler::EvmOpCode::MOD:
                     case compiler::EvmOpCode::SMOD:
-                        return simulate_binop(ctx, '%');
+                        return simulate_binop(ctx, "%");
                     case compiler::EvmOpCode::EXP:
-                        return simulate_binop(ctx, '^');
+                        return simulate_binop(ctx, "^");
+                    case compiler::EvmOpCode::XOR:
+                        return simulate_binop(ctx, "xor");
                     default:
                         break;
                     }

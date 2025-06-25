@@ -1,5 +1,6 @@
 #include <monad/vm/evm/opcodes.hpp>
 #include <monad/vm/runtime/uint256.hpp>
+#include <monad/vm/utils/evm-as.hpp>
 #include <monad/vm/utils/evm-as/builder.hpp>
 #include <monad/vm/utils/evm-as/compiler.hpp>
 #include <monad/vm/utils/evm-as/validator.hpp>
@@ -110,24 +111,20 @@ namespace monad::vm::utils::evm_as::kernels
         }
 
         KernelBuilder &prepare_binop_arguments(
-            size_t nclones, uint256_t const &a, uint256_t const &b,
-            bool opaque_parameters)
+            size_t nclones, runtime::uint256_t const &a,
+            runtime::uint256_t const &b, bool opaque_parameters)
         {
-            comment(std::format("    Setup arguments: {}", nclones + 1))
-                .push(b)
-                .push(a);
+            comment(std::format("    Setup arguments: {}", nclones + 1));
             if (opaque_parameters) {
                 comment("    Opaque parameters: hide the concrete values from "
                         "the optimizer")
-                    .push0()
-                    .mstore()
-                    .push(32)
-                    .mstore()
-                    .push(32)
-                    .mload()
-                    .push0()
-                    .mload();
+                    .opacify(b)
+                    .opacify(a);
             }
+            else {
+                push(b).push(a);
+            }
+
             for (size_t i = 0; i < nclones; i++) {
                 comment(std::format("{:4}Arguments clone #{}", "", i + 1))
                     .dup2()
@@ -169,47 +166,294 @@ namespace monad::vm::utils::evm_as::kernels
         {
             return static_cast<KernelBuilder &>(EvmBuilder::comment(msg));
         }
+
+        KernelBuilder &
+        opacify(std::variant<runtime::uint256_t, std::string> arg)
+        {
+            push0();
+            std::visit(
+                Cases{
+                    [&](runtime::uint256_t const &imm) -> void { push(imm); },
+                    [&](std::string const &label) -> void { push(label); }},
+                arg);
+            mstore().push0().mload();
+            return *this;
+        }
+
+        KernelBuilder &store_address(std::string const &target)
+        {
+            size_t const offset = address_store.size() * 32;
+            auto const [_, inserted] = address_store.insert({target, offset});
+            if (!inserted) {
+                std::cerr << std::format(
+                                 "[store_address] failed to store address of "
+                                 "'{}'. Duplicated target?",
+                                 target)
+                          << std::endl;
+                abort();
+            }
+            push(target).push(static_cast<uint64_t>(offset)).mstore();
+            return *this;
+        }
+
+        KernelBuilder &load_address(std::string const &target)
+        {
+            auto const it = address_store.find(target);
+            if (it == address_store.end()) {
+                std::cerr << std::format(
+                                 "[load_address] failed to load address of "
+                                 "'{}'. Undefined target?",
+                                 target)
+                          << std::endl;
+                abort();
+            }
+            push(it->second).mload();
+            return *this;
+        }
+
+        KernelBuilder &throughput(::EvmBuilder const &sequence)
+        {
+            comment("Opacify jumpdest addresses")
+                .store_address("inner-loop")
+                .store_address("inner-cond")
+                .comment("Initialize: i = 0, s = 0")
+                .push0()
+                .push0();
+
+            // Outer loop
+            comment("Type: [s, i]")
+                .jumpdest("outer-loop")
+                .dup2()
+                .calldatasize()
+                .eq()
+                .jumpi("return-result");
+
+            // Data loop
+            comment("Push 1000 call data values onto the stack")
+                .comment("Type: [s, i] -> [s, i, ...]")
+                .jumpdest("data-loop")
+                .dup2()
+                .calldataload()
+                .comment("i += 1")
+                .swap2()
+                .push(1)
+                .add()
+                .comment("s += 1")
+                .swap1()
+                .push(1)
+                .add()
+                .comment("Repeat if s < 1000")
+                .push(1000)
+                .dup2()
+                .lt()
+                .jumpi("data-loop");
+            comment("... otherwise perform a dynamic jump to inner-loop")
+                .load_address("inner-loop")
+                .jump();
+
+            // Inner loop
+            comment("Type: [s, i, d1, d2, d3, ..., d20]")
+                .jumpdest("inner-loop");
+            for (size_t n = 3, i = 1; i <= 10; i++, n++) {
+                swap(n).swap1().swap(n - 1).append(sequence);
+            }
+            load_address("inner-cond").jump();
+
+            // Inner condition loop
+            comment("Type: [a10, a4, s, a5, a2, a6, i, a7, a3, a8, a1, a9]")
+                .jumpdest("inner-cond")
+                .pop()
+                .pop()
+                .swap9();
+            for (size_t i = 0; i < 4; i++) {
+                pop();
+            }
+            swap4();
+            for (size_t i = 0; i < 4; i++) {
+                pop();
+            }
+            comment("s -= 20")
+                .swap1()
+                .push(20)
+                .swap1()
+                .sub()
+                .comment("Jump to inner-loop, if s != 0")
+                .dup1()
+                .jumpi("inner-loop")
+                .pop()
+                .push0()
+                .jump("outer-loop");
+
+            // Result block
+            jumpdest("return-result").stop();
+
+            return *this;
+        }
+
+        KernelBuilder &latency(::EvmBuilder const &sequence)
+        {
+            comment("Opacify jumpdest addresses")
+                .store_address("inner-loop")
+                .store_address("inner-cond")
+                .comment("Initialize: i = 0, s = 0, p = 0")
+                .push0()
+                .push0()
+                .push0(); // [p = 0, s = 0, i = 0]
+
+            // Outer loop
+            comment("outer-loop, type: [p, s, i]")
+                .jumpdest("outer-loop")
+                .dup3()
+                .calldatasize()
+                .eq()
+                .jumpi("return-result")
+                .comment("p0 := p")
+                .dup1();
+
+            // Data loop
+            comment("Push 1000 call data values onto the stack")
+                .comment("data-loop, type: [p0, p, s, i]")
+                .jumpdest("data-loop")
+                .comment("x := calldata(i)")
+                .dup4() // [i, p0, p, s, i]
+                .calldataload() // [x, p0, p, s, i]
+                .dup1() // [x, x, p0, p, s, i]
+                .dup4() // [p, x, x, p0, p, s, i]
+                .comment("p xor x")
+                .xor_() // [(p xor x), x, p0, p, s, i]
+                .comment("i += 1")
+                .swap5() // [i, x, p0, p, s, (p xor x)]
+                .push(1) // [1, i, x, p0, p, s, (p xor x)]
+                .add() // [ (1 + i), x, p0, p, s, (p xor x)]
+                .comment("y := calldata(1 + i)")
+                .dup1() // [ (1 + i), (1 + i), x, p0, p, s, (p xor x)]
+                .calldataload() // [ y, (1 + i), x, p0, p, s, (p xor x)]
+                .dup1() // [ y, y, (1 + y), x, p0, p, s, (p xor x) ]
+                .comment("p xor y")
+                .swap5() // [ p, y, (1 + i), x, p0, y, s, (p xor x)]
+                .xor_() // [ (p xor y), (1 + i), x, p0, y, s, (p xor x)]
+                .comment("p := op(x, y)")
+                .swap4() // [ y, (1 + i), x, p0, (p xor y), s, (p xor x)]
+                .swap1() // [ (1 + i), y, x, ... ]
+                .swap2() // [ x, y, (1 + i), ... ]
+                .append(sequence) // [ p = op(x, y), (1 + i), ... ]
+                .comment(" i += 1")
+                .swap1() // [ (1 + i), p = op(x, y), p0, (p xor y), s, (p xor
+                         // x)]
+                .push(1)
+                .add() // [ (2 + i), p = op(x, y), p0, (p xor y), s, (p xor x)]
+                .comment("s += 2")
+                .swap3() // [ (p xor y), p = op(x, y), p0, (2 + i), s, (p xor x)
+                         // ]
+                .swap4() // [ s, p = op(x, y), p0, (2 + i), (p xor y), (p xor x)
+                         // ]
+                .push(2)
+                .add() // [ (2 + s), p = op(x, y), p0, (2 + i), (p xor y), (p
+                       // xor x)
+                       // ]
+                .comment("Move p0 to the front of the stack")
+                .swap2() // [ p0, op(x, y), (2 + s), (2 + i), (p xor y), (p xor
+                         // x) ]
+                .comment("Repeat if s < 1000")
+                .push(1000) // [ 1000, p0, p = op(x, y), (2 + s), (2 + i), (p
+                            // xor y), (p xor x) ]
+                .dup4() // [ (2 + s), 1000, p0, p = op(x, y), (2 + s), (2 + i),
+                        // (p xor y), (p xor x) ]
+                .lt() // [ 1?, p0, p = op(x, y), (2 + s), (2 + i), (p xor y), (p
+                      // xor x) ]
+                .jumpi("data-loop") // [ data-loop, 1?, p0, p = op(x, y), (2 +
+                                    // s), (2 + i), (p xor y), (p xor x) ]
+                .comment("p := p0")
+                .swap1() // [ p = op(x, y), p0, (2 + s), (2 + i), (p xor y), (p
+                         // xor x) ]
+                .pop(); // [ p0, (2 + s), (2 + i), (p xor y), (p xor x) ]
+            load_address("inner-loop").jump();
+
+            // Inner loop
+            comment("inner-loop, type: [p, s, i, d1, d2, d3, ..., d40]")
+                .jumpdest("inner-loop");
+            for (size_t i = 0; i < 20; i++) {
+                comment(std::format("Instruction sequence {}", i + 1))
+                    .swap4() // [d2, s, i, d1, p, d3, ..., d40]
+                    .dup5() //  [p, d2, s, i, d1, p, d3, ..., d40]
+                    .xor_() // [(p xor d2), s, i, d1, p, d3, ..., d40]
+                    .swap2() // [i, s, (p xor d2), d1, p, d3, ..., d40]
+                    .swap3() // [d1, s, (p xor d2), i, p, d3, ..., d40]
+                    .swap1() // [s, d1, (p xor d2), i, p, d3, ..., d40]
+                    .swap4() // [p, d1, (p xor d2), i, s, d3, ..., d40]
+                    .xor_() // [ (p xor d1), (p xor d2), i, s, d3, ..., d40 ]
+                    .append(sequence); // [ op(p xor d1, p xor d2), i, s, d3,
+                                       // ..., d40 ]
+            }
+            comment("Jump to inner-cond").load_address("inner-cond").jump();
+
+            comment("inner-cond, type: [a, s, i]")
+                .jumpdest("inner-cond")
+                .swap1() // [s, a, i]
+                .push(40) // [ 40, s, a, i ]
+                .swap1() //  [ s, 40, a, i ]
+                .sub() //  [ (s - 40), a, i ]
+                .swap1() //  [ a, (s - 40), i ]
+                .dup2() //  [ (s - 40), a, (s - 40), i ]
+                .jumpi("inner-loop") // [ inner-loop, (s - 40), a, (s - 40), i ]
+                // [a, (s - 40), i]
+                .swap1() // [ (s - 40), a, i ]
+                .pop() // [ a, i ]
+                .push0() // [ 0, a, i ]
+                .swap1() // [ a, 0, i ]
+                .jump("outer-loop");
+
+            comment("return-result, type: [...]")
+                .jumpdest("return-result")
+                .stop();
+
+            return *this;
+        }
+
+        std::unordered_map<std::string, size_t> address_store{};
     };
 
-    using parameterized_binop_kernel_t =
-        std::function<KernelBuilder(uint32_t, uint256_t, uint256_t)>;
+    using parameterized_binop_kernel_t = std::function<KernelBuilder(
+        uint32_t, runtime::uint256_t, runtime::uint256_t)>;
 
     parameterized_binop_kernel_t binary_op_micro_kernel(
         compiler::EvmOpCode binop, bool opaque_parameters, bool epilogue)
     {
-        return
-            [=](uint32_t i, uint256_t arg1, uint256_t arg2) -> KernelBuilder {
-                KernelBuilder eb;
-                eb.comment("=== Prologue")
-                    .prepare_binop_arguments(4, arg1, arg2, opaque_parameters)
-                    .loop(i, 10, 10, [binop]() {
-                        KernelBuilder eb;
-                        eb.binop_loop_body(binop);
-                        return eb;
-                    }());
-                if (epilogue) {
-                    eb.epilogue();
-                }
-                else {
-                    eb.stop();
-                }
-                return eb;
-            };
+        return [=](uint32_t i,
+                   runtime::uint256_t const &arg1,
+                   runtime::uint256_t const &arg2) -> KernelBuilder {
+            KernelBuilder eb;
+            eb.comment("=== Prologue")
+                .prepare_binop_arguments(4, arg1, arg2, opaque_parameters)
+                .loop(i, 10, 10, [binop]() {
+                    KernelBuilder eb;
+                    eb.binop_loop_body(binop);
+                    return eb;
+                }());
+            if (epilogue) {
+                eb.epilogue();
+            }
+            else {
+                eb.stop();
+            }
+            return eb;
+        };
     }
 }
 
 void emit_kernel(
-    emitter_config const &config, EvmBuilder const &eb, std::string_view name)
+    emitter_config const &config, EvmBuilder const &eb,
+    std::string_view parent_dir, std::string_view name)
 {
     auto const dirname =
-        test_resource::execution_benchmarks_dir / "basic" / name;
+        test_resource::execution_benchmarks_dir / parent_dir / name;
 
     if (config.validate && !evm_as::validate(eb)) {
         std::cerr << "validation error: " << dirname << std::endl;
         abort();
     }
 
-    if (!fs::exists(dirname) && !fs::create_directory(dirname)) {
+    if (!fs::exists(dirname) && !fs::create_directories(dirname)) {
         std::cerr << "cannot create directory " << dirname << std::endl;
         abort();
     }
@@ -232,6 +476,7 @@ void emit_kernels(arguments const &config)
 {
     using namespace monad::vm::utils::evm_as::kernels;
     using namespace monad::vm::compiler;
+    using namespace monad::vm::runtime;
 
     emitter_config const em_config{true, {true, true, 32}};
 
@@ -276,6 +521,7 @@ void emit_kernels(arguments const &config)
                 binary_op_micro_kernel(
                     binop, config.opaque_parameters, config.epilogue)(
                     iterations, a, b),
+                "basic",
                 std::format("binop_{}_{}", info.name, i++));
         }
     }
@@ -284,12 +530,93 @@ void emit_kernels(arguments const &config)
         binary_op_micro_kernel(
             EvmOpCode::POP, config.opaque_parameters, config.epilogue)(
             iterations, 0, 0),
+        "basic",
         "binop_baseline");
+}
+
+// The instruction sequences containing vector is passed in by
+// reference in `atomic_sequences` and `composite_sequences`, because
+// returning them by value causes a false-positive
+// `free-nonheap-object` in GCC-15 with optimizations and debug
+// assertions enabled.
+void atomic_sequences(std::vector<std::pair<std::string, EvmBuilder>> &out)
+{
+    std::array<std::pair<std::string, EvmBuilder>, 8> const instructions = {
+        {{"ADD", evm_as::latest().add()},
+         {"SUB", evm_as::latest().sub()},
+         {"MUL", evm_as::latest().mul()},
+         {"DIV", evm_as::latest().div()},
+         {"SDIV", evm_as::latest().sdiv()},
+         {"MOD", evm_as::latest().mod()},
+         {"SMOD", evm_as::latest().smod()},
+         {"EXP", evm_as::latest().exp()}}};
+
+    out.append_range(instructions);
+}
+
+void composite_sequences(std::vector<std::pair<std::string, EvmBuilder>> &out)
+{
+    using T = std::pair<std::string, EvmBuilder>;
+    std::vector<T> heads{};
+    atomic_sequences(heads);
+    std::array<T, 2> const tails = {
+        {{"ISZERO", evm_as::latest().iszero()},
+         {"NOT", evm_as::latest().not_()}}};
+
+    for (auto const &[hd_name, head] : heads) {
+        for (auto const &[tl_name, tail] : tails) {
+            std::string const composite_name =
+                std::format("{}_{}", hd_name, tl_name);
+            out.emplace_back<T>({composite_name, EvmBuilder(head, tail)});
+        }
+    }
+}
+
+void emit_throughput_kernels(arguments const &)
+{
+    using namespace monad::vm::utils::evm_as::kernels;
+    using namespace monad::vm::compiler;
+    using namespace monad::vm::utils;
+
+    emitter_config const em_config{false, {true, false, 32}};
+
+    std::vector<std::pair<std::string, EvmBuilder>> sequences{};
+    atomic_sequences(sequences);
+    composite_sequences(sequences);
+
+    for (auto const &[name, seq] : sequences) {
+        KernelBuilder eb{};
+        emit_kernel(em_config, eb.throughput(seq), "throughput", name);
+    }
+
+    emit_kernel(em_config, evm_as::latest().pop(), "throughput", "baseline");
+}
+
+void emit_latency_kernels(arguments const &)
+{
+    using namespace monad::vm::utils::evm_as::kernels;
+    using namespace monad::vm::compiler;
+    using namespace monad::vm::utils;
+
+    emitter_config const em_config{false, {true, false, 32}};
+
+    std::vector<std::pair<std::string, EvmBuilder>> sequences{};
+    atomic_sequences(sequences);
+    composite_sequences(sequences);
+
+    for (auto const &[name, seq] : sequences) {
+        KernelBuilder eb{};
+        emit_kernel(em_config, eb.throughput(seq), "latency", name);
+    }
+
+    emit_kernel(em_config, evm_as::latest().xor_(), "latency", "baseline");
 }
 
 int main(int const argc, char **const argv)
 {
     auto const config = parse_args(argc, argv);
     emit_kernels(config);
+    emit_throughput_kernels(config);
+    emit_latency_kernels(config);
     return 0;
 }
