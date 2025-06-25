@@ -1,8 +1,8 @@
 #include <monad/vm/evm/opcodes.hpp>
+#include <monad/vm/runtime/uint256.hpp>
 #include <monad/vm/utils/evm-as/builder.hpp>
 #include <monad/vm/utils/evm-as/compiler.hpp>
 #include <monad/vm/utils/evm-as/validator.hpp>
-#include <monad/vm/utils/uint256.hpp>
 
 #include <test_resource_data.h>
 
@@ -68,6 +68,7 @@ static arguments parse_args(int const argc, char **const argv)
 
 namespace fs = std::filesystem;
 using namespace monad::vm::utils;
+using namespace monad::vm::runtime;
 using EvmBuilder = evm_as::EvmBuilder<EVMC_LATEST_STABLE_REVISION>;
 
 namespace monad::vm::utils::evm_as::kernels
@@ -248,13 +249,13 @@ void emit_kernels(arguments const &config)
     auto const u16_max = std::numeric_limits<uint16_t>::max();
     auto const u32_max = std::numeric_limits<uint32_t>::max();
     auto const u64_max = std::numeric_limits<uint64_t>::max();
-    auto const u128_max = monad::vm::utils::pow2(128) - 1;
+    auto const u128_max = monad::vm::runtime::pow2(128) - 1;
     auto const u256_max = std::numeric_limits<uint256_t>::max();
     std::vector<std::pair<uint256_t, uint256_t>> const parameters = {
         {0, 0},
         {1, 1},
         {u8_max, u16_max},
-        {u16_max, monad::vm::utils::pow2(240)},
+        {u16_max, monad::vm::runtime::pow2(240)},
         {123456789, 987654321},
         {u64_max, 1},
         {u64_max, 2},
@@ -262,14 +263,14 @@ void emit_kernels(arguments const &config)
         {u64_max - 1, u32_max - 1},
         {u128_max, u16_max},
         {u128_max, u16_max - 1},
-        {monad::vm::utils::pow2(255) - 1, monad::vm::utils::pow2(254)},
+        {monad::vm::runtime::pow2(255) - 1, monad::vm::runtime::pow2(254)},
         {u256_max, 0}};
     uint32_t const iterations = 1'000'000;
 
     for (auto binop : binops) {
         size_t i = 0;
         auto const &info = opcode_table<EVMC_LATEST_STABLE_REVISION>[binop];
-        for (auto const [a, b] : parameters) {
+        for (auto const &[a, b] : parameters) {
             emit_kernel(
                 em_config,
                 binary_op_micro_kernel(

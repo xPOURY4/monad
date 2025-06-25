@@ -44,7 +44,7 @@ RUN cmake -S . -B build                                         \
   -G Ninja                                                      \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/${TOOLCHAIN:?}.cmake  \
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?}                      \
-  -DMONAD_COMPILER_BENCHMARKS=OFF                               \
+  -DMONAD_COMPILER_BENCHMARKS=On                                \
   -DMONAD_COMPILER_TESTING=ON                                   \
   -DCMAKE_C_COMPILER=${CC:?}                                    \
   -DCMAKE_CXX_COMPILER=${CXX:?}
