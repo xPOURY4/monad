@@ -50,6 +50,11 @@ namespace monad::vm::compiler::native
             return entrypoint_ ? code_size_estimate_ : 0;
         }
 
+        size_t code_size_estimate_before_error() const
+        {
+            return code_size_estimate_;
+        }
+
         ErrorCode error_code() const
         {
             if (entrypoint_) {
@@ -78,6 +83,14 @@ namespace monad::vm::compiler::native
     class Emitter;
 
     using EmitterHook = std::function<void(Emitter &)>;
+
+    /// Hard upper bound of native code size in bytes, for respecting
+    /// size invariants of read-only data section, and to ensure that
+    /// relative x86 memory addressing offsets will not overflow. It
+    /// is possible to relax this hard upper bound, but native code
+    /// size should be smaller than 2GB to avoid overflowing relative
+    /// offsets of type `int32_t`.
+    constexpr uint64_t code_size_hard_upper_bound = 1 << 30; // 1GB
 
     struct CompilerConfig
     {

@@ -36,7 +36,10 @@ namespace monad::vm::compiler::native
         // execution gas cost of interpretation reaches this threshold. If
         // byte code size is 128kB, then the interpreter will need to use
         // more than 4 million gas on this contract before it will be
-        // compiled, when `offset` is zero.
-        return offset + 32 * uint64_t{bytecode_size};
+        // compiled, when `offset` is zero. There is a theoretical hard
+        // upper bound on native code size to ensure that the emitter
+        // will not overflow relative x86 memory addressing offsets.
+        return std::min(
+            offset + 32 * uint64_t{bytecode_size}, code_size_hard_upper_bound);
     }
 }

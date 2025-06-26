@@ -18,6 +18,8 @@
 #include <asmjit/core/operand.h>
 #include <asmjit/x86/x86operand.h>
 
+#include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -197,20 +199,28 @@ namespace monad::vm::compiler::native
         throw Emitter::Error(std::format("x86 emitter error: {}", msg));
     }
 
+    template <typename Int>
     bool Emitter::is_uint64_bounded(uint64_t x)
     {
-        int64_t const i = std::bit_cast<int64_t>(x);
-        constexpr int64_t upper =
-            static_cast<int64_t>(std::numeric_limits<int32_t>::max());
-        constexpr int64_t lower =
-            static_cast<int64_t>(std::numeric_limits<int32_t>::min());
-        return i <= upper && i >= lower;
+        static_assert(sizeof(Int) < sizeof(uint64_t));
+        if constexpr (std::is_signed_v<Int>) {
+            int64_t const i = std::bit_cast<int64_t>(x);
+            constexpr int64_t upper =
+                static_cast<int64_t>(std::numeric_limits<Int>::max());
+            constexpr int64_t lower =
+                static_cast<int64_t>(std::numeric_limits<Int>::min());
+            return i <= upper && i >= lower;
+        }
+        else {
+            return x <= std::numeric_limits<Int>::max();
+        }
     }
 
+    template <typename Int>
     bool Emitter::is_literal_bounded(Literal const &lit)
     {
         for (size_t i = 0; i < 4; ++i) {
-            if (!is_uint64_bounded(lit.value[i])) {
+            if (!is_uint64_bounded<Int>(lit.value[i])) {
                 return false;
             }
         }
@@ -231,6 +241,215 @@ namespace monad::vm::compiler::native
         default:
             MONAD_VM_ASSERT(false);
         }
+    }
+
+    template <size_t N>
+    size_t Emitter::RoSubdata<N>::DataHash::operator()(Data const &x) const
+    {
+        if constexpr (N == 2) {
+            uint16_t d;
+            std::memcpy(&d, x.data(), N);
+            return std::hash<uint16_t>{}(d);
+        }
+        if constexpr (N == 4) {
+            uint32_t d;
+            std::memcpy(&d, x.data(), N);
+            return std::hash<uint32_t>{}(d);
+        }
+        if constexpr (N > 4) {
+            static_assert((N & 7) == 0);
+            size_t h = 0;
+            for (size_t i = 0; i < N; i += 8) {
+                uint64_t d;
+                std::memcpy(&d, x.data() + i, 8);
+                h ^= std::hash<uint64_t>{}(d);
+            }
+            return h;
+        }
+    }
+
+    Emitter::RoData::RoData(asmjit::Label lbl)
+        : label_{lbl}
+    {
+    }
+
+    asmjit::Label const &Emitter::RoData::label() const
+    {
+        return label_;
+    }
+
+    std::vector<uint256_t> const &Emitter::RoData::data() const
+    {
+        return data_;
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add_literal(Literal const &lit)
+    {
+        return add32(lit.value);
+    }
+
+    template <typename F>
+    asmjit::x86::Mem Emitter::RoData::add_external_function(F f)
+    {
+        static_assert(sizeof(F) == sizeof(uint64_t));
+        static_assert(alignof(F) == alignof(uint64_t));
+        return add8(reinterpret_cast<uint64_t>(f));
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add32(uint256_t const &x)
+    {
+        // The total byte size of the `data_` vector is bounded via
+        // `code_size_hard_upper_bound`. We need `data_` size upper
+        // bounded to not overflow `int32_t` below.
+        static_assert(code_size_hard_upper_bound <= (uint64_t{1} << 31));
+        MONAD_VM_ASSERT(data_.size() < (code_size_hard_upper_bound >> 4));
+
+        std::array<uint8_t, 32> a;
+        x.store_le(a.data());
+        int32_t const next_offset = static_cast<int32_t>(data_.size()) << 5;
+        auto const [it, is_new] = sub32_.offmap.emplace(a, next_offset);
+        if (is_new) {
+            data_.push_back(x);
+        }
+        int32_t const offset = it->second;
+        return x86::qword_ptr(label_, offset);
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add16(uint64_t x0, uint64_t x1)
+    {
+        std::array<uint8_t, 16> x;
+        std::memcpy(x.data(), &x0, 8);
+        std::memcpy(x.data() + 8, &x1, 8);
+        return add<16>(x);
+    }
+
+    asmjit::x86::Mem
+    Emitter::RoData::add16(uint32_t x0, uint32_t x1, uint32_t x2, uint32_t x3)
+    {
+        std::array<uint8_t, 16> x;
+        std::memcpy(x.data(), &x0, 4);
+        std::memcpy(x.data() + 4, &x1, 4);
+        std::memcpy(x.data() + 8, &x2, 4);
+        std::memcpy(x.data() + 12, &x3, 4);
+        return add<16>(x);
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add8(uint64_t x0)
+    {
+        std::array<uint8_t, 8> x;
+        std::memcpy(x.data(), &x0, 8);
+        return add<8>(x);
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add8(uint32_t x0, uint32_t x1)
+    {
+        std::array<uint8_t, 8> x;
+        std::memcpy(x.data(), &x0, 4);
+        std::memcpy(x.data() + 4, &x1, 4);
+        return add<8>(x);
+    }
+
+    asmjit::x86::Mem
+    Emitter::RoData::add8(uint16_t x0, uint16_t x1, uint16_t x2, uint16_t x3)
+    {
+        std::array<uint8_t, 8> x;
+        std::memcpy(x.data(), &x0, 2);
+        std::memcpy(x.data() + 2, &x1, 2);
+        std::memcpy(x.data() + 4, &x2, 2);
+        std::memcpy(x.data() + 6, &x3, 2);
+        return add<8>(x);
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add4(uint32_t x0)
+    {
+        std::array<uint8_t, 4> x;
+        std::memcpy(x.data(), &x0, 4);
+        auto m = add<4>(x);
+        m.setSize(4);
+        return m;
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add4(uint16_t x0, uint16_t x1)
+    {
+        std::array<uint8_t, 4> x;
+        std::memcpy(x.data(), &x0, 2);
+        std::memcpy(x.data() + 2, &x1, 2);
+        auto m = add<4>(x);
+        m.setSize(4);
+        return m;
+    }
+
+    asmjit::x86::Mem
+    Emitter::RoData::add4(uint8_t x0, uint8_t x1, uint8_t x2, uint8_t x3)
+    {
+        auto m = add<4>({x0, x1, x2, x3});
+        m.setSize(4);
+        return m;
+    }
+
+    asmjit::x86::Mem Emitter::RoData::add2(uint8_t x0, uint8_t x1)
+    {
+        auto m = add<2>({x0, x1});
+        m.setSize(2);
+        return m;
+    }
+
+    template <size_t N>
+    asmjit::x86::Mem Emitter::RoData::add(std::array<uint8_t, N> const &x)
+    {
+        // The total byte size of the `data_` vector is bounded via
+        // `code_size_hard_upper_bound`. We need `data_` size upper
+        // bounded to not overflow `int32_t` below.
+        static_assert(code_size_hard_upper_bound <= (uint64_t{1} << 31));
+        MONAD_VM_ASSERT(data_.size() < (code_size_hard_upper_bound >> 4));
+
+        static_assert(N < 32);
+        static_assert(std::popcount(N) == 1);
+        static constexpr int32_t n = static_cast<int32_t>(N);
+        static constexpr int32_t align = std::min(8, n);
+        static constexpr int32_t align_mask = align - 1;
+
+        RoSubdata<N> &sub = [this] -> RoSubdata<N> & {
+            if constexpr (N == 2) {
+                return sub2_;
+            }
+            if constexpr (N == 4) {
+                return sub4_;
+            }
+            if constexpr (N == 8) {
+                return sub8_;
+            }
+            if constexpr (N == 16) {
+                return sub16_;
+            }
+        }();
+
+        int32_t next_partial_index = partial_index_;
+        // Align `partial_sub_index_` by `align`:
+        int32_t next_partial_sub_index =
+            partial_sub_index_ +
+            ((align - (partial_sub_index_ & align_mask)) & align_mask);
+        if (next_partial_sub_index > 32 - n) {
+            next_partial_index = static_cast<int32_t>(data_.size());
+            next_partial_sub_index = 0;
+        }
+        int32_t const next_offset =
+            (next_partial_index << 5) + next_partial_sub_index;
+        auto const [it, is_new] = sub.offmap.emplace(x, next_offset);
+        if (is_new) {
+            if (next_partial_sub_index == 0) {
+                data_.emplace_back();
+            }
+            MONAD_VM_DEBUG_ASSERT(
+                static_cast<size_t>(next_partial_index) < data_.size());
+            static_assert(sizeof(size_t) >= sizeof(next_partial_index));
+            auto &a = data_[static_cast<size_t>(next_partial_index)];
+            std::memcpy(a.as_bytes() + next_partial_sub_index, &x, N);
+            partial_index_ = next_partial_index;
+            partial_sub_index_ = next_partial_sub_index + n;
+        }
+        int32_t const offset = it->second;
+        return x86::qword_ptr(label_, offset);
     }
 
     Emitter::RuntimeImpl &Emitter::RuntimeImpl::pass(StackElemRef &&elem)
@@ -266,8 +485,8 @@ namespace monad::vm::compiler::native
             }
             else {
                 MONAD_VM_DEBUG_ASSERT(elem->literal().has_value());
-                auto lbl = em_->append_literal(*elem->literal());
-                mov_arg(i, x86::qword_ptr(lbl));
+                auto const m = em_->rodata_.add_literal(*elem->literal());
+                mov_arg(i, m);
             }
         }
 
@@ -290,8 +509,8 @@ namespace monad::vm::compiler::native
         if (spill_avx_) {
             em_->as_.vzeroupper();
         }
-        auto lbl = em_->append_external_function(runtime_fun_);
-        em_->as_.call(x86::qword_ptr(lbl));
+        auto const fn_mem = em_->rodata_.add_external_function(runtime_fun_);
+        em_->as_.call(fn_mem);
     }
 
     size_t Emitter::RuntimeImpl::implicit_arg_count()
@@ -400,6 +619,7 @@ namespace monad::vm::compiler::native
         , rcx_general_reg_index{}
         , rdx_general_reg_index{2}
         , bytecode_size_{codesize}
+        , rodata_{as_.newNamedLabel("ROD")}
     {
         contract_prologue();
     }
@@ -465,8 +685,7 @@ namespace monad::vm::compiler::native
         static auto const ro_section_index = 1;
 
         bool const is_ro_section_empty =
-            (literals_.size() | external_functions_.size() |
-             debug_messages_.size()) == 0;
+            (rodata_.data().size() | debug_messages_.size()) == 0;
 
         // Inside asmjit, if a section is emitted with no actual data in it, a
         // call to memcpy with a null source is made. This is technically UB,
@@ -483,16 +702,8 @@ namespace monad::vm::compiler::native
                 ro_section_index);
             as_.section(ro_section);
 
-            for (auto [lbl, lit] : literals_) {
-                as_.bind(lbl);
-                as_.embed(&lit.value[0], 32);
-            }
-
-            for (auto [lbl, f] : external_functions_) {
-                as_.bind(lbl);
-                static_assert(sizeof(void *) == sizeof(uint64_t));
-                as_.embedUInt64(reinterpret_cast<uint64_t>(f));
-            }
+            as_.bind(rodata_.label());
+            as_.embed(&rodata_.data()[0], rodata_.data().size() << 5);
 
             for (auto const &[lbl, msg] : debug_messages_) {
                 as_.bind(lbl);
@@ -567,25 +778,23 @@ namespace monad::vm::compiler::native
     {
         auto msg_lbl = as_.newLabel();
         debug_messages_.emplace_back(msg_lbl, msg);
-        auto fn_lbl = as_.newLabel();
-        external_functions_.emplace_back(
-            fn_lbl, reinterpret_cast<void *>(runtime_print_gas_remaining_impl));
+        auto fn_mem =
+            rodata_.add_external_function(runtime_print_gas_remaining_impl);
 
         discharge_deferred_comparison();
         spill_caller_save_regs(true);
         as_.lea(x86::rdi, x86::qword_ptr(msg_lbl));
         as_.mov(x86::rsi, reg_context);
         as_.vzeroupper();
-        as_.call(x86::qword_ptr(fn_lbl));
+        as_.call(fn_mem);
     }
 
     void Emitter::runtime_print_input_stack(std::string const &msg)
     {
         auto msg_lbl = as_.newLabel();
         debug_messages_.emplace_back(msg_lbl, msg);
-        auto fn_lbl = as_.newLabel();
-        external_functions_.emplace_back(
-            fn_lbl, reinterpret_cast<void *>(runtime_print_input_stack_impl));
+        auto fn_mem =
+            rodata_.add_external_function(runtime_print_input_stack_impl);
 
         discharge_deferred_comparison();
         spill_caller_save_regs(true);
@@ -593,7 +802,7 @@ namespace monad::vm::compiler::native
         as_.mov(x86::rsi, reg_stack);
         as_.mov(x86::rdx, x86::qword_ptr(x86::rsp, sp_offset_stack_size));
         as_.vzeroupper();
-        as_.call(x86::qword_ptr(fn_lbl));
+        as_.call(fn_mem);
     }
 
     /**
@@ -615,9 +824,8 @@ namespace monad::vm::compiler::native
 
         checked_debug_comment("Store stack in transient storage");
 
-        auto fn_lbl = as_.newLabel();
-        external_functions_.emplace_back(
-            fn_lbl, reinterpret_cast<void *>(runtime_store_input_stack_impl));
+        auto fn_mem =
+            rodata_.add_external_function(runtime_store_input_stack_impl);
 
         discharge_deferred_comparison();
         spill_caller_save_regs(true);
@@ -639,7 +847,7 @@ namespace monad::vm::compiler::native
         as_.mov(x86::rcx, 0);
         as_.mov(x86::r8, base_offset);
         as_.vzeroupper();
-        as_.call(x86::qword_ptr(fn_lbl));
+        as_.call(fn_mem);
 
         as_.add(x86::rsp, current_stack_size * 32);
 
@@ -657,7 +865,7 @@ namespace monad::vm::compiler::native
         as_.mov(x86::rcx, current_stack_size);
         as_.mov(x86::r8, base_offset);
 
-        as_.call(x86::qword_ptr(fn_lbl));
+        as_.call(fn_mem);
 
         as_.bind(skip_lbl);
     }
@@ -666,9 +874,7 @@ namespace monad::vm::compiler::native
     {
         auto msg_lbl = as_.newLabel();
         debug_messages_.emplace_back(msg_lbl, msg);
-        auto fn_lbl = as_.newLabel();
-        external_functions_.emplace_back(
-            fn_lbl, reinterpret_cast<void *>(runtime_print_top2_impl));
+        auto fn_mem = rodata_.add_external_function(runtime_print_top2_impl);
 
         discharge_deferred_comparison();
         spill_caller_save_regs(true);
@@ -683,8 +889,8 @@ namespace monad::vm::compiler::native
             as_.lea(x86::rsi, stack_offset_to_mem(e1->stack_offset().value()));
         }
         else {
-            auto lit = append_literal(e1->literal().value());
-            as_.lea(x86::rsi, x86::qword_ptr(lit));
+            auto const m = rodata_.add_literal(e1->literal().value());
+            as_.lea(x86::rsi, m);
         }
         auto e2 = stack_.get(stack_.top_index() - 1);
         if (!e2->stack_offset() && !e2->literal()) {
@@ -694,11 +900,11 @@ namespace monad::vm::compiler::native
             as_.lea(x86::rdx, stack_offset_to_mem(e2->stack_offset().value()));
         }
         else {
-            auto lit = append_literal(e2->literal().value());
-            as_.lea(x86::rdx, x86::qword_ptr(lit));
+            auto const m = rodata_.add_literal(e2->literal().value());
+            as_.lea(x86::rdx, m);
         }
         as_.vzeroupper();
-        as_.call(x86::qword_ptr(fn_lbl));
+        as_.call(fn_mem);
     }
 
     void Emitter::breakpoint()
@@ -764,10 +970,13 @@ namespace monad::vm::compiler::native
 
     size_t Emitter::estimate_size()
     {
+        // current code size +
+        // awaiting code gen for byte instruction +
+        // size of read-only data section +
+        // size of jump table
         return code_holder_.textSection()->realSize() +
-               (external_functions_.size() << 3) +
                (byte_out_of_bounds_handlers_.size() << 5) +
-               (literals_.size() << 5) + (bytecode_size_ << 2);
+               (rodata_.data().size() << 5) + (bytecode_size_ << 2);
     }
 
     void Emitter::add_jump_dest(byte_offset d)
@@ -854,6 +1063,16 @@ namespace monad::vm::compiler::native
                 stack_offset_to_mem(*offset), avx_reg_to_ymm(*elem->avx_reg()));
         }
         return {elem, reserv};
+    }
+
+    // Does not update eflags
+    void Emitter::insert_avx_reg_without_reserv(StackElem &elem)
+    {
+        auto offset = stack_.insert_avx_reg_without_reserv(elem);
+        if (offset.has_value()) {
+            as_.vmovaps(
+                stack_offset_to_mem(*offset), avx_reg_to_ymm(*elem.avx_reg()));
+        }
     }
 
     AvxRegReserv Emitter::insert_avx_reg(StackElemRef elem)
@@ -1315,55 +1534,42 @@ namespace monad::vm::compiler::native
     void
     Emitter::discharge_deferred_comparison(StackElem *elem, Comparison comp)
     {
-        auto [temp_reg, reserv] = alloc_avx_reg();
-        auto y = avx_reg_to_ymm(*temp_reg->avx_reg());
-        auto m = stack_offset_to_mem(*elem->stack_offset());
-        as_.vpxor(y, y, y);
-        as_.vmovaps(m, y);
+        insert_avx_reg_without_reserv(*elem);
+        auto x = avx_reg_to_xmm(*elem->avx_reg());
+        as_.mov(x86::eax, 0); // Preserve eflags
         switch (comp) {
         case Comparison::Below:
-            as_.setb(m);
+            as_.setb(x86::al);
             break;
         case Comparison::AboveEqual:
-            as_.setae(m);
+            as_.setae(x86::al);
             break;
         case Comparison::Above:
-            as_.seta(m);
+            as_.seta(x86::al);
             break;
         case Comparison::BelowEqual:
-            as_.setbe(m);
+            as_.setbe(x86::al);
             break;
         case Comparison::Less:
-            as_.setl(m);
+            as_.setl(x86::al);
             break;
         case Comparison::GreaterEqual:
-            as_.setge(m);
+            as_.setge(x86::al);
             break;
         case Comparison::Greater:
-            as_.setg(m);
+            as_.setg(x86::al);
             break;
         case Comparison::LessEqual:
-            as_.setle(m);
+            as_.setle(x86::al);
             break;
         case Comparison::Equal:
-            as_.sete(m);
+            as_.sete(x86::al);
             break;
         case Comparison::NotEqual:
-            as_.setne(m);
+            as_.setne(x86::al);
             break;
         }
-    }
-
-    asmjit::Label Emitter::append_literal(Literal lit)
-    {
-        literals_.emplace_back(as_.newLabel(), lit);
-        return literals_.back().first;
-    }
-
-    asmjit::Label Emitter::append_external_function(void *f)
-    {
-        external_functions_.emplace_back(as_.newLabel(), f);
-        return external_functions_.back().first;
+        as_.vmovd(x, x86::eax);
     }
 
     Emitter::Gpq256 &Emitter::general_reg_to_gpq256(GeneralReg reg)
@@ -1417,15 +1623,6 @@ namespace monad::vm::compiler::native
         MONAD_VM_ASSERT(elem->literal().has_value());
 
         auto const &lit = *elem->literal();
-
-        if (is_literal_bounded(lit)) {
-            x86::Mem temp{mem};
-            for (size_t i = 0; i < 4; ++i) {
-                as_.mov(temp, lit.value[i]);
-                temp.addOffset(8);
-            }
-            return;
-        }
 
         AvxReg reg;
         if constexpr (remember_intermediate) {
@@ -1560,15 +1757,30 @@ namespace monad::vm::compiler::native
 
     void Emitter::mov_literal_to_ymm(Literal const &lit, x86::Ymm const &y)
     {
-        if (lit.value == std::numeric_limits<uint256_t>::max()) {
-            as_.vpcmpeqd(y, y, y);
-        }
-        else if (lit.value == 0) {
+        if (lit.value == 0) {
             as_.vpxor(y, y, y);
         }
+        else if (lit.value == std::numeric_limits<uint256_t>::max()) {
+            as_.vpcmpeqd(y, y, y);
+        }
+        else if (lit.value == (std::numeric_limits<uint256_t>::max() >> 128)) {
+            as_.vpcmpeqd(y.xmm(), y.xmm(), y.xmm());
+        }
+        else if (lit.value <= std::numeric_limits<uint32_t>::max()) {
+            auto const m = rodata_.add4(static_cast<uint32_t>(lit.value));
+            as_.vmovd(y.xmm(), m);
+        }
+        else if (lit.value <= std::numeric_limits<uint64_t>::max()) {
+            auto const m = rodata_.add8(static_cast<uint64_t>(lit.value));
+            as_.vmovq(y.xmm(), m);
+        }
+        else if ((lit.value[2] | lit.value[3]) == 0) {
+            auto const m = rodata_.add16(lit.value[0], lit.value[1]);
+            as_.vmovups(y.xmm(), m);
+        }
         else {
-            auto lbl = append_literal(lit);
-            as_.vmovaps(y, x86::ptr(lbl));
+            auto const m = rodata_.add_literal(lit);
+            as_.vmovaps(y, m);
         }
     }
 
@@ -1826,15 +2038,15 @@ namespace monad::vm::compiler::native
         // Permute qwords in avx register y:
         // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
         // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
-        auto const lbl = append_literal(Literal{uint256_t{
-            0x0001020304050607,
-            0x08090a0b0c0d0e0f,
-            0x0001020304050607,
-            0x08090a0b0c0d0e0f}});
+        auto const t = rodata_.add32(
+            {0x0001020304050607,
+             0x08090a0b0c0d0e0f,
+             0x0001020304050607,
+             0x08090a0b0c0d0e0f});
         // Permute bytes in avx register y:
         // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
         // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
-        as_.vpshufb(y, y, x86::ptr(lbl));
+        as_.vpshufb(y, y, t);
     }
 
     StackElemRef Emitter::read_mem_be(x86::Mem m)
@@ -1867,6 +2079,9 @@ namespace monad::vm::compiler::native
         else {
             auto [tmp_elem, reserv] = alloc_avx_reg();
             auto y = avx_reg_to_ymm(*tmp_elem->avx_reg());
+            // Permute qwords in avx register y:
+            // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
+            // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
             if (e->avx_reg()) {
                 auto y0 = avx_reg_to_ymm(*e->avx_reg());
                 as_.vpermq(y, y0, 27);
@@ -1876,18 +2091,15 @@ namespace monad::vm::compiler::native
                 auto m0 = stack_offset_to_mem(*e->stack_offset());
                 as_.vpermq(y, m0, 27);
             }
-            // Permute qwords in avx register y:
-            // {b0, ..., b7, b8, ..., b15, b16, ..., b23, b24, ..., b31} ->
-            // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
-            auto const lbl = append_literal(Literal{uint256_t{
-                0x0001020304050607,
-                0x08090a0b0c0d0e0f,
-                0x0001020304050607,
-                0x08090a0b0c0d0e0f}});
+            auto const t = rodata_.add32(
+                {0x0001020304050607,
+                 0x08090a0b0c0d0e0f,
+                 0x0001020304050607,
+                 0x08090a0b0c0d0e0f});
             // Permute bytes in avx register y:
             // {b24, ..., b31, b16, ..., b23, b8, ..., b15, b0, ..., b7}
             // {b31, ..., b24, b23, ..., b16, b15, ..., b8, b7, ..., b0}
-            as_.vpshufb(y, y, x86::ptr(lbl));
+            as_.vpshufb(y, y, t);
             as_.vmovups(m, y);
         }
     }
@@ -2420,9 +2632,17 @@ namespace monad::vm::compiler::native
         if (loc == LocationType::AvxReg) {
             x86::Ymm const y_left = avx_reg_to_ymm(*left->avx_reg());
             x86::Ymm const y_right = avx_reg_to_ymm(*right->avx_reg());
-            auto lbl =
-                append_literal(Literal{std::numeric_limits<uint256_t>::max()});
-            as_.vpxor(y_left, y_right, x86::ptr(lbl));
+            if (stack_.has_free_avx_reg()) {
+                auto [tmp, tmp_reserv] = alloc_avx_reg();
+                x86::Ymm const y_tmp = avx_reg_to_ymm(*tmp->avx_reg());
+                as_.vpcmpeqd(y_tmp, y_tmp, y_tmp);
+                as_.vpxor(y_left, y_right, y_tmp);
+            }
+            else {
+                auto const m =
+                    rodata_.add32({std::numeric_limits<uint256_t>::max()});
+                as_.vpxor(y_left, y_right, m);
+            }
         }
         else {
             MONAD_VM_DEBUG_ASSERT(loc == LocationType::GeneralReg);
@@ -2655,7 +2875,7 @@ namespace monad::vm::compiler::native
         bool const spill_stack =
             jump_dests_.count(static_cast<byte_offset>(ft.offset)) ||
             (ft.terminator == basic_blocks::Terminator::JumpI &&
-             stack_.missing_spill_count() > 4 + 4 * ft.instrs.size());
+             stack_.missing_spill_count() > 3 + ft.instrs.size());
         if (spill_stack) {
             jumpi_spill_fallthrough_stack();
         }
@@ -3278,25 +3498,24 @@ namespace monad::vm::compiler::native
     {
         MONAD_VM_DEBUG_ASSERT(!ix->literal().has_value());
 
-        auto const bound_lbl = append_literal(Literal{31});
-        auto bound_mem = x86::qword_ptr(bound_lbl);
         bool const nb = cmp_stack_elem_to_int32(ix, 32, std::make_tuple(src));
 
         static constexpr int32_t byte_off = sp_offset_temp_word2 - 1;
 
         x86::Mem stack_mem;
+        auto const bound_mem = rodata_.add4(31);
         if (ix->general_reg()) {
             auto const &gpq = general_reg_to_gpq256(*ix->general_reg());
             auto byte_ix = gpq[0];
             if (is_live(ix, std::tuple_cat(std::make_tuple(src), live))) {
                 byte_ix = x86::rax;
-                as_.mov(byte_ix, gpq[0]);
+                as_.mov(byte_ix.r32(), gpq[0].r32());
             }
             if (nb) {
-                as_.cmovnb(byte_ix, bound_mem);
+                as_.cmovnb(byte_ix.r32(), bound_mem);
             }
             else {
-                as_.cmovnz(byte_ix, bound_mem);
+                as_.cmovnz(byte_ix.r32(), bound_mem);
             }
             as_.neg(byte_ix);
             stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, byte_off);
@@ -3568,7 +3787,6 @@ namespace monad::vm::compiler::native
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        auto const bound_lbl = append_literal(Literal{256});
         bool const nb = cmp_stack_elem_to_int32(shift, 257, {});
 
         // We only need to preserve rcx if it is in a stack element which is
@@ -3601,7 +3819,7 @@ namespace monad::vm::compiler::native
             // Note that `value` is not live here.
             if (is_live(shift, live)) {
                 if (cmp_reg != gpq[0]) {
-                    as_.mov(cmp_reg, gpq[0]);
+                    as_.mov(cmp_reg.r32(), gpq[0].r32());
                 }
             }
             else {
@@ -3610,13 +3828,14 @@ namespace monad::vm::compiler::native
         }
         else {
             auto mem = stack_offset_to_mem(*shift->stack_offset());
-            as_.mov(cmp_reg, mem);
+            as_.mov(cmp_reg.r32(), mem);
         }
+        auto const bound_mem = rodata_.add4(256);
         if (nb) {
-            as_.cmovnb(cmp_reg, x86::qword_ptr(bound_lbl));
+            as_.cmovnb(cmp_reg.r32(), bound_mem);
         }
         else {
-            as_.cmovnz(cmp_reg, x86::qword_ptr(bound_lbl));
+            as_.cmovnz(cmp_reg.r32(), bound_mem);
         }
 
         x86::Gpq offset_reg;
@@ -3799,7 +4018,7 @@ namespace monad::vm::compiler::native
     }
 
     Emitter::Operand Emitter::get_operand(
-        StackElemRef elem, LocationType loc, bool always_append_literal)
+        StackElemRef elem, LocationType loc, bool always_add_literal)
     {
         switch (loc) {
         case LocationType::StackOffset:
@@ -3807,13 +4026,11 @@ namespace monad::vm::compiler::native
         case LocationType::GeneralReg:
             return general_reg_to_gpq256(*elem->general_reg());
         case LocationType::Literal:
-            if (!always_append_literal &&
-                is_literal_bounded(*elem->literal())) {
+            if (!always_add_literal && is_literal_bounded(*elem->literal())) {
                 return literal_to_imm256(*elem->literal());
             }
             else {
-                auto lbl = append_literal(*elem->literal());
-                return x86::qword_ptr(lbl);
+                return rodata_.add_literal(*elem->literal());
             }
         case LocationType::AvxReg:
             return avx_reg_to_ymm(*elem->avx_reg());
@@ -4292,9 +4509,9 @@ namespace monad::vm::compiler::native
             as_.jae(after_increase_label);
         }
 
-        auto increase_memory_lbl = append_external_function(
-            reinterpret_cast<void *>(monad_vm_runtime_increase_memory));
-        as_.call(x86::qword_ptr(increase_memory_lbl));
+        auto increase_memory_fn =
+            rodata_.add_external_function(monad_vm_runtime_increase_memory);
+        as_.call(increase_memory_fn);
 
         as_.bind(after_increase_label);
 
@@ -5144,9 +5361,8 @@ namespace monad::vm::compiler::native
             }
             as_.setnz(x86::al);
 
-            auto const lbl =
-                append_literal(Literal{static_cast<uint64_t>(1) << 63});
-            as_.test(x86::qword_ptr(lbl), gpq[3]);
+            auto const cond_mem = rodata_.add8(static_cast<uint64_t>(1) << 63);
+            as_.test(cond_mem, gpq[3]);
             as_.setnz(x86::ah);
 
             as_.and_(x86::al, x86::ah);
@@ -5339,8 +5555,7 @@ namespace monad::vm::compiler::native
 
         auto const &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        auto const sign_lbl =
-            append_literal(Literal{static_cast<uint64_t>(1) << 63});
+        auto const sign_mem = rodata_.add8(static_cast<uint64_t>(1) << 63);
         auto non_negative_lbl = as_.newLabel();
         auto after_lbl = as_.newLabel();
 
@@ -5351,8 +5566,7 @@ namespace monad::vm::compiler::native
                 }
             }
             else {
-                auto const lbl = append_literal({mask});
-                auto m = x86::qword_ptr(lbl);
+                auto m = rodata_.add_literal({mask});
                 for (size_t i = 0; i < 4; ++i) {
                     as_.and_(dst_gpq[i], m);
                     m.addOffset(8);
@@ -5360,7 +5574,7 @@ namespace monad::vm::compiler::native
             }
         };
 
-        as_.test(x86::qword_ptr(sign_lbl), dst_gpq[3]);
+        as_.test(sign_mem, dst_gpq[3]);
         as_.jz(non_negative_lbl);
         negate_gpq256(dst_gpq);
         emit_mask();

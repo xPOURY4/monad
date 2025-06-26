@@ -523,6 +523,7 @@ namespace monad::vm::compiler::native
         [[nodiscard]]
         std::pair<AvxRegReserv, std::optional<StackOffset>>
             insert_avx_reg(StackElemRef);
+        std::optional<StackOffset> insert_avx_reg_without_reserv(StackElem &);
 
         /**
          * Find a stack element holding an AVX register from the stack,

@@ -116,7 +116,6 @@ namespace
         ASSERT_TRUE(
             elem->literal() && !elem->stack_offset() && !elem->avx_reg() &&
             !elem->general_reg());
-        auto literal = *elem->literal();
         switch (loc) {
         case Emitter::LocationType::AvxReg:
             emit.mov_stack_index_to_avx_reg(stack_index);
@@ -135,14 +134,9 @@ namespace
         case Emitter::LocationType::StackOffset:
             emit.mov_stack_index_to_stack_offset(stack_index);
             stack.spill_literal(elem);
-            if (Emitter::is_literal_bounded(literal)) {
-                ASSERT_FALSE(elem->avx_reg().has_value());
-            }
-            else {
-                ASSERT_TRUE(elem->avx_reg().has_value());
-                spill = stack.spill_avx_reg(elem);
-                ASSERT_EQ(spill, nullptr);
-            }
+            ASSERT_TRUE(elem->avx_reg().has_value());
+            spill = stack.spill_avx_reg(elem);
+            ASSERT_EQ(spill, nullptr);
             ASSERT_TRUE(
                 elem->stack_offset() && !elem->general_reg() &&
                 !elem->literal() && !elem->avx_reg());
@@ -947,6 +941,59 @@ TEST(Emitter, mov_stack_index_to_avx_reg)
     ASSERT_EQ(uint256_t::load_le(ret.size), 1);
 }
 
+TEST(Emitter, mov_literal_to_ymm)
+{
+    std::vector<uint256_t> literals{
+        0, // vpxor
+        std::numeric_limits<uint256_t>::max(), // vpcmpeqd (ymm)
+        std::numeric_limits<uint256_t>::max() >> 128, // vpcmpeqd (xmm)
+        std::numeric_limits<uint32_t>::max() - 2, // vmovd
+        std::numeric_limits<uint64_t>::max() - 2, // vmovq
+        (std::numeric_limits<uint256_t>::max() >> 128) - 2, // vmovups (xmm)
+        std::numeric_limits<uint256_t>::max() - 2, // vmovaps (ymm)
+    };
+
+    for (auto const &lit0 : literals) {
+        for (auto const &lit1 : literals) {
+            auto ir = basic_blocks::BasicBlocksIR({PUSH0, PUSH0, RETURN});
+
+            asmjit::JitRuntime rt;
+            Emitter emit{rt, ir.codesize};
+            (void)emit.begin_new_block(ir.blocks()[0]);
+            Stack &stack = emit.get_stack();
+            emit.push(lit0);
+            emit.push(lit1);
+
+            auto e0 = stack.get(0);
+            emit.mov_stack_index_to_avx_reg(0);
+            stack.spill_literal(e0);
+            ASSERT_TRUE(
+                e0->avx_reg() && !e0->stack_offset() && !e0->literal() &&
+                !e0->general_reg());
+
+            auto e1 = stack.get(1);
+            emit.mov_stack_index_to_avx_reg(1);
+            stack.spill_literal(e1);
+            ASSERT_TRUE(
+                e1->avx_reg() && !e1->stack_offset() && !e1->literal() &&
+                !e1->general_reg());
+
+            emit.return_();
+
+            entrypoint_t entry = emit.finish_contract(rt);
+            auto ctx = test_context();
+            auto const &ret = ctx.result;
+
+            auto stack_memory = test_stack_memory();
+            entry(&ctx, stack_memory.get());
+
+            ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+            ASSERT_EQ(uint256_t::load_le(ret.offset), lit1);
+            ASSERT_EQ(uint256_t::load_le(ret.size), lit0);
+        }
+    }
+}
+
 TEST(Emitter, mov_stack_index_to_general_reg)
 {
     auto ir = basic_blocks::BasicBlocksIR({PUSH1, 1, PUSH1, 2});
@@ -1024,6 +1071,12 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
     stack.spill_literal(e1);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
+        e1->avx_reg());
+
+    auto *spill = stack.spill_avx_reg(e1);
+    ASSERT_EQ(spill, nullptr);
+    ASSERT_TRUE(
+        e1->stack_offset() && !e1->general_reg() && !e1->literal() &&
         !e1->avx_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // stack offset -> stack offset
@@ -1038,7 +1091,7 @@ TEST(Emitter, mov_stack_index_to_stack_offset)
         !e1->general_reg());
 
     emit.mov_stack_index_to_stack_offset(1); // avx reg -> stack offset
-    auto *spill = stack.spill_avx_reg(e1);
+    spill = stack.spill_avx_reg(e1);
     ASSERT_EQ(spill, nullptr);
     ASSERT_TRUE(
         e1->stack_offset() && !e1->avx_reg() && !e1->literal() &&

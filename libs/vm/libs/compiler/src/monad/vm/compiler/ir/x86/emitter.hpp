@@ -35,10 +35,69 @@ namespace monad::vm::compiler::native
             GeneralReg
         };
 
+        template <typename Int = int32_t>
         static bool is_uint64_bounded(uint64_t);
+
+        template <typename Int = int32_t>
         static bool is_literal_bounded(Literal const &);
 
         static char const *location_type_to_string(LocationType);
+
+        template <size_t N>
+        struct RoSubdata
+        {
+            static_assert(std::popcount(N) == 1);
+            static_assert(N <= 32);
+
+            using Data = std::array<uint8_t, N>;
+
+            struct DataHash
+            {
+                size_t operator()(Data const &x) const;
+            };
+
+            std::unordered_map<Data, int32_t, DataHash> offmap;
+        };
+
+        class RoData
+        {
+        public:
+            explicit RoData(asmjit::Label);
+
+            asmjit::Label const &label() const;
+
+            std::vector<runtime::uint256_t> const &data() const;
+
+            asmjit::x86::Mem add_literal(Literal const &);
+
+            template <typename F>
+            asmjit::x86::Mem add_external_function(F);
+
+            asmjit::x86::Mem add32(runtime::uint256_t const &);
+            asmjit::x86::Mem add16(uint64_t, uint64_t);
+            asmjit::x86::Mem add16(uint32_t, uint32_t, uint32_t, uint32_t);
+            asmjit::x86::Mem add8(uint64_t);
+            asmjit::x86::Mem add8(uint32_t, uint32_t);
+            asmjit::x86::Mem add8(uint16_t, uint16_t, uint16_t, uint16_t);
+            asmjit::x86::Mem add4(uint32_t);
+            asmjit::x86::Mem add4(uint16_t, uint16_t);
+            asmjit::x86::Mem add4(uint8_t, uint8_t, uint8_t, uint8_t);
+            asmjit::x86::Mem add2(uint8_t, uint8_t);
+
+        private:
+            template <size_t N>
+            asmjit::x86::Mem add(std::array<uint8_t, N> const &);
+
+            asmjit::Label label_;
+            int32_t partial_index_{};
+            int32_t partial_sub_index_{32};
+            std::vector<runtime::uint256_t> data_;
+            RoSubdata<32> sub32_;
+            RoSubdata<16> sub16_;
+            RoSubdata<8> sub8_;
+            RoSubdata<4> sub4_;
+            RoSubdata<2> sub2_;
+        };
 
         using Gpq256 = std::array<asmjit::x86::Gpq, 4>;
         using Imm256 = std::array<asmjit::Imm, 4>;
@@ -168,6 +227,7 @@ namespace monad::vm::compiler::native
         void spill_all_avx_regs();
         void spill_volatile_avx_regs();
         [[nodiscard]] std::pair<StackElemRef, AvxRegReserv> alloc_avx_reg();
+        void insert_avx_reg_without_reserv(StackElem &);
         [[nodiscard]] AvxRegReserv insert_avx_reg(StackElemRef);
         [[nodiscard]] std::pair<StackElemRef, GeneralRegReserv>
         alloc_general_reg();
@@ -548,9 +608,6 @@ namespace monad::vm::compiler::native
 
         void discharge_deferred_comparison(StackElem *, Comparison);
 
-        asmjit::Label append_literal(Literal);
-        asmjit::Label append_external_function(void *);
-
         Gpq256 &general_reg_to_gpq256(GeneralReg);
 
         template <typename... LiveSet>
@@ -829,7 +886,7 @@ namespace monad::vm::compiler::native
             std::tuple<LiveSet...> const &);
 
         Operand get_operand(
-            StackElemRef, LocationType, bool always_append_literal = false);
+            StackElemRef, LocationType, bool always_add_literal = false);
 
         template <
             GeneralBinInstr<asmjit::x86::Gp, asmjit::x86::Gp> GG,
@@ -919,8 +976,7 @@ namespace monad::vm::compiler::native
         uint8_t rdx_general_reg_index; // must be 1 or 2
         uint64_t bytecode_size_;
         std::unordered_map<byte_offset, asmjit::Label> jump_dests_;
-        std::vector<std::pair<asmjit::Label, Literal>> literals_;
-        std::vector<std::pair<asmjit::Label, void *>> external_functions_;
+        RoData rodata_;
         std::vector<std::tuple<asmjit::Label, Gpq256, asmjit::Label>>
             byte_out_of_bounds_handlers_;
         std::vector<std::pair<asmjit::Label, std::string>> debug_messages_;

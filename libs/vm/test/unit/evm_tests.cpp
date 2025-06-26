@@ -240,13 +240,20 @@ TEST_F(EvmTest, NativeCodeSizeOutOfBound)
 {
     std::vector<uint8_t> bytecode;
     CompilerConfig const config{.max_code_size_offset = 1024};
+    bytecode.push_back(PUSH1);
+    bytecode.push_back(1);
+    bytecode.push_back(PUSH1);
+    bytecode.push_back(2);
+    bytecode.push_back(PUSH1);
+    bytecode.push_back(3);
     for (size_t i = 0; i < config.max_code_size_offset; ++i) {
-        bytecode.push_back(CODESIZE);
+        bytecode.push_back(JUMPI);
     }
     bytecode.push_back(JUMPDEST);
     auto icode = make_shared_intercode(bytecode);
     auto ncode = vm_.compiler().compile(EVMC_CANCUN, icode, config);
     ASSERT_EQ(ncode->error_code(), Nativecode::ErrorCode::SizeOutOfBound);
+    ASSERT_GT(ncode->code_size_estimate_before_error(), 1024 * 32);
 }
 
 TEST_F(EvmTest, MaxDeltaOutOfBound)
@@ -255,7 +262,12 @@ TEST_F(EvmTest, MaxDeltaOutOfBound)
 
     std::vector<uint8_t> base_bytecode;
     for (size_t i = 0; i < 1024; ++i) {
-        base_bytecode.push_back(CODESIZE);
+        base_bytecode.push_back(PUSH9);
+        base_bytecode.push_back(1 + static_cast<uint8_t>(i >> 8));
+        base_bytecode.push_back(static_cast<uint8_t>(i & 255));
+        for (int j = 0; j < 7; ++j) {
+            base_bytecode.push_back(0);
+        }
     }
     std::vector<uint8_t> bytecode1{base_bytecode};
     bytecode1.push_back(JUMPDEST);
@@ -271,10 +283,10 @@ TEST_F(EvmTest, MaxDeltaOutOfBound)
         ncode1->entrypoint());
 
     ASSERT_EQ(result_.status_code, EVMC_SUCCESS);
-    ASSERT_EQ(result_.gas_left, 10'000 - (2 * 1024 + 1));
+    ASSERT_EQ(result_.gas_left, 10'000 - (3 * 1024 + 1));
 
     std::vector<uint8_t> bytecode2{base_bytecode};
-    bytecode2.push_back(CODESIZE);
+    bytecode2.push_back(PUSH0);
     bytecode2.push_back(JUMPDEST);
     auto const icode2 = make_shared_intercode(bytecode2);
     auto const ncode2 = vm_.compiler().compile(EVMC_CANCUN, icode2, config);
@@ -299,8 +311,7 @@ TEST_F(EvmTest, MaxDeltaOutOfBound)
 
 TEST_F(EvmTest, MinDeltaOutOfBound)
 {
-    CompilerConfig const config{
-        .asm_log_path = "/tmp/file.s", .max_code_size_offset = 32 * 1024};
+    CompilerConfig const config{.max_code_size_offset = 32 * 1024};
 
     std::vector<uint8_t> base_bytecode;
     for (size_t i = 0; i < 1024; ++i) {

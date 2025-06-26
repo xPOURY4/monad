@@ -480,11 +480,9 @@ namespace monad::vm::compiler::native
         DeferredComparison dc{deferred_comparison_};
         if (dc.stack_elem) {
             dc.stack_elem->discharge_deferred_comparison();
-            insert_stack_offset(*dc.stack_elem);
         }
         if (dc.negated_stack_elem) {
             dc.negated_stack_elem->discharge_negated_deferred_comparison();
-            insert_stack_offset(*dc.negated_stack_elem);
         }
         return dc;
     }
@@ -735,6 +733,20 @@ namespace monad::vm::compiler::native
             spill_elem ? spill_elem->stack_offset_ : std::nullopt;
         e->insert_avx_reg();
         return {AvxRegReserv{e}, spill_offset};
+    }
+
+    std::optional<StackOffset>
+    Stack::insert_avx_reg_without_reserv(StackElem &e)
+    {
+        if (e.avx_reg_.has_value()) {
+            return std::nullopt;
+        }
+        StackElem *spill_elem =
+            free_avx_regs_.empty() ? spill_avx_reg() : nullptr;
+        std::optional<StackOffset> const spill_offset =
+            spill_elem ? spill_elem->stack_offset_ : std::nullopt;
+        e.insert_avx_reg();
+        return spill_offset;
     }
 
     std::pair<GeneralRegReserv, std::optional<StackOffset>>
