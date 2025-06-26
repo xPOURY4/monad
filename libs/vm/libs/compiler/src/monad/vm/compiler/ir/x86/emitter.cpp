@@ -246,6 +246,7 @@ namespace monad::vm::compiler::native
     template <size_t N>
     size_t Emitter::RoSubdata<N>::DataHash::operator()(Data const &x) const
     {
+        static_assert((N != 1) && (std::popcount(N) == 1));
         if constexpr (N == 2) {
             uint16_t d;
             std::memcpy(&d, x.data(), N);
@@ -257,7 +258,6 @@ namespace monad::vm::compiler::native
             return std::hash<uint32_t>{}(d);
         }
         if constexpr (N > 4) {
-            static_assert((N & 7) == 0);
             size_t h = 0;
             for (size_t i = 0; i < N; i += 8) {
                 uint64_t d;
