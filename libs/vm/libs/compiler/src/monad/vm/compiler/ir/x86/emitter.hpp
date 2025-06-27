@@ -840,8 +840,8 @@ namespace monad::vm::compiler::native
         byte_general_reg_or_stack_offset_ix(StackElemRef ix, StackOffset src);
 
         template <typename... LiveSet>
-        bool cmp_stack_elem_to_int32(
-            StackElemRef, int32_t, std::tuple<LiveSet...> const &);
+        void cmp_stack_elem_to_uint32(
+            StackElemRef, uint32_t, std::tuple<LiveSet...> const &);
 
         void signextend_literal_ix(uint256_t const &ix, StackElemRef src);
         template <typename... LiveSet>

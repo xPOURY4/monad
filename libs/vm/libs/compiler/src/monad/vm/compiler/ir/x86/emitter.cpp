@@ -3052,10 +3052,10 @@ namespace monad::vm::compiler::native
         if (std::holds_alternative<Gpq256>(dest_op)) {
             Gpq256 const &gpq = std::get<Gpq256>(dest_op);
             as_.cmp(gpq[0], bytecode_size_);
-            as_.sbb(gpq[1], 0);
-            as_.sbb(gpq[2], 0);
-            as_.sbb(gpq[3], 0);
             as_.jnb(error_label_);
+            as_.or_(gpq[1], gpq[2]);
+            as_.or_(gpq[1], gpq[3]);
+            as_.jnz(error_label_);
 
             as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.movsxd(x86::rcx, x86::dword_ptr(x86::rax, gpq[0], 2));
@@ -3070,17 +3070,20 @@ namespace monad::vm::compiler::native
                 // function, we need to adjust when accessing EVM stack memory.
                 m.addOffset(-(stack_.delta() * 32));
             }
-            // Register rcx is available, because `block_prologue` has
+            // Registers rcx and rdx are available, because `block_prologue` has
             // already written stack elements to their final stack offsets.
             as_.mov(x86::rcx, m);
             as_.cmp(x86::rcx, bytecode_size_);
-            for (size_t i = 1; i < 4; ++i) {
-                m.addOffset(8);
-                as_.sbb(m, 0);
-            }
             as_.jnb(error_label_);
-            as_.lea(x86::rax, x86::ptr(jump_table_label_));
+            m.addOffset(8);
+            as_.mov(x86::rdx, m);
+            m.addOffset(8);
+            as_.or_(x86::rdx, m);
+            m.addOffset(8);
+            as_.or_(x86::rdx, m);
+            as_.jnz(error_label_);
 
+            as_.lea(x86::rax, x86::ptr(jump_table_label_));
             as_.movsxd(x86::rcx, x86::dword_ptr(x86::rax, x86::rcx, 2));
             as_.add(x86::rax, x86::rcx);
             as_.jmp(x86::rax);
@@ -3413,26 +3416,25 @@ namespace monad::vm::compiler::native
         stack_.push(std::move(dst));
     }
 
+    // Sets zero flag according to whether `e` is below `i`.
     template <typename... LiveSet>
-    bool Emitter::cmp_stack_elem_to_int32(
-        StackElemRef e, int32_t i, std::tuple<LiveSet...> const &live)
+    void Emitter::cmp_stack_elem_to_uint32(
+        StackElemRef e, uint32_t i, std::tuple<LiveSet...> const &live)
     {
         MONAD_VM_DEBUG_ASSERT(!e->literal().has_value());
         if (e->general_reg()) {
             auto const &gpq = general_reg_to_gpq256(*e->general_reg());
             as_.cmp(gpq[0], i);
             if (!is_live(e, live)) {
-                for (size_t i = 1; i < 4; ++i) {
-                    as_.sbb(gpq[i], 0);
-                }
-                return true;
+                as_.cmovnb(gpq[1], gpq[0]);
+                as_.or_(gpq[2], gpq[3]);
+                as_.or_(gpq[2], gpq[1]);
             }
             else {
                 as_.mov(x86::rax, gpq[1]);
                 as_.cmovnb(x86::rax, gpq[0]);
                 as_.or_(x86::rax, gpq[2]);
                 as_.or_(x86::rax, gpq[3]);
-                return false;
             }
         }
         else {
@@ -3441,24 +3443,14 @@ namespace monad::vm::compiler::native
             }
             x86::Mem mem = stack_offset_to_mem(*e->stack_offset());
             as_.cmp(mem, i);
-            if (!is_live(e, live)) {
-                for (size_t i = 1; i < 4; ++i) {
-                    mem.addOffset(8);
-                    as_.sbb(mem, 0);
-                }
-                return true;
-            }
-            else {
-                mem.addOffset(8);
-                as_.mov(x86::rax, mem);
-                mem.addOffset(-8);
-                as_.cmovnb(x86::rax, mem);
-                mem.addOffset(16);
-                as_.or_(x86::rax, mem);
-                mem.addOffset(8);
-                as_.or_(x86::rax, mem);
-                return false;
-            }
+            mem.addOffset(8);
+            as_.mov(x86::rax, mem);
+            mem.addOffset(-8);
+            as_.cmovnb(x86::rax, mem);
+            mem.addOffset(16);
+            as_.or_(x86::rax, mem);
+            mem.addOffset(8);
+            as_.or_(x86::rax, mem);
         }
     }
 
@@ -3498,7 +3490,7 @@ namespace monad::vm::compiler::native
     {
         MONAD_VM_DEBUG_ASSERT(!ix->literal().has_value());
 
-        bool const nb = cmp_stack_elem_to_int32(ix, 32, std::make_tuple(src));
+        cmp_stack_elem_to_uint32(ix, 32, std::make_tuple(src));
 
         static constexpr int32_t byte_off = sp_offset_temp_word2 - 1;
 
@@ -3511,12 +3503,7 @@ namespace monad::vm::compiler::native
                 byte_ix = x86::rax;
                 as_.mov(byte_ix.r32(), gpq[0].r32());
             }
-            if (nb) {
-                as_.cmovnb(byte_ix.r32(), bound_mem);
-            }
-            else {
-                as_.cmovnz(byte_ix.r32(), bound_mem);
-            }
+            as_.cmovnz(byte_ix.r32(), bound_mem);
             as_.neg(byte_ix);
             stack_mem = x86::qword_ptr(x86::rsp, byte_ix, 0, byte_off);
         }
@@ -3524,12 +3511,7 @@ namespace monad::vm::compiler::native
             MONAD_VM_DEBUG_ASSERT(ix->stack_offset().has_value());
             auto mem = stack_offset_to_mem(*ix->stack_offset());
             as_.mov(x86::eax, mem);
-            if (nb) {
-                as_.cmovnb(x86::eax, bound_mem);
-            }
-            else {
-                as_.cmovnz(x86::eax, bound_mem);
-            }
+            as_.cmovnz(x86::eax, bound_mem);
             as_.neg(x86::rax);
             stack_mem = x86::qword_ptr(x86::rsp, x86::rax, 0, byte_off);
         }
@@ -3787,7 +3769,7 @@ namespace monad::vm::compiler::native
         auto [dst, dst_reserv] = alloc_general_reg();
         Gpq256 &dst_gpq = general_reg_to_gpq256(*dst->general_reg());
 
-        bool const nb = cmp_stack_elem_to_int32(shift, 257, {});
+        cmp_stack_elem_to_uint32(shift, 257, {});
 
         // We only need to preserve rcx if it is in a stack element which is
         // currently on the virtual stack.
@@ -3831,12 +3813,7 @@ namespace monad::vm::compiler::native
             as_.mov(cmp_reg.r32(), mem);
         }
         auto const bound_mem = rodata_.add4(256);
-        if (nb) {
-            as_.cmovnb(cmp_reg.r32(), bound_mem);
-        }
-        else {
-            as_.cmovnz(cmp_reg.r32(), bound_mem);
-        }
+        as_.cmovnz(cmp_reg.r32(), bound_mem);
 
         x86::Gpq offset_reg;
         if (cmp_reg != x86::rcx) {
