@@ -26,6 +26,7 @@ target_sources(monad-vm-runtime PRIVATE
     "src/monad/vm/runtime/storage.cpp"
     "src/monad/vm/runtime/storage.hpp"
     "src/monad/vm/runtime/storage_costs.hpp"
+    "src/monad/vm/runtime/transmute.S"
     "src/monad/vm/runtime/transmute.hpp"
     "src/monad/vm/runtime/types.hpp"
     "src/monad/vm/runtime/uint256.cpp"

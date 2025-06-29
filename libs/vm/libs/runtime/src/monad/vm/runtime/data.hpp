@@ -32,20 +32,20 @@ namespace monad::vm::runtime
     inline void
     calldataload(Context *ctx, uint256_t *result_ptr, uint256_t const *i_ptr)
     {
-        if (!is_bounded_by_bits<32>(*i_ptr)) {
+        if (MONAD_VM_UNLIKELY(!is_bounded_by_bits<32>(*i_ptr))) {
             *result_ptr = 0;
             return;
         }
 
-        auto start = static_cast<std::uint32_t>(*i_ptr);
-
-        if (ctx->env.input_data_size <= start) {
+        auto const i{static_cast<std::uint32_t>(*i_ptr)};
+        auto const n = int64_t{ctx->env.input_data_size} - int64_t{i};
+        if (MONAD_VM_UNLIKELY(n <= 0)) {
+            // Prevent undefined behavior from pointer arithmetic out of bounds.
             *result_ptr = 0;
             return;
         }
 
-        *result_ptr = uint256_load_bounded_be(
-            &ctx->env.input_data[start], ctx->env.input_data_size - start);
+        *result_ptr = uint256_load_bounded_be(ctx->env.input_data + i, n);
     }
 
     inline void copy_impl(

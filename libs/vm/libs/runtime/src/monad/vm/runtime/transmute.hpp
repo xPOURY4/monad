@@ -6,6 +6,14 @@
 #include <evmc/evmc.h>
 #include <evmc/evmc.hpp>
 
+#include <immintrin.h>
+
+// Load `load_size` bytes from `src_buffer` and clear the remaining upper bytes
+// of the result. It is required that `load_size <= 32`. If `load_size <= 0`
+// then zero is returned.
+extern "C" __m256i
+monad_vm_runtime_load_bounded_le(uint8_t const *src_buffer, int64_t load_size);
+
 namespace monad::vm::runtime
 {
     static_assert(sizeof(evmc_address) == 20);
@@ -13,56 +21,34 @@ namespace monad::vm::runtime
     static_assert(sizeof(uint256_t) == 32);
 
     [[gnu::always_inline]]
-    inline void uint256_store_be(uint8_t *dest, uint256_t const &x)
+    inline uint256_t
+    uint256_load_bounded_le(std::uint8_t const *bytes, std::int64_t max_len)
     {
-        std::uint64_t ts[4] = {
-            std::byteswap(x[3]),
-            std::byteswap(x[2]),
-            std::byteswap(x[1]),
-            std::byteswap(x[0])};
-        std::memcpy(dest, ts, 32);
-    }
-
-    [[gnu::always_inline]]
-    inline uint256_t uint256_load_be(std::uint8_t const *bytes)
-    {
-        std::uint64_t ts[4];
-        std::memcpy(&ts, bytes, 32);
-        return {
-            std::byteswap(ts[3]),
-            std::byteswap(ts[2]),
-            std::byteswap(ts[1]),
-            std::byteswap(ts[0])};
+        if (MONAD_VM_LIKELY(max_len >= 32)) {
+            return uint256_t::load_le_unsafe(bytes);
+        }
+        return uint256_t{monad_vm_runtime_load_bounded_le(bytes, max_len)};
     }
 
     [[gnu::always_inline]]
     inline uint256_t
-    uint256_load_bounded_be(std::uint8_t const *bytes, std::uint32_t max_len)
+    uint256_load_bounded_be(std::uint8_t const *bytes, std::int64_t max_len)
     {
-        if (max_len >= 32) {
-            return uint256_load_be(bytes);
-        }
-        std::uint64_t ts[4] = {};
-        std::memcpy(&ts, bytes, max_len);
-        return {
-            std::byteswap(ts[3]),
-            std::byteswap(ts[2]),
-            std::byteswap(ts[1]),
-            std::byteswap(ts[0])};
+        return uint256_load_bounded_le(bytes, max_len).to_be();
     }
 
     [[gnu::always_inline]]
     inline evmc::bytes32 bytes32_from_uint256(uint256_t const &x)
     {
         evmc_bytes32 ret;
-        uint256_store_be(ret.bytes, x);
+        x.store_be(ret.bytes);
         return ret;
     }
 
     [[gnu::always_inline]]
     inline evmc::address address_from_uint256(uint256_t const &x)
     {
-        auto const *bytes = intx::as_bytes(x);
+        auto const *bytes = x.as_bytes();
 
         std::uint64_t t2;
         std::memcpy(&t2, bytes, 8);
@@ -86,7 +72,7 @@ namespace monad::vm::runtime
     [[gnu::always_inline]]
     inline uint256_t uint256_from_bytes32(evmc::bytes32 const &x)
     {
-        return uint256_load_be(x.bytes);
+        return uint256_t::load_be(x.bytes);
     }
 
     [[gnu::always_inline]]
@@ -112,12 +98,13 @@ namespace monad::vm::runtime
         return std::bit_cast<uint256_t>(ret);
     }
 
-    template <std::uint8_t N>
+    template <std::uint64_t N>
         requires(N < 64)
     [[gnu::always_inline]]
     constexpr bool is_bounded_by_bits(uint256_t const &x)
     {
-        return ((x[0] >> N) | x[1] | x[2] | x[3]) == 0;
+        static constexpr std::uint64_t mask = ~((std::uint64_t{1} << N) - 1);
+        return ((x[0] & mask) | x[1] | x[2] | x[3]) == 0;
     }
 
     template <typename T>

@@ -307,7 +307,12 @@ extern "C" void monad_vm_runtime_increase_capacity(
     monad::vm::runtime::Context *, uint32_t old_size,
     monad::vm::runtime::Bin<31> new_size);
 
-// Note: monad_vm_runtime_increase_memory uses non-standard
+extern "C" void monad_vm_runtime_increase_memory(
+    monad::vm::runtime::Bin<30> min_size, monad::vm::runtime::Context *);
+
+// Note: monad_vm_runtime_increase_memory_raw uses non-standard
 // calling convention. Context is passed in rbx and new min
-// memory size if passed in rdi. See context.S.
-extern "C" void monad_vm_runtime_increase_memory();
+// memory size if passed in rdi. See context.S. Use the
+// monad_vm_runtime_increase_memory function for a version
+// using standard calling convention
+extern "C" void monad_vm_runtime_increase_memory_raw();

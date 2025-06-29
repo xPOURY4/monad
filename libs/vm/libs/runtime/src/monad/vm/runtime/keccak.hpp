@@ -1,7 +1,6 @@
 #pragma once
 
 #include <monad/vm/core/assert.h>
-#include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/runtime/types.hpp>
 #include <monad/vm/runtime/uint256.hpp>
 
@@ -28,6 +27,6 @@ namespace monad::vm::runtime
         }
 
         auto hash = ethash::keccak256(ctx->memory.data + *offset, *size);
-        *result_ptr = uint256_load_be(hash.bytes);
+        *result_ptr = uint256_t::load_be(hash.bytes);
     }
 }

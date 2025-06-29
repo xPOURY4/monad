@@ -1,6 +1,5 @@
 #pragma once
 
-#include <monad/vm/runtime/transmute.hpp>
 #include <monad/vm/runtime/types.hpp>
 
 namespace monad::vm::runtime
@@ -10,7 +9,7 @@ namespace monad::vm::runtime
     {
         auto offset = ctx->get_memory_offset(*offset_ptr);
         ctx->expand_memory(offset + bin<32>);
-        *result_ptr = uint256_load_be(ctx->memory.data + *offset);
+        *result_ptr = uint256_t::load_be_unsafe(ctx->memory.data + *offset);
     }
 
     inline void mstore(
@@ -18,7 +17,7 @@ namespace monad::vm::runtime
     {
         auto offset = ctx->get_memory_offset(*offset_ptr);
         ctx->expand_memory(offset + bin<32>);
-        uint256_store_be(ctx->memory.data + *offset, *value_ptr);
+        value_ptr->store_be(ctx->memory.data + *offset);
     }
 
     inline void mstore8(
@@ -26,7 +25,7 @@ namespace monad::vm::runtime
     {
         auto offset = ctx->get_memory_offset(*offset_ptr);
         ctx->expand_memory(offset + bin<1>);
-        ctx->memory.data[*offset] = intx::as_bytes(*value_ptr)[0];
+        ctx->memory.data[*offset] = value_ptr->as_bytes()[0];
     }
 
     inline void mcopy(

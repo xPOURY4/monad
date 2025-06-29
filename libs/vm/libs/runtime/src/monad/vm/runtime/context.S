@@ -13,15 +13,15 @@
 #define memory_cost_offset (512 + 24)
 
 .text
-.globl monad_vm_runtime_increase_memory
-.type monad_vm_runtime_increase_memory, @function
+.globl monad_vm_runtime_increase_memory_raw
+.type monad_vm_runtime_increase_memory_raw, @function
 .align 16
-monad_vm_runtime_increase_memory:
+monad_vm_runtime_increase_memory_raw:
 // Arguments:
 //  rbx: Context *ctx
 //  edi: Bin<30> min_size
 // Scratch registers:
-//  rsi, rcx, rdx,
+//  rdi, rsi, rcx, rdx,
 //  ymm5, ymm6, ..., ymm15
 // Callee save registers:
 //  rsp, rbp, rbx, r12, r13, r14, r15,
@@ -110,6 +110,29 @@ monad_vm_runtime_increase_memory:
     vzeroupper
     jmp monad_vm_runtime_context_error_exit
 
+.cfi_endproc
+.size monad_vm_runtime_increase_memory_raw, .-monad_vm_runtime_increase_memory_raw
+
+.globl monad_vm_runtime_increase_memory
+.type monad_vm_runtime_increase_memory, @function
+.align 16
+monad_vm_runtime_increase_memory:
+// Arguments:
+//  edi: Bin<30> min_size
+//  rsi: Context *ctx
+// Scratch registers:
+//  rdi, rsi, rcx, rdx,
+//  ymm5, ymm6, ..., ymm15
+// Callee save registers:
+//  rsp, rbp, rbx, r12, r13, r14, r15,
+//  ymm0, ymm1, ymm2, ymm3, ymm4
+// Note - no need for vzeroupper before calling this function
+.cfi_startproc
+push rbx
+mov rbx, rsi
+call monad_vm_runtime_increase_memory_raw
+pop rbx
+ret
 .cfi_endproc
 .size monad_vm_runtime_increase_memory, .-monad_vm_runtime_increase_memory
 

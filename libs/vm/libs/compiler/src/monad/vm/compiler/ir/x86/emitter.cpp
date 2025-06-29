@@ -4487,7 +4487,7 @@ namespace monad::vm::compiler::native
         }
 
         auto increase_memory_fn =
-            rodata_.add_external_function(monad_vm_runtime_increase_memory);
+            rodata_.add_external_function(monad_vm_runtime_increase_memory_raw);
         as_.call(increase_memory_fn);
 
         as_.bind(after_increase_label);

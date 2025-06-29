@@ -64,19 +64,30 @@ TEST_F(RuntimeTest, TransmuteAddress)
     ASSERT_EQ(u, uint256_from_address(a));
 }
 
-TEST_F(RuntimeTest, TransmuteBounded)
+TEST_F(RuntimeTest, LoadBounded)
 {
-    alignas(8) std::uint8_t buf[33];
-    std::uint8_t *input = &buf[0] + 1; // unaligned
-    for (std::uint8_t i = 0; i < 32; ++i) {
-        input[i] = i + 1;
+    uint8_t src_buffer[32];
+    for (uint8_t i = 0; i < 32; ++i) {
+        src_buffer[i] = i + 1;
     }
-    for (std::uint8_t len = 0; len <= 32; ++len) {
-        uint256_t u{};
-        uint8_t *b = u.as_bytes();
-        for (std::uint8_t i = 0; i < len; ++i) {
-            b[31 - i] = i + 1;
+    for (int64_t n = -5; n <= 37; ++n) {
+        uint256_t expected_le;
+        if (n > 0) {
+            std::memcpy(
+                expected_le.as_bytes(),
+                src_buffer,
+                static_cast<size_t>(std::min(n, int64_t{32})));
         }
-        ASSERT_EQ(uint256_load_bounded_be(input, len), u);
+
+        auto x = monad_vm_runtime_load_bounded_le(
+            src_buffer, std::min(n, int64_t{32}));
+        uint256_t le1{x};
+        ASSERT_EQ(le1, expected_le);
+
+        uint256_t le2 = uint256_load_bounded_le(src_buffer, n);
+        ASSERT_EQ(le2, expected_le);
+
+        uint256_t be = uint256_load_bounded_be(src_buffer, n);
+        ASSERT_EQ(be, expected_le.to_be());
     }
 }
