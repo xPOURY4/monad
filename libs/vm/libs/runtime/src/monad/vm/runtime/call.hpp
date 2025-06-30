@@ -68,7 +68,7 @@ namespace monad::vm::runtime
         auto gas_left_here = ctx->gas_remaining + remaining_block_base_gas;
 
         if (MONAD_VM_UNLIKELY(gas_left_here < 0)) {
-            ctx->exit(StatusCode::Error);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         auto gas = clamp_cast<std::int64_t>(gas_word);
@@ -78,7 +78,7 @@ namespace monad::vm::runtime
         }
         else {
             if (MONAD_VM_UNLIKELY(gas > gas_left_here)) {
-                ctx->exit(StatusCode::Error);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 

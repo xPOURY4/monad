@@ -24,7 +24,7 @@ namespace monad::vm::interpreter
             gas_remaining -= info.min_gas;
 
             if (MONAD_VM_UNLIKELY(gas_remaining < 0)) {
-                ctx.exit(Error);
+                ctx.exit(OutOfGas);
             }
         }
 

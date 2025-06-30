@@ -20,6 +20,7 @@ namespace monad::vm::runtime
         Success = 0,
         Revert,
         Error,
+        OutOfGas,
     };
 
     struct alignas(uint64_t) Result
@@ -178,7 +179,7 @@ namespace monad::vm::runtime
         {
             gas_remaining -= gas;
             if (MONAD_VM_UNLIKELY(gas_remaining < 0)) {
-                exit(StatusCode::Error);
+                exit(StatusCode::OutOfGas);
             }
         }
 
@@ -223,7 +224,7 @@ namespace monad::vm::runtime
         {
             if (MONAD_VM_UNLIKELY(
                     !is_bounded_by_bits<Memory::offset_bits>(offset))) {
-                exit(StatusCode::Error);
+                exit(StatusCode::OutOfGas);
             }
             return Memory::Offset::unsafe_from(static_cast<uint32_t>(offset));
         }

@@ -2599,7 +2599,7 @@ TEST(Emitter, runtime_exit)
     auto stack_memory = test_stack_memory();
     entry(&ctx, stack_memory.get());
 
-    ASSERT_EQ(ret.status, runtime::StatusCode::Error);
+    ASSERT_EQ(ret.status, runtime::StatusCode::OutOfGas);
 }
 
 TEST(Emitter, address)

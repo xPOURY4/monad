@@ -40,7 +40,7 @@ namespace monad::vm::runtime
 
         if constexpr (Rev >= EVMC_SHANGHAI) {
             if (MONAD_VM_UNLIKELY(*size > 0xC000)) {
-                ctx->exit(StatusCode::Error);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 

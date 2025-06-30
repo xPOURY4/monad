@@ -202,6 +202,10 @@ namespace monad::vm::runtime
             return evmc_error_result(EVMC_FAILURE);
         }
 
+        if (result.status == OutOfGas) {
+            return evmc_error_result(EVMC_OUT_OF_GAS);
+        }
+
         MONAD_VM_DEBUG_ASSERT(
             result.status == Success || result.status == Revert);
 

@@ -155,7 +155,7 @@ namespace monad::vm::runtime
         if (MONAD_VM_UNLIKELY(
                 __builtin_add_overflow(offset, *size, &end) ||
                 end > ctx->env.return_data_size)) {
-            ctx->exit(StatusCode::Error);
+            ctx->exit(StatusCode::OutOfGas);
         }
 
         if (*size > 0) {

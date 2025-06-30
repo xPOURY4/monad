@@ -47,7 +47,7 @@ namespace monad::vm::runtime
         if constexpr (Rev >= EVMC_ISTANBUL) {
             if (ctx->gas_remaining + remaining_block_base_gas + min_gas <=
                 2300) {
-                ctx->exit(StatusCode::Error);
+                ctx->exit(StatusCode::OutOfGas);
             }
         }
 
