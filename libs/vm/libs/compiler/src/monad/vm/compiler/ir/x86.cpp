@@ -461,6 +461,8 @@ namespace monad::vm::compiler::native
                 return ::compile_contract<EVMC_SHANGHAI>(rt, contract, config);
             case EVMC_CANCUN:
                 return ::compile_contract<EVMC_CANCUN>(rt, contract, config);
+            case EVMC_PRAGUE:
+                return ::compile_contract<EVMC_PRAGUE>(rt, contract, config);
             default:
                 MONAD_VM_ASSERT(false);
             }
