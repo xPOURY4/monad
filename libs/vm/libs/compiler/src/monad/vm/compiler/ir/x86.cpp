@@ -518,6 +518,8 @@ namespace monad::vm::compiler::native
             return ::compile_basic_blocks<EVMC_SHANGHAI>(rt, ir, config);
         case EVMC_CANCUN:
             return ::compile_basic_blocks<EVMC_CANCUN>(rt, ir, config);
+        case EVMC_PRAGUE:
+            return ::compile_basic_blocks<EVMC_PRAGUE>(rt, ir, config);
         default:
             MONAD_VM_ASSERT(false);
         }
