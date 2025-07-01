@@ -284,6 +284,9 @@ int main(int argc, char **argv)
     else if (rev == "CANCUN") {
         return mce_main<EVMC_CANCUN>(args);
     }
+    else if (rev == "PRAGUE") {
+        return mce_main<EVMC_PRAGUE>(args);
+    }
     else if (rev == "LATEST") {
         return mce_main<EVMC_LATEST_STABLE_REVISION>(args);
     }

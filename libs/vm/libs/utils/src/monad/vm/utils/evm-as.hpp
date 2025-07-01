@@ -79,4 +79,9 @@ namespace monad::vm::utils::evm_as
     {
         return EvmBuilder<EVMC_CANCUN>{};
     }
+
+    inline EvmBuilder<EVMC_PRAGUE> prague()
+    {
+        return EvmBuilder<EVMC_PRAGUE>{};
+    }
 }
