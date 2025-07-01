@@ -125,9 +125,12 @@ namespace monad::vm::llvm
         case EVMC_SHANGHAI:
             return compile_impl<EVMC_SHANGHAI>(code);
 
-        default:
-            MONAD_VM_ASSERT(rev == EVMC_CANCUN);
+        case EVMC_CANCUN:
             return compile_impl<EVMC_CANCUN>(code);
+
+        default:
+            MONAD_VM_ASSERT(rev == EVMC_PRAGUE);
+            return compile_impl<EVMC_PRAGUE>(code);
         }
     }
 }
