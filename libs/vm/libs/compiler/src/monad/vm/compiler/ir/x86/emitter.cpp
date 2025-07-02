@@ -4307,7 +4307,12 @@ namespace monad::vm::compiler::native
             if (is_live(dst, live)) {
                 if (!is_live(src, live) && src_loc == LocationType::AvxReg) {
                     auto n = stack_.release_avx_reg(src);
-                    return {n, std::move(dst), dst_loc, n, src_loc};
+                    if (dst == src) {
+                        return {n, n, dst_loc, n, src_loc};
+                    }
+                    else {
+                        return {n, std::move(dst), dst_loc, n, src_loc};
+                    }
                 }
                 else {
                     auto [n, _] = alloc_avx_reg();
@@ -4315,8 +4320,14 @@ namespace monad::vm::compiler::native
                         n, std::move(dst), dst_loc, std::move(src), src_loc};
                 }
             }
+
             auto n = stack_.release_avx_reg(dst);
-            return {n, n, dst_loc, std::move(src), src_loc};
+            if (dst == src) {
+                return {n, n, dst_loc, n, src_loc};
+            }
+            else {
+                return {n, n, dst_loc, std::move(src), src_loc};
+            }
         }
     }
 

@@ -3410,3 +3410,36 @@ TEST(Emitter, SpillInMovGeneralRegToAvxRegRegression)
     ASSERT_EQ(uint256_t::load_le(ret.offset), 16);
     ASSERT_EQ(uint256_t::load_le(ret.size), 15);
 }
+
+TEST(Emitter, ReleaseSrcAndDestRegression)
+{
+    std::vector<uint8_t> bytecode{ADDRESS, DUP1, AND, STOP};
+
+    auto ir = basic_blocks::BasicBlocksIR(bytecode);
+
+    asmjit::JitRuntime rt;
+    Emitter emit{rt, ir.codesize};
+    (void)emit.begin_new_block(ir.blocks().at(0));
+
+    Stack &stack = emit.get_stack();
+
+    emit.address();
+    emit.mov_stack_index_to_avx_reg(0);
+    (void)stack.spill_general_reg(stack.get(0));
+    ASSERT_FALSE(stack.get(0)->literal().has_value());
+    ASSERT_FALSE(stack.get(0)->stack_offset().has_value());
+    ASSERT_FALSE(stack.get(0)->general_reg().has_value());
+    ASSERT_TRUE(stack.get(0)->avx_reg().has_value());
+
+    emit.dup(1);
+    emit.and_();
+    emit.stop();
+
+    entrypoint_t entry = emit.finish_contract(rt);
+    auto ctx = test_context();
+    auto const &ret = ctx.result;
+    auto stack_memory = test_stack_memory();
+    entry(&ctx, stack_memory.get());
+
+    ASSERT_EQ(ret.status, runtime::StatusCode::Success);
+}
