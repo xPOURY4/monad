@@ -51,7 +51,7 @@ TEST(async_compile_test, stress)
     constexpr size_t L = 120;
     constexpr size_t N = L * 12;
 
-    Compiler compiler{L};
+    Compiler compiler{true, L};
 
     auto first_start_time = std::chrono::steady_clock::now();
     compiler.compile(R, make_shared_intercode(test_code(2 * N)));
@@ -105,5 +105,30 @@ TEST(async_compile_test, stress)
     }
     for (size_t i = 0; i < P; ++i) {
         producers[i].join();
+    }
+}
+
+TEST(async_compile_test, disable)
+{
+    Compiler compiler{false};
+
+    for (auto i = 0u; i < 32; ++i) {
+        auto const code = test_code(i);
+        auto const hash = test_hash(i);
+        auto const icode = make_shared_intercode(std::move(code));
+
+        ASSERT_TRUE(compiler.async_compile(EVMC_PRAGUE, hash, icode));
+    }
+
+    compiler.debug_wait_for_empty_queue();
+
+    for (auto i = 0u; i < 32; ++i) {
+        auto const vcode = compiler.find_varcode(test_hash(i));
+        ASSERT_TRUE(vcode.has_value());
+        auto const ncode = (*vcode)->nativecode();
+        ASSERT_TRUE(!!ncode);
+
+        auto const entry = ncode->entrypoint();
+        ASSERT_TRUE(entry == nullptr);
     }
 }

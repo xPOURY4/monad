@@ -8,13 +8,15 @@
 
 #include <atomic>
 #include <cstddef>
+#include <memory>
 #include <thread>
 
 namespace monad::vm
 {
-    Compiler::Compiler(size_t compile_job_soft_limit)
+    Compiler::Compiler(bool enable_async, size_t compile_job_soft_limit)
         : compile_job_lock_{compile_job_mutex_}
         , compile_job_soft_limit_{compile_job_soft_limit}
+        , enable_async_compilation_{enable_async}
     {
         start_compile_thread();
     }
@@ -110,11 +112,23 @@ namespace monad::vm
             bool const find_ok = compile_job_map_.find(acc, code_hash);
             MONAD_VM_ASSERT(find_ok);
             auto const &[revision, icode, config] = acc->second;
-            // It is possible that a new async compile request with the same
-            // intercode arrives right after we erase from `compile_job_map_`
-            // below. Therefore we use `cached_compile`, because it first checks
-            // whether the intercode is already compiled.
-            (void)cached_compile(revision, code_hash, icode, config);
+
+            if (MONAD_VM_LIKELY(enable_async_compilation_)) {
+                // It is possible that a new async compile request with the same
+                // intercode arrives right after we erase from
+                // `compile_job_map_` below. Therefore we use `cached_compile`,
+                // because it first checks whether the intercode is already
+                // compiled.
+                (void)cached_compile(revision, code_hash, icode, config);
+            }
+            else {
+                varcode_cache_.set(
+                    code_hash,
+                    icode,
+                    std::make_shared<Nativecode>(
+                        asmjit_rt_, revision, nullptr, 0));
+            }
+
             bool const erase_ok = compile_job_map_.erase(acc);
             MONAD_VM_ASSERT(erase_ok);
         }

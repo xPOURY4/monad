@@ -19,8 +19,11 @@ namespace monad::vm
 {
     using namespace monad::vm::utils;
 
-    VM::VM(std::size_t max_stack_cache, std::size_t max_memory_cache)
-        : stack_allocator_{max_stack_cache}
+    VM::VM(
+        bool enable_async, std::size_t max_stack_cache,
+        std::size_t max_memory_cache)
+        : compiler_{enable_async}
+        , stack_allocator_{max_stack_cache}
         , memory_allocator_{max_memory_cache}
     {
     }

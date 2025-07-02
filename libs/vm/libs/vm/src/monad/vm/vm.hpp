@@ -17,6 +17,7 @@ namespace monad::vm
 
     public:
         explicit VM(
+            bool enable_async = true,
             std::size_t max_stack_cache_byte_size =
                 runtime::EvmStackAllocator::DEFAULT_MAX_CACHE_BYTE_SIZE,
             std::size_t max_memory_cache_byte_size =

@@ -30,7 +30,8 @@ namespace monad::vm
         using CompileJobQueue = tbb::concurrent_queue<evmc::bytes32>;
 
     public:
-        explicit Compiler(size_t compile_job_soft_limit = 1000);
+        explicit Compiler(
+            bool enable_async = true, size_t compile_job_soft_limit = 1000);
 
         ~Compiler();
 
@@ -89,5 +90,6 @@ namespace monad::vm
         std::thread compiler_thread_;
         std::atomic_flag stop_flag_;
         size_t compile_job_soft_limit_;
+        bool enable_async_compilation_;
     };
 }
