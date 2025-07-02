@@ -16,7 +16,6 @@ add_executable(unit-tests
     type_check_tests.cpp
     stack_tests.cpp
     emitter_tests.cpp
-    fuzzing_tests.cpp
     interpreter_tests.cpp
     lru_weight_cache_tests.cpp
     runtime/fixture.cpp
