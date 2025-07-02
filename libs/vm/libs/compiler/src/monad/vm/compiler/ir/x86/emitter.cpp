@@ -1498,9 +1498,11 @@ namespace monad::vm::compiler::native
             }
         }
 
-        MONAD_VM_DEBUG_ASSERT(
+#ifdef MONAD_COMPILER_TESTING
+        MONAD_VM_ASSERT(
             MONAD_COMPILER_X86_FINAL_WRITE_COUNT ==
             stack_.missing_spill_count());
+#endif
     }
 
     void Emitter::discharge_deferred_comparison()
