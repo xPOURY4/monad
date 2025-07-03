@@ -351,8 +351,11 @@ static arguments parse_args(int const argc, char **const argv)
     app.add_option(
            "--revision",
            args.revision,
-           "Set EVM revision (default: EVMC_CANCUN)")
-        ->transform(CLI::CheckedTransformer(rev_map, CLI::ignore_case));
+           std::format(
+               "Set EVM revision (default: {})",
+               evmc_revision_to_string(args.revision)))
+        ->transform(CLI::CheckedTransformer(rev_map, CLI::ignore_case))
+        ->option_text("TEXT");
 
     try {
         app.parse(argc, argv);
