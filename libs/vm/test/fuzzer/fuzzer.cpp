@@ -336,7 +336,9 @@ static arguments parse_args(int const argc, char **const argv)
         {"FRONTIER", EVMC_FRONTIER},
         {"HOMESTEAD", EVMC_HOMESTEAD},
         {"TANGERINE_WHISTLE", EVMC_TANGERINE_WHISTLE},
+        {"TANGERINE WHISTLE", EVMC_TANGERINE_WHISTLE},
         {"SPURIOUS_DRAGON", EVMC_SPURIOUS_DRAGON},
+        {"SPURIOUS DRAGON", EVMC_SPURIOUS_DRAGON},
         {"BYZANTIUM", EVMC_BYZANTIUM},
         {"CONSTANTINOPLE", EVMC_CONSTANTINOPLE},
         {"PETERSBURG", EVMC_PETERSBURG},
@@ -453,8 +455,9 @@ static void do_run(std::size_t const run_index, arguments const &args)
     auto const rev = args.revision;
 
     std::cerr << std::format(
-        "Fuzzing at revision: {}\n", evmc_revision_to_string(rev));
-    std::cerr << std::format("Fuzzing with seed: {}\n", args.seed);
+        "Fuzzing with seed @ {}: {}\n",
+        evmc_revision_to_string(rev),
+        args.seed);
 
     auto engine = random_engine_t(args.seed);
 
