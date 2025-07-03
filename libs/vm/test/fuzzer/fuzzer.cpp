@@ -280,6 +280,7 @@ namespace
         bool print_stats = false;
         BlockchainTestVM::Implementation implementation =
             BlockchainTestVM::Implementation::Compiler;
+        evmc_revision revision = EVMC_CANCUN;
 
         void set_random_seed_if_default()
         {
@@ -330,6 +331,28 @@ static arguments parse_args(int const argc, char **const argv)
         "--print-stats",
         args.print_stats,
         "Print message result statistics when logging");
+
+    auto const rev_map = std::map<std::string, evmc_revision>{
+        {"FRONTIER", EVMC_FRONTIER},
+        {"HOMESTEAD", EVMC_HOMESTEAD},
+        {"TANGERINE_WHISTLE", EVMC_TANGERINE_WHISTLE},
+        {"SPURIOUS_DRAGON", EVMC_SPURIOUS_DRAGON},
+        {"BYZANTIUM", EVMC_BYZANTIUM},
+        {"CONSTANTINOPLE", EVMC_CONSTANTINOPLE},
+        {"PETERSBURG", EVMC_PETERSBURG},
+        {"ISTANBUL", EVMC_ISTANBUL},
+        {"BERLIN", EVMC_BERLIN},
+        {"LONDON", EVMC_LONDON},
+        {"PARIS", EVMC_PARIS},
+        {"SHANGHAI", EVMC_SHANGHAI},
+        {"CANCUN", EVMC_CANCUN},
+        {"PRAGUE", EVMC_PRAGUE},
+        {"LATEST", EVMC_LATEST_STABLE_REVISION}};
+    app.add_option(
+           "--revision",
+           args.revision,
+           "Set EVM revision (default: EVMC_CANCUN)")
+        ->transform(CLI::CheckedTransformer(rev_map, CLI::ignore_case));
 
     try {
         app.parse(argc, argv);
@@ -424,8 +447,10 @@ static evmc::VM create_monad_vm(arguments const &args, Engine &engine)
 
 static void do_run(std::size_t const run_index, arguments const &args)
 {
-    constexpr auto rev = EVMC_CANCUN;
+    auto const rev = args.revision;
 
+    std::cerr << std::format(
+        "Fuzzing at revision: {}\n", evmc_revision_to_string(rev));
     std::cerr << std::format("Fuzzing with seed: {}\n", args.seed);
 
     auto engine = random_engine_t(args.seed);
