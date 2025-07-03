@@ -60,7 +60,8 @@ namespace monad::vm::fuzzing
     }
 
     void assert_equal(
-        evmc::Result const &evmone_result, evmc::Result const &compiler_result)
+        evmc::Result const &evmone_result, evmc::Result const &compiler_result,
+        bool const strict_out_of_gas)
     {
         MONAD_VM_ASSERT(std::ranges::equal(
             evmone_result.create_address.bytes,
@@ -80,6 +81,22 @@ namespace monad::vm::fuzzing
             MONAD_VM_ASSERT(
                 evmone_result.status_code == compiler_result.status_code);
             break;
+        case EVMC_OUT_OF_GAS: {
+            if (strict_out_of_gas) {
+                MONAD_VM_ASSERT(compiler_result.status_code == EVMC_OUT_OF_GAS);
+            }
+            else {
+                // For the compiler, we allow a relaxed check for out-of-gas,
+                // where it is permitted to resolve to either a generic failure
+                // *or* an out-of-gas failure. This is because the compiler may
+                // statically produce a generic error for code that would
+                // dynamically run out of gas.
+                MONAD_VM_ASSERT(
+                    compiler_result.status_code == EVMC_OUT_OF_GAS ||
+                    compiler_result.status_code == EVMC_FAILURE);
+            }
+            break;
+        }
         default:
             MONAD_VM_ASSERT(compiler_result.status_code != EVMC_SUCCESS);
             MONAD_VM_ASSERT(compiler_result.status_code != EVMC_REVERT);

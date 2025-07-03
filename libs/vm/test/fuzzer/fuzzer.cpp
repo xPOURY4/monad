@@ -344,7 +344,8 @@ static arguments parse_args(int const argc, char **const argv)
 
 static evmc_status_code fuzz_iteration(
     evmc_message const &msg, evmc_revision const rev, State &evmone_state,
-    evmc::VM &evmone_vm, State &monad_state, evmc::VM &monad_vm)
+    evmc::VM &evmone_vm, State &monad_state, evmc::VM &monad_vm,
+    BlockchainTestVM::Implementation const impl)
 {
     for (State &state : {std::ref(evmone_state), std::ref(monad_state)}) {
         state.get_or_insert(msg.sender);
@@ -359,7 +360,10 @@ static evmc_status_code fuzz_iteration(
     auto const monad_result =
         transition(monad_state, msg, rev, monad_vm, block_gas_limit);
 
-    assert_equal(evmone_result, monad_result);
+    assert_equal(
+        evmone_result,
+        monad_result,
+        impl == BlockchainTestVM::Implementation::Interpreter);
 
     if (evmone_result.status_code != EVMC_SUCCESS) {
         evmone_state.rollback(evmone_checkpoint);
@@ -493,7 +497,13 @@ static void do_run(std::size_t const run_index, arguments const &args)
             ++total_messages;
 
             auto const ec = fuzz_iteration(
-                *msg, rev, evmone_state, evmone_vm, monad_state, monad_vm);
+                *msg,
+                rev,
+                evmone_state,
+                evmone_vm,
+                monad_state,
+                monad_vm,
+                args.implementation);
             ++exit_code_stats[ec];
         }
     }
