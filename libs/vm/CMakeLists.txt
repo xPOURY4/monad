@@ -6,7 +6,7 @@ option(HUNTER_ENABLED OFF)
 
 include(CTest)
 
-option(MONAD_COMPILER_LLVM "Build llvm backend" ON)
+option(MONAD_COMPILER_LLVM "Build llvm backend" OFF)
 
 if(MONAD_COMPILER_LLVM)
     include(cmake/LinkLLVM.cmake)

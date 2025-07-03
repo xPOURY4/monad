@@ -45,7 +45,8 @@ RUN cmake -S . -B build                                         \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/${TOOLCHAIN:?}.cmake  \
   -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:?}                      \
   -DMONAD_COMPILER_BENCHMARKS=On                                \
-  -DMONAD_COMPILER_TESTING=ON                                   \
+  -DMONAD_COMPILER_TESTING=On                                   \
+  -DMONAD_COMPILER_LLVM=On                                      \
   -DCMAKE_C_COMPILER=${CC:?}                                    \
   -DCMAKE_CXX_COMPILER=${CXX:?}
 
@@ -64,6 +65,7 @@ COPY . /src
 WORKDIR /src
 
 RUN cmake -S . -B build           \
+  -DMONAD_COMPILER_LLVM=On        \
   -DCMAKE_C_COMPILER=clang-19     \
   -DCMAKE_CXX_COMPILER=clang++-19
 
