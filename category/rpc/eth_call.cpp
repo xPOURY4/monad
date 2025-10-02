@@ -90,6 +90,7 @@ namespace
         "failure to submit eth_call to thread pool: queue size exceeded";
     char const *const TIMEOUT_ERR_MSG =
         "failure to execute eth_call: queuing time exceeded timeout threshold";
+    char const *const INVALID_RLP_ERR_MSG = "invalid RLP input";
     using StateOverrideObj = monad_state_override::monad_state_override_object;
 
     template <Traits traits>
@@ -168,6 +169,13 @@ namespace
             auto const update_state =
                 [&](std::map<byte_string, byte_string> const &diff) {
                     for (auto const &[key, value] : diff) {
+                        // Ensure key and value are exactly 32 bytes to avoid buffer over-read.
+                        // The C API guarantees this via assertions, but internal logic must also validate
+                        // since state overrides can originate from untrusted sources (e.g., JSON-RPC).
+                        if (key.size() != sizeof(bytes32_t) || value.size() != sizeof(bytes32_t)) {
+                            // Skip invalid entries to avoid undefined behavior
+                            continue;
+                        }
                         bytes32_t storage_key;
                         bytes32_t storage_value;
                         std::memcpy(
@@ -181,18 +189,19 @@ namespace
                     }
                 };
 
-            // Remove single storage
-            if (!state_delta.state_diff.empty()) {
-                // we need to access the account first before accessing its
-                // storage
-                (void)state.get_nonce(address);
-                update_state(state_delta.state_diff);
-            }
-
-            // Remove all override
+            // Apply state overrides according to EIP-1186:
+            // - "state" replaces the entire storage
+            // - "stateDiff" applies incremental updates
+            // - If both are present, "state" takes precedence and "stateDiff" is ignored
             if (!state_delta.state.empty()) {
                 state.set_to_state_incarnation(address);
                 update_state(state_delta.state);
+            }
+            else if (!state_delta.state_diff.empty()) {
+                // Only apply stateDiff if state is not present
+                // Ensure account exists before accessing storage
+                (void)state.get_nonce(address);
+                update_state(state_delta.state_diff);
             }
         }
 
@@ -607,6 +616,7 @@ struct monad_eth_call_executor
                             return std::make_unique<MonadTestnet2>();
                         }
                         MONAD_ASSERT(false);
+                        __builtin_unreachable(); // Unreachable due to assert
                     }();
 
                     auto const block_hash_buffer =
@@ -639,6 +649,7 @@ struct monad_eth_call_executor
                             return trace::StateDiffTracer{state_trace};
                         }
                         MONAD_ASSERT(false);
+                        __builtin_unreachable(); // Unreachable due to assert
                     }();
 
                     auto const res = [&]() -> Result<evmc::Result> {
@@ -660,7 +671,7 @@ struct monad_eth_call_executor
                                 *state_overrides,
                                 *call_tracer,
                                 state_tracer);
-                            MONAD_ASSERT(false);
+                            __builtin_unreachable(); // After SWITCH_EVM_TRAITS, control never reaches here.
                         }
                         else {
                             auto const rev =
@@ -682,7 +693,7 @@ struct monad_eth_call_executor
                                 *state_overrides,
                                 *call_tracer,
                                 state_tracer);
-                            MONAD_ASSERT(false);
+                            __builtin_unreachable(); // After SWITCH_MONAD_TRAITS, control never reaches here.
                         }
                     }();
 
@@ -879,23 +890,43 @@ void monad_eth_call_executor_submit(
     byte_string_view block_id_view({rlp_block_id, rlp_block_id_len});
 
     auto const tx_result = rlp::decode_transaction(rlp_tx_view);
-    MONAD_ASSERT(!tx_result.has_error());
-    MONAD_ASSERT(rlp_tx_view.empty());
+    if (tx_result.has_error() || !rlp_tx_view.empty()) {
+        monad_eth_call_result *err_result = new monad_eth_call_result();
+        err_result->status_code = EVMC_REJECTED;
+        err_result->message = strdup(INVALID_RLP_ERR_MSG);
+        complete(err_result, user);
+        return;
+    }
     auto const tx = tx_result.value();
 
     auto const block_header_result = rlp::decode_block_header(rlp_header_view);
-    MONAD_ASSERT(!block_header_result.has_error());
-    MONAD_ASSERT(rlp_header_view.empty());
+    if (block_header_result.has_error() || !rlp_header_view.empty()) {
+        monad_eth_call_result *err_result = new monad_eth_call_result();
+        err_result->status_code = EVMC_REJECTED;
+        err_result->message = strdup(INVALID_RLP_ERR_MSG);
+        complete(err_result, user);
+        return;
+    }
     auto const block_header = block_header_result.value();
 
     auto const sender_result = rlp::decode_address(rlp_sender_view);
-    MONAD_ASSERT(!sender_result.has_error());
-    MONAD_ASSERT(rlp_sender_view.empty());
+    if (sender_result.has_error() || !rlp_sender_view.empty()) {
+        monad_eth_call_result *err_result = new monad_eth_call_result();
+        err_result->status_code = EVMC_REJECTED;
+        err_result->message = strdup(INVALID_RLP_ERR_MSG);
+        complete(err_result, user);
+        return;
+    }
     auto const sender = sender_result.value();
 
     auto const block_id_result = rlp::decode_bytes32(block_id_view);
-    MONAD_ASSERT(!block_id_result.has_error());
-    MONAD_ASSERT(block_id_view.empty());
+    if (block_id_result.has_error() || !block_id_view.empty()) {
+        monad_eth_call_result *err_result = new monad_eth_call_result();
+        err_result->status_code = EVMC_REJECTED;
+        err_result->message = strdup(INVALID_RLP_ERR_MSG);
+        complete(err_result, user);
+        return;
+    }
     auto const block_id = block_id_result.value();
 
     MONAD_ASSERT(overrides);
