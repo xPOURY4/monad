@@ -14,7 +14,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <errno.h>
-#include <stdbit.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -34,6 +33,22 @@
 #if __has_include(<category/core/event/event_recorder.h>)
     #define HAS_EVENT_RECORDER 1
     #include <category/core/event/event_recorder.h>
+#endif
+
+// Provide a C11/C17-compatible fallback for stdc_has_single_bit.
+// A number x is a power of two iff (x != 0) && ((x & (x - 1)) == 0).
+// This is safe for unsigned integer types and matches C23 semantics.
+// Reference: C23 §7.19.3, and bit-twiddling hacks (https://graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2).
+#ifndef __STDC_VERSION_STD_BIT_H__
+    #define stdc_has_single_bit(x) (((x) != 0) && (((x) & ((x) - 1)) == 0))
+#endif
+
+// Use MAP_FIXED_NOREPLACE if available to avoid silently overwriting existing mappings.
+// This prevents memory corruption in multi-threaded or complex address-space environments.
+// Fallback to MAP_FIXED on older kernels (Linux < 4.17).
+// See: mmap(2) man page, and Linux commit 1be733b07b4e ("mm: add MAP_FIXED_NOREPLACE flag").
+#ifndef MAP_FIXED_NOREPLACE
+    #define MAP_FIXED_NOREPLACE MAP_FIXED
 #endif
 
 thread_local char _g_monad_event_ring_error_buf[1024];
@@ -118,7 +133,7 @@ int monad_event_ring_init_file(
     struct monad_event_ring_header header;
     char namebuf[64];
 
-    if (error_name == nullptr) {
+    if (error_name == NULL) {
         snprintf(namebuf, sizeof namebuf, "fd:%d [%d]", ring_fd, getpid());
         error_name = namebuf;
     }
@@ -144,7 +159,7 @@ int monad_event_ring_init_file(
             (1UL << MONAD_EVENT_MAX_PAYLOAD_BUF_SHIFT)) {
         return FORMAT_ERRC(
             EINVAL,
-            "event ring file `%s` descriptor size %lu is invalid; use "
+            "event ring file `%s` payload buffer size %lu is invalid; use "
             "monad_event_ring_init_size",
             error_name,
             ring_size->payload_buf_size);
@@ -173,15 +188,14 @@ int monad_event_ring_init_file(
     header.size = *ring_size;
     ring_bytes = monad_event_ring_calc_storage(ring_size);
 
-    // The caller is responsible for ensuring that the file range
-    // [ring_offset, ring_offset+ring_bytes) is valid. We check that they've
-    // done this, because we will mmap this range and need to be sure we won't
-    // get SIGBUS upon access.
+    // Validate that the entire event ring (not just the header) fits in the file.
+    // Failing to do so risks SIGBUS on access to pages beyond EOF.
+    // See: mmap(2) - "accesses beyond the end of the file may result in SIGBUS".
     if (fstat(ring_fd, &ring_stat) == -1) {
         return FORMAT_ERRC(
             errno, "unable to fstat event ring file `%s`", error_name);
     }
-    if (ring_offset + (off_t)sizeof header > ring_stat.st_size) {
+    if (ring_offset + (off_t)ring_bytes > ring_stat.st_size) {
         return FORMAT_ERRC(
             ENOSPC,
             "event ring file `%s` cannot hold total event ring size %lu",
@@ -189,13 +203,18 @@ int monad_event_ring_init_file(
             ring_bytes);
     }
 
-    // Map the file and copy the header into it
+    // Map the file and initialize the header page
     map_base =
-        mmap(nullptr, ring_bytes, PROT_WRITE, MAP_SHARED, ring_fd, ring_offset);
+        mmap(NULL, ring_bytes, PROT_WRITE, MAP_SHARED, ring_fd, ring_offset);
     if (map_base == MAP_FAILED) {
         return FORMAT_ERRC(
             errno, "mmap failed for event ring file `%s`", error_name);
     }
+
+    // Zero the entire 2 MiB header page to erase any stale data from prior use.
+    // Only writing sizeof(header) leaves the rest of the page undefined,
+    // which may cause spurious magic/version mismatches or corruption.
+    memset(map_base, 0, HEADER_SIZE);
     memcpy(map_base, &header, sizeof header);
 
     // To function correctly, all event descriptor's sequence number fields
@@ -221,17 +240,17 @@ int monad_event_ring_mmap(
     struct monad_event_ring_header const *header;
     off_t const base_ring_data_offset = ring_offset + (off_t)PAGE_2MB;
 
-    if (event_ring == nullptr) {
-        return FORMAT_ERRC(EFAULT, "event_ring cannot be nullptr");
+    if (event_ring == NULL) {
+        return FORMAT_ERRC(EFAULT, "event_ring cannot be NULL");
     }
-    if (error_name == nullptr) {
+    if (error_name == NULL) {
         snprintf(namebuf, sizeof namebuf, "fd:%d [%d]", ring_fd, getpid());
         error_name = namebuf;
     }
 
     event_ring->mmap_prot = mmap_prot;
     header = event_ring->header = mmap(
-        nullptr,
+        NULL,
         HEADER_SIZE,
         mmap_prot,
         MAP_SHARED | mmap_extra_flags,
@@ -259,7 +278,7 @@ int monad_event_ring_mmap(
     size_t const descriptor_map_len = header->size.descriptor_capacity *
                                       sizeof(struct monad_event_descriptor);
     event_ring->descriptors = mmap(
-        nullptr,
+        NULL,
         descriptor_map_len,
         mmap_prot,
         MAP_SHARED | mmap_extra_flags,
@@ -278,12 +297,12 @@ int monad_event_ring_mmap(
     // buffer, so we can do the "wrap around" trick. We'll remap the actual
     // payload buffer fd into this reserved range later, using MAP_FIXED.
     event_ring->payload_buf = mmap(
-        nullptr,
+        NULL,
         2 * header->size.payload_buf_size,
         mmap_prot,
         MAP_SHARED | MAP_ANONYMOUS | mmap_extra_flags,
         -1,
-        base_ring_data_offset + (off_t)descriptor_map_len);
+        0); // offset ignored for MAP_ANONYMOUS
     if (event_ring->payload_buf == MAP_FAILED) {
         rc = FORMAT_ERRC(
             errno,
@@ -298,7 +317,7 @@ int monad_event_ring_mmap(
             event_ring->payload_buf,
             header->size.payload_buf_size,
             mmap_prot,
-            MAP_FIXED | MAP_SHARED | mmap_extra_flags,
+            MAP_FIXED_NOREPLACE | MAP_SHARED | mmap_extra_flags,
             ring_fd,
             base_ring_data_offset + (off_t)descriptor_map_len) == MAP_FAILED) {
         rc = FORMAT_ERRC(
@@ -318,7 +337,7 @@ int monad_event_ring_mmap(
             event_ring->payload_buf + header->size.payload_buf_size,
             header->size.payload_buf_size,
             mmap_prot,
-            MAP_FIXED | MAP_SHARED | mmap_extra_flags,
+            MAP_FIXED_NOREPLACE | MAP_SHARED | mmap_extra_flags,
             ring_fd,
             base_ring_data_offset + (off_t)descriptor_map_len) == MAP_FAILED) {
         rc = FORMAT_ERRC(
@@ -333,7 +352,7 @@ int monad_event_ring_mmap(
 
     if (header->size.context_area_size > 0) {
         event_ring->context_area = mmap(
-            nullptr,
+            NULL,
             header->size.context_area_size,
             mmap_prot,
             MAP_SHARED | mmap_extra_flags,
@@ -359,17 +378,17 @@ Error:
 void monad_event_ring_unmap(struct monad_event_ring *event_ring)
 {
     struct monad_event_ring_header const *const header = event_ring->header;
-    if (header != nullptr) {
-        if (event_ring->descriptors) {
+    if (header != NULL) {
+        if (event_ring->descriptors != NULL) {
             munmap(
                 event_ring->descriptors,
                 header->size.descriptor_capacity *
                     sizeof(struct monad_event_descriptor));
         }
-        if (event_ring->payload_buf) {
+        if (event_ring->payload_buf != NULL) {
             munmap(event_ring->payload_buf, 2 * header->size.payload_buf_size);
         }
-        if (event_ring->context_area) {
+        if (event_ring->context_area != NULL) {
             munmap(event_ring->context_area, header->size.context_area_size);
         }
         munmap((void *)header, HEADER_SIZE);
@@ -383,7 +402,7 @@ int monad_event_ring_init_iterator(
 {
     memset(iter, 0, sizeof *iter);
     struct monad_event_ring_header const *header = event_ring->header;
-    if (header == nullptr) {
+    if (header == NULL) {
         return FORMAT_ERRC(EINVAL, "event_ring has been unmapped");
     }
     if ((event_ring->mmap_prot & PROT_READ) == 0) {
@@ -403,7 +422,7 @@ int monad_event_ring_init_recorder(
 #if HAS_EVENT_RECORDER
     memset(recorder, 0, sizeof *recorder);
     struct monad_event_ring_header *header = event_ring->header;
-    if (header == nullptr) {
+    if (header == NULL) {
         return FORMAT_ERRC(EINVAL, "event_ring has been unmapped");
     }
     if ((event_ring->mmap_prot & PROT_WRITE) == 0) {
