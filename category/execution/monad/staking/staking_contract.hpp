@@ -400,11 +400,21 @@ private:
     // Events //
     /////////////
 
+    // event ValidatorRewarded(
+    //      uint64 indexed valId,
+    //      address indexed from,
+    //      uint256         amount,
+    //      uint64          epoch);
+    void
+    emit_validator_rewarded_event(u64_be, Address const &, u256_be const &);
+
     // event ValidatorCreated(
     //     uint64  indexed valId,
-    //     address indexed auth_delegator);
-    void
-    emit_validator_created_event(u64_be val_id, Address const &auth_delegator);
+    //     address indexed auth_delegator,
+    //     uint256         commission);
+    void emit_validator_created_event(
+        u64_be val_id, Address const &auth_delegator,
+        u256_be const &commission);
 
     // event ValidatorStatusChanged(
     //     uint64  indexed valId,
@@ -443,8 +453,9 @@ private:
 
     // event ClaimRewards(
     // uint64  indexed valId,
-    // address indexed delegatorAddress
-    // uint256         amount);
+    // address indexed delegatorAddress,
+    // uint256         amount,
+    // uint64          epoch);
     void emit_claim_rewards_event(
         u64_be val_id, Address const &delegator, u256_be const &amount);
 
@@ -454,6 +465,11 @@ private:
     // uint256         newCommission);
     void emit_commission_changed_event(
         u64_be, u256_be const &old_commission, u256_be const &new_commission);
+
+    // event EpochChanged(
+    // uint256 oldEpoch
+    // uint256 newEpoch);
+    void emit_epoch_changed_event(u64_be, u64_be);
 
     /////////////
     // Helpers //
@@ -503,7 +519,8 @@ private:
     // Updates a validator's additive accumulator with the new reward, which
     // goes to every active delegator in the pool.
     Result<void> apply_reward(
-        ValExecution &, uint256_t const &reward, uint256_t const &active_stake);
+        u64_be val_id, Address const &from, uint256_t const &reward,
+        uint256_t const &active_stake);
 
     // helper function for delegate. used by three compiles:
     //  1. add_validator

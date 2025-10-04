@@ -32,6 +32,7 @@
 #include <category/execution/monad/staking/util/bls.hpp>
 #include <category/execution/monad/staking/util/constants.hpp>
 #include <category/execution/monad/staking/util/secp256k1.hpp>
+#include <category/execution/monad/system_sender.hpp>
 
 #include <boost/outcome/success_failure.hpp>
 #include <boost/outcome/try.hpp>
@@ -206,7 +207,7 @@ constexpr uint64_t COMPOUND_OP_COST = compute_costs(OpCount{
     .warm_sstores = 6,
     .warm_sstore_nonzero = 29,
     .cold_sstores = 3,
-    .events = 2,
+    .events = 3,
     .transfers = 0});
 
 constexpr uint64_t CLAIM_REWARDS_OP_COST = compute_costs(OpCount{
@@ -233,7 +234,7 @@ constexpr uint64_t EXTERNAL_REWARDS_OP_COST = compute_costs(OpCount{
     .warm_sstores = 0,
     .warm_sstore_nonzero = 0,
     .cold_sstores = 2,
-    .events = 0,
+    .events = 1,
     .transfers = 0});
 
 constexpr uint64_t GET_EPOCH_OP_COST = compute_costs(OpCount{
@@ -296,10 +297,10 @@ static_assert(ADD_VALIDATOR_OP_COST == 505125);
 static_assert(DELEGATE_OP_COST == 260850);
 static_assert(UNDELEGATE_OP_COST == 147750);
 static_assert(WITHDRAW_OP_COST == 68675);
-static_assert(COMPOUND_OP_COST == 285050);
+static_assert(COMPOUND_OP_COST == 289325);
 static_assert(CLAIM_REWARDS_OP_COST == 155375);
 static_assert(CHANGE_COMMISSION_OP_COST == 39475);
-static_assert(EXTERNAL_REWARDS_OP_COST == 62300);
+static_assert(EXTERNAL_REWARDS_OP_COST == 66575);
 static_assert(GET_EPOCH_OP_COST == 200);
 static_assert(GET_VALIDATOR_OP_COST == 97200);
 static_assert(GET_DELEGATOR_OP_COST == 184900);
@@ -357,19 +358,39 @@ StakingContract::StakingContract(State &state, CallTracerBase &call_tracer)
 /////////////
 // Events //
 /////////////
+void StakingContract::emit_validator_rewarded_event(
+    u64_be const val_id, Address const &from, u256_be const &amount)
+{
+    constexpr bytes32_t signature = abi_encode_event_signature(
+        "ValidatorRewarded(uint64,address,uint256,uint64)");
+    static_assert(
+        signature ==
+        0x3a420a01486b6b28d6ae89c51f5c3bde3e0e74eecbb646a0c481ccba3aae3754_bytes32);
+
+    auto const event = EventBuilder(STAKING_CA, signature)
+                           .add_topic(abi_encode_uint(val_id))
+                           .add_topic(abi_encode_address(from))
+                           .add_data(abi_encode_uint(amount))
+                           .add_data(abi_encode_uint(vars.epoch.load()))
+                           .build();
+    emit_log(event);
+}
+
 void StakingContract::emit_validator_created_event(
-    u64_be const val_id, Address const &auth_delegator)
+    u64_be const val_id, Address const &auth_delegator,
+    u256_be const &commission)
 
 {
     constexpr bytes32_t signature =
-        abi_encode_event_signature("ValidatorCreated(uint64,address)");
+        abi_encode_event_signature("ValidatorCreated(uint64,address,uint256)");
     static_assert(
         signature ==
-        0xab6f199d07fd15c571140b120b4b414ab3baa8b5a543b4d4f78c8319d6634974_bytes32);
+        0x6f8045cd38e512b8f12f6f02947c632e5f25af03aad132890ecf50015d97c1b2_bytes32);
 
     auto const event = EventBuilder(STAKING_CA, signature)
                            .add_topic(abi_encode_uint(val_id))
                            .add_topic(abi_encode_address(auth_delegator))
+                           .add_data(abi_encode_uint(commission))
                            .build();
     emit_log(event);
 }
@@ -454,16 +475,17 @@ void StakingContract::emit_withdraw_event(
 void StakingContract::emit_claim_rewards_event(
     u64_be const val_id, Address const &delegator, u256_be const &amount)
 {
-    constexpr bytes32_t signature =
-        abi_encode_event_signature("ClaimRewards(uint64,address,uint256)");
+    constexpr bytes32_t signature = abi_encode_event_signature(
+        "ClaimRewards(uint64,address,uint256,uint64)");
     static_assert(
         signature ==
-        0x3170ba953fe3e068954fcbc93913a05bf457825d4d4d86ec9b72ce2186cd8109_bytes32);
+        0xcb607e6b63c89c95f6ae24ece9fe0e38a7971aa5ed956254f1df47490921727b_bytes32);
 
     auto const event = EventBuilder(STAKING_CA, signature)
                            .add_topic(abi_encode_uint(val_id))
                            .add_topic(abi_encode_address(delegator))
                            .add_data(abi_encode_uint(amount))
+                           .add_data(abi_encode_uint(vars.epoch.load()))
                            .build();
     emit_log(event);
 }
@@ -482,6 +504,22 @@ void StakingContract::emit_commission_changed_event(
                            .add_topic(abi_encode_uint(val_id))
                            .add_data(abi_encode_uint(old_commission))
                            .add_data(abi_encode_uint(new_commission))
+                           .build();
+    emit_log(event);
+}
+
+void StakingContract::emit_epoch_changed_event(
+    u64_be const old_epoch, u64_be const new_epoch)
+{
+    constexpr bytes32_t signature =
+        abi_encode_event_signature("EpochChanged(uint64,uint64)");
+    static_assert(
+        signature ==
+        0x4fae4dbe0ed659e8ce6637e3c273cd8e4d3bf029b9379a9e8b3f3f27dbef809b_bytes32);
+
+    auto const event = EventBuilder(STAKING_CA, signature)
+                           .add_data(abi_encode_uint(old_epoch))
+                           .add_data(abi_encode_uint(new_epoch))
                            .build();
     emit_log(event);
 }
@@ -679,7 +717,7 @@ StakingContract::pull_delegator_up_to_date(u64_be const val_id, Delegator &del)
 }
 
 Result<void> StakingContract::apply_reward(
-    ValExecution &val_execution, uint256_t const &new_rewards,
+    u64_be const val_id, Address const &from, uint256_t const &new_rewards,
     uint256_t const &active_stake)
 {
     // 1. compute current acc value
@@ -688,6 +726,7 @@ Result<void> StakingContract::apply_reward(
         checked_mul_div(new_rewards, UNIT_BIAS, active_stake));
 
     // 2. add to accumulator
+    auto val_execution = vars.val_execution(val_id);
     BOOST_OUTCOME_TRY(
         auto const acc,
         checked_add(
@@ -703,6 +742,8 @@ Result<void> StakingContract::apply_reward(
 
     // 4. include in unclaimed rewards
     val_execution.unclaimed_rewards().store(unclaimed_rewards);
+
+    emit_validator_rewarded_event(val_id, from, new_rewards);
 
     return outcome::success();
 }
@@ -1144,7 +1185,7 @@ Result<byte_string> StakingContract::precompile_add_validator(
         .auth_address = auth_address, .flags = ValidatorFlagsStakeTooLow});
     val.commission().store(commission);
 
-    emit_validator_created_event(val_id, auth_address);
+    emit_validator_created_event(val_id, auth_address, commission);
 
     BOOST_OUTCOME_TRY(delegate(val_id, stake, auth_address));
     return byte_string{abi_encode_uint(val_id)};
@@ -1361,6 +1402,11 @@ Result<byte_string> StakingContract::precompile_compound(
     rewards_slot.clear();
 
     if (MONAD_UNLIKELY(rewards != 0)) {
+        // A compound call is essentially a helper for a `claimRewards()` call
+        // followed by a `delegate()` call. For offchain programs to track the
+        // flow of rewards leaving delegation using events only, this aids in
+        // double-counting errors.
+        emit_claim_rewards_event(val_id, msg_sender, rewards);
         BOOST_OUTCOME_TRY(delegate(val_id, rewards, msg_sender));
     }
 
@@ -1468,14 +1514,16 @@ Result<byte_string> StakingContract::precompile_change_commission(
 
     // set in execution view. will go live next epoch.
     u256_be const old_commission = validator.commission().load();
-    validator.commission().store(new_commission);
-    emit_commission_changed_event(val_id, old_commission, new_commission);
+    if (MONAD_LIKELY(old_commission != new_commission)) {
+        validator.commission().store(new_commission);
+        emit_commission_changed_event(val_id, old_commission, new_commission);
+    }
 
     return byte_string{abi_encode_bool(true)};
 }
 
 Result<byte_string> StakingContract::precompile_external_reward(
-    byte_string_view input, evmc_address const &,
+    byte_string_view input, evmc_address const &sender,
     evmc_uint256be const &msg_value)
 {
     auto const external_reward = intx::be::load<uint256_t>(msg_value);
@@ -1505,7 +1553,7 @@ Result<byte_string> StakingContract::precompile_external_reward(
 
     // 3. Update validator accumulator.
     BOOST_OUTCOME_TRY(
-        apply_reward(val_execution, external_reward, active_stake));
+        apply_reward(val_id, sender, external_reward, active_stake));
 
     return byte_string{abi_encode_bool(true)};
 }
@@ -1530,6 +1578,8 @@ Result<void> StakingContract::syscall_on_epoch_change(byte_string_view input)
             next_epoch.native());
         return StakingError::InvalidEpochChange;
     }
+
+    emit_epoch_changed_event(last_epoch, next_epoch);
 
     auto const valset = vars.valset_snapshot;
     uint64_t const num_active_vals = valset.length();
@@ -1609,7 +1659,8 @@ Result<void> StakingContract::syscall_reward(
     BOOST_OUTCOME_TRY(
         auto const del_reward, checked_sub(raw_reward, commission));
     // 5. update accumulator and unclaimed rewards for this validator pool
-    BOOST_OUTCOME_TRY(apply_reward(val_execution, del_reward, active_stake));
+    BOOST_OUTCOME_TRY(
+        apply_reward(val_id.value(), SYSTEM_SENDER, del_reward, active_stake));
 
     return outcome::success();
 }
